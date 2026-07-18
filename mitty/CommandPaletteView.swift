@@ -227,7 +227,7 @@ struct CommandPaletteView: View {
                     .foregroundStyle(isSelected ? AnyShapeStyle(Color(nsColor: Theme.cursor)) : AnyShapeStyle(.secondary))
                     .frame(width: 16)
                 Text(command.title)
-                    .font(.system(size: 12.5, weight: isSelected ? .medium : .regular))
+                    .font(.system(size: 12.5))
                     .foregroundStyle(isSelected ? .primary : .secondary)
                     .lineLimit(1)
                 Spacer(minLength: 12)
