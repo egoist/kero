@@ -104,6 +104,13 @@ private struct MainHeaderView: View {
 private struct SessionTabsView: View {
     @ObservedObject var project: Project
     let maxStripWidth: CGFloat
+    @State private var overflow = StripOverflow()
+
+    /// Which edges have off-screen tabs, i.e. where to show a fade hint.
+    private struct StripOverflow: Equatable {
+        var left = false
+        var right = false
+    }
 
     var body: some View {
         HStack(spacing: 4) {
@@ -138,6 +145,30 @@ private struct SessionTabsView: View {
                     }
                 }
             }
+            .onScrollGeometryChange(for: StripOverflow.self) { geo in
+                StripOverflow(
+                    left: geo.contentOffset.x > 0.5,
+                    right: geo.contentOffset.x + geo.containerSize.width < geo.contentSize.width - 0.5
+                )
+            } action: { _, new in
+                overflow = new
+            }
+            .mask {
+                HStack(spacing: 0) {
+                    LinearGradient(
+                        colors: [overflow.left ? .clear : .black, .black],
+                        startPoint: .leading, endPoint: .trailing
+                    )
+                    .frame(width: 20)
+                    Color.black
+                    LinearGradient(
+                        colors: [.black, overflow.right ? .clear : .black],
+                        startPoint: .leading, endPoint: .trailing
+                    )
+                    .frame(width: 20)
+                }
+            }
+            .animation(.easeInOut(duration: 0.15), value: overflow)
             .frame(maxWidth: maxStripWidth, alignment: .leading)
             .fixedSize(horizontal: true, vertical: false)
 
