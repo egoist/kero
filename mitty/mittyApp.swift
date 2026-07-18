@@ -9,6 +9,10 @@ import SwiftUI
 struct mittyApp: App {
     @StateObject private var manager = TerminalManager()
 
+    init() {
+        TerminalFont.registerBundledFonts()
+    }
+
     var body: some Scene {
         Window("mitty", id: "main") {
             ContentView(manager: manager)
@@ -81,6 +85,10 @@ struct mittyApp: App {
                 }
                 .keyboardShortcut("[", modifiers: [.command, .shift])
             }
+        }
+
+        Settings {
+            SettingsView()
         }
     }
 }

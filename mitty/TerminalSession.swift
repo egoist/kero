@@ -57,7 +57,7 @@ final class TerminalSession: NSObject, nonisolated ObservableObject, nonisolated
     func applyTheme() {
         let isDark = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
         let theme = Theme.terminal(dark: isDark)
-        terminalView.font = NSFont.monospacedSystemFont(ofSize: 13, weight: .regular)
+        terminalView.font = TerminalFont.current()
         terminalView.nativeBackgroundColor = theme.background
         terminalView.nativeForegroundColor = theme.foreground
         terminalView.caretColor = theme.cursor

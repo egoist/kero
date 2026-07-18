@@ -27,9 +27,17 @@ final class TerminalManager: nonisolated ObservableObject {
     /// re-publish them so views observing the manager stay current.
     private var projectObservations: [UUID: AnyCancellable] = [:]
     private var projectCounter = 0
+    private var settingsObservation: AnyCancellable?
 
     init() {
         newProject()
+        // Re-theme live sessions when font settings change. objectWillChange
+        // fires before the value lands, so hop through the main queue.
+        settingsObservation = AppSettings.shared.objectWillChange
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.refreshAppearance()
+            }
     }
 
     var selectedProject: Project? {
