@@ -65,25 +65,31 @@ private struct MainHeaderView: View {
     @ObservedObject var manager: TerminalManager
 
     var body: some View {
-        HStack(spacing: 8) {
-            if let project = manager.selectedProject {
-                SessionTabsView(project: project)
+        GeometryReader { geo in
+            HStack(spacing: 8) {
+                if let project = manager.selectedProject {
+                    // Everything in the header that isn't the scrollable tab
+                    // strip: paddings (16), HStack spacings (16), sidebar
+                    // toggle (24), "+" button and its spacing (26).
+                    SessionTabsView(project: project, maxStripWidth: max(0, geo.size.width - 82))
+                }
+                Spacer(minLength: 0)
+                Button {
+                    manager.toggleSidebar()
+                } label: {
+                    Image(systemName: "sidebar.right")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(manager.isPanelVisible ? Color(nsColor: Theme.cursor) : .secondary)
+                        .frame(width: 24, height: 24)
+                        .contentShape(RoundedRectangle(cornerRadius: 6))
+                }
+                .buttonStyle(.plain)
+                .help("Toggle Sidebar (⇧⌘B)")
             }
-            Spacer(minLength: 0)
-            Button {
-                manager.toggleSidebar()
-            } label: {
-                Image(systemName: "sidebar.right")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(manager.isPanelVisible ? Color(nsColor: Theme.cursor) : .secondary)
-                    .frame(width: 24, height: 24)
-                    .contentShape(RoundedRectangle(cornerRadius: 6))
-            }
-            .buttonStyle(.plain)
-            .help("Toggle Sidebar (⇧⌘B)")
+            .padding(.leading, 8)
+            .padding(.trailing, 8)
+            .frame(height: geo.size.height)
         }
-        .padding(.leading, 8)
-        .padding(.trailing, 8)
         .frame(height: 38)
         .overlay(alignment: .bottom) {
             Rectangle()
@@ -97,6 +103,7 @@ private struct MainHeaderView: View {
 /// plus a "+" button.
 private struct SessionTabsView: View {
     @ObservedObject var project: Project
+    let maxStripWidth: CGFloat
 
     var body: some View {
         HStack(spacing: 4) {
@@ -131,7 +138,7 @@ private struct SessionTabsView: View {
                     }
                 }
             }
-            .frame(maxWidth: 600, alignment: .leading)
+            .frame(maxWidth: maxStripWidth, alignment: .leading)
             .fixedSize(horizontal: true, vertical: false)
 
             Button {
