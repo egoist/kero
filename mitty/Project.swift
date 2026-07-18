@@ -82,9 +82,13 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
 
     // MARK: - Sessions
 
+    /// When no directory is given, the new session starts in the current
+    /// session's working directory (home if the project has none yet).
     @discardableResult
     func newSession(directory: String? = nil) -> TerminalSession {
-        let session = TerminalSession(initialDirectory: directory)
+        let session = TerminalSession(
+            initialDirectory: directory ?? selectedSession?.currentDirectoryPath
+        )
         session.onExited = { [weak self] session in
             self?.remove(tabID: session.id)
         }
