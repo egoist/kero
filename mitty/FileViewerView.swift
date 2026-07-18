@@ -162,7 +162,7 @@ struct FileViewerView: View {
             appearance: .init(
                 theme: EditorThemes.theme(dark: colorScheme == .dark),
                 font: TerminalFont.current(),
-                wrapLines: false
+                wrapLines: settings.wrapLines
             ),
             // Explicit (zero) insets switch the scroll view off
             // automaticallyAdjustsContentInsets; the automatic mode discards

@@ -6,7 +6,7 @@
 import AppKit
 import SwiftUI
 
-/// The app settings window (Cmd+,). Currently a single pane: terminal font.
+/// The app settings window (Cmd+,).
 struct SettingsView: View {
     @ObservedObject private var settings = AppSettings.shared
 
@@ -57,14 +57,19 @@ struct SettingsView: View {
                 .padding(.vertical, 4)
             }
 
+            Section("Text Editing") {
+                Toggle("Wrap lines to editor width", isOn: $settings.wrapLines)
+            }
+
             Section {
                 HStack {
                     Spacer()
                     Button("Reset to Defaults") {
-                        settings.resetFont()
+                        settings.resetToDefaults()
                     }
                     .disabled(settings.fontFamily.isEmpty
-                        && settings.fontSize == AppSettings.defaultFontSize)
+                        && settings.fontSize == AppSettings.defaultFontSize
+                        && !settings.wrapLines)
                 }
             }
         }

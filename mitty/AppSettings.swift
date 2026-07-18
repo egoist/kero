@@ -29,12 +29,19 @@ final class AppSettings: nonisolated ObservableObject {
         didSet { save() }
     }
 
+    /// Soft-wrap file editor lines to the viewport width. Off by default so
+    /// long lines scroll horizontally.
+    @Published var wrapLines: Bool {
+        didSet { save() }
+    }
+
     private init() {
         let existing = TOML.parse(at: Self.configURL)
         let toml = existing ?? Self.legacyDefaults()
         fontFamily = toml["font-family"]?.string ?? ""
         let size = toml["font-size"]?.double ?? Self.defaultFontSize
         fontSize = Self.fontSizeRange.contains(size) ? size : Self.defaultFontSize
+        wrapLines = toml["wrap-lines"]?.bool ?? false
         if existing == nil { save() }
     }
 
@@ -43,12 +50,20 @@ final class AppSettings: nonisolated ObservableObject {
         fontSize = Self.defaultFontSize
     }
 
+    func resetToDefaults() {
+        resetFont()
+        wrapLines = false
+    }
+
     private func save() {
         var lines: [String] = []
         if !fontFamily.isEmpty {
             lines.append("font-family = \(TOML.quote(fontFamily))")
         }
         lines.append("font-size = \(TOML.number(fontSize))")
+        if wrapLines {
+            lines.append("wrap-lines = true")
+        }
         let dir = Self.configURL.deletingLastPathComponent()
         do {
             try FileManager.default.createDirectory(
@@ -90,6 +105,11 @@ enum TOML {
 
         var double: Double? {
             if case .number(let n) = self { return n }
+            return nil
+        }
+
+        var bool: Bool? {
+            if case .bool(let b) = self { return b }
             return nil
         }
     }
