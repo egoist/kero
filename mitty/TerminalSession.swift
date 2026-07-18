@@ -47,6 +47,23 @@ final class TerminalSession: NSObject, nonisolated ObservableObject, nonisolated
         terminalView.caretColor = theme.cursor
         terminalView.installColors(theme.ansi)
         terminalView.optionAsMetaKey = true
+
+        // Also push fg/bg into the terminal engine: OSC 10/11 queries are
+        // answered from there, and shells (fish 4+) use them to pick
+        // light-vs-dark syntax colors. The view's native colors alone
+        // would leave queries reporting the default dark palette.
+        let engine = terminalView.getTerminal()
+        engine.foregroundColor = Self.engineColor(theme.foreground)
+        engine.backgroundColor = Self.engineColor(theme.background)
+    }
+
+    private static func engineColor(_ color: NSColor) -> SwiftTerm.Color {
+        let srgb = color.usingColorSpace(.sRGB) ?? color
+        return SwiftTerm.Color(
+            red: UInt16(srgb.redComponent * 65535),
+            green: UInt16(srgb.greenComponent * 65535),
+            blue: UInt16(srgb.blueComponent * 65535)
+        )
     }
 
     private func start() {
