@@ -28,15 +28,41 @@ final class TerminalManager: nonisolated ObservableObject {
     private var projectObservations: [UUID: AnyCancellable] = [:]
     private var projectCounter = 0
     private var settingsObservation: AnyCancellable?
+    private var autosaveObservation: AnyCancellable?
+    private var terminationObservation: AnyCancellable?
+    private var periodicSaveObservation: AnyCancellable?
 
     init() {
-        newProject()
+        if !restoreSnapshot() {
+            newProject()
+        }
         // Re-theme live sessions when font settings change. objectWillChange
         // fires before the value lands, so hop through the main queue.
         settingsObservation = AppSettings.shared.objectWillChange
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
                 self?.refreshAppearance()
+            }
+        // Every project/tab/selection change re-publishes through the
+        // manager, so a debounced sink snapshots after mutations settle.
+        autosaveObservation = objectWillChange
+            .debounce(for: .milliseconds(500), scheduler: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.saveSnapshot()
+            }
+        // The debounce can swallow changes made just before quitting;
+        // capture a final snapshot while the shells are still alive.
+        terminationObservation = NotificationCenter.default
+            .publisher(for: NSApplication.willTerminateNotification)
+            .sink { [weak self] _ in
+                self?.saveSnapshot()
+            }
+        // Shell cwd changes don't always publish (not every shell emits
+        // OSC 7), so also snapshot on a slow timer to survive force quits.
+        periodicSaveObservation = Timer.publish(every: 30, on: .main, in: .common)
+            .autoconnect()
+            .sink { [weak self] _ in
+                self?.saveSnapshot()
             }
     }
 
@@ -51,16 +77,24 @@ final class TerminalManager: nonisolated ObservableObject {
     // MARK: - Projects
 
     func newProject() {
+        let project = makeProject()
+        projects.append(project)
+        selectedProjectID = project.id
+    }
+
+    private func makeProject(createInitialSession: Bool = true) -> Project {
         projectCounter += 1
-        let project = Project(fallbackName: "Project \(projectCounter)")
+        let project = Project(
+            fallbackName: "Project \(projectCounter)",
+            createInitialSession: createInitialSession
+        )
         project.onEmptied = { [weak self] project in
             self?.remove(project)
         }
         projectObservations[project.id] = project.objectWillChange.sink { [weak self] _ in
             self?.objectWillChange.send()
         }
-        projects.append(project)
-        selectedProjectID = project.id
+        return project
     }
 
     func close(_ project: Project) {
@@ -169,5 +203,69 @@ final class TerminalManager: nonisolated ObservableObject {
                 session.applyTheme()
             }
         }
+    }
+
+    // MARK: - Persistence
+
+    private func saveSnapshot() {
+        let snapshot = SessionSnapshot(
+            projects: projects.compactMap { project in
+                guard !project.tabs.isEmpty else { return nil }
+                let tabs = project.tabs.map { tab -> SessionSnapshot.ProjectSnapshot.Tab in
+                    switch tab {
+                    case .session(let session):
+                        return .session(workingDirectory: session.currentDirectoryPath)
+                    case .file(let file):
+                        return .file(path: file.path)
+                    case .diff(let diff):
+                        return .diff(
+                            repoRoot: diff.repoRoot, path: diff.path, staged: diff.staged,
+                            untracked: diff.untracked, origPath: diff.origPath
+                        )
+                    }
+                }
+                return SessionSnapshot.ProjectSnapshot(
+                    customName: project.customName,
+                    tabs: tabs,
+                    selectedTabIndex: project.tabs.firstIndex { $0.id == project.selectedTabID }
+                )
+            },
+            selectedProjectIndex: projects.firstIndex { $0.id == selectedProjectID }
+        )
+        SessionStore.save(snapshot)
+    }
+
+    /// Rebuilds projects and tabs from the last saved snapshot. Returns
+    /// false when there is nothing to restore.
+    private func restoreSnapshot() -> Bool {
+        guard let snapshot = SessionStore.load() else { return false }
+        for saved in snapshot.projects where !saved.tabs.isEmpty {
+            let project = makeProject(createInitialSession: false)
+            project.customName = saved.customName
+            for tab in saved.tabs {
+                switch tab {
+                case .session(let workingDirectory):
+                    project.newSession(directory: workingDirectory)
+                case .file(let path):
+                    project.openFile(path)
+                case .diff(let repoRoot, let path, let staged, let untracked, let origPath):
+                    project.openDiff(
+                        repoRoot: repoRoot, path: path, staged: staged,
+                        untracked: untracked, origPath: origPath
+                    )
+                }
+            }
+            if let index = saved.selectedTabIndex, project.tabs.indices.contains(index) {
+                project.selectedTabID = project.tabs[index].id
+            }
+            projects.append(project)
+        }
+        guard !projects.isEmpty else { return false }
+        if let index = snapshot.selectedProjectIndex, projects.indices.contains(index) {
+            selectedProjectID = projects[index].id
+        } else {
+            selectedProjectID = projects.first?.id
+        }
+        return true
     }
 }

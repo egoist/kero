@@ -24,10 +24,12 @@ final class TerminalSession: NSObject, nonisolated ObservableObject, nonisolated
     var onExited: ((TerminalSession) -> Void)?
 
     private let shellPath: String
+    private let initialDirectory: String?
     let overlayScrollbar = OverlayScrollbarView()
     private var scrollerObservations: [NSKeyValueObservation] = []
 
-    override init() {
+    init(initialDirectory: String? = nil) {
+        self.initialDirectory = initialDirectory
         shellPath = Self.loginShell()
         title = (shellPath as NSString).lastPathComponent
         terminalView = LocalProcessTerminalView(frame: NSRect(x: 0, y: 0, width: 800, height: 600))
@@ -118,12 +120,20 @@ final class TerminalSession: NSObject, nonisolated ObservableObject, nonisolated
             env.append("LANG=en_US.UTF-8")
         }
         let execName = "-" + (shellPath as NSString).lastPathComponent
+        var directory = NSHomeDirectory()
+        // A restored directory may have been deleted since the last run.
+        var isDir: ObjCBool = false
+        if let initialDirectory,
+           FileManager.default.fileExists(atPath: initialDirectory, isDirectory: &isDir),
+           isDir.boolValue {
+            directory = initialDirectory
+        }
         terminalView.startProcess(
             executable: shellPath,
             args: [],
             environment: env,
             execName: execName,
-            currentDirectory: NSHomeDirectory()
+            currentDirectory: directory
         )
     }
 

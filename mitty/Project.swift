@@ -43,9 +43,13 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
     /// them so the project name and views observing the project stay current.
     private var sessionObservations: [UUID: AnyCancellable] = [:]
 
-    init(fallbackName: String) {
+    /// Pass `createInitialSession: false` when restoring a saved project;
+    /// the caller then rebuilds the tabs itself.
+    init(fallbackName: String, createInitialSession: Bool = true) {
         self.fallbackName = fallbackName
-        newSession()
+        if createInitialSession {
+            newSession()
+        }
     }
 
     var name: String {
@@ -79,8 +83,8 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
     // MARK: - Sessions
 
     @discardableResult
-    func newSession() -> TerminalSession {
-        let session = TerminalSession()
+    func newSession(directory: String? = nil) -> TerminalSession {
+        let session = TerminalSession(initialDirectory: directory)
         session.onExited = { [weak self] session in
             self?.remove(tabID: session.id)
         }

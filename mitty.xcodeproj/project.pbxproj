@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		AA10000000000000000000B2 /* SwiftTerm in Frameworks */ = {isa = PBXBuildFile; productRef = AA10000000000000000000B1 /* SwiftTerm */; };
 		AA10000000000000000000C2 /* Highlightr in Frameworks */ = {isa = PBXBuildFile; productRef = AA10000000000000000000C1 /* Highlightr */; };
+		FF519F43300BBE2100D8B982 /* PierreDiffsSwift in Frameworks */ = {isa = PBXBuildFile; productRef = AA10000000000000000000D1 /* PierreDiffsSwift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -27,6 +28,7 @@
 		FF3FDD70300B6A7400112486 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			files = (
+				FF519F43300BBE2100D8B982 /* PierreDiffsSwift in Frameworks */,
 				AA10000000000000000000B2 /* SwiftTerm in Frameworks */,
 				AA10000000000000000000C2 /* Highlightr in Frameworks */,
 			);
