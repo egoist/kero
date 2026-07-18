@@ -24,6 +24,7 @@ final class TerminalSession: NSObject, nonisolated ObservableObject, nonisolated
     var onExited: ((TerminalSession) -> Void)?
 
     private let shellPath: String
+    private var scrollerObservation: NSKeyValueObservation?
 
     override init() {
         shellPath = Self.loginShell()
@@ -33,7 +34,22 @@ final class TerminalSession: NSObject, nonisolated ObservableObject, nonisolated
 
         terminalView.processDelegate = self
         applyTheme()
+        hideScrollerWhileUnscrollable()
         start()
+    }
+
+    /// SwiftTerm's scroller is a bare NSScroller that stays visible even with
+    /// no scrollback; it only toggles `isEnabled`. Mirror that into `isHidden`.
+    private func hideScrollerWhileUnscrollable() {
+        guard let scroller = terminalView.subviews.compactMap({ $0 as? NSScroller }).first else {
+            return
+        }
+        scroller.isHidden = !scroller.isEnabled
+        scrollerObservation = scroller.observe(\.isEnabled, options: [.new]) { scroller, _ in
+            DispatchQueue.main.async {
+                scroller.isHidden = !scroller.isEnabled
+            }
+        }
     }
 
     /// Applies the light/dark terminal theme; called again whenever the
