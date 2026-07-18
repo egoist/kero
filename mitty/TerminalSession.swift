@@ -24,7 +24,7 @@ final class TerminalSession: NSObject, nonisolated ObservableObject, nonisolated
     var onExited: ((TerminalSession) -> Void)?
 
     private let shellPath: String
-    private let overlayScrollbar = OverlayScrollbarView()
+    let overlayScrollbar = OverlayScrollbarView()
     private var scrollerObservations: [NSKeyValueObservation] = []
 
     override init() {
@@ -44,21 +44,14 @@ final class TerminalSession: NSObject, nonisolated ObservableObject, nonisolated
     /// knob outside an NSScrollView). Keep it permanently hidden — SwiftTerm
     /// still pushes scroll state into it, and hiding it also frees its
     /// reserved width — and mirror its values into our own overlay thumb.
+    /// `TerminalHostView` places the thumb; this only wires up the sync.
     private func installOverlayScrollbar() {
         guard let scroller = terminalView.subviews.compactMap({ $0 as? NSScroller }).first else {
             return
         }
         scroller.isHidden = true
 
-        overlayScrollbar.translatesAutoresizingMaskIntoConstraints = false
         overlayScrollbar.alphaValue = 0
-        terminalView.addSubview(overlayScrollbar)
-        NSLayoutConstraint.activate([
-            overlayScrollbar.trailingAnchor.constraint(equalTo: terminalView.trailingAnchor),
-            overlayScrollbar.topAnchor.constraint(equalTo: terminalView.topAnchor),
-            overlayScrollbar.bottomAnchor.constraint(equalTo: terminalView.bottomAnchor),
-            overlayScrollbar.widthAnchor.constraint(equalToConstant: OverlayScrollbarView.stripWidth),
-        ])
         overlayScrollbar.onScroll = { [weak self] position in
             self?.terminalView.scroll(toPosition: position)
         }

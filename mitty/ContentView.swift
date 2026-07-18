@@ -20,10 +20,6 @@ struct ContentView: View {
                     if let session = manager.selectedSession {
                         TerminalHostView(session: session)
                             .id(session.id)
-                            .padding(.leading, 12)
-                            .padding(.trailing, 6)
-                            .padding(.top, 6)
-                            .padding(.bottom, 10)
                     } else {
                         emptyState
                     }
