@@ -3,6 +3,7 @@
 //  mitty
 //
 
+import CodeEditSourceEditor
 import Foundation
 
 /// Snapshot of open projects and tabs, saved so a relaunch restores the
@@ -12,7 +13,7 @@ struct SessionSnapshot: Codable {
     struct ProjectSnapshot: Codable {
         enum Tab: Codable {
             case session(workingDirectory: String)
-            case file(path: String)
+            case file(path: String, editorState: SourceEditorState?)
             case diff(repoRoot: String, path: String, staged: Bool, untracked: Bool, origPath: String?)
         }
 

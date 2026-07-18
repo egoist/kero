@@ -3,6 +3,7 @@
 //  mitty
 //
 
+import CodeEditSourceEditor
 import Combine
 import Foundation
 
@@ -121,7 +122,8 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
     // MARK: - Files
 
     /// Opens `path` as a file tab, reusing an existing tab for the same path.
-    func openFile(_ path: String) {
+    /// `editorState` seeds scroll/cursor state when restoring a saved tab.
+    func openFile(_ path: String, editorState: SourceEditorState? = nil) {
         if let existing = tabs.first(where: {
             if case .file(let file) = $0 { return file.path == path }
             return false
@@ -130,6 +132,9 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
             return
         }
         let file = FileTab(path: path)
+        if let editorState {
+            file.editorState = editorState
+        }
         tabs.append(.file(file))
         selectedTabID = file.id
     }

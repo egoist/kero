@@ -283,7 +283,7 @@ final class TerminalManager: nonisolated ObservableObject {
                     case .session(let session):
                         return .session(workingDirectory: session.currentDirectoryPath)
                     case .file(let file):
-                        return .file(path: file.path)
+                        return .file(path: file.path, editorState: file.editorState)
                     case .diff(let diff):
                         return .diff(
                             repoRoot: diff.repoRoot, path: diff.path, staged: diff.staged,
@@ -312,8 +312,8 @@ final class TerminalManager: nonisolated ObservableObject {
                 switch tab {
                 case .session(let workingDirectory):
                     project.newSession(directory: workingDirectory)
-                case .file(let path):
-                    project.openFile(path)
+                case .file(let path, let editorState):
+                    project.openFile(path, editorState: editorState)
                 case .diff(let repoRoot, let path, let staged, let untracked, let origPath):
                     project.openDiff(
                         repoRoot: repoRoot, path: path, staged: staged,

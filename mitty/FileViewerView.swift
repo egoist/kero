@@ -28,6 +28,11 @@ final class FileTab: nonisolated ObservableObject, nonisolated Identifiable {
     /// Current editor text, written back by the editor on every edit. Not
     /// published: the editor owns display, this is only read back for saves.
     var text: String
+    /// Scroll position, cursors, and find-panel state, written back by the
+    /// editor as they change. Lives here (not in the view) so the state
+    /// survives tab switches, and in the session snapshot so it survives
+    /// relaunches. Not published for the same reason as `text`.
+    var editorState = SourceEditorState()
 
     @Published private(set) var isDirty = false
     @Published var saveError: String?
@@ -104,7 +109,6 @@ struct FileViewerView: View {
 
     @ObservedObject private var settings = AppSettings.shared
     @Environment(\.colorScheme) private var colorScheme
-    @State private var editorState = SourceEditorState()
     @State private var findPanelFix = FindPanelClickFixCoordinator()
 
     var body: some View {
@@ -118,7 +122,7 @@ struct FileViewerView: View {
                     textBinding,
                     language: file.language,
                     configuration: configuration,
-                    state: $editorState,
+                    state: $file.editorState,
                     coordinators: [findPanelFix]
                 )
             }
