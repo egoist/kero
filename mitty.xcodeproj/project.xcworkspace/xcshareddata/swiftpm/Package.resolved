@@ -1,5 +1,5 @@
 {
-  "originHash" : "ba3b6badbe0f66c2d53f25f3bbcbd293c425e62fb3bad32a52b460b6385e75ae",
+  "originHash" : "2d1d2ca2b889165769d2f5c56033d8549351ca10146252a2c87dddd900178c07",
   "pins" : [
     {
       "identity" : "codeeditlanguages",
@@ -26,15 +26,6 @@
       "state" : {
         "revision" : "ae69712b08571c4469c2ed5cd38ad9f19439793e",
         "version" : "0.2.3"
-      }
-    },
-    {
-      "identity" : "codeedittextview",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/CodeEditApp/CodeEditTextView.git",
-      "state" : {
-        "revision" : "d7ac3f11f22ec2e820187acce8f3a3fb7aa8ddec",
-        "version" : "0.12.1"
       }
     },
     {

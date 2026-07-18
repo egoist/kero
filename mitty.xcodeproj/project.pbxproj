@@ -107,6 +107,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				AA10000000000000000000F0 /* XCLocalSwiftPackageReference "Vendor/SwiftLintPlugin" */,
+				AA10000000000000000000F1 /* XCLocalSwiftPackageReference "Vendor/CodeEditTextView" */,
 				AA10000000000000000000B0 /* XCRemoteSwiftPackageReference "SwiftTerm" */,
 				AA10000000000000000000C0 /* XCRemoteSwiftPackageReference "CodeEditSourceEditor" */,
 				AA10000000000000000000E0 /* XCRemoteSwiftPackageReference "CodeEditLanguages" */,
@@ -340,6 +341,10 @@
 		AA10000000000000000000F0 /* XCLocalSwiftPackageReference "Vendor/SwiftLintPlugin" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = Vendor/SwiftLintPlugin;
+		};
+		AA10000000000000000000F1 /* XCLocalSwiftPackageReference "Vendor/CodeEditTextView" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Vendor/CodeEditTextView;
 		};
 /* End XCLocalSwiftPackageReference section */
 

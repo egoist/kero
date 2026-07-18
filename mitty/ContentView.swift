@@ -19,7 +19,7 @@ struct ContentView: View {
                 ZStack {
                     // Diff tabs stay mounted while unselected: removing one
                     // would pull its NSHostingView out of the window, which
-                    // tears down and re-creates the WKWebView inside (losing
+                    // tears down and re-creates the WKWebView inside (losingDiff tabs stay mounted while unselected: removing oneDiff tabs stay mounted while unselected: removing one
                     // the rendered diff and scroll position). Unselected
                     // ones just sit covered by the active tab's opaque view.
                     if let project = manager.selectedProject {
