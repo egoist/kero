@@ -62,6 +62,9 @@ struct CommandPaletteView: View {
             PaletteCommand(id: "toggle-git", title: "Toggle Git Panel", systemImage: "arrow.triangle.branch", shortcut: "⇧⌘G") {
                 manager.togglePanel(.git)
             },
+            PaletteCommand(id: "toggle-info", title: "Toggle Info Panel", systemImage: "info.circle", shortcut: "⇧⌘I") {
+                manager.togglePanel(.info)
+            },
             PaletteCommand(id: "next-tab", title: "Next Tab", systemImage: "arrow.right", shortcut: "⇧⌘]") {
                 manager.selectNextTab()
             },

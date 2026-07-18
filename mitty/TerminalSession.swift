@@ -169,6 +169,19 @@ final class TerminalSession: NSObject, nonisolated ObservableObject, nonisolated
         terminalView.send(txt: text)
     }
 
+    /// Executable name of the shell, e.g. "fish".
+    var shellName: String {
+        (shellPath as NSString).lastPathComponent
+    }
+
+    /// PID of the running shell, or nil before launch / after exit.
+    var shellPid: pid_t? {
+        guard !hasExited, let process = terminalView.process, process.shellPid > 0 else {
+            return nil
+        }
+        return process.shellPid
+    }
+
     private static func processWorkingDirectory(pid: pid_t) -> String? {
         var info = proc_vnodepathinfo()
         let size = Int32(MemoryLayout<proc_vnodepathinfo>.size)

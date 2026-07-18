@@ -11,6 +11,7 @@ import SwiftUI
 enum RightPanel {
     case files
     case git
+    case info
 }
 
 /// Owns the list of projects and the current selection. Each project holds

@@ -75,6 +75,11 @@ struct mittyApp: App {
                     manager.togglePanel(.git)
                 }
                 .keyboardShortcut("g", modifiers: [.command, .shift])
+
+                Button("Toggle Info Panel") {
+                    manager.togglePanel(.info)
+                }
+                .keyboardShortcut("i", modifiers: [.command, .shift])
             }
 
             CommandMenu("Projects") {

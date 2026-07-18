@@ -13,6 +13,7 @@ struct RightSidebarView: View {
     @ObservedObject var manager: TerminalManager
     @StateObject private var fileTree = FileTreeModel()
     @StateObject private var git = GitStatusModel()
+    @StateObject private var info = SessionInfoModel()
 
     private let refreshTimer = Timer.publish(every: 2, on: .main, in: .common).autoconnect()
 
@@ -47,6 +48,8 @@ struct RightSidebarView: View {
                                 )
                             }
                         )
+                    case .info:
+                        InfoPanel(model: info, session: manager.selectedSession)
                     }
                 }
                 .frame(width: 240)
@@ -62,6 +65,7 @@ struct RightSidebarView: View {
 
     private var tabBar: some View {
         HStack(spacing: 4) {
+            tabButton(.info, systemImage: "info.circle", title: "Info", help: "Info (⇧⌘I)")
             tabButton(.files, systemImage: "folder", title: "Files", help: "Files (⇧⌘E)")
             tabButton(.git, systemImage: "arrow.triangle.branch", title: "Git", help: "Git (⇧⌘G)")
         }
@@ -100,6 +104,8 @@ struct RightSidebarView: View {
         switch manager.panelTab {
         case .files: fileTree.sync(root: root)
         case .git: git.sync(root: root)
+        case .info:
+            info.sync(root: root, shellName: session.shellName, shellPid: session.shellPid)
         }
     }
 }
@@ -605,12 +611,14 @@ private struct GitSectionHeader: View {
 
             Spacer(minLength: 0)
 
-            Text("\(count)")
-                .font(.system(size: 9, weight: .medium))
-                .foregroundStyle(.tertiary)
-                .padding(.horizontal, 5)
-                .padding(.vertical, 1)
-                .background(Capsule().fill(Color.primary.opacity(0.07)))
+            if count > 0 {
+                Text("\(count)")
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundStyle(.tertiary)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 1)
+                    .background(Capsule().fill(Color.primary.opacity(0.07)))
+            }
         }
         // Fixed height so the taller hover buttons don't grow the header.
         .frame(height: 16)
@@ -739,6 +747,322 @@ private struct GitEntryRow: View {
         case "R", "C": return Color(red: 0.35, green: 0.65, blue: 1.0)
         case "U": return Color(red: 0.74, green: 0.55, blue: 1.0)
         default: return .secondary
+        }
+    }
+}
+
+// MARK: - Info panel
+
+/// Session dashboard: working directory (with reveal/open/copy actions),
+/// processes running under the shell, and ports they are listening on.
+private struct InfoPanel: View {
+    @ObservedObject var model: SessionInfoModel
+    let session: TerminalSession?
+
+    @State private var directoryCollapsed = false
+    @State private var processesCollapsed = false
+    @State private var portsCollapsed = false
+
+    private static let vsCodeURL = NSWorkspace.shared
+        .urlForApplication(withBundleIdentifier: "com.microsoft.VSCode")
+
+    var body: some View {
+        VStack(spacing: 0) {
+            header
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 1) {
+                    directorySection
+                    processesSection
+                    portsSection
+                }
+                .padding(.horizontal, 6)
+                .padding(.bottom, 8)
+            }
+        }
+    }
+
+    // MARK: Header
+
+    private var header: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "info.circle")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(Color(nsColor: Theme.cursor))
+            PanelHeader(
+                title: model.shellName.isEmpty ? "Session" : model.shellName,
+                subtitle: model.shellPid > 0 ? "pid \(String(model.shellPid))" : nil
+            )
+            Button {
+                model.refresh()
+            } label: {
+                Image(systemName: "arrow.clockwise")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 18, height: 18)
+                    .contentShape(RoundedRectangle(cornerRadius: 4))
+            }
+            .buttonStyle(.plain)
+            .help("Refresh")
+        }
+        .padding(.horizontal, 12)
+        .padding(.top, 8)
+        .padding(.bottom, 8)
+    }
+
+    // MARK: Directory
+
+    @ViewBuilder
+    private var directorySection: some View {
+        GitSectionHeader(
+            title: "DIRECTORY", count: 0, isCollapsed: $directoryCollapsed, actions: []
+        )
+        if !directoryCollapsed {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(model.rootPath)
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                    .truncationMode(.head)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .help(model.rootPath)
+                    .contextMenu {
+                        Button("Copy Path") { copyPath() }
+                    }
+
+                HStack(spacing: 4) {
+                    actionButton("Finder", systemImage: "arrow.up.forward.app") {
+                        NSWorkspace.shared.activateFileViewerSelecting(
+                            [URL(fileURLWithPath: model.rootPath)]
+                        )
+                    }
+                    if let vsCode = Self.vsCodeURL {
+                        actionButton("VS Code", systemImage: "chevron.left.forwardslash.chevron.right") {
+                            NSWorkspace.shared.open(
+                                [URL(fileURLWithPath: model.rootPath)],
+                                withApplicationAt: vsCode,
+                                configuration: NSWorkspace.OpenConfiguration()
+                            )
+                        }
+                    }
+                    actionButton("Copy", systemImage: "doc.on.doc") {
+                        copyPath()
+                    }
+                }
+            }
+            .padding(.horizontal, 6)
+            .padding(.top, 2)
+            .padding(.bottom, 4)
+        }
+    }
+
+    private func copyPath() {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(model.rootPath, forType: .string)
+    }
+
+    private func actionButton(
+        _ title: String, systemImage: String, action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: 4) {
+                Image(systemName: systemImage)
+                    .font(.system(size: 9, weight: .medium))
+                Text(title)
+                    .font(.system(size: 10, weight: .medium))
+            }
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 5)
+            .background(
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(Color.primary.opacity(0.05))
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 6))
+        }
+        .buttonStyle(.plain)
+        .help(title == "Copy" ? "Copy Path" : "Open in \(title)")
+    }
+
+    // MARK: Processes
+
+    @ViewBuilder
+    private var processesSection: some View {
+        GitSectionHeader(
+            title: "PROCESSES",
+            count: model.processes.count,
+            isCollapsed: $processesCollapsed,
+            actions: []
+        )
+        if !processesCollapsed {
+            if model.processes.isEmpty {
+                emptyRow("No running processes")
+            } else {
+                ForEach(model.processes) { process in
+                    InfoProcessRow(process: process) { force in
+                        model.kill(process.pid, force: force)
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: Ports
+
+    @ViewBuilder
+    private var portsSection: some View {
+        GitSectionHeader(
+            title: "PORTS",
+            count: model.ports.count,
+            isCollapsed: $portsCollapsed,
+            actions: []
+        )
+        if !portsCollapsed {
+            if model.ports.isEmpty {
+                emptyRow("No listening ports")
+            } else {
+                ForEach(model.ports) { port in
+                    InfoPortRow(port: port) { force in
+                        model.kill(port.pid, force: force)
+                    }
+                }
+            }
+        }
+    }
+
+    private func emptyRow(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 11))
+            .foregroundStyle(.tertiary)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+    }
+}
+
+private struct InfoProcessRow: View {
+    let process: SessionInfoModel.ProcessItem
+    let kill: (_ force: Bool) -> Void
+
+    @State private var isHovering = false
+
+    var body: some View {
+        HStack(spacing: 7) {
+            Circle()
+                .fill(Color(red: 0.25, green: 0.73, blue: 0.31))
+                .frame(width: 5, height: 5)
+            Text(process.name)
+                .font(.system(size: 11.5))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .layoutPriority(1)
+                .help(process.executable)
+            Text(String(process.pid))
+                .font(.system(size: 10, design: .monospaced))
+                .foregroundStyle(.tertiary)
+            Spacer(minLength: 0)
+            if isHovering {
+                Button {
+                    kill(false)
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 16, height: 16)
+                        .contentShape(RoundedRectangle(cornerRadius: 3))
+                }
+                .buttonStyle(.plain)
+                .help("Terminate Process")
+            } else {
+                Text(String(format: "%.0f%% · %@", process.cpu, process.memoryLabel))
+                    .font(.system(size: 10))
+                    .foregroundStyle(.tertiary)
+                    .lineLimit(1)
+            }
+        }
+        // Fixed height so the taller hover button doesn't grow the row.
+        .frame(height: 16)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 3)
+        .contentShape(RoundedRectangle(cornerRadius: 4))
+        .background(
+            RoundedRectangle(cornerRadius: 4)
+                .fill(isHovering ? Color.primary.opacity(0.05) : .clear)
+        )
+        .onHover { isHovering = $0 }
+        .contextMenu {
+            Button("Terminate") { kill(false) }
+            Button("Force Kill") { kill(true) }
+            Divider()
+            Button("Copy PID") {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString("\(process.pid)", forType: .string)
+            }
+            Button("Copy Executable Path") {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(process.executable, forType: .string)
+            }
+        }
+    }
+}
+
+private struct InfoPortRow: View {
+    let port: SessionInfoModel.PortItem
+    let kill: (_ force: Bool) -> Void
+
+    @State private var isHovering = false
+
+    private var urlString: String { "http://localhost:\(port.port)" }
+
+    var body: some View {
+        Button {
+            if let url = port.url {
+                NSWorkspace.shared.open(url)
+            }
+        } label: {
+            HStack(spacing: 7) {
+                Image(systemName: "network")
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundStyle(Color(red: 0.35, green: 0.65, blue: 1.0))
+                    .frame(width: 12)
+                Text(String(port.port))
+                    .font(.system(size: 11.5, weight: .medium, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .layoutPriority(1)
+                Text(port.processName)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.tertiary)
+                    .lineLimit(1)
+                Spacer(minLength: 0)
+                if isHovering {
+                    Image(systemName: "arrow.up.forward")
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            // Fixed height to match the other sidebar rows.
+            .frame(height: 16)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .contentShape(RoundedRectangle(cornerRadius: 4))
+        }
+        .buttonStyle(.plain)
+        .help("Open \(urlString)")
+        .background(
+            RoundedRectangle(cornerRadius: 4)
+                .fill(isHovering ? Color.primary.opacity(0.05) : .clear)
+        )
+        .onHover { isHovering = $0 }
+        .contextMenu {
+            Button("Open in Browser") {
+                if let url = port.url {
+                    NSWorkspace.shared.open(url)
+                }
+            }
+            Button("Copy URL") {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(urlString, forType: .string)
+            }
+            Divider()
+            Button("Kill Process (\(port.processName))") { kill(false) }
         }
     }
 }
