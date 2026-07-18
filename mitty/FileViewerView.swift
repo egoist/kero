@@ -4,64 +4,78 @@
 //
 
 import AppKit
+import CodeEditLanguages
 import Combine
-import Highlightr
+import CodeEditSourceEditor
 import SwiftUI
 
-/// A file opened as a tab in a project. Text files load into a Highlightr
-/// `CodeAttributedString` so syntax highlighting tracks edits; the storage
-/// lives here (not in the view) so edits survive tab switches.
+/// A file opened as a tab in a project. Text content lives here (not in the
+/// view) so edits survive tab switches.
 @MainActor
 final class FileTab: nonisolated ObservableObject, nonisolated Identifiable {
     nonisolated let id = UUID()
     let path: String
 
     enum Content {
-        case text(CodeAttributedString)
+        case text
         case image(NSImage)
         case unavailable(String)
     }
 
     let content: Content
+    /// tree-sitter language for syntax highlighting; `.default` is plain text.
+    let language: CodeLanguage
+    /// Current editor text, written back by the editor on every edit. Not
+    /// published: the editor owns display, this is only read back for saves.
+    var text: String
+
     @Published private(set) var isDirty = false
     @Published var saveError: String?
 
     private static let maxTextBytes = 5 << 20
-    /// Above this size the JS highlighter gets too slow; edit as plain text.
-    private static let maxHighlightBytes = 512 << 10
+    /// Above this size skip tree-sitter parsing; edit as plain text.
+    private static let maxHighlightBytes = 2 << 20
     private static let imageExtensions: Set<String> = [
         "png", "jpg", "jpeg", "gif", "heic", "webp", "tiff", "bmp", "icns",
     ]
 
     init(path: String) {
         self.path = path
-        content = Self.load(path: path)
-        applyTheme()
+        let url = URL(fileURLWithPath: path)
+        if Self.imageExtensions.contains(url.pathExtension.lowercased()),
+           let image = NSImage(contentsOf: url) {
+            content = .image(image)
+            language = .default
+            text = ""
+            return
+        }
+        guard let data = try? Data(contentsOf: url) else {
+            content = .unavailable("Could not read file")
+            language = .default
+            text = ""
+            return
+        }
+        guard data.count <= Self.maxTextBytes else {
+            content = .unavailable("File is too large to open")
+            language = .default
+            text = ""
+            return
+        }
+        guard let string = String(data: data, encoding: .utf8) else {
+            content = .unavailable("Binary file")
+            language = .default
+            text = ""
+            return
+        }
+        content = .text
+        text = string
+        language = data.count <= Self.maxHighlightBytes
+            ? CodeLanguage.detectLanguageFrom(url: url, prefixBuffer: String(string.prefix(512)))
+            : .default
     }
 
     var name: String {
         (path as NSString).lastPathComponent
-    }
-
-    /// Matches the editor colors to the app appearance and terminal font.
-    /// Reassigning the theme makes `CodeAttributedString` re-highlight.
-    func applyTheme() {
-        guard case .text(let storage) = content else { return }
-        let isDark = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-        // Highlightr's CSS parser only understands simple class-list
-        // selectors; the modern "github"/"github-dark" themes use compound
-        // selectors and lose most token colors. These two parse fully.
-        storage.highlightr.setTheme(to: isDark ? "atom-one-dark" : "github-gist")
-        guard let theme = storage.highlightr.theme else { return }
-        theme.setCodeFont(TerminalFont.current())
-        storage.highlightr.theme = theme
-        if storage.language == nil {
-            // No highlighter pass will attribute plain text; do it directly.
-            storage.setAttributes(
-                [.font: theme.codeFont as Any, .foregroundColor: NSColor.labelColor],
-                range: NSRange(location: 0, length: storage.length)
-            )
-        }
     }
 
     func markDirty() {
@@ -71,118 +85,81 @@ final class FileTab: nonisolated ObservableObject, nonisolated Identifiable {
     }
 
     func save() {
-        guard case .text(let storage) = content, isDirty else { return }
+        guard case .text = content, isDirty else { return }
         do {
-            try storage.string.write(toFile: path, atomically: true, encoding: .utf8)
+            try text.write(toFile: path, atomically: true, encoding: .utf8)
             isDirty = false
             saveError = nil
         } catch {
             saveError = error.localizedDescription
         }
     }
-
-    private static func load(path: String) -> Content {
-        let url = URL(fileURLWithPath: path)
-        if imageExtensions.contains(url.pathExtension.lowercased()),
-           let image = NSImage(contentsOf: url) {
-            return .image(image)
-        }
-        guard let data = try? Data(contentsOf: url) else {
-            return .unavailable("Could not read file")
-        }
-        guard data.count <= maxTextBytes else {
-            return .unavailable("File is too large to open")
-        }
-        guard let text = String(data: data, encoding: .utf8) else {
-            return .unavailable("Binary file")
-        }
-        let storage = CodeAttributedString()
-        if data.count <= maxHighlightBytes {
-            storage.language = language(for: url)
-        }
-        storage.replaceCharacters(in: NSRange(location: 0, length: 0), with: text)
-        return .text(storage)
-    }
-
-    /// highlight.js language name for a file, nil for plain text.
-    private static func language(for url: URL) -> String? {
-        switch url.lastPathComponent.lowercased() {
-        case "makefile": return "makefile"
-        case "dockerfile": return "dockerfile"
-        default: break
-        }
-        switch url.pathExtension.lowercased() {
-        case "swift": return "swift"
-        case "m", "mm": return "objectivec"
-        case "c", "h": return "c"
-        case "cpp", "cc", "cxx", "hpp": return "cpp"
-        case "js", "mjs", "cjs", "jsx": return "javascript"
-        case "ts", "tsx": return "typescript"
-        case "py": return "python"
-        case "rb": return "ruby"
-        case "go": return "go"
-        case "rs": return "rust"
-        case "java": return "java"
-        case "kt", "kts": return "kotlin"
-        case "cs": return "csharp"
-        case "php": return "php"
-        case "pl": return "perl"
-        case "lua": return "lua"
-        case "sql": return "sql"
-        case "json": return "json"
-        case "yml", "yaml": return "yaml"
-        case "toml", "ini", "conf": return "ini"
-        case "md", "markdown": return "markdown"
-        case "sh", "bash", "zsh", "fish": return "bash"
-        case "html", "htm", "xml", "plist", "svg", "xib", "storyboard": return "xml"
-        case "css": return "css"
-        case "scss": return "scss"
-        case "less": return "less"
-        case "diff", "patch": return "diff"
-        case "vim": return "vim"
-        default: return nil
-        }
-    }
 }
 
-/// Content of a file tab: an editable, syntax-highlighted text view, an
-/// image preview, or a placeholder for anything binary or oversized.
+/// Content of a file tab: a CodeEditSourceEditor (tree-sitter highlighting,
+/// line numbers), an image preview, or a placeholder for anything binary or
+/// oversized.
 struct FileViewerView: View {
     @ObservedObject var file: FileTab
 
     @ObservedObject private var settings = AppSettings.shared
     @Environment(\.colorScheme) private var colorScheme
+    @State private var editorState = SourceEditorState()
 
     var body: some View {
-        Group {
-            switch file.content {
-            case .text(let storage):
-                VStack(spacing: 0) {
-                    if let error = file.saveError {
-                        saveErrorBar(error)
-                    }
-                    CodeEditorView(storage: storage, onEdit: { file.markDirty() })
+        switch file.content {
+        case .text:
+            VStack(spacing: 0) {
+                if let error = file.saveError {
+                    saveErrorBar(error)
                 }
-            case .image(let image):
-                ScrollView([.horizontal, .vertical]) {
-                    Image(nsImage: image)
-                        .padding(16)
-                }
-            case .unavailable(let reason):
-                VStack(spacing: 8) {
-                    Image(systemName: "doc")
-                        .font(.system(size: 24, weight: .light))
-                        .foregroundStyle(.quaternary)
-                    Text(reason)
-                        .font(.system(size: 11))
-                        .foregroundStyle(.tertiary)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                SourceEditor(
+                    textBinding,
+                    language: file.language,
+                    configuration: configuration,
+                    state: $editorState
+                )
             }
+        case .image(let image):
+            ScrollView([.horizontal, .vertical]) {
+                Image(nsImage: image)
+                    .padding(16)
+            }
+        case .unavailable(let reason):
+            VStack(spacing: 8) {
+                Image(systemName: "doc")
+                    .font(.system(size: 24, weight: .light))
+                    .foregroundStyle(.quaternary)
+                Text(reason)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.tertiary)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .onChange(of: colorScheme) { file.applyTheme() }
-        .onChange(of: settings.fontFamily) { file.applyTheme() }
-        .onChange(of: settings.fontSize) { file.applyTheme() }
+    }
+
+    private var textBinding: Binding<String> {
+        Binding(
+            get: { file.text },
+            set: { newValue in
+                guard newValue != file.text else { return }
+                file.text = newValue
+                file.markDirty()
+            }
+        )
+    }
+
+    /// Derived per render, so appearance and font changes restyle the
+    /// editor without any explicit invalidation.
+    private var configuration: SourceEditorConfiguration {
+        SourceEditorConfiguration(
+            appearance: .init(
+                theme: EditorThemes.theme(dark: colorScheme == .dark),
+                font: TerminalFont.current(),
+                wrapLines: false
+            ),
+            peripherals: .init(showMinimap: false, showFoldingRibbon: false)
+        )
     }
 
     private func saveErrorBar(_ message: String) -> some View {
@@ -201,85 +178,60 @@ struct FileViewerView: View {
     }
 }
 
-/// Editable, non-wrapping NSTextView backed by the tab's highlighting
-/// text storage.
-private struct CodeEditorView: NSViewRepresentable {
-    let storage: CodeAttributedString
-    let onEdit: () -> Void
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator(storage: storage, onEdit: onEdit)
+/// Editor colors matching the app's GitHub Light / GitHub Dark theme
+/// (`Theme.background` is the same hex, so the editor blends into the
+/// window). Static colors, rebuilt when the color scheme flips.
+private enum EditorThemes {
+    static func theme(dark: Bool) -> EditorTheme {
+        dark
+            ? EditorTheme(
+                text: attr(0xe6edf3),
+                insertionPoint: color(0x58a6ff),
+                invisibles: attr(0x484f58),
+                background: color(0x0d1117),
+                lineHighlight: color(0x161b22),
+                selection: color(0x1f6feb, alpha: 0.35),
+                keywords: attr(0xff7b72),
+                commands: attr(0xd2a8ff),
+                types: attr(0xffa657),
+                attributes: attr(0x79c0ff),
+                variables: attr(0xe6edf3),
+                values: attr(0x79c0ff),
+                numbers: attr(0x79c0ff),
+                strings: attr(0xa5d6ff),
+                characters: attr(0xa5d6ff),
+                comments: attr(0x8b949e)
+            )
+            : EditorTheme(
+                text: attr(0x1f2328),
+                insertionPoint: color(0x0969da),
+                invisibles: attr(0xafb8c1),
+                background: color(0xffffff),
+                lineHighlight: color(0xf6f8fa),
+                selection: color(0x54aeff, alpha: 0.4),
+                keywords: attr(0xcf222e),
+                commands: attr(0x8250df),
+                types: attr(0x953800),
+                attributes: attr(0x0550ae),
+                variables: attr(0x1f2328),
+                values: attr(0x0550ae),
+                numbers: attr(0x0550ae),
+                strings: attr(0x0a3069),
+                characters: attr(0x0a3069),
+                comments: attr(0x6e7781)
+            )
     }
 
-    func makeNSView(context: Context) -> NSScrollView {
-        let layoutManager = NSLayoutManager()
-        storage.addLayoutManager(layoutManager)
-        let container = NSTextContainer(size: NSSize(
-            width: CGFloat.greatestFiniteMagnitude,
-            height: CGFloat.greatestFiniteMagnitude
-        ))
-        container.widthTracksTextView = false
-        layoutManager.addTextContainer(container)
+    private static func attr(_ hex: Int) -> EditorTheme.Attribute {
+        EditorTheme.Attribute(color: color(hex))
+    }
 
-        let textView = NSTextView(frame: .zero, textContainer: container)
-        textView.isEditable = true
-        textView.isRichText = false
-        textView.allowsUndo = true
-        textView.usesFindBar = true
-        textView.isAutomaticQuoteSubstitutionEnabled = false
-        textView.isAutomaticDashSubstitutionEnabled = false
-        textView.isAutomaticTextReplacementEnabled = false
-        textView.isAutomaticSpellingCorrectionEnabled = false
-        textView.smartInsertDeleteEnabled = false
-        textView.drawsBackground = false
-        textView.insertionPointColor = Theme.cursor
-        textView.textContainerInset = NSSize(width: 8, height: 10)
-        textView.isVerticallyResizable = true
-        textView.isHorizontallyResizable = true
-        textView.autoresizingMask = []
-        textView.minSize = .zero
-        textView.maxSize = NSSize(
-            width: CGFloat.greatestFiniteMagnitude,
-            height: CGFloat.greatestFiniteMagnitude
+    private static func color(_ hex: Int, alpha: CGFloat = 1) -> NSColor {
+        NSColor(
+            srgbRed: CGFloat((hex >> 16) & 0xff) / 255.0,
+            green: CGFloat((hex >> 8) & 0xff) / 255.0,
+            blue: CGFloat(hex & 0xff) / 255.0,
+            alpha: alpha
         )
-        textView.font = TerminalFont.current()
-        textView.typingAttributes = [
-            .font: TerminalFont.current(),
-            .foregroundColor: NSColor.labelColor,
-        ]
-        textView.delegate = context.coordinator
-
-        let scroll = NSScrollView()
-        scroll.documentView = textView
-        scroll.hasVerticalScroller = true
-        scroll.hasHorizontalScroller = true
-        scroll.drawsBackground = false
-        return scroll
-    }
-
-    func updateNSView(_ scroll: NSScrollView, context: Context) {}
-
-    /// The storage outlives this view (it belongs to the tab), so detach
-    /// the layout manager or the storage would keep dead views alive and
-    /// highlight into them.
-    static func dismantleNSView(_ scroll: NSScrollView, coordinator: Coordinator) {
-        if let textView = scroll.documentView as? NSTextView,
-           let layoutManager = textView.layoutManager {
-            coordinator.storage.removeLayoutManager(layoutManager)
-        }
-    }
-
-    final class Coordinator: NSObject, NSTextViewDelegate {
-        let storage: CodeAttributedString
-        let onEdit: () -> Void
-
-        init(storage: CodeAttributedString, onEdit: @escaping () -> Void) {
-            self.storage = storage
-            self.onEdit = onEdit
-        }
-
-        func textDidChange(_ notification: Notification) {
-            onEdit()
-        }
     }
 }
