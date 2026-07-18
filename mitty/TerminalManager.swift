@@ -129,6 +129,16 @@ final class TerminalManager: nonisolated ObservableObject {
         selectedProject?.openFile(path)
     }
 
+    /// Opens a git diff tab in the current project.
+    func openDiff(
+        repoRoot: String, path: String, staged: Bool, untracked: Bool, origPath: String?
+    ) {
+        selectedProject?.openDiff(
+            repoRoot: repoRoot, path: path, staged: staged,
+            untracked: untracked, origPath: origPath
+        )
+    }
+
     /// Saves the selected tab if it is a file tab.
     func saveSelectedFile() {
         if case .file(let file)? = selectedProject?.selectedTab {

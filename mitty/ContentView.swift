@@ -24,6 +24,9 @@ struct ContentView: View {
                     case .file(let file):
                         FileViewerView(file: file)
                             .id(file.id)
+                    case .diff(let diff):
+                        DiffViewerView(diff: diff)
+                            .id(diff.id)
                     case nil:
                         emptyState
                     }
@@ -115,6 +118,15 @@ private struct SessionTabsView: View {
                                 select: { project.selectedTabID = tab.id },
                                 close: { project.close(file) }
                             )
+                        case .diff(let diff):
+                            TabItemChrome(
+                                systemImage: "plus.forwardslash.minus",
+                                title: diff.title,
+                                isSelected: tab.id == project.selectedTabID,
+                                select: { project.selectedTabID = tab.id },
+                                close: { project.close(diff) }
+                            )
+                            .help(diff.path)
                         }
                     }
                 }

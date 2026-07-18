@@ -14,7 +14,8 @@ struct TerminalHostView: NSViewRepresentable {
     let session: TerminalSession
 
     func makeNSView(context: Context) -> NSView {
-        let container = NSView()
+        let container = TerminalContainerView()
+        container.terminal = session.terminalView
         let terminal = session.terminalView
         let scrollbar = session.overlayScrollbar
         terminal.translatesAutoresizingMaskIntoConstraints = false
@@ -34,9 +35,21 @@ struct TerminalHostView: NSViewRepresentable {
         return container
     }
 
-    func updateNSView(_ view: NSView, context: Context) {
+    func updateNSView(_ view: NSView, context: Context) {}
+}
+
+/// Focuses the terminal once, when the container lands in a window (view
+/// creation and tab switches — `.id(session.id)` remakes it per session).
+/// Refocusing on every SwiftUI update would fight the user for focus and
+/// make sidebar text fields (e.g. the commit message) untypable.
+private final class TerminalContainerView: NSView {
+    weak var terminal: NSView?
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        guard let window, let terminal else { return }
         DispatchQueue.main.async {
-            session.terminalView.window?.makeFirstResponder(session.terminalView)
+            window.makeFirstResponder(terminal)
         }
     }
 }

@@ -70,6 +70,7 @@
 			packageProductDependencies = (
 				AA10000000000000000000B1 /* SwiftTerm */,
 				AA10000000000000000000C1 /* Highlightr */,
+				AA10000000000000000000D1 /* PierreDiffsSwift */,
 			);
 			productName = mitty;
 			productReference = FF3FDD73300B6A7400112486 /* mitty.app */;
@@ -102,6 +103,7 @@
 			packageReferences = (
 				AA10000000000000000000B0 /* XCRemoteSwiftPackageReference "SwiftTerm" */,
 				AA10000000000000000000C0 /* XCRemoteSwiftPackageReference "Highlightr" */,
+				AA10000000000000000000D0 /* XCRemoteSwiftPackageReference "PierreDiffsSwift" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = FF3FDD74300B6A7400112486 /* Products */;
@@ -344,6 +346,14 @@
 				minimumVersion = 2.3.0;
 			};
 		};
+		AA10000000000000000000D0 /* XCRemoteSwiftPackageReference "PierreDiffsSwift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/egoist-labs/PierreDiffsSwift";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.3.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -356,6 +366,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = AA10000000000000000000C0 /* XCRemoteSwiftPackageReference "Highlightr" */;
 			productName = Highlightr;
+		};
+		AA10000000000000000000D1 /* PierreDiffsSwift */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AA10000000000000000000D0 /* XCRemoteSwiftPackageReference "PierreDiffsSwift" */;
+			productName = PierreDiffsSwift;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

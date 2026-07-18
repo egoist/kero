@@ -6,15 +6,18 @@
 import Combine
 import Foundation
 
-/// One tab in a project's header strip: a terminal session or an open file.
+/// One tab in a project's header strip: a terminal session, an open file,
+/// or a git diff.
 enum ProjectTab: nonisolated Identifiable {
     case session(TerminalSession)
     case file(FileTab)
+    case diff(DiffTab)
 
     nonisolated var id: UUID {
         switch self {
         case .session(let session): return session.id
         case .file(let file): return file.id
+        case .diff(let diff): return diff.id
         }
     }
 }
@@ -120,12 +123,42 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
         remove(tabID: file.id)
     }
 
+    // MARK: - Diffs
+
+    /// Opens a git diff tab, reusing (and reloading) an existing tab for
+    /// the same file and stage side.
+    func openDiff(
+        repoRoot: String, path: String, staged: Bool, untracked: Bool, origPath: String?
+    ) {
+        if let existing = tabs.compactMap({ tab -> DiffTab? in
+            if case .diff(let diff) = tab { return diff }
+            return nil
+        }).first(where: { $0.repoRoot == repoRoot && $0.path == path && $0.staged == staged }) {
+            existing.untracked = untracked
+            existing.origPath = origPath
+            existing.reload()
+            selectedTabID = existing.id
+            return
+        }
+        let diff = DiffTab(
+            repoRoot: repoRoot, path: path, staged: staged,
+            untracked: untracked, origPath: origPath
+        )
+        tabs.append(.diff(diff))
+        selectedTabID = diff.id
+    }
+
+    func close(_ diff: DiffTab) {
+        remove(tabID: diff.id)
+    }
+
     // MARK: - Tab selection
 
     func closeSelected() {
         switch selectedTab {
         case .session(let session): close(session)
         case .file(let file): close(file)
+        case .diff(let diff): close(diff)
         case nil: break
         }
     }
