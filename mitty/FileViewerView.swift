@@ -105,6 +105,7 @@ struct FileViewerView: View {
     @ObservedObject private var settings = AppSettings.shared
     @Environment(\.colorScheme) private var colorScheme
     @State private var editorState = SourceEditorState()
+    @State private var findPanelFix = FindPanelClickFixCoordinator()
 
     var body: some View {
         switch file.content {
@@ -117,7 +118,8 @@ struct FileViewerView: View {
                     textBinding,
                     language: file.language,
                     configuration: configuration,
-                    state: $editorState
+                    state: $editorState,
+                    coordinators: [findPanelFix]
                 )
             }
         case .image(let image):
@@ -158,6 +160,12 @@ struct FileViewerView: View {
                 font: TerminalFont.current(),
                 wrapLines: false
             ),
+            // Explicit (zero) insets switch the scroll view off
+            // automaticallyAdjustsContentInsets; the automatic mode discards
+            // the top inset the editor adds while the find panel is shown,
+            // leaving the panel floating over the text instead of pushing
+            // it down.
+            layout: .init(contentInsets: NSEdgeInsets()),
             peripherals: .init(showMinimap: false, showFoldingRibbon: false)
         )
     }
@@ -175,6 +183,43 @@ struct FileViewerView: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 5)
         .background(Color.primary.opacity(0.04))
+    }
+}
+
+/// Works around two CodeEditSourceEditor find/replace panel bugs:
+///
+/// 1. The panel is added *behind* the scroll view in the subview order and
+///    only raised visually with `layer.zPosition`, which affects drawing but
+///    not AppKit hit testing or cursor-update routing — so the panel's
+///    controls are unclickable and hovering them keeps the text view's
+///    I-beam cursor. Re-sorting the panel to the front of the subview order
+///    fixes both (`sortSubviews` reorders without detaching, so the panel's
+///    constraints survive).
+/// 2. Its container has `clipsToBounds = false`, so the show/hide animation
+///    slides the panel in from above the editor, across the tab strip.
+///    Clipping the container makes it emerge from the editor's top edge.
+///    (Not noticeable in CodeEdit, where an opaque toolbar covers that area.)
+final class FindPanelClickFixCoordinator: TextViewCoordinator {
+    func prepareCoordinator(controller: TextViewController) {
+        // The find panel is created in loadView, after coordinators run.
+        DispatchQueue.main.async { [weak controller] in
+            guard let view = controller?.viewIfLoaded else { return }
+            Self.fixFindPanel(in: view)
+        }
+    }
+
+    private static func fixFindPanel(in root: NSView) {
+        for subview in root.subviews {
+            if String(describing: type(of: subview)) == "FindPanelHostingView" {
+                root.clipsToBounds = true
+                root.sortSubviews({ first, _, _ in
+                    String(describing: type(of: first)) == "FindPanelHostingView"
+                        ? .orderedDescending : .orderedAscending
+                }, context: nil)
+                return
+            }
+            fixFindPanel(in: subview)
+        }
     }
 }
 
