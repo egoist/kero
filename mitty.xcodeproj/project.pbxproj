@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		AA10000000000000000000B2 /* SwiftTerm in Frameworks */ = {isa = PBXBuildFile; productRef = AA10000000000000000000B1 /* SwiftTerm */; };
+		AA10000000000000000000C2 /* Highlightr in Frameworks */ = {isa = PBXBuildFile; productRef = AA10000000000000000000C1 /* Highlightr */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -27,6 +28,7 @@
 			isa = PBXFrameworksBuildPhase;
 			files = (
 				AA10000000000000000000B2 /* SwiftTerm in Frameworks */,
+				AA10000000000000000000C2 /* Highlightr in Frameworks */,
 			);
 		};
 /* End PBXFrameworksBuildPhase section */
@@ -67,6 +69,7 @@
 			name = mitty;
 			packageProductDependencies = (
 				AA10000000000000000000B1 /* SwiftTerm */,
+				AA10000000000000000000C1 /* Highlightr */,
 			);
 			productName = mitty;
 			productReference = FF3FDD73300B6A7400112486 /* mitty.app */;
@@ -98,6 +101,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				AA10000000000000000000B0 /* XCRemoteSwiftPackageReference "SwiftTerm" */,
+				AA10000000000000000000C0 /* XCRemoteSwiftPackageReference "Highlightr" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = FF3FDD74300B6A7400112486 /* Products */;
@@ -332,6 +336,14 @@
 				minimumVersion = 1.2.0;
 			};
 		};
+		AA10000000000000000000C0 /* XCRemoteSwiftPackageReference "Highlightr" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/raspu/Highlightr";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.3.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -339,6 +351,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = AA10000000000000000000B0 /* XCRemoteSwiftPackageReference "SwiftTerm" */;
 			productName = SwiftTerm;
+		};
+		AA10000000000000000000C1 /* Highlightr */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AA10000000000000000000C0 /* XCRemoteSwiftPackageReference "Highlightr" */;
+			productName = Highlightr;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

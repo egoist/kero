@@ -30,10 +30,17 @@ struct mittyApp: App {
                 }
                 .keyboardShortcut("t", modifiers: .command)
 
-                Button("Close Session") {
-                    manager.closeSelectedSession()
+                Button("Close Tab") {
+                    manager.closeSelectedTab()
                 }
                 .keyboardShortcut("w", modifiers: .command)
+            }
+
+            CommandGroup(replacing: .saveItem) {
+                Button("Save") {
+                    manager.saveSelectedFile()
+                }
+                .keyboardShortcut("s", modifiers: .command)
             }
 
             CommandGroup(after: .sidebar) {
@@ -74,14 +81,14 @@ struct mittyApp: App {
                 }
             }
 
-            CommandMenu("Sessions") {
-                Button("Next Session") {
-                    manager.selectNextSession()
+            CommandMenu("Tabs") {
+                Button("Next Tab") {
+                    manager.selectNextTab()
                 }
                 .keyboardShortcut("]", modifiers: [.command, .shift])
 
-                Button("Previous Session") {
-                    manager.selectPreviousSession()
+                Button("Previous Tab") {
+                    manager.selectPreviousTab()
                 }
                 .keyboardShortcut("[", modifiers: [.command, .shift])
             }

@@ -27,7 +27,11 @@ struct RightSidebarView: View {
                     tabBar
                     switch manager.panelTab {
                     case .files:
-                        FileTreePanel(model: fileTree, session: manager.selectedSession)
+                        FileTreePanel(
+                            model: fileTree,
+                            session: manager.selectedSession,
+                            openFile: { manager.openFile($0) }
+                        )
                     case .git:
                         GitPanel(model: git, session: manager.selectedSession)
                     }
@@ -115,6 +119,7 @@ private struct PanelHeader: View {
 private struct FileTreePanel: View {
     @ObservedObject var model: FileTreeModel
     let session: TerminalSession?
+    let openFile: (String) -> Void
 
     var body: some View {
         VStack(spacing: 0) {
@@ -137,7 +142,7 @@ private struct FileTreePanel: View {
             ScrollView {
                 LazyVStack(spacing: 1) {
                     ForEach(model.items) { item in
-                        FileTreeRow(model: model, item: item, session: session)
+                        FileTreeRow(model: model, item: item, session: session, openFile: openFile)
                     }
                 }
                 .padding(.horizontal, 6)
@@ -151,6 +156,7 @@ private struct FileTreeRow: View {
     @ObservedObject var model: FileTreeModel
     let item: FileTreeModel.Item
     let session: TerminalSession?
+    let openFile: (String) -> Void
 
     @State private var isHovering = false
 
@@ -158,6 +164,8 @@ private struct FileTreeRow: View {
         Button {
             if item.isDirectory {
                 model.toggle(item)
+            } else {
+                openFile(item.path)
             }
         } label: {
             HStack(spacing: 5) {
@@ -192,7 +200,12 @@ private struct FileTreeRow: View {
         )
         .onHover { isHovering = $0 }
         .contextMenu {
-            Button("Open") {
+            if !item.isDirectory {
+                Button("Open") {
+                    openFile(item.path)
+                }
+            }
+            Button("Open in Default App") {
                 NSWorkspace.shared.open(URL(fileURLWithPath: item.path))
             }
             Button("Reveal in Finder") {
@@ -208,13 +221,6 @@ private struct FileTreeRow: View {
                 }
             }
         }
-        .simultaneousGesture(
-            TapGesture(count: 2).onEnded {
-                if !item.isDirectory {
-                    NSWorkspace.shared.open(URL(fileURLWithPath: item.path))
-                }
-            }
-        )
     }
 }
 

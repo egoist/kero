@@ -6,9 +6,22 @@
 import Combine
 import Foundation
 
-/// A project groups terminal sessions and appears as one tab in the left
-/// sidebar. It always starts with one session; closing the last session
-/// empties the project, which removes it from the manager.
+/// One tab in a project's header strip: a terminal session or an open file.
+enum ProjectTab: nonisolated Identifiable {
+    case session(TerminalSession)
+    case file(FileTab)
+
+    nonisolated var id: UUID {
+        switch self {
+        case .session(let session): return session.id
+        case .file(let file): return file.id
+        }
+    }
+}
+
+/// A project groups tabs (terminal sessions and open files) and appears as
+/// one row in the left sidebar. It always starts with one session; closing
+/// the last tab empties the project, which removes it from the manager.
 @MainActor
 final class Project: nonisolated ObservableObject, nonisolated Identifiable {
     nonisolated let id = UUID()
@@ -16,10 +29,10 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
     /// User-assigned name; when nil the project title follows the
     /// selected session's terminal title.
     @Published var customName: String?
-    @Published var sessions: [TerminalSession] = []
-    @Published var selectedSessionID: UUID?
+    @Published var tabs: [ProjectTab] = []
+    @Published var selectedTabID: UUID?
 
-    /// Called after the last session is removed.
+    /// Called after the last tab is removed.
     var onEmptied: ((Project) -> Void)?
 
     private let fallbackName: String
@@ -39,33 +52,46 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
         return selectedSession?.title ?? fallbackName
     }
 
-    var selectedSession: TerminalSession? {
-        sessions.first { $0.id == selectedSessionID }
+    var sessions: [TerminalSession] {
+        tabs.compactMap {
+            if case .session(let session) = $0 { return session }
+            return nil
+        }
     }
+
+    var selectedTab: ProjectTab? {
+        tabs.first { $0.id == selectedTabID }
+    }
+
+    /// The selected terminal session; while a file tab is selected this
+    /// falls back to the project's first session so panels that need a
+    /// working directory (file tree, git) keep tracking the project.
+    var selectedSession: TerminalSession? {
+        if case .session(let session)? = selectedTab {
+            return session
+        }
+        return sessions.first
+    }
+
+    // MARK: - Sessions
 
     @discardableResult
     func newSession() -> TerminalSession {
         let session = TerminalSession()
         session.onExited = { [weak self] session in
-            self?.remove(session)
+            self?.remove(tabID: session.id)
         }
         sessionObservations[session.id] = session.objectWillChange.sink { [weak self] _ in
             self?.objectWillChange.send()
         }
-        sessions.append(session)
-        selectedSessionID = session.id
+        tabs.append(.session(session))
+        selectedTabID = session.id
         return session
     }
 
     func close(_ session: TerminalSession) {
         session.terminate()
-        remove(session)
-    }
-
-    func closeSelected() {
-        if let session = selectedSession {
-            close(session)
-        }
+        remove(tabID: session.id)
     }
 
     func terminateAll() {
@@ -74,9 +100,39 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
         }
     }
 
+    // MARK: - Files
+
+    /// Opens `path` as a file tab, reusing an existing tab for the same path.
+    func openFile(_ path: String) {
+        if let existing = tabs.first(where: {
+            if case .file(let file) = $0 { return file.path == path }
+            return false
+        }) {
+            selectedTabID = existing.id
+            return
+        }
+        let file = FileTab(path: path)
+        tabs.append(.file(file))
+        selectedTabID = file.id
+    }
+
+    func close(_ file: FileTab) {
+        remove(tabID: file.id)
+    }
+
+    // MARK: - Tab selection
+
+    func closeSelected() {
+        switch selectedTab {
+        case .session(let session): close(session)
+        case .file(let file): close(file)
+        case nil: break
+        }
+    }
+
     func select(index: Int) {
-        guard sessions.indices.contains(index) else { return }
-        selectedSessionID = sessions[index].id
+        guard tabs.indices.contains(index) else { return }
+        selectedTabID = tabs[index].id
     }
 
     func selectNext() {
@@ -88,22 +144,22 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
     }
 
     private func shiftSelection(by offset: Int) {
-        guard !sessions.isEmpty,
-              let current = sessions.firstIndex(where: { $0.id == selectedSessionID })
+        guard !tabs.isEmpty,
+              let current = tabs.firstIndex(where: { $0.id == selectedTabID })
         else { return }
-        let next = (current + offset + sessions.count) % sessions.count
-        selectedSessionID = sessions[next].id
+        let next = (current + offset + tabs.count) % tabs.count
+        selectedTabID = tabs[next].id
     }
 
-    private func remove(_ session: TerminalSession) {
-        guard let index = sessions.firstIndex(where: { $0.id == session.id }) else { return }
-        sessions.remove(at: index)
-        sessionObservations[session.id] = nil
-        if selectedSessionID == session.id {
-            let neighbor = min(index, sessions.count - 1)
-            selectedSessionID = neighbor >= 0 ? sessions[neighbor].id : nil
+    private func remove(tabID: UUID) {
+        guard let index = tabs.firstIndex(where: { $0.id == tabID }) else { return }
+        tabs.remove(at: index)
+        sessionObservations[tabID] = nil
+        if selectedTabID == tabID {
+            let neighbor = min(index, tabs.count - 1)
+            selectedTabID = neighbor >= 0 ? tabs[neighbor].id : nil
         }
-        if sessions.isEmpty {
+        if tabs.isEmpty {
             onEmptied?(self)
         }
     }

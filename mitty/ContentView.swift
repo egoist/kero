@@ -17,10 +17,14 @@ struct ContentView: View {
                 MainHeaderView(manager: manager)
 
                 Group {
-                    if let session = manager.selectedSession {
+                    switch manager.selectedProject?.selectedTab {
+                    case .session(let session):
                         TerminalHostView(session: session)
                             .id(session.id)
-                    } else {
+                    case .file(let file):
+                        FileViewerView(file: file)
+                            .id(file.id)
+                    case nil:
                         emptyState
                     }
                 }
@@ -86,7 +90,8 @@ private struct MainHeaderView: View {
     }
 }
 
-/// Horizontal tabs for the sessions of one project, plus a "+" button.
+/// Horizontal tabs for one project — terminal sessions and open files —
+/// plus a "+" button.
 private struct SessionTabsView: View {
     @ObservedObject var project: Project
 
@@ -94,13 +99,23 @@ private struct SessionTabsView: View {
         HStack(spacing: 4) {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 3) {
-                    ForEach(project.sessions) { session in
-                        SessionTabItem(
-                            session: session,
-                            isSelected: session.id == project.selectedSessionID,
-                            select: { project.selectedSessionID = session.id },
-                            close: { project.close(session) }
-                        )
+                    ForEach(project.tabs) { tab in
+                        switch tab {
+                        case .session(let session):
+                            SessionTabItem(
+                                session: session,
+                                isSelected: tab.id == project.selectedTabID,
+                                select: { project.selectedTabID = tab.id },
+                                close: { project.close(session) }
+                            )
+                        case .file(let file):
+                            FileTabItem(
+                                file: file,
+                                isSelected: tab.id == project.selectedTabID,
+                                select: { project.selectedTabID = tab.id },
+                                close: { project.close(file) }
+                            )
+                        }
                     }
                 }
             }
@@ -128,15 +143,53 @@ private struct SessionTabItem: View {
     let select: () -> Void
     let close: () -> Void
 
+    var body: some View {
+        TabItemChrome(
+            systemImage: "terminal",
+            title: session.title,
+            isSelected: isSelected,
+            select: select,
+            close: close
+        )
+    }
+}
+
+private struct FileTabItem: View {
+    @ObservedObject var file: FileTab
+    let isSelected: Bool
+    let select: () -> Void
+    let close: () -> Void
+
+    var body: some View {
+        TabItemChrome(
+            systemImage: "doc.text",
+            title: file.name,
+            isSelected: isSelected,
+            isDirty: file.isDirty,
+            select: select,
+            close: close
+        )
+        .help(file.path)
+    }
+}
+
+private struct TabItemChrome: View {
+    let systemImage: String
+    let title: String
+    let isSelected: Bool
+    var isDirty = false
+    let select: () -> Void
+    let close: () -> Void
+
     @State private var isHovering = false
 
     var body: some View {
         Button(action: select) {
             HStack(spacing: 5) {
-                Image(systemName: "terminal")
+                Image(systemName: systemImage)
                     .font(.system(size: 9, weight: .medium))
                     .foregroundStyle(isSelected ? AnyShapeStyle(Color(nsColor: Theme.cursor)) : AnyShapeStyle(.tertiary))
-                Text(session.title)
+                Text(title)
                     .font(.system(size: 11.5, weight: isSelected ? .medium : .regular))
                     .foregroundStyle(isSelected ? .primary : .secondary)
                     .lineLimit(1)
@@ -149,6 +202,11 @@ private struct SessionTabItem: View {
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
+                } else if isDirty {
+                    Circle()
+                        .fill(.secondary)
+                        .frame(width: 5, height: 5)
+                        .frame(width: 14, height: 14)
                 } else {
                     Spacer()
                         .frame(width: 14)

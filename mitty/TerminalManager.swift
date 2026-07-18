@@ -110,16 +110,30 @@ final class TerminalManager: nonisolated ObservableObject {
         project.newSession()
     }
 
-    func closeSelectedSession() {
+    func closeSelectedTab() {
         selectedProject?.closeSelected()
     }
 
-    func selectNextSession() {
+    func selectNextTab() {
         selectedProject?.selectNext()
     }
 
-    func selectPreviousSession() {
+    func selectPreviousTab() {
         selectedProject?.selectPrevious()
+    }
+
+    // MARK: - Files
+
+    /// Opens `path` as a file tab in the current project.
+    func openFile(_ path: String) {
+        selectedProject?.openFile(path)
+    }
+
+    /// Saves the selected tab if it is a file tab.
+    func saveSelectedFile() {
+        if case .file(let file)? = selectedProject?.selectedTab {
+            file.save()
+        }
     }
 
     // MARK: - Panels & appearance
