@@ -6,16 +6,15 @@
 import Combine
 import Foundation
 
-/// User-configurable settings, persisted in UserDefaults. Views observe
-/// this directly; `TerminalManager` re-themes live sessions on any change.
+/// User-configurable settings, persisted to `$HOME/.config/mitty/config.toml`.
+/// Views observe this directly; `TerminalManager` re-themes live sessions on
+/// any change.
 @MainActor
 final class AppSettings: nonisolated ObservableObject {
     static let shared = AppSettings()
 
-    private enum Keys {
-        static let fontFamily = "terminalFontFamily"
-        static let fontSize = "terminalFontSize"
-    }
+    static let configURL = FileManager.default.homeDirectoryForCurrentUser
+        .appendingPathComponent(".config/mitty/config.toml")
 
     static let defaultFontSize: Double = 13
     static let fontSizeRange: ClosedRange<Double> = 8...32
@@ -23,22 +22,149 @@ final class AppSettings: nonisolated ObservableObject {
     /// Terminal font family name; empty string means the bundled default
     /// (JetBrains Mono).
     @Published var fontFamily: String {
-        didSet { UserDefaults.standard.set(fontFamily, forKey: Keys.fontFamily) }
+        didSet { save() }
     }
 
     @Published var fontSize: Double {
-        didSet { UserDefaults.standard.set(fontSize, forKey: Keys.fontSize) }
+        didSet { save() }
     }
 
     private init() {
-        let defaults = UserDefaults.standard
-        fontFamily = defaults.string(forKey: Keys.fontFamily) ?? ""
-        let size = defaults.double(forKey: Keys.fontSize)
+        let existing = TOML.parse(at: Self.configURL)
+        let toml = existing ?? Self.legacyDefaults()
+        fontFamily = toml["font-family"]?.string ?? ""
+        let size = toml["font-size"]?.double ?? Self.defaultFontSize
         fontSize = Self.fontSizeRange.contains(size) ? size : Self.defaultFontSize
+        if existing == nil { save() }
     }
 
     func resetFont() {
         fontFamily = ""
         fontSize = Self.defaultFontSize
+    }
+
+    private func save() {
+        var lines: [String] = []
+        if !fontFamily.isEmpty {
+            lines.append("font-family = \(TOML.quote(fontFamily))")
+        }
+        lines.append("font-size = \(TOML.number(fontSize))")
+        let dir = Self.configURL.deletingLastPathComponent()
+        do {
+            try FileManager.default.createDirectory(
+                at: dir, withIntermediateDirectories: true)
+            try (lines.joined(separator: "\n") + "\n")
+                .write(to: Self.configURL, atomically: true, encoding: .utf8)
+        } catch {
+            NSLog("mitty: failed to write \(Self.configURL.path): \(error)")
+        }
+    }
+
+    /// Settings from releases that stored config in UserDefaults.
+    private static func legacyDefaults() -> [String: TOML.Value] {
+        var toml: [String: TOML.Value] = [:]
+        let defaults = UserDefaults.standard
+        if let family = defaults.string(forKey: "terminalFontFamily") {
+            toml["font-family"] = .string(family)
+        }
+        if defaults.object(forKey: "terminalFontSize") != nil {
+            toml["font-size"] = .number(defaults.double(forKey: "terminalFontSize"))
+        }
+        return toml
+    }
+}
+
+/// Minimal TOML support covering what the config file uses: `[table]`
+/// headers, string/number/bool values, and `#` comments. Keys are flattened
+/// to `table.key`.
+enum TOML {
+    enum Value {
+        case string(String)
+        case number(Double)
+        case bool(Bool)
+
+        var string: String? {
+            if case .string(let s) = self { return s }
+            return nil
+        }
+
+        var double: Double? {
+            if case .number(let n) = self { return n }
+            return nil
+        }
+    }
+
+    static func parse(at url: URL) -> [String: Value]? {
+        guard let text = try? String(contentsOf: url, encoding: .utf8) else {
+            return nil
+        }
+        var table = ""
+        var result: [String: Value] = [:]
+        for rawLine in text.split(separator: "\n", omittingEmptySubsequences: true) {
+            let line = rawLine.trimmingCharacters(in: .whitespaces)
+            if line.isEmpty || line.hasPrefix("#") { continue }
+            if line.hasPrefix("["), line.hasSuffix("]") {
+                table = String(line.dropFirst().dropLast())
+                    .trimmingCharacters(in: .whitespaces)
+                continue
+            }
+            guard let eq = line.firstIndex(of: "=") else { continue }
+            let key = line[..<eq].trimmingCharacters(in: .whitespaces)
+            let rawValue = line[line.index(after: eq)...]
+                .trimmingCharacters(in: .whitespaces)
+            guard !key.isEmpty, let value = parseValue(rawValue) else { continue }
+            result[table.isEmpty ? key : "\(table).\(key)"] = value
+        }
+        return result
+    }
+
+    private static func parseValue(_ raw: String) -> Value? {
+        if raw.hasPrefix("\"") {
+            var out = ""
+            var escaped = false
+            for ch in raw.dropFirst() {
+                if escaped {
+                    switch ch {
+                    case "n": out.append("\n")
+                    case "t": out.append("\t")
+                    default: out.append(ch)
+                    }
+                    escaped = false
+                } else if ch == "\\" {
+                    escaped = true
+                } else if ch == "\"" {
+                    return .string(out)
+                } else {
+                    out.append(ch)
+                }
+            }
+            return nil
+        }
+        // Unquoted: strip a trailing comment, then try bool/number.
+        let bare = raw.split(separator: "#", maxSplits: 1)[0]
+            .trimmingCharacters(in: .whitespaces)
+        switch bare {
+        case "true": return .bool(true)
+        case "false": return .bool(false)
+        default: return Double(bare).map(Value.number)
+        }
+    }
+
+    static func quote(_ s: String) -> String {
+        var out = "\""
+        for ch in s {
+            switch ch {
+            case "\"", "\\": out.append("\\\(ch)")
+            case "\n": out.append("\\n")
+            case "\t": out.append("\\t")
+            default: out.append(ch)
+            }
+        }
+        return out + "\""
+    }
+
+    static func number(_ n: Double) -> String {
+        n == n.rounded() && abs(n) < 1e15
+            ? String(Int(n)) : String(n)
     }
 }
