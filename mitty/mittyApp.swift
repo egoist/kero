@@ -16,13 +16,18 @@ struct mittyApp: App {
         .windowStyle(.hiddenTitleBar)
         .commands {
             CommandGroup(replacing: .newItem) {
+                Button("New Project") {
+                    manager.newProject()
+                }
+                .keyboardShortcut("n", modifiers: .command)
+
                 Button("New Session") {
                     manager.newSession()
                 }
                 .keyboardShortcut("t", modifiers: .command)
 
                 Button("Close Session") {
-                    manager.closeSelected()
+                    manager.closeSelectedSession()
                 }
                 .keyboardShortcut("w", modifiers: .command)
             }
@@ -44,25 +49,37 @@ struct mittyApp: App {
                 .keyboardShortcut("g", modifiers: [.command, .shift])
             }
 
+            CommandMenu("Projects") {
+                Button("Next Project") {
+                    manager.selectNextProject()
+                }
+                .keyboardShortcut("]", modifiers: [.command, .option])
+
+                Button("Previous Project") {
+                    manager.selectPreviousProject()
+                }
+                .keyboardShortcut("[", modifiers: [.command, .option])
+
+                Divider()
+
+                ForEach(Array(manager.projects.prefix(9).enumerated()), id: \.element.id) { index, project in
+                    Button(project.name) {
+                        manager.selectProject(index: index)
+                    }
+                    .keyboardShortcut(KeyEquivalent(Character("\(index + 1)")), modifiers: .command)
+                }
+            }
+
             CommandMenu("Sessions") {
                 Button("Next Session") {
-                    manager.selectNext()
+                    manager.selectNextSession()
                 }
                 .keyboardShortcut("]", modifiers: [.command, .shift])
 
                 Button("Previous Session") {
-                    manager.selectPrevious()
+                    manager.selectPreviousSession()
                 }
                 .keyboardShortcut("[", modifiers: [.command, .shift])
-
-                Divider()
-
-                ForEach(Array(manager.sessions.prefix(9).enumerated()), id: \.element.id) { index, session in
-                    Button(session.title) {
-                        manager.select(index: index)
-                    }
-                    .keyboardShortcut(KeyEquivalent(Character("\(index + 1)")), modifiers: .command)
-                }
             }
         }
     }

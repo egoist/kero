@@ -13,23 +13,111 @@ enum RightPanel {
     case git
 }
 
-/// Owns the list of terminal sessions and the current selection.
+/// Owns the list of projects and the current selection. Each project holds
+/// its own terminal sessions; the "selected session" is the selected
+/// project's selected session.
 @MainActor
 final class TerminalManager: nonisolated ObservableObject {
-    @Published var sessions: [TerminalSession] = []
-    @Published var selectedID: UUID?
+    @Published var projects: [Project] = []
+    @Published var selectedProjectID: UUID?
     @Published var isPanelVisible = false
     @Published var panelTab: RightPanel = .files
 
-    func toggleSidebar() {
-        isPanelVisible.toggle()
+    /// Projects publish their own changes (session list, session selection);
+    /// re-publish them so views observing the manager stay current.
+    private var projectObservations: [UUID: AnyCancellable] = [:]
+    private var projectCounter = 0
+
+    init() {
+        newProject()
     }
 
-    /// Re-themes every session after a light/dark appearance change.
-    func refreshAppearance() {
-        for session in sessions {
-            session.applyTheme()
+    var selectedProject: Project? {
+        projects.first { $0.id == selectedProjectID }
+    }
+
+    var selectedSession: TerminalSession? {
+        selectedProject?.selectedSession
+    }
+
+    // MARK: - Projects
+
+    func newProject() {
+        projectCounter += 1
+        let project = Project(fallbackName: "Project \(projectCounter)")
+        project.onEmptied = { [weak self] project in
+            self?.remove(project)
         }
+        projectObservations[project.id] = project.objectWillChange.sink { [weak self] _ in
+            self?.objectWillChange.send()
+        }
+        projects.append(project)
+        selectedProjectID = project.id
+    }
+
+    func close(_ project: Project) {
+        project.terminateAll()
+        remove(project)
+    }
+
+    private func remove(_ project: Project) {
+        guard let index = projects.firstIndex(where: { $0.id == project.id }) else { return }
+        projects.remove(at: index)
+        projectObservations[project.id] = nil
+        if selectedProjectID == project.id {
+            let neighbor = min(index, projects.count - 1)
+            selectedProjectID = neighbor >= 0 ? projects[neighbor].id : nil
+        }
+    }
+
+    func selectProject(index: Int) {
+        guard projects.indices.contains(index) else { return }
+        selectedProjectID = projects[index].id
+    }
+
+    func selectNextProject() {
+        shiftProjectSelection(by: 1)
+    }
+
+    func selectPreviousProject() {
+        shiftProjectSelection(by: -1)
+    }
+
+    private func shiftProjectSelection(by offset: Int) {
+        guard !projects.isEmpty,
+              let current = projects.firstIndex(where: { $0.id == selectedProjectID })
+        else { return }
+        let next = (current + offset + projects.count) % projects.count
+        selectedProjectID = projects[next].id
+    }
+
+    // MARK: - Sessions
+
+    /// New session in the current project; creates a project if none exist.
+    func newSession() {
+        guard let project = selectedProject else {
+            newProject()
+            return
+        }
+        project.newSession()
+    }
+
+    func closeSelectedSession() {
+        selectedProject?.closeSelected()
+    }
+
+    func selectNextSession() {
+        selectedProject?.selectNext()
+    }
+
+    func selectPreviousSession() {
+        selectedProject?.selectPrevious()
+    }
+
+    // MARK: - Panels & appearance
+
+    func toggleSidebar() {
+        isPanelVisible.toggle()
     }
 
     /// Shows the sidebar on `panel`, or hides it if already showing that panel.
@@ -42,61 +130,12 @@ final class TerminalManager: nonisolated ObservableObject {
         }
     }
 
-    var selectedSession: TerminalSession? {
-        sessions.first { $0.id == selectedID }
-    }
-
-    init() {
-        newSession()
-    }
-
-    func newSession() {
-        let session = TerminalSession()
-        session.onExited = { [weak self] session in
-            self?.remove(session)
+    /// Re-themes every session after a light/dark appearance change.
+    func refreshAppearance() {
+        for project in projects {
+            for session in project.sessions {
+                session.applyTheme()
+            }
         }
-        sessions.append(session)
-        selectedID = session.id
-    }
-
-    func close(_ session: TerminalSession) {
-        session.terminate()
-        remove(session)
-    }
-
-    func closeSelected() {
-        if let session = selectedSession {
-            close(session)
-        }
-    }
-
-    private func remove(_ session: TerminalSession) {
-        guard let index = sessions.firstIndex(where: { $0.id == session.id }) else { return }
-        sessions.remove(at: index)
-        if selectedID == session.id {
-            let neighbor = min(index, sessions.count - 1)
-            selectedID = neighbor >= 0 ? sessions[neighbor].id : nil
-        }
-    }
-
-    func select(index: Int) {
-        guard sessions.indices.contains(index) else { return }
-        selectedID = sessions[index].id
-    }
-
-    func selectNext() {
-        shiftSelection(by: 1)
-    }
-
-    func selectPrevious() {
-        shiftSelection(by: -1)
-    }
-
-    private func shiftSelection(by offset: Int) {
-        guard !sessions.isEmpty,
-              let current = sessions.firstIndex(where: { $0.id == selectedID })
-        else { return }
-        let next = (current + offset + sessions.count) % sessions.count
-        selectedID = sessions[next].id
     }
 }

@@ -40,7 +40,7 @@ struct RightSidebarView: View {
         .onReceive(refreshTimer) { _ in syncModels() }
         .onChange(of: manager.isPanelVisible) { syncModels() }
         .onChange(of: manager.panelTab) { syncModels() }
-        .onChange(of: manager.selectedID) { syncModels() }
+        .onChange(of: manager.selectedSession?.id) { syncModels() }
     }
 
     private var tabBar: some View {
