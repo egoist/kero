@@ -25,16 +25,29 @@ struct SessionSnapshot: Codable {
     var selectedProjectIndex: Int?
 }
 
+/// Persisted top level: one `SessionSnapshot` per open window, in
+/// window-creation order.
+private struct AppSnapshot: Codable {
+    var windows: [SessionSnapshot]
+}
+
 enum SessionStore {
     private static let key = "sessionSnapshot"
 
-    static func save(_ snapshot: SessionSnapshot) {
-        guard let data = try? JSONEncoder().encode(snapshot) else { return }
+    static func save(_ windows: [SessionSnapshot]) {
+        guard let data = try? JSONEncoder().encode(AppSnapshot(windows: windows)) else { return }
         UserDefaults.standard.set(data, forKey: key)
     }
 
-    static func load() -> SessionSnapshot? {
-        guard let data = UserDefaults.standard.data(forKey: key) else { return nil }
-        return try? JSONDecoder().decode(SessionSnapshot.self, from: data)
+    static func load() -> [SessionSnapshot] {
+        guard let data = UserDefaults.standard.data(forKey: key) else { return [] }
+        if let app = try? JSONDecoder().decode(AppSnapshot.self, from: data) {
+            return app.windows
+        }
+        // Pre-multi-window format: the snapshot of a single window.
+        if let single = try? JSONDecoder().decode(SessionSnapshot.self, from: data) {
+            return [single]
+        }
+        return []
     }
 }

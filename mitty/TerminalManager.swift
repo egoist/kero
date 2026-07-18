@@ -34,8 +34,30 @@ final class TerminalManager: nonisolated ObservableObject {
     private var terminationObservation: AnyCancellable?
     private var periodicSaveObservation: AnyCancellable?
 
+    /// Live managers in window-creation order; the persisted snapshot is
+    /// one entry per registered manager.
+    private static var registry: [TerminalManager] = []
+    /// Window snapshots loaded from disk that no window has claimed yet.
+    /// Each new manager claims the next; extras beyond the saved count
+    /// start fresh.
+    private static var pendingRestores: [SessionSnapshot] = []
+    private static var hasLoadedStore = false
+    /// Set on app termination so window teardown can't re-save a partial
+    /// snapshot over the final full one.
+    private static var isQuitting = false
+    private static var didReopenWindows = false
+
     init() {
-        if !restoreSnapshot() {
+        if !Self.hasLoadedStore {
+            Self.hasLoadedStore = true
+            Self.pendingRestores = SessionStore.load()
+        }
+        Self.registry.append(self)
+        var restored = false
+        if !Self.pendingRestores.isEmpty {
+            restored = restore(from: Self.pendingRestores.removeFirst())
+        }
+        if !restored {
             newProject()
         }
         // Re-theme live sessions when font settings change. objectWillChange
@@ -49,22 +71,23 @@ final class TerminalManager: nonisolated ObservableObject {
         // manager, so a debounced sink snapshots after mutations settle.
         autosaveObservation = objectWillChange
             .debounce(for: .milliseconds(500), scheduler: DispatchQueue.main)
-            .sink { [weak self] _ in
-                self?.saveSnapshot()
+            .sink { _ in
+                TerminalManager.saveAll()
             }
         // The debounce can swallow changes made just before quitting;
         // capture a final snapshot while the shells are still alive.
         terminationObservation = NotificationCenter.default
             .publisher(for: NSApplication.willTerminateNotification)
-            .sink { [weak self] _ in
-                self?.saveSnapshot()
+            .sink { _ in
+                TerminalManager.isQuitting = true
+                TerminalManager.saveAll()
             }
         // Shell cwd changes don't always publish (not every shell emits
         // OSC 7), so also snapshot on a slow timer to survive force quits.
         periodicSaveObservation = Timer.publish(every: 30, on: .main, in: .common)
             .autoconnect()
-            .sink { [weak self] _ in
-                self?.saveSnapshot()
+            .sink { _ in
+                TerminalManager.saveAll()
             }
     }
 
@@ -211,9 +234,47 @@ final class TerminalManager: nonisolated ObservableObject {
         }
     }
 
+    /// After the first window appears, reopen one window per unclaimed
+    /// saved snapshot; each new window's manager claims the next one.
+    /// Deferred a runloop tick so windows the system itself restores can
+    /// claim theirs first.
+    static func openRestoredWindows(_ open: @escaping () -> Void) {
+        guard !didReopenWindows else { return }
+        didReopenWindows = true
+        DispatchQueue.main.async {
+            for _ in 0..<pendingRestores.count {
+                open()
+            }
+        }
+    }
+
+    /// Called when this manager's window closes: drop it from the
+    /// persisted set — except for the last window, whose snapshot is kept
+    /// saved and queued so reopening (or relaunching) restores it — and
+    /// kill its shells.
+    func windowClosed() {
+        guard !Self.isQuitting else { return }
+        let snapshot = makeWindowSnapshot()
+        Self.registry.removeAll { $0 === self }
+        if Self.registry.isEmpty {
+            SessionStore.save([snapshot])
+            Self.pendingRestores = [snapshot]
+        } else {
+            Self.saveAll()
+        }
+        for project in projects {
+            project.terminateAll()
+        }
+    }
+
     // MARK: - Persistence
 
-    private func saveSnapshot() {
+    private static func saveAll() {
+        guard !registry.isEmpty else { return }
+        SessionStore.save(registry.map { $0.makeWindowSnapshot() })
+    }
+
+    private func makeWindowSnapshot() -> SessionSnapshot {
         let snapshot = SessionSnapshot(
             projects: projects.compactMap { project in
                 guard !project.tabs.isEmpty else { return nil }
@@ -238,13 +299,12 @@ final class TerminalManager: nonisolated ObservableObject {
             },
             selectedProjectIndex: projects.firstIndex { $0.id == selectedProjectID }
         )
-        SessionStore.save(snapshot)
+        return snapshot
     }
 
-    /// Rebuilds projects and tabs from the last saved snapshot. Returns
-    /// false when there is nothing to restore.
-    private func restoreSnapshot() -> Bool {
-        guard let snapshot = SessionStore.load() else { return false }
+    /// Rebuilds projects and tabs from a saved window snapshot. Returns
+    /// false when the snapshot holds nothing restorable.
+    private func restore(from snapshot: SessionSnapshot) -> Bool {
         for saved in snapshot.projects where !saved.tabs.isEmpty {
             let project = makeProject(createInitialSession: false)
             project.customName = saved.customName
