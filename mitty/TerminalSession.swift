@@ -24,7 +24,8 @@ final class TerminalSession: NSObject, nonisolated ObservableObject, nonisolated
     var onExited: ((TerminalSession) -> Void)?
 
     private let shellPath: String
-    private var scrollerObservation: NSKeyValueObservation?
+    private let overlayScrollbar = OverlayScrollbarView()
+    private var scrollerObservations: [NSKeyValueObservation] = []
 
     override init() {
         shellPath = Self.loginShell()
@@ -34,22 +35,58 @@ final class TerminalSession: NSObject, nonisolated ObservableObject, nonisolated
 
         terminalView.processDelegate = self
         applyTheme()
-        hideScrollerWhileUnscrollable()
+        installOverlayScrollbar()
         start()
     }
 
-    /// SwiftTerm's scroller is a bare NSScroller that stays visible even with
-    /// no scrollback; it only toggles `isEnabled`. Mirror that into `isHidden`.
-    private func hideScrollerWhileUnscrollable() {
+    /// SwiftTerm's built-in scroller is a bare NSScroller that can't render
+    /// like a native overlay scrollbar (its .overlay style never draws a
+    /// knob outside an NSScrollView). Keep it permanently hidden — SwiftTerm
+    /// still pushes scroll state into it, and hiding it also frees its
+    /// reserved width — and mirror its values into our own overlay thumb.
+    private func installOverlayScrollbar() {
         guard let scroller = terminalView.subviews.compactMap({ $0 as? NSScroller }).first else {
             return
         }
-        scroller.isHidden = !scroller.isEnabled
-        scrollerObservation = scroller.observe(\.isEnabled, options: [.new]) { scroller, _ in
-            DispatchQueue.main.async {
-                scroller.isHidden = !scroller.isEnabled
+        scroller.isHidden = true
+
+        overlayScrollbar.translatesAutoresizingMaskIntoConstraints = false
+        overlayScrollbar.alphaValue = 0
+        terminalView.addSubview(overlayScrollbar)
+        NSLayoutConstraint.activate([
+            overlayScrollbar.trailingAnchor.constraint(equalTo: terminalView.trailingAnchor),
+            overlayScrollbar.topAnchor.constraint(equalTo: terminalView.topAnchor),
+            overlayScrollbar.bottomAnchor.constraint(equalTo: terminalView.bottomAnchor),
+            overlayScrollbar.widthAnchor.constraint(equalToConstant: OverlayScrollbarView.stripWidth),
+        ])
+        overlayScrollbar.onScroll = { [weak self] position in
+            self?.terminalView.scroll(toPosition: position)
+        }
+
+        let sync = { [weak self, weak scroller] in
+            guard let self, let scroller else { return }
+            self.overlayScrollbar.update(
+                position: scroller.doubleValue,
+                proportion: scroller.knobProportion,
+                active: scroller.isEnabled
+            )
+        }
+        // SwiftTerm updates the scroller from the main thread, so deliver
+        // synchronously when possible — the thumb then moves in the same
+        // frame as the content.
+        let deliver = {
+            if Thread.isMainThread {
+                sync()
+            } else {
+                DispatchQueue.main.async(execute: sync)
             }
         }
+        sync()
+        scrollerObservations = [
+            scroller.observe(\.doubleValue) { _, _ in deliver() },
+            scroller.observe(\.knobProportion) { _, _ in deliver() },
+            scroller.observe(\.isEnabled) { _, _ in deliver() },
+        ]
     }
 
     /// Applies the light/dark terminal theme; called again whenever the
