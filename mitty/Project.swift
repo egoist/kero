@@ -70,6 +70,13 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
         tabs.first { $0.id == selectedTabID }
     }
 
+    var diffTabs: [DiffTab] {
+        tabs.compactMap {
+            if case .diff(let diff) = $0 { return diff }
+            return nil
+        }
+    }
+
     /// The selected terminal session; while a file tab is selected this
     /// falls back to the project's first session so panels that need a
     /// working directory (file tree, git) keep tracking the project.
@@ -138,10 +145,9 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
     func openDiff(
         repoRoot: String, path: String, staged: Bool, untracked: Bool, origPath: String?
     ) {
-        if let existing = tabs.compactMap({ tab -> DiffTab? in
-            if case .diff(let diff) = tab { return diff }
-            return nil
-        }).first(where: { $0.repoRoot == repoRoot && $0.path == path && $0.staged == staged }) {
+        if let existing = diffTabs.first(where: {
+            $0.repoRoot == repoRoot && $0.path == path && $0.staged == staged
+        }) {
             existing.untracked = untracked
             existing.origPath = origPath
             existing.reload()

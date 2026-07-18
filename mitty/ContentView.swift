@@ -16,20 +16,40 @@ struct ContentView: View {
             VStack(spacing: 0) {
                 MainHeaderView(manager: manager)
 
-                Group {
-                    switch manager.selectedProject?.selectedTab {
-                    case .session(let session):
-                        TerminalHostView(session: session)
-                            .id(session.id)
-                    case .file(let file):
-                        FileViewerView(file: file)
-                            .id(file.id)
-                    case .diff(let diff):
-                        DiffViewerView(diff: diff)
-                            .id(diff.id)
-                    case nil:
-                        emptyState
+                ZStack {
+                    // Diff tabs stay mounted while unselected: removing one
+                    // would pull its NSHostingView out of the window, which
+                    // tears down and re-creates the WKWebView inside (losing
+                    // the rendered diff and scroll position). Unselected
+                    // ones just sit covered by the active tab's opaque view.
+                    if let project = manager.selectedProject {
+                        ForEach(project.diffTabs) { diff in
+                            DiffViewerView(
+                                diff: diff,
+                                isSelected: project.selectedTabID == diff.id
+                            )
+                            .background(Color(nsColor: Theme.background))
+                            .allowsHitTesting(project.selectedTabID == diff.id)
+                            .zIndex(project.selectedTabID == diff.id ? 1 : 0)
+                        }
                     }
+                    Group {
+                        switch manager.selectedProject?.selectedTab {
+                        case .session(let session):
+                            TerminalHostView(session: session)
+                                .id(session.id)
+                        case .file(let file):
+                            FileViewerView(file: file)
+                                .id(file.id)
+                        case .diff:
+                            EmptyView() // rendered by the persistent stack above
+                        case nil:
+                            emptyState
+                        }
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(Color(nsColor: Theme.background))
+                    .zIndex(2)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
