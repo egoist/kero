@@ -336,21 +336,35 @@ private struct GitPanel: View {
                 if model.ahead > 0 {
                     badge("↑\(model.ahead)")
                 }
-                headerButton("arrow.down", help: "Pull", disabled: model.isBusy || !model.hasUpstream) {
-                    model.pull()
-                }
-                headerButton("arrow.up", help: model.hasUpstream ? "Push" : "Publish Branch",
-                             disabled: model.isBusy) {
-                    model.push()
-                }
                 headerButton("arrow.clockwise", help: "Refresh", disabled: false) {
                     model.refresh()
                 }
+                moreMenu
             }
         }
         .padding(.horizontal, 12)
         .padding(.top, 8)
         .padding(.bottom, 8)
+    }
+
+    private var moreMenu: some View {
+        Menu {
+            Button("Pull") { model.pull() }
+                .disabled(model.isBusy || !model.hasUpstream)
+            Button(model.hasUpstream ? "Push" : "Publish Branch") { model.push() }
+                .disabled(model.isBusy)
+        } label: {
+            Image(systemName: "ellipsis")
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(.secondary)
+                .frame(width: 18, height: 18)
+                .contentShape(RoundedRectangle(cornerRadius: 4))
+        }
+        .buttonStyle(.plain)
+        .menuStyle(.button)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help("More Actions…")
     }
 
     private func headerButton(
@@ -373,7 +387,7 @@ private struct GitPanel: View {
 
     private var commitBox: some View {
         VStack(spacing: 6) {
-            TextField("Message (⏎ to commit)", text: $commitMessage, axis: .vertical)
+            TextField(commitFieldPlaceholder, text: $commitMessage, axis: .vertical)
                 .textFieldStyle(.plain)
                 .font(.system(size: 11.5))
                 .lineLimit(1...4)
@@ -385,30 +399,72 @@ private struct GitPanel: View {
                 )
                 .onSubmit(performCommit)
 
-            Button(action: performCommit) {
-                HStack(spacing: 5) {
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 10, weight: .semibold))
-                    Text(commitButtonTitle)
-                        .font(.system(size: 11, weight: .medium))
+            if showSyncButton {
+                actionButton(
+                    icon: "arrow.triangle.2.circlepath",
+                    title: syncButtonTitle,
+                    enabled: !model.isBusy,
+                    help: "Pull remote commits, then push local ones"
+                ) {
+                    model.syncChanges()
                 }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 5)
-                .background(
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(Color(nsColor: Theme.cursor).opacity(canCommit ? 0.85 : 0.3))
+            } else {
+                actionButton(
+                    icon: "checkmark",
+                    title: commitButtonTitle,
+                    enabled: canCommit,
+                    help: model.stagedEntries.isEmpty
+                        ? "Stage all changes and commit"
+                        : "Commit staged changes",
+                    action: performCommit
                 )
-                .foregroundStyle(.white)
-                .contentShape(RoundedRectangle(cornerRadius: 6))
             }
-            .buttonStyle(.plain)
-            .disabled(!canCommit)
-            .help(model.stagedEntries.isEmpty
-                  ? "Stage all changes and commit"
-                  : "Commit staged changes")
         }
         .padding(.horizontal, 10)
         .padding(.bottom, 8)
+    }
+
+    private func actionButton(
+        icon: String, title: String, enabled: Bool, help: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: 5) {
+                Image(systemName: icon)
+                    .font(.system(size: 10, weight: .semibold))
+                Text(title)
+                    .font(.system(size: 11, weight: .medium))
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 5)
+            .background(
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(Color(nsColor: Theme.cursor).opacity(enabled ? 0.85 : 0.3))
+            )
+            .foregroundStyle(.white)
+            .contentShape(RoundedRectangle(cornerRadius: 6))
+        }
+        .buttonStyle(.plain)
+        .disabled(!enabled)
+        .help(help)
+    }
+
+    private var commitFieldPlaceholder: String {
+        if let branch = model.branch {
+            return "Message (⏎ to commit on \"\(branch)\")"
+        }
+        return "Message (⏎ to commit)"
+    }
+
+    private var showSyncButton: Bool {
+        model.totalChangeCount == 0 && (model.ahead > 0 || model.behind > 0)
+    }
+
+    private var syncButtonTitle: String {
+        var title = "Sync Changes"
+        if model.behind > 0 { title += " \(model.behind)↓" }
+        if model.ahead > 0 { title += " \(model.ahead)↑" }
+        return title
     }
 
     private var commitButtonTitle: String {

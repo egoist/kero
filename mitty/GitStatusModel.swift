@@ -157,6 +157,15 @@ final class GitStatusModel: nonisolated ObservableObject {
         perform([["push", "-u", "origin", "HEAD"]])
     }
 
+    func syncChanges() {
+        // Like VS Code's Sync: pull first, then push.
+        if hasUpstream {
+            perform([["pull"], ["push"]])
+        } else {
+            perform([["push", "-u", "origin", "HEAD"]])
+        }
+    }
+
     /// Runs `commands` sequentially in the repo root, stopping at the first
     /// failure (surfaced via `lastError`), then refreshes.
     private func perform(_ commands: [[String]], onSuccess: (@MainActor () -> Void)? = nil) {
