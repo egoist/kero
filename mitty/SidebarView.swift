@@ -9,6 +9,7 @@ import SwiftUI
 /// its sessions show as horizontal tabs in the main header.
 struct SidebarView: View {
     @ObservedObject var manager: TerminalManager
+    @AppStorage("leftSidebarWidth") private var width: Double = 220
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -60,8 +61,16 @@ struct SidebarView: View {
             .padding(.horizontal, 8)
             .padding(.bottom, 10)
         }
-        .frame(width: 220)
+        .frame(width: width)
         .background(VisualEffectView(material: .sidebar))
+        .overlay(alignment: .trailing) {
+            SidebarResizeHandle(
+                edge: .trailing,
+                width: $width,
+                range: 160...400,
+                defaultWidth: 220
+            )
+        }
     }
 }
 

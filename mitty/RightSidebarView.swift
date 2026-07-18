@@ -14,6 +14,7 @@ struct RightSidebarView: View {
     @StateObject private var fileTree = FileTreeModel()
     @StateObject private var git = GitStatusModel()
     @StateObject private var info = SessionInfoModel()
+    @AppStorage("rightSidebarWidth") private var width: Double = 240
 
     private let refreshTimer = Timer.publish(every: 2, on: .main, in: .common).autoconnect()
 
@@ -52,8 +53,18 @@ struct RightSidebarView: View {
                         InfoPanel(model: info, session: manager.selectedSession)
                     }
                 }
-                .frame(width: 240)
+                .frame(width: width)
                 .background(Color(nsColor: Theme.sidebar))
+            }
+        }
+        .overlay(alignment: .leading) {
+            if manager.isPanelVisible {
+                SidebarResizeHandle(
+                    edge: .leading,
+                    width: $width,
+                    range: 180...500,
+                    defaultWidth: 240
+                )
             }
         }
         .onAppear(perform: syncModels)
