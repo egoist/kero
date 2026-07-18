@@ -38,6 +38,11 @@ struct ContentView: View {
             RightSidebarView(manager: manager)
         }
         .ignoresSafeArea()
+        .overlay {
+            if manager.isCommandPaletteVisible {
+                CommandPaletteView(manager: manager)
+            }
+        }
         .background(WindowChromeAccessor())
         .onChange(of: colorScheme) {
             manager.refreshAppearance()

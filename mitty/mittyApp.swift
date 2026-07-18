@@ -31,7 +31,14 @@ struct mittyApp: App {
                 .keyboardShortcut("t", modifiers: .command)
 
                 Button("Close Tab") {
-                    manager.closeSelectedTab()
+                    // Cmd-W is app-wide: only close a tab when the main window is
+                    // key; otherwise close the key window (e.g. Settings).
+                    if let keyWindow = NSApp.keyWindow,
+                       keyWindow.identifier?.rawValue.hasPrefix("main") != true {
+                        keyWindow.performClose(nil)
+                    } else {
+                        manager.closeSelectedTab()
+                    }
                 }
                 .keyboardShortcut("w", modifiers: .command)
             }
@@ -43,7 +50,17 @@ struct mittyApp: App {
                 .keyboardShortcut("s", modifiers: .command)
             }
 
+            // Frees ⌘P from the default Print item for the command palette.
+            CommandGroup(replacing: .printItem) {}
+
             CommandGroup(after: .sidebar) {
+                Button("Command Palette…") {
+                    manager.toggleCommandPalette()
+                }
+                .keyboardShortcut("p", modifiers: .command)
+
+                Divider()
+
                 Button("Toggle Sidebar") {
                     manager.toggleSidebar()
                 }

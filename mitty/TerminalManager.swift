@@ -22,6 +22,7 @@ final class TerminalManager: nonisolated ObservableObject {
     @Published var selectedProjectID: UUID?
     @Published var isPanelVisible = false
     @Published var panelTab: RightPanel = .files
+    @Published var isCommandPaletteVisible = false
 
     /// Projects publish their own changes (session list, session selection);
     /// re-publish them so views observing the manager stay current.
@@ -184,6 +185,10 @@ final class TerminalManager: nonisolated ObservableObject {
 
     func toggleSidebar() {
         isPanelVisible.toggle()
+    }
+
+    func toggleCommandPalette() {
+        isCommandPaletteVisible.toggle()
     }
 
     /// Shows the sidebar on `panel`, or hides it if already showing that panel.
