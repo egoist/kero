@@ -16,6 +16,7 @@ struct keroApp: App {
             WindowRootView()
         }
         .windowStyle(.hiddenTitleBar)
+        .defaultSize(width: 900, height: 600)
         .commands {
             KeroCommands()
         }
