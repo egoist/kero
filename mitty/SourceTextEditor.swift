@@ -84,6 +84,11 @@ struct SourceTextEditor: NSViewRepresentable {
         // numbers against the text by one line.
         scrollView.automaticallyAdjustsContentInsets = false
         scrollView.contentInsets = NSEdgeInsets()
+        // The gutter is a document-height floating subview that scrolls
+        // vertically with the text; since macOS 14 NSViews no longer clip
+        // subviews by default, so without this the scrolled-away line
+        // numbers draw outside the scroll view, over the header above it.
+        scrollView.clipsToBounds = true
 
         // Configure typography before setting the text: the font/color
         // setters restyle the whole document, and restyling after layout
