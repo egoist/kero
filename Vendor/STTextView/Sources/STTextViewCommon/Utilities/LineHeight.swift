@@ -1,0 +1,73 @@
+//  Created by Marcin Krzyzanowski
+//  https://github.com/krzyzanowskim/STTextView/blob/main/LICENSE.md
+
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
+    import AppKit
+#endif
+#if canImport(UIKit)
+    import UIKit
+#endif
+
+package func calculateDefaultLineHeight(for font: CTFont) -> CGFloat {
+    #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        calculateAppKitDefaultLineHeight(for: font)
+    #elseif canImport(UIKit)
+        calculateUIKitDefaultLineHeight(for: font)
+    #else
+        calculateHeuristicDefaultLineHeight(for: font)
+    #endif
+}
+
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
+    private func calculateAppKitDefaultLineHeight(for font: CTFont) -> CGFloat {
+        NSLayoutManager().defaultLineHeight(for: font as NSFont)
+    }
+#endif
+
+#if canImport(UIKit)
+    private func calculateUIKitDefaultLineHeight(for font: CTFont) -> CGFloat {
+        let lineHeight = (font as UIFont).lineHeight
+        return lineHeight > 0 ? lineHeight : calculateHeuristicDefaultLineHeight(for: font)
+    }
+#endif
+
+private func calculateHeuristicDefaultLineHeight(for font: CTFont) -> CGFloat {
+    let kLineHeightAdjustment: CGFloat = 0.15
+    /// Heavily inspired by WebKit
+    var ascent = CTFontGetAscent(font)
+    var descent = CTFontGetDescent(font)
+    var lineGap = CTFontGetLeading(font)
+
+    let familyName = CTFontCopyFamilyName(font) as String
+
+    if shouldUseAdjustment(familyName) {
+        // Needs ascent adjustment
+        ascent += round((ascent + descent) * kLineHeightAdjustment)
+    }
+
+    // Compute line spacing before the line metrics hacks are applied.
+    var lineSpacing = ceil(ascent + descent + lineGap)
+
+    // Hack Hiragino line metrics to allow room for marked text underlines.
+    if descent < 3, lineGap >= 3, familyName.hasPrefix("Hiragino") == true {
+        lineGap -= 3 - descent
+        descent = 3
+    }
+
+    #if os(iOS) || targetEnvironment(macCatalyst)
+        let adjustment = shouldUseAdjustment(familyName) ? ceil(ascent + descent) * kLineHeightAdjustment : 0
+        lineGap = ceil(lineGap)
+        lineSpacing = ceil(ascent) + adjustment + ceil(descent) + lineGap
+        ascent = ceil((ascent + adjustment))
+        descent = ceil(descent)
+    #endif
+
+    return lineSpacing
+}
+
+private func shouldUseAdjustment(_ familyName: String) -> Bool {
+    familyName.caseInsensitiveCompare("Times") == .orderedSame
+        || familyName.caseInsensitiveCompare("Helvetica") == .orderedSame
+        || familyName.caseInsensitiveCompare("Courier") == .orderedSame // macOS only
+        || familyName.caseInsensitiveCompare(".Helvetica NeueUI") == .orderedSame
+}

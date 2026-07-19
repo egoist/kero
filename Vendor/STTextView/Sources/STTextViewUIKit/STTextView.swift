@@ -1,0 +1,1211 @@
+//  Created by Marcin Krzyzanowski
+//  https://github.com/krzyzanowskim/STTextView/blob/main/LICENSE.md
+//
+//
+//  STTextView
+//      |---contentView
+//              |---STLineHighlightView
+//              |---STTextLayoutFragmentView
+//      |---gutterView
+
+import UIKit
+import STTextKitPlus
+import STTextViewCommon
+
+@objc
+open class STTextView: UIScrollView, STTextViewProtocol {
+
+    /// Sent when the selection range of characters changes.
+    public static let didChangeSelectionNotification = STTextLayoutManager.didChangeSelectionNotification
+
+    /// Posted before an object performs any operation that changes characters or formatting attributes.
+    public static let textWillChangeNotification = NSNotification.Name("NSTextWillChangeNotification")
+
+    /// Posted after an object performs any operation that changes characters or formatting attributes.
+    public static let textDidChangeNotification = UITextView.textDidChangeNotification
+
+    open var autocorrectionType: UITextAutocorrectionType = .default
+    open var autocapitalizationType: UITextAutocapitalizationType = .sentences
+    open var smartQuotesType: UITextSmartQuotesType = .default
+    open var smartDashesType: UITextSmartDashesType = .default
+    open var smartInsertDeleteType: UITextSmartInsertDeleteType = .default
+    open var spellCheckingType: UITextSpellCheckingType = .default
+    open var keyboardType: UIKeyboardType = .default
+    open var keyboardAppearance: UIKeyboardAppearance = .default
+    open var returnKeyType: UIReturnKeyType = .default
+
+    /// The manager that lays out text for the text view's text container.
+    @objc
+    open dynamic var textLayoutManager: NSTextLayoutManager {
+        willSet {
+            textContentManager.primaryTextLayoutManager = nil
+            textContentManager.removeTextLayoutManager(newValue)
+        }
+        didSet {
+            textContentManager.addTextLayoutManager(textLayoutManager)
+            textContentManager.primaryTextLayoutManager = textLayoutManager
+            setupTextLayoutManager(textLayoutManager)
+            self.text = text
+        }
+    }
+
+    /// The text view's text storage object.
+    @objc
+    open private(set) var textContentManager: NSTextContentManager
+
+    /// The text view's text container
+    public var textContainer: NSTextContainer {
+        get {
+            textLayoutManager.textContainer!
+        }
+
+        set {
+            textLayoutManager.textContainer = newValue
+        }
+    }
+
+    private var _isHorizontallyResizable = true
+    private lazy var _defaultTextContainerSize: CGSize = NSTextContainer().size
+
+    /// Backing storage for accessibility textual context.
+    internal var _accessibilityTextualContext: UIAccessibilityTextualContext?
+
+    /// Backing storage for accessibility identifier.
+    internal var _accessibilityIdentifier: String?
+
+    /// A Boolean that controls whether the receiver changes its width to fit the width of its text.
+    ///
+    /// When `true` (default), text does not wrap and the view expands horizontally.
+    /// When `false`, text wraps at the view width.
+    @objc
+    public var isHorizontallyResizable: Bool {
+        set {
+            if _isHorizontallyResizable != newValue {
+                _isHorizontallyResizable = newValue
+                updateTextContainerSize()
+                setNeedsLayout()
+                setNeedsDisplay()
+            }
+        }
+
+        get {
+            _isHorizontallyResizable
+        }
+    }
+
+    /// NSTextContainer compatibility. Equivalent to `!isHorizontallyResizable`.
+    @available(*, deprecated, renamed: "isHorizontallyResizable")
+    @objc
+    public var widthTracksTextView: Bool {
+        set { isHorizontallyResizable = !newValue }
+        get { !isHorizontallyResizable }
+    }
+
+    private var _isVerticallyResizable = true
+
+    /// A Boolean that controls whether the receiver changes its height to fit the height of its text.
+    ///
+    /// When `true` (default), the view expands vertically to fit content.
+    /// When `false`, content is clipped at the view height.
+    @objc
+    public var isVerticallyResizable: Bool {
+        set {
+            if _isVerticallyResizable != newValue {
+                _isVerticallyResizable = newValue
+                updateTextContainerSize()
+                setNeedsLayout()
+                setNeedsDisplay()
+            }
+        }
+
+        get {
+            _isVerticallyResizable
+        }
+    }
+
+    /// NSTextContainer compatibility. Equivalent to `!isVerticallyResizable`.
+    @available(*, deprecated, renamed: "isVerticallyResizable")
+    @objc
+    public var heightTracksTextView: Bool {
+        set { isVerticallyResizable = !newValue }
+        get { !isVerticallyResizable }
+    }
+
+    /// A Boolean that controls whether the text view highlights the currently selected line. Default false.
+    @Invalidating(.layout)
+    @objc
+    open dynamic var highlightSelectedLine = false
+
+    /// Enable to show line numbers in the gutter.
+    @Invalidating(.layout)
+    open var showsLineNumbers = false {
+        didSet {
+            isGutterVisible = showsLineNumbers
+        }
+    }
+
+    @Invalidating(.layout)
+    public var showsInvisibleCharacters = false {
+        didSet {
+            textLayoutManager.invalidateLayout(for: textLayoutManager.textViewportLayoutController.viewportRange ?? textLayoutManager.documentRange)
+        }
+    }
+
+    /// The inset of the text container's layout area within the text view's content area.
+    ///
+    /// This property controls the padding between the scroll view's content area and the text container.
+    /// Default is `UIEdgeInsets(top: 8, left: 0, bottom: 8, right: 0)` to match UITextView.
+    @Invalidating(.layout)
+    @objc
+    open var textContainerInset: UIEdgeInsets = UIEdgeInsets(top: 8, left: 0, bottom: 8, right: 0)
+
+    /// The highlight color of the selected line.
+    ///
+    /// Note: Needs ``highlightSelectedLine`` to be set to `true`
+    @Invalidating(.display)
+    @objc
+    open dynamic var selectedLineHighlightColor = UIColor.tintColor.withAlphaComponent(0.15)
+
+    /// The font of the text. Default font.
+    ///
+    /// Assigning a new value to this property causes the new font to be applied to the entire contents of the text view.
+    /// If you want to apply the font to only a portion of the text, you must create a new attributed string with the desired style information and assign it
+    @objc
+    public var font: UIFont {
+        get {
+            _defaultTypingAttributes[.font] as! UIFont
+        }
+
+        set {
+            _defaultTypingAttributes[.font] = newValue
+
+            // apply to the document
+            if !textLayoutManager.documentRange.isEmpty {
+                addAttributes([.font: newValue], range: textLayoutManager.documentRange)
+            }
+
+            updateTypingAttributes()
+        }
+    }
+
+    /// The text color of the text view.
+    ///
+    /// Default text color.
+    @objc
+    public var textColor: UIColor {
+        get {
+            _defaultTypingAttributes[.foregroundColor] as! UIColor
+        }
+
+        set {
+            _defaultTypingAttributes[.foregroundColor] = newValue
+
+            // apply to the document
+            if !textLayoutManager.documentRange.isEmpty {
+                addAttributes([.foregroundColor: newValue], range: textLayoutManager.documentRange)
+            }
+
+            updateTypingAttributes()
+        }
+    }
+
+    /// Gutter view
+    public var gutterView: STGutterView?
+
+    /// Installed plugins. events value is available after plugin is setup
+    var plugins: [Plugin] = []
+
+    /// Content view. Layout fragments content.
+    let contentView: STTextContainerView
+
+    /// Content frame. Layout fragments content frame.
+    @_spi(Plugins)
+    public var contentFrame: CGRect {
+        contentView.frame
+    }
+
+    /// Line highlight view.
+    let lineHighlightView: STLineHighlightView
+
+    /// A one-shot action executed after the next layout viewport pass completes, then cleared.
+    var postLayoutAction: (() -> Void)? {
+        didSet {
+            if postLayoutAction != nil {
+                setNeedsLayout()
+            }
+        }
+    }
+
+    private var inLayout = false
+    private var needsRelayout = false
+
+    var fragmentViewMap: NSMapTable<NSTextLayoutFragment, STTextLayoutFragmentView>
+    var lastUsedFragmentViews: Set<STTextLayoutFragmentView> = []
+
+    /// The delegate for all text views sharing the same layout manager.
+    public weak var textDelegate: (any STTextViewDelegate)? {
+        set {
+            delegateProxy.source = newValue
+        }
+
+        get {
+            delegateProxy.source
+        }
+    }
+
+    /// Proxy for delegate calls
+    let delegateProxy = STTextViewDelegateProxy(source: nil)
+
+    /// An input delegate that receives a notification when text changes or when the selection changes.
+    ///
+    /// The text input system automatically assigns a delegate to this property at runtime.
+    public weak var inputDelegate: UITextInputDelegate?
+
+    public var markedTextStyle: [NSAttributedString.Key: Any]?
+
+    /// If text can be selected, it can be marked. Marked text represents provisionally
+    /// inserted text that has yet to be confirmed by the user.  It requires unique visual
+    /// treatment in its display.  If there is any marked text, the selection, whether a
+    /// caret or an extended range, always resides within.
+    ///
+    /// Setting marked text either replaces the existing marked text or, if none is present,
+    /// inserts it from the current selection.
+    public var markedTextRange: UITextRange? {
+        if let markedText, let textRange = NSTextRange(markedText.markedRange, in: textContentManager) {
+            return STTextLocationRange(textRange: textRange)
+        }
+
+        return nil
+    }
+
+    /// A Boolean value that indicates whether the receiver allows undo.
+    ///
+    /// `true` if the receiver allows undo, otherwise `false`. Default `true`.
+    @objc
+    public dynamic var allowsUndo: Bool
+    var _undoManager: UndoManager?
+
+    var markedText: STMarkedText?
+
+    /// A tokenizer must be provided to inform the text input system about text units of varying granularity.
+    public lazy var tokenizer: UITextInputTokenizer = STTextInputTokenizer(textLayoutManager)
+
+    /// The text that the text view displays.
+    @objc
+    open var text: String? {
+        set {
+            let prevLocation = textLayoutManager.insertionPointLocations.first
+
+            resetTypingAttributes()
+            setString(newValue)
+
+            if let prevLocation {
+                // restore selection location
+                setSelectedTextRange(NSTextRange(location: prevLocation), updateLayout: true)
+            } else {
+                // or try to set at the begining of the document
+                setSelectedTextRange(NSTextRange(location: textContentManager.documentRange.location), updateLayout: true)
+            }
+        }
+
+        get {
+            textContentManager.attributedString(in: nil)?.string
+        }
+    }
+
+    /// The styled text that the text view displays.
+    ///
+    /// Assigning a new value to this property also replaces the value of the `text` property with the same string data, albeit without any formatting information. In addition, the `font`, `textColor`, and `textAlignment` properties are updated to reflect the typing attributes of the text view.
+    @objc
+    open var attributedText: NSAttributedString? {
+        set {
+            let prevLocation = textLayoutManager.insertionPointLocations.first
+
+            resetTypingAttributes()
+            setString(newValue)
+
+            if let prevLocation {
+                // restore selection location
+                setSelectedTextRange(NSTextRange(location: prevLocation), updateLayout: true)
+            } else {
+                // or try to set at the begining of the document
+                setSelectedTextRange(NSTextRange(location: textContentManager.documentRange.location), updateLayout: true)
+            }
+        }
+
+        get {
+            textContentManager.attributedString(in: nil)
+        }
+    }
+
+    /// A Boolean value that controls whether the text view allows the user to edit text.
+    // @Invalidating(.insertionPoint, .cursorRects)
+    @objc
+    open dynamic var isEditable: Bool {
+        didSet {
+            if isEditable != oldValue {
+                if !isEditable {
+                    resignFirstResponder()
+                }
+                updateEditableInteraction()
+            }
+        }
+    }
+
+    /// A Boolean value that controls whether the text views allows the user to select text.
+    // @Invalidating(.insertionPoint, .cursorRects)
+    @objc
+    open dynamic var isSelectable: Bool {
+        didSet {
+            if isSelectable != oldValue {
+                if !isSelectable {
+                    resignFirstResponder()
+                }
+                updateEditableInteraction()
+            }
+        }
+    }
+
+    /// The receiver’s default paragraph style.
+    @objc
+    public var defaultParagraphStyle: NSParagraphStyle {
+        set {
+            _defaultTypingAttributes[.paragraphStyle] = newValue
+        }
+        get {
+            _defaultTypingAttributes[.paragraphStyle] as? NSParagraphStyle ?? NSParagraphStyle.default
+        }
+    }
+
+    /// Default typing attributes used in place of missing attributes of font, color and paragraph
+    var _defaultTypingAttributes: [NSAttributedString.Key: Any] = [
+        .paragraphStyle: NSParagraphStyle.default,
+        .font: UIFont.preferredFont(forTextStyle: .body),
+        .foregroundColor: UIColor.label
+    ]
+
+    /// The attributes to apply to new text that the user enters.
+    ///
+    /// This dictionary contains the attribute keys (and corresponding values) to apply to newly typed text.
+    /// When the text view’s selection changes, the contents of the dictionary are reset automatically.
+    @objc
+    public var typingAttributes: [NSAttributedString.Key: Any] {
+        get {
+            _typingAttributes.merging(_defaultTypingAttributes) { (current, _) in current }
+        }
+
+        set {
+            _typingAttributes = newValue.filter {
+                _allowedTypingAttributes.contains($0.key)
+            }
+            setNeedsDisplay()
+        }
+    }
+
+    private var _typingAttributes: [NSAttributedString.Key: Any]
+    private var _allowedTypingAttributes: [NSAttributedString.Key] = [
+        .paragraphStyle,
+        .font,
+        .foregroundColor,
+        .baselineOffset,
+        .kern,
+        .ligature,
+        .shadow,
+        .strikethroughColor,
+        .strikethroughStyle,
+        .languageIdentifier,
+        .tracking,
+        .writingDirection,
+        .textEffect,
+        .backgroundColor,
+        .underlineColor,
+        .underlineStyle
+    ]
+
+    func updateTypingAttributes(at location: NSTextLocation? = nil) {
+        if let location {
+            self.typingAttributes = typingAttributes(at: location)
+        } else {
+            // TODO: doesn't work work correctly (at all) for multiple insertion points where each has different typing attribute
+            if let insertionPointSelection = textLayoutManager.insertionPointSelections.first,
+               let startLocation = insertionPointSelection.textRanges.first?.location {
+                self.typingAttributes = typingAttributes(at: startLocation)
+            }
+        }
+    }
+
+    /// Resets typing attributes to default values.
+    open func resetTypingAttributes() {
+        _typingAttributes = [:]
+    }
+
+    func typingAttributes(at startLocation: NSTextLocation) -> [NSAttributedString.Key: Any] {
+        if textLayoutManager.documentRange.isEmpty {
+            return _defaultTypingAttributes
+        }
+
+        var typingAttrs: [NSAttributedString.Key: Any] = [:]
+        // The attribute is derived from the previous (upstream) location,
+        // except for the beginning of the document where it from whatever is at location 0
+        let options: NSTextContentManager.EnumerationOptions = startLocation == textLayoutManager.documentRange.location ? [] : [.reverse]
+        let offsetDiff = startLocation == textLayoutManager.documentRange.location ? 0 : -1
+
+        textContentManager.enumerateTextElements(from: startLocation, options: options) { textElement in
+            if let attributedTextElement = textElement as? STAttributedTextElement,
+               let elementRange = textElement.elementRange,
+               let textContentManager = textElement.textContentManager {
+                let offset = textContentManager.offset(from: elementRange.location, to: startLocation)
+                assert(offset != NSNotFound, "Unexpected location")
+                typingAttrs = attributedTextElement.attributedString.attributes(at: offset + offsetDiff, effectiveRange: nil)
+            }
+
+            return false
+        }
+
+        // fill in with missing typing attributes if needed
+        return typingAttrs.merging(_defaultTypingAttributes, uniquingKeysWith: { current, _ in current })
+    }
+
+    // line height based on current typing font and current typing paragraph
+    @available(*, deprecated, message: "Use STTextLayoutFragment metrics")
+    var typingLineHeight: CGFloat {
+        let font = typingAttributes[.font] as? UIFont ?? _defaultTypingAttributes[.font] as! UIFont
+        let paragraphStyle = typingAttributes[.paragraphStyle] as? NSParagraphStyle ?? _defaultTypingAttributes[.paragraphStyle] as! NSParagraphStyle
+        return calculateDefaultLineHeight(for: font) * paragraphStyle.stLineHeightMultiple
+    }
+
+    private let editableTextInteraction = UITextInteraction(for: .editable)
+    private let nonEditableTextInteraction = UITextInteraction(for: .nonEditable)
+
+    @objc
+    public var textInputView: UIView {
+        self
+    }
+
+    override open var canBecomeFirstResponder: Bool {
+        !isFirstResponder && isEditable
+    }
+
+    public convenience init(frame: CGRect, textContainer: NSTextContainer?) {
+        self.init(frame: frame)
+        textLayoutManager.textContainer = textContainer
+    }
+
+    override public init(frame: CGRect) {
+        fragmentViewMap = .weakToWeakObjects()
+
+        textContentManager = STTextContentStorage()
+        textLayoutManager = STTextLayoutManager()
+
+        textLayoutManager.textContainer = NSTextContainer()
+        textContentManager.addTextLayoutManager(textLayoutManager)
+        textContentManager.primaryTextLayoutManager = textLayoutManager
+
+        isSelectable = true
+        isEditable = true
+
+        contentView = STTextContainerView()
+
+        lineHighlightView = STLineHighlightView()
+        lineHighlightView.isHidden = true
+
+        allowsUndo = true
+        _undoManager = CoalescingUndoManager()
+
+        _typingAttributes = [:]
+
+        super.init(frame: frame)
+
+        contentView.clipsToBounds = clipsToBounds
+        lineHighlightView.clipsToBounds = clipsToBounds
+
+        addSubview(contentView)
+        contentView.addSubview(lineHighlightView)
+
+        editableTextInteraction.textInput = self
+        editableTextInteraction.delegate = self
+
+        nonEditableTextInteraction.textInput = self
+        nonEditableTextInteraction.delegate = self
+
+        updateEditableInteraction()
+        isGutterVisible = showsLineNumbers
+
+        setupTextLayoutManager(textLayoutManager)
+        setSelectedTextRange(NSTextRange(location: textLayoutManager.documentRange.location), updateLayout: false)
+    }
+
+    @available(*, unavailable)
+    public required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    private var didChangeSelectionNotificationObserver: NSObjectProtocol?
+    private func setupTextLayoutManager(_ textLayoutManager: NSTextLayoutManager) {
+        textLayoutManager.delegate = self
+        textLayoutManager.textViewportLayoutController.delegate = self
+
+        // Forward didChangeSelectionNotification from STTextLayoutManager
+        if let didChangeSelectionNotificationObserver {
+            NotificationCenter.default.removeObserver(didChangeSelectionNotificationObserver)
+        }
+        didChangeSelectionNotificationObserver = NotificationCenter.default.addObserver(forName: STTextLayoutManager.didChangeSelectionNotification, object: textLayoutManager, queue: .main) { [weak self] notification in
+            guard let self else { return }
+            let textViewNotification = Notification(name: Self.didChangeSelectionNotification, object: self, userInfo: notification.userInfo)
+
+            NotificationCenter.default.post(textViewNotification)
+            self.delegateProxy.textViewDidChangeSelection(textViewNotification)
+            self.postAccessibilitySelectedTextChangedNotification()
+        }
+    }
+
+    /// This action method shows or hides the ruler, if the receiver is enclosed in a scroll view
+    @objc public func toggleRuler(_ sender: Any?) {
+        isGutterVisible.toggle()
+    }
+
+    /// The current selection range of the text view.
+    ///
+    /// If the length of the selection range is 0, indicating that the selection is actually an insertion point
+    public var textSelection: NSRange {
+        set {
+            setSelectedRange(newValue)
+        }
+
+        get {
+            if let selectionTextRange = textLayoutManager.textSelections.last?.textRanges.last {
+                return NSRange(selectionTextRange, in: textContentManager)
+            }
+
+            return .notFound
+        }
+    }
+
+    func setSelectedTextRange(_ textRange: NSTextRange, updateLayout: Bool) {
+        guard isSelectable, textRange.endLocation <= textLayoutManager.documentRange.endLocation else {
+            return
+        }
+
+        self.selectedTextRange = textRange.uiTextRange
+
+        if updateLayout {
+            setNeedsLayout()
+        }
+    }
+
+    func setSelectedRange(_ range: NSRange) {
+        guard let textRange = NSTextRange(range, in: textContentManager) else {
+            preconditionFailure("Invalid range \(range)")
+        }
+        setSelectedTextRange(textRange, updateLayout: true)
+    }
+
+    /// Add attribute.
+    open func addAttributes(_ attrs: [NSAttributedString.Key: Any], range: NSRange) {
+        addAttributes(attrs, range: range, updateLayout: true)
+    }
+
+    /// Add attribute.
+    func addAttributes(_ attrs: [NSAttributedString.Key: Any], range: NSRange, updateLayout: Bool) {
+        guard let textRange = NSTextRange(range, in: textContentManager) else {
+            preconditionFailure("Invalid range \(range)")
+        }
+
+        addAttributes(attrs, range: textRange, updateLayout: updateLayout)
+    }
+
+    /// Add attribute.
+    func addAttributes(_ attrs: [NSAttributedString.Key: Any], range: NSTextRange, updateLayout: Bool = true) {
+
+        textContentManager.performEditingTransaction {
+            (textContentManager as? NSTextContentStorage)?.textStorage?.addAttributes(attrs, range: NSRange(range, in: textContentManager))
+        }
+
+        if updateLayout {
+            setNeedsLayout()
+        }
+    }
+
+    /// Set attributes.
+    open func setAttributes(_ attrs: [NSAttributedString.Key: Any], range: NSRange) {
+        setAttributes(attrs, range: range, updateLayout: true)
+    }
+
+    /// Set attributes.
+    func setAttributes(_ attrs: [NSAttributedString.Key: Any], range: NSRange, updateLayout: Bool) {
+        guard let textRange = NSTextRange(range, in: textContentManager) else {
+            preconditionFailure("Invalid range \(range)")
+        }
+
+        setAttributes(attrs, range: textRange, updateLayout: updateLayout)
+    }
+
+    /// Set attributes.
+    func setAttributes(_ attrs: [NSAttributedString.Key: Any], range: NSTextRange, updateLayout: Bool = true) {
+
+        textContentManager.performEditingTransaction {
+            (textContentManager as? NSTextContentStorage)?.textStorage?.setAttributes(attrs, range: NSRange(range, in: textContentManager))
+        }
+
+
+        if updateLayout {
+            setNeedsLayout()
+        }
+    }
+
+    /// Set attributes.
+    open func removeAttribute(_ attribute: NSAttributedString.Key, range: NSRange) {
+        removeAttribute(attribute, range: range, updateLayout: true)
+    }
+
+    /// Set attributes.
+    func removeAttribute(_ attribute: NSAttributedString.Key, range: NSRange, updateLayout: Bool) {
+        guard let textRange = NSTextRange(range, in: textContentManager) else {
+            preconditionFailure("Invalid range \(range)")
+        }
+
+        removeAttribute(attribute, range: textRange, updateLayout: updateLayout)
+    }
+
+    /// Set attributes.
+    func removeAttribute(_ attribute: NSAttributedString.Key, range: NSTextRange, updateLayout: Bool = true) {
+
+        textContentManager.performEditingTransaction {
+            (textContentManager as? NSTextContentStorage)?.textStorage?.removeAttribute(attribute, range: NSRange(range, in: textContentManager))
+        }
+
+        if updateLayout {
+            setNeedsLayout()
+        }
+    }
+
+    private func updateEditableInteraction() {
+
+        func setupEditableInteraction() {
+            if editableTextInteraction.view == nil {
+                removeInteraction(nonEditableTextInteraction)
+                addInteraction(editableTextInteraction)
+            }
+        }
+
+        func setupNonEditableInteraction() {
+            if nonEditableTextInteraction.view == nil {
+                removeInteraction(editableTextInteraction)
+                addInteraction(nonEditableTextInteraction)
+            }
+        }
+
+        func setupNoInteraction() {
+            removeInteraction(editableTextInteraction)
+            removeInteraction(nonEditableTextInteraction)
+        }
+
+        if isEditable {
+            setupEditableInteraction()
+        } else if isSelectable {
+            setupNonEditableInteraction()
+        } else {
+            setupNoInteraction()
+        }
+    }
+
+    func setString(_ string: Any?) {
+        undoManager?.disableUndoRegistration()
+        defer {
+            undoManager?.enableUndoRegistration()
+        }
+
+        if case let .some(string) = string {
+            switch string {
+            case let attributedString as NSAttributedString:
+                replaceCharacters(in: textLayoutManager.documentRange, with: attributedString, allowsTypingCoalescing: false)
+            case let string as String:
+                replaceCharacters(in: textLayoutManager.documentRange, with: string, useTypingAttributes: true, allowsTypingCoalescing: false)
+            default:
+                assertionFailure()
+                return
+            }
+        } else if case .none = string {
+            replaceCharacters(in: textLayoutManager.documentRange, with: "", useTypingAttributes: true, allowsTypingCoalescing: false)
+        }
+    }
+
+    override open func sizeToFit() {
+        updateTextContainerSize()
+
+        let gutterWidth = gutterView?.frame.width ?? 0
+        let verticalScrollInset = contentInset.top + contentInset.bottom
+        let visibleRectSize = self.bounds.size
+        let horizontalTextContainerInset = textContainerInset.left + textContainerInset.right
+        let verticalTextContainerInset = textContainerInset.top + textContainerInset.bottom
+
+        // Now perform layout with correct container size
+        // Estimate `usageBoundsForTextContainer` size is based on performed layout.
+        // If layout didn't happen for the whole document, it only cover
+        // the fragment that is known. And even after ensureLayout for the whole document
+        // `textLayoutManager.ensureLayout(for: textLayoutManager.documentRange)`
+        // it can't report exact size (it must do internal estimations then).
+        //
+        // Because I use "lazy layout" with the viewport, there is no "layout everything"
+        // on launch (due to performance reason) hence the total size is not know in advance.
+        // TextKit estimate the usageBoundsForTextContainer until everything is layed out
+        // that may result in weird and unexpected values along the way
+        //
+        // Calling ensureLayout on the whole document should fix the value, however
+        // it may be time consuming (in seconds) hence not recommended:
+        // textLayoutManager.ensureLayout(for: textLayoutManager.documentRange)
+        //
+        // Asking for the end location result in estimated `usageBoundsForTextContainer`
+        // that eventually get right as more and more layout happen (when scrolling)
+
+        // Estimated text container size to layout document
+        textLayoutManager.ensureLayout(for: NSTextRange(location: textLayoutManager.documentRange.endLocation))
+
+        super.sizeToFit()
+
+        let usageBoundsForTextContainer = textLayoutManager.usageBoundsForTextContainer
+
+        let frameSize = if isHorizontallyResizable {
+            // no-wrapping
+            CGSize(
+                width: max(usageBoundsForTextContainer.size.width + gutterWidth + textContainer.lineFragmentPadding + horizontalTextContainerInset, visibleRectSize.width),
+                height: max(usageBoundsForTextContainer.size.height + verticalTextContainerInset, visibleRectSize.height - verticalScrollInset)
+            )
+        } else {
+            // wrapping
+            CGSize(
+                width: visibleRectSize.width,
+                height: max(usageBoundsForTextContainer.size.height + verticalTextContainerInset, visibleRectSize.height - verticalScrollInset)
+            )
+        }
+
+        if !frame.size.isAlmostEqual(to: frameSize) {
+            logger.debug("contentView.frame.size (\(frameSize.width), \(frameSize.height)) \(#function)")
+            self.contentView.frame.origin = CGPoint(x: gutterWidth + textContainerInset.left, y: textContainerInset.top)
+            self.contentView.frame.size = frameSize
+            self.contentSize = frameSize
+        }
+    }
+
+    /// Lightweight content size update called after viewport layout.
+    ///
+    /// Unlike `sizeToFit()` which may trigger full document layout, this method
+    /// uses existing layout data to estimate content size.
+    func updateContentSizeIfNeeded() {
+        let gutterWidth = gutterView?.frame.width ?? 0
+        let verticalScrollInset = contentInset.top + contentInset.bottom
+        let visibleRectSize = bounds.size
+        let horizontalTextContainerInset = textContainerInset.left + textContainerInset.right
+        let verticalTextContainerInset = textContainerInset.top + textContainerInset.bottom
+
+        var estimatedSize = CGSize.zero
+        let documentEndLocation = textLayoutManager.documentRange.endLocation
+
+        textLayoutManager.enumerateTextLayoutFragments(
+            from: documentEndLocation,
+            options: [.reverse, .ensuresLayout, .ensuresExtraLineFragment]
+        ) { layoutFragment in
+            estimatedSize.width = max(estimatedSize.width, layoutFragment.layoutFragmentFrame.size.width)
+            return false
+        }
+
+        let segmentRange = NSTextRange(location: documentEndLocation)
+        textLayoutManager.ensureLayout(for: segmentRange)
+        textLayoutManager.enumerateTextSegments(in: segmentRange, type: .standard, options: .middleFragmentsExcluded) { _, rect, _, _ in
+            estimatedSize.height = max(estimatedSize.height, rect.origin.y + rect.size.height)
+            return true
+        }
+
+        // Calculate frame based on resize mode
+        let frameSize: CGSize
+        if isHorizontallyResizable {
+            // no-wrapping
+            frameSize = CGSize(
+                width: max(estimatedSize.width + gutterWidth + textContainer.lineFragmentPadding + horizontalTextContainerInset, visibleRectSize.width),
+                height: max(estimatedSize.height + verticalTextContainerInset, visibleRectSize.height - verticalScrollInset)
+            )
+        } else {
+            // wrapping
+            frameSize = CGSize(
+                width: visibleRectSize.width,
+                height: max(estimatedSize.height + verticalTextContainerInset, visibleRectSize.height - verticalScrollInset)
+            )
+        }
+
+        // Only update if changed
+        if !contentView.frame.size.isAlmostEqual(to: frameSize) {
+            contentView.frame.origin = CGPoint(x: gutterWidth + textContainerInset.left, y: textContainerInset.top)
+            contentView.frame.size = frameSize
+            contentSize = frameSize
+        }
+    }
+
+    /// Whenever text is to be changed due to some user-induced action,
+    /// this method should be called with information on the change.
+    /// Coalesce consecutive typing events
+    open func shouldChangeText(in affectedTextRange: NSTextRange, replacementString: String?) -> Bool {
+        let result = delegateProxy.textView(self, shouldChangeTextIn: affectedTextRange, replacementString: replacementString)
+        if !result {
+            return result
+        }
+
+        return result
+    }
+
+    func shouldChangeText(in affectedTextRanges: [NSTextRange], replacementString: String?) -> Bool {
+        affectedTextRanges.allSatisfy { textRange in
+            shouldChangeText(in: textRange, replacementString: replacementString)
+        }
+    }
+
+    open func insertText(_ string: Any, replacementRange: NSRange) {
+        unmarkText()
+
+        var textRanges: [NSTextRange] = []
+
+        if replacementRange == .notFound {
+            textRanges = textLayoutManager.textSelections.flatMap(\.textRanges)
+        }
+
+        let replacementTextRange = NSTextRange(replacementRange, in: textContentManager)
+        if let replacementTextRange, !textRanges.contains(where: { $0 == replacementTextRange }) {
+            textRanges.append(replacementTextRange)
+        }
+
+        switch string {
+        case let string as String:
+            if shouldChangeText(in: textRanges, replacementString: string) {
+                replaceCharacters(in: textRanges, with: string, useTypingAttributes: true, allowsTypingCoalescing: true)
+                updateTypingAttributes()
+            }
+        case let attributedString as NSAttributedString:
+            if shouldChangeText(in: textRanges, replacementString: attributedString.string) {
+                replaceCharacters(in: textRanges, with: attributedString, allowsTypingCoalescing: true)
+                updateTypingAttributes()
+            }
+        default:
+            assertionFailure()
+        }
+
+    }
+
+    open func replaceCharacters(in range: NSTextRange, with string: String) {
+        replaceCharacters(in: range, with: string, useTypingAttributes: true, allowsTypingCoalescing: false)
+    }
+
+    open func replaceCharacters(in range: NSRange, with string: String) {
+        guard let textContentManager = textLayoutManager.textContentManager,
+              let textRange = NSTextRange(range, in: textContentManager) else {
+            return
+        }
+        replaceCharacters(in: textRange, with: string)
+    }
+
+    open func replaceCharacters(in range: NSRange, with string: NSAttributedString) {
+        guard let textContentManager = textLayoutManager.textContentManager,
+              let textRange = NSTextRange(range, in: textContentManager) else {
+            return
+        }
+        replaceCharacters(in: textRange, with: string, allowsTypingCoalescing: false)
+    }
+
+    func replaceCharacters(in textRanges: [NSTextRange], with replacementString: String, useTypingAttributes: Bool, allowsTypingCoalescing: Bool) {
+        self.replaceCharacters(
+            in: textRanges,
+            with: NSAttributedString(string: replacementString, attributes: useTypingAttributes ? typingAttributes : [:]),
+            allowsTypingCoalescing: allowsTypingCoalescing
+        )
+    }
+
+    func replaceCharacters(in textRanges: [NSTextRange], with replacementString: NSAttributedString, allowsTypingCoalescing: Bool) {
+        // Replace from the end to beginning of the document
+        for textRange in textRanges.sorted(by: { $0.location > $1.location }) {
+            replaceCharacters(in: textRange, with: replacementString, allowsTypingCoalescing: allowsTypingCoalescing)
+        }
+    }
+
+    func replaceCharacters(in textRange: NSTextRange, with replacementString: String, useTypingAttributes: Bool, allowsTypingCoalescing: Bool) {
+        self.replaceCharacters(
+            in: textRange,
+            with: NSAttributedString(string: replacementString, attributes: useTypingAttributes ? typingAttributes : [:]),
+            allowsTypingCoalescing: allowsTypingCoalescing
+        )
+    }
+
+    func replaceCharacters(in textRange: NSTextRange, with replacementString: NSAttributedString, allowsTypingCoalescing: Bool) {
+        let previousStringInRange = (textContentManager as? NSTextContentStorage)!.attributedString!.attributedSubstring(from: NSRange(textRange, in: textContentManager))
+
+        textWillChange(self)
+        delegateProxy.textView(self, willChangeTextIn: textRange, replacementString: replacementString.string)
+
+        textContentManager.performEditingTransaction {
+            textContentManager.replaceContents(
+                in: textRange,
+                with: [NSTextParagraph(attributedString: replacementString)]
+            )
+        }
+
+        delegateProxy.textView(self, didChangeTextIn: textRange, replacementString: replacementString.string)
+        didChangeText()
+
+        guard allowsUndo, let undoManager, undoManager.isUndoRegistrationEnabled else { return }
+
+        // Reach to NSTextStorage because NSTextContentStorage range extraction is cumbersome.
+        // A range that is as long as replacement string, so when undo it undo
+        let undoRange = NSTextRange(
+            location: textRange.location,
+            end: textContentManager.location(textRange.location, offsetBy: replacementString.length)
+        ) ?? textRange
+
+        if let coalescingUndoManager = undoManager as? CoalescingUndoManager, !undoManager.isUndoing, !undoManager.isRedoing {
+            if allowsTypingCoalescing /* && processingKeyEvent */ {
+                coalescingUndoManager.checkCoalescing(range: undoRange)
+            } else {
+                coalescingUndoManager.endCoalescing()
+            }
+        }
+
+        undoManager.beginUndoGrouping()
+        undoManager.registerUndo(withTarget: self) { textView in
+            // Regular undo action
+            textView.replaceCharacters(
+                in: undoRange,
+                with: previousStringInRange,
+                allowsTypingCoalescing: false
+            )
+            textView.setSelectedTextRange(textRange, updateLayout: true)
+        }
+        undoManager.endUndoGrouping()
+    }
+
+    public func textWillChange(_ sender: Any?) {
+        inputDelegate?.textWillChange(self)
+
+        let notification = Notification(name: Self.textWillChangeNotification, object: self, userInfo: nil)
+        NotificationCenter.default.post(notification)
+
+        delegateProxy.textViewWillChangeText(notification)
+    }
+
+    /// Sends out necessary notifications when a text change completes.
+    ///
+    /// Invoked automatically at the end of a series of changes, this method posts an `textDidChangeNotification` to the default notification center, which also results in the delegate receiving `textViewDidChangeText(_:)` message.
+    /// Subclasses implementing methods that change their text should invoke this method at the end of those methods.
+    public func didChangeText() {
+        let notification = Notification(name: Self.textDidChangeNotification, object: self, userInfo: nil)
+        NotificationCenter.default.post(notification)
+
+        inputDelegate?.textDidChange(self)
+        delegateProxy.textViewDidChangeText(notification)
+
+        postLayoutAction = { [weak self] in
+            guard let self, let textRange = textLayoutManager.textSelections.last?.textRanges.last else { return }
+            scrollToVisible(textRange, type: .standard)
+        }
+    }
+
+    /// Informs the receiver that it should begin coalescing successive typing operations in a new undo grouping
+    public func breakUndoCoalescing() {
+        (undoManager as? CoalescingUndoManager)?.endCoalescing()
+    }
+
+    override open func canPerformAction(_ action: Selector, withSender sender: Any?) -> Bool {
+        switch action {
+        case #selector(copy(_:)):
+            return selectedTextRange?.isEmpty == false
+        case #selector(cut(_:)):
+            return isEditable && selectedTextRange?.isEmpty == false
+        case #selector(paste(_:)):
+            return isEditable && UIPasteboard.general.hasStrings
+        case #selector(selectAll(_:)):
+            return isSelectable
+        case #selector(select(_:)):
+            return isSelectable
+        case #selector(replace(_:)):
+            return isEditable
+        case #selector(delete(_:)):
+            return isEditable && selectedTextRange?.isEmpty == false
+        default:
+            return super.canPerformAction(action, withSender: sender)
+        }
+    }
+
+    override open func layoutSubviews() {
+        super.layoutSubviews()
+        layoutText()
+
+        if let action = postLayoutAction {
+            postLayoutAction = nil
+            action()
+        }
+    }
+
+    /// Performs text layout including container sizing, viewport layout, and related updates.
+    private func layoutText() {
+        inLayout = true
+        defer { inLayout = false }
+
+        updateTextContainerSize()
+
+        // Convergence loop - max 5 iterations
+        // If layout triggers changes that require re-layout, needsRelayout is set
+        var iterations = 5
+        while iterations > 0 {
+            needsRelayout = false
+            textLayoutManager.textViewportLayoutController.layoutViewport()
+            if !needsRelayout { break }
+            iterations -= 1
+        }
+    }
+
+    func setNeedsLayoutSafe() {
+        if inLayout {
+            needsRelayout = true
+        } else {
+            setNeedsLayout()
+        }
+    }
+
+    private func updateTextContainerSize() {
+        let gutterWidth = gutterView?.frame.width ?? 0
+        let referenceSize = bounds.size
+        let horizontalInsets = textContainerInset.left + textContainerInset.right
+        let verticalInsets = textContainerInset.top + textContainerInset.bottom
+
+        var newTextContainerSize = textContainer.size
+        if !isHorizontallyResizable {
+            let proposedContentWidth = referenceSize.width - gutterWidth - horizontalInsets
+            if proposedContentWidth > 0, !newTextContainerSize.width.isAlmostEqual(to: proposedContentWidth) {
+                newTextContainerSize.width = proposedContentWidth
+            }
+        } else {
+            newTextContainerSize.width = _defaultTextContainerSize.width
+        }
+
+        if !isVerticallyResizable {
+            let proposedContentHeight = referenceSize.height - verticalInsets
+            if proposedContentHeight > 0, !newTextContainerSize.height.isAlmostEqual(to: proposedContentHeight) {
+                newTextContainerSize.height = proposedContentHeight
+            }
+        } else {
+            newTextContainerSize.height = _defaultTextContainerSize.height
+        }
+
+        if !textContainer.size.isAlmostEqual(to: newTextContainerSize) {
+            textContainer.size = newTextContainerSize
+        }
+    }
+
+    // Update selected line highlight layer
+    func updateSelectedLineHighlight() {
+        guard highlightSelectedLine,
+              textLayoutManager.textSelectionsRanges(.withoutInsertionPoints).isEmpty,
+              !textLayoutManager.insertionPointSelections.isEmpty
+        else {
+            // don't highlight when there's selection
+            lineHighlightView.isHidden = true
+            return
+        }
+
+        lineHighlightView.isHidden = false
+        lineHighlightView.backgroundColor = selectedLineHighlightColor
+
+        if textLayoutManager.documentRange.isEmpty {
+            // - empty document has no layout fragments, nothing, it's empty and has to be handled explicitly.
+            // - there's no layout fragment at the document endLocation (technically it's out of bounds), has to be handled explicitly.
+            if let selectionFrame = textLayoutManager.textSegmentFrame(at: textLayoutManager.documentRange.location, type: .standard) {
+                lineHighlightView.frame = CGRect(
+                    origin: CGPoint(
+                        x: 0,
+                        y: selectionFrame.origin.y
+                    ),
+                    size: CGSize(
+                        width: contentView.frame.width,
+                        height: selectionFrame.height
+                    )
+                ).pixelAligned
+            }
+        } else if let viewportRange = textLayoutManager.textViewportLayoutController.viewportRange {
+            // build the rectangle out of fragments rectangles
+            var combinedFragmentsRect: CGRect?
+
+            // TODO: some beutiful day:
+            // Don't rely on NSTextParagraph.paragraphContentRange, but that
+            // makes tricky to get all the conditions right (especially for last line)
+            // Problem is that NSTextParagraph.rangeInElement span across two lines (eg. "abc\n" are two lines) while
+            // paragraphContentRange is just one ("abc")
+            //
+            // Another idea here is to use `textLayoutManager.textLayoutFragment(for: selectionTextRange.location)`
+            // to find the layout fragment and us its frame as highlight area. It has its issue when it comes to the
+            // extra line fragment area (sic).
+            textLayoutManager.enumerateTextLayoutFragments(in: viewportRange) { layoutFragment in
+                let contentRangeInElement = (layoutFragment.textElement as? NSTextParagraph)?.paragraphContentRange ?? layoutFragment.rangeInElement
+                for textLineFragment in layoutFragment.textLineFragments {
+
+                    let isLineSelected = STGutterCalculations.isLineSelected(
+                        textLineFragment: textLineFragment,
+                        layoutFragment: layoutFragment,
+                        contentRangeInElement: contentRangeInElement,
+                        textLayoutManager: textLayoutManager
+                    )
+
+                    if isLineSelected {
+                        var lineFragmentFrame = layoutFragment.layoutFragmentFrame
+                        lineFragmentFrame.size.height = textLineFragment.typographicBounds.height
+
+                        let lineSelectionRectangle = CGRect(
+                            origin: CGPoint(
+                                x: 0,
+                                y: lineFragmentFrame.origin.y + textLineFragment.typographicBounds.minY
+                            ),
+                            size: CGSize(
+                                width: contentView.bounds.size.width,
+                                height: lineFragmentFrame.height
+                            )
+                        )
+
+                        if let rect = combinedFragmentsRect {
+                            combinedFragmentsRect = rect.union(lineSelectionRectangle)
+                        } else {
+                            combinedFragmentsRect = lineSelectionRectangle
+                        }
+                    }
+                }
+                return true
+            }
+
+            if let combinedFragmentsRect {
+                lineHighlightView.frame = combinedFragmentsRect.pixelAligned
+            }
+        }
+    }
+
+    open func addPlugin(_ instance: any STPlugin) {
+        let plugin = Plugin(instance: instance)
+        plugins.append(plugin)
+        setupPlugins()
+    }
+
+    private func setupPlugins() {
+        for (offset, plugin) in plugins.enumerated() where plugin.events == nil {
+            // set events handler
+            var plugin = plugin
+            plugin.events = setUp(instance: plugin.instance)
+            plugins[offset] = plugin
+        }
+    }
+
+    @MainActor
+    private func setUp(instance: some STPlugin) -> STPluginEvents {
+        // unwrap any STPluginProtocol
+        let events = STPluginEvents()
+        instance.setUp(
+            context: STPluginContext(
+                coordinator: instance.makeCoordinator(context: .init(textView: self)),
+                textView: self,
+                events: events
+            )
+        )
+        return events
+    }
+}

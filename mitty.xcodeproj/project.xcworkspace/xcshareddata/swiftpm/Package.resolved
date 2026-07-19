@@ -1,31 +1,13 @@
 {
-  "originHash" : "2d1d2ca2b889165769d2f5c56033d8549351ca10146252a2c87dddd900178c07",
+  "originHash" : "0d66a2fd39a7c386674ff8afab9f900beba17bae0ebab1f30d5f5fad543babfa",
   "pins" : [
     {
-      "identity" : "codeeditlanguages",
+      "identity" : "coretextswift",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/CodeEditApp/CodeEditLanguages",
+      "location" : "https://github.com/krzyzanowskim/CoreTextSwift",
       "state" : {
-        "revision" : "331d5dbc5fc8513be5848fce8a2a312908f36a11",
-        "version" : "0.1.20"
-      }
-    },
-    {
-      "identity" : "codeeditsourceeditor",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/CodeEditApp/CodeEditSourceEditor",
-      "state" : {
-        "revision" : "424453d2232c9912933a3b5a1f3d3df669404ed0",
-        "version" : "0.15.2"
-      }
-    },
-    {
-      "identity" : "codeeditsymbols",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/CodeEditApp/CodeEditSymbols.git",
-      "state" : {
-        "revision" : "ae69712b08571c4469c2ed5cd38ad9f19439793e",
-        "version" : "0.2.3"
+        "revision" : "833177201d6421e6322296f39fce6ff6ae52618a",
+        "version" : "0.2.0"
       }
     },
     {
@@ -38,12 +20,12 @@
       }
     },
     {
-      "identity" : "rearrange",
+      "identity" : "sttextkitplus",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/ChimeHQ/Rearrange",
+      "location" : "https://github.com/krzyzanowskim/STTextKitPlus",
       "state" : {
-        "revision" : "4de8be41dba304192e87dc0a11e0aa39e72aa2e8",
-        "version" : "2.1.1"
+        "revision" : "2ee74906f4d753458eeaa9a2f6d4538aacb86a1d",
+        "version" : "0.3.0"
       }
     },
     {
@@ -56,57 +38,12 @@
       }
     },
     {
-      "identity" : "swift-collections",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/apple/swift-collections.git",
-      "state" : {
-        "revision" : "a0cb0954ecb21e4e31b0070e6ed5674e8556685a",
-        "version" : "1.6.0"
-      }
-    },
-    {
       "identity" : "swiftterm",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/migueldeicaza/SwiftTerm",
       "state" : {
         "revision" : "849e8a4f3d6f79ddee07152400137f1370c32621",
         "version" : "1.14.0"
-      }
-    },
-    {
-      "identity" : "swifttreesitter",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/ChimeHQ/SwiftTreeSitter.git",
-      "state" : {
-        "revision" : "08ef81eb8620617b55b08868126707ad72bf754f",
-        "version" : "0.25.0"
-      }
-    },
-    {
-      "identity" : "textformation",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/ChimeHQ/TextFormation",
-      "state" : {
-        "revision" : "b1ce9a14bd86042bba4de62236028dc4ce9db6a1",
-        "version" : "0.9.0"
-      }
-    },
-    {
-      "identity" : "textstory",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/ChimeHQ/TextStory",
-      "state" : {
-        "revision" : "a52db1a2eca74d37c8c19bf3165416941632ed45",
-        "version" : "0.9.2"
-      }
-    },
-    {
-      "identity" : "tree-sitter",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/tree-sitter/tree-sitter",
-      "state" : {
-        "revision" : "da6fe9beb4f7f67beb75914ca8e0d48ae48d6406",
-        "version" : "0.25.10"
       }
     }
   ],

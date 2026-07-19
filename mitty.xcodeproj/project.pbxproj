@@ -8,8 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		AA10000000000000000000B2 /* SwiftTerm in Frameworks */ = {isa = PBXBuildFile; productRef = AA10000000000000000000B1 /* SwiftTerm */; };
-		AA10000000000000000000C2 /* CodeEditSourceEditor in Frameworks */ = {isa = PBXBuildFile; productRef = AA10000000000000000000C1 /* CodeEditSourceEditor */; };
-		AA10000000000000000000E2 /* CodeEditLanguages in Frameworks */ = {isa = PBXBuildFile; productRef = AA10000000000000000000E1 /* CodeEditLanguages */; };
+		AA10000000000000000000C2 /* STTextView in Frameworks */ = {isa = PBXBuildFile; productRef = AA10000000000000000000C1 /* STTextView */; };
 		FF519F43300BBE2100D8B982 /* PierreDiffsSwift in Frameworks */ = {isa = PBXBuildFile; productRef = AA10000000000000000000D1 /* PierreDiffsSwift */; };
 /* End PBXBuildFile section */
 
@@ -31,8 +30,7 @@
 			files = (
 				FF519F43300BBE2100D8B982 /* PierreDiffsSwift in Frameworks */,
 				AA10000000000000000000B2 /* SwiftTerm in Frameworks */,
-				AA10000000000000000000C2 /* CodeEditSourceEditor in Frameworks */,
-				AA10000000000000000000E2 /* CodeEditLanguages in Frameworks */,
+				AA10000000000000000000C2 /* STTextView in Frameworks */,
 			);
 		};
 /* End PBXFrameworksBuildPhase section */
@@ -73,8 +71,7 @@
 			name = mitty;
 			packageProductDependencies = (
 				AA10000000000000000000B1 /* SwiftTerm */,
-				AA10000000000000000000C1 /* CodeEditSourceEditor */,
-				AA10000000000000000000E1 /* CodeEditLanguages */,
+				AA10000000000000000000C1 /* STTextView */,
 				AA10000000000000000000D1 /* PierreDiffsSwift */,
 			);
 			productName = mitty;
@@ -106,11 +103,8 @@
 			mainGroup = FF3FDD6A300B6A7400112486;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				AA10000000000000000000F0 /* XCLocalSwiftPackageReference "Vendor/SwiftLintPlugin" */,
-				AA10000000000000000000F1 /* XCLocalSwiftPackageReference "Vendor/CodeEditTextView" */,
+				AA10000000000000000000C0 /* XCLocalSwiftPackageReference "Vendor/STTextView" */,
 				AA10000000000000000000B0 /* XCRemoteSwiftPackageReference "SwiftTerm" */,
-				AA10000000000000000000C0 /* XCRemoteSwiftPackageReference "CodeEditSourceEditor" */,
-				AA10000000000000000000E0 /* XCRemoteSwiftPackageReference "CodeEditLanguages" */,
 				AA10000000000000000000D0 /* XCRemoteSwiftPackageReference "PierreDiffsSwift" */,
 			);
 			preferredProjectObjectVersion = 77;
@@ -338,13 +332,9 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
-		AA10000000000000000000F0 /* XCLocalSwiftPackageReference "Vendor/SwiftLintPlugin" */ = {
+		AA10000000000000000000C0 /* XCLocalSwiftPackageReference "Vendor/STTextView" */ = {
 			isa = XCLocalSwiftPackageReference;
-			relativePath = Vendor/SwiftLintPlugin;
-		};
-		AA10000000000000000000F1 /* XCLocalSwiftPackageReference "Vendor/CodeEditTextView" */ = {
-			isa = XCLocalSwiftPackageReference;
-			relativePath = Vendor/CodeEditTextView;
+			relativePath = Vendor/STTextView;
 		};
 /* End XCLocalSwiftPackageReference section */
 
@@ -355,22 +345,6 @@
 			requirement = {
 				kind = upToNextMajorVersion;
 				minimumVersion = 1.2.0;
-			};
-		};
-		AA10000000000000000000C0 /* XCRemoteSwiftPackageReference "CodeEditSourceEditor" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/CodeEditApp/CodeEditSourceEditor";
-			requirement = {
-				kind = upToNextMinorVersion;
-				minimumVersion = 0.15.2;
-			};
-		};
-		AA10000000000000000000E0 /* XCRemoteSwiftPackageReference "CodeEditLanguages" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/CodeEditApp/CodeEditLanguages";
-			requirement = {
-				kind = exactVersion;
-				version = 0.1.20;
 			};
 		};
 		AA10000000000000000000D0 /* XCRemoteSwiftPackageReference "PierreDiffsSwift" */ = {
@@ -389,15 +363,9 @@
 			package = AA10000000000000000000B0 /* XCRemoteSwiftPackageReference "SwiftTerm" */;
 			productName = SwiftTerm;
 		};
-		AA10000000000000000000C1 /* CodeEditSourceEditor */ = {
+		AA10000000000000000000C1 /* STTextView */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = AA10000000000000000000C0 /* XCRemoteSwiftPackageReference "CodeEditSourceEditor" */;
-			productName = CodeEditSourceEditor;
-		};
-		AA10000000000000000000E1 /* CodeEditLanguages */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = AA10000000000000000000E0 /* XCRemoteSwiftPackageReference "CodeEditLanguages" */;
-			productName = CodeEditLanguages;
+			productName = STTextView;
 		};
 		AA10000000000000000000D1 /* PierreDiffsSwift */ = {
 			isa = XCSwiftPackageProductDependency;
