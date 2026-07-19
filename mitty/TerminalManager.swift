@@ -210,6 +210,15 @@ final class TerminalManager: nonisolated ObservableObject {
         }
     }
 
+    /// Propagates a file-tree rename to every open file tab across all
+    /// projects, so tabs for the moved file (or files under a moved
+    /// directory) keep pointing at the right place.
+    func fileRenamed(from oldPath: String, to newPath: String) {
+        for project in projects {
+            project.updateFilePaths(from: oldPath, to: newPath)
+        }
+    }
+
     // MARK: - Panels & appearance
 
     func toggleSidebar() {

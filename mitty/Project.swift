@@ -139,6 +139,18 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
         selectedTabID = file.id
     }
 
+    /// After a rename on disk, re-points any open file tab at its new path —
+    /// the renamed file itself, or any file beneath a renamed directory.
+    func updateFilePaths(from oldPath: String, to newPath: String) {
+        for case .file(let file) in tabs {
+            if file.path == oldPath {
+                file.updatePath(newPath)
+            } else if file.path.hasPrefix(oldPath + "/") {
+                file.updatePath(newPath + String(file.path.dropFirst(oldPath.count)))
+            }
+        }
+    }
+
     func close(_ file: FileTab) {
         guard file.isDirty else {
             remove(tabID: file.id)

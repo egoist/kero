@@ -12,7 +12,9 @@ import SwiftUI
 @MainActor
 final class FileTab: nonisolated ObservableObject, nonisolated Identifiable {
     nonisolated let id = UUID()
-    let path: String
+    /// Mutable so a rename in the file tree can re-point the tab without
+    /// tearing it down (the id — hence the editor and its state — is stable).
+    @Published private(set) var path: String
 
     enum Content {
         case text
@@ -74,6 +76,14 @@ final class FileTab: nonisolated ObservableObject, nonisolated Identifiable {
 
     var name: String {
         (path as NSString).lastPathComponent
+    }
+
+    /// Re-points this tab at a new location after the file (or a directory
+    /// above it) was renamed on disk. The bytes are unchanged, so nothing
+    /// reloads; subsequent saves write to the new path.
+    func updatePath(_ newPath: String) {
+        guard newPath != path else { return }
+        path = newPath
     }
 
     /// Recompute `isDirty` from the current `text` against the saved

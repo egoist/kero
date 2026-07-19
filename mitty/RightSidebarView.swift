@@ -32,7 +32,8 @@ struct RightSidebarView: View {
                         FileTreePanel(
                             model: fileTree,
                             session: manager.selectedSession,
-                            openFile: { manager.openFile($0) }
+                            openFile: { manager.openFile($0) },
+                            onRename: { manager.fileRenamed(from: $0, to: $1) }
                         )
                     case .git:
                         GitPanel(
@@ -150,6 +151,7 @@ private struct FileTreePanel: View {
     @ObservedObject var model: FileTreeModel
     let session: TerminalSession?
     let openFile: (String) -> Void
+    let onRename: (_ oldPath: String, _ newPath: String) -> Void
 
     var body: some View {
         VStack(spacing: 0) {
@@ -172,7 +174,10 @@ private struct FileTreePanel: View {
             ScrollView {
                 LazyVStack(spacing: 1) {
                     ForEach(model.items) { item in
-                        FileTreeRow(model: model, item: item, session: session, openFile: openFile)
+                        FileTreeRow(
+                            model: model, item: item, session: session,
+                            openFile: openFile, onRename: onRename
+                        )
                     }
                 }
                 .padding(.horizontal, 6)
@@ -187,10 +192,101 @@ private struct FileTreeRow: View {
     let item: FileTreeModel.Item
     let session: TerminalSession?
     let openFile: (String) -> Void
+    let onRename: (_ oldPath: String, _ newPath: String) -> Void
 
     @State private var isHovering = false
+    @State private var editingName = ""
+    @FocusState private var fieldFocused: Bool
+
+    private var isRenaming: Bool { model.renamingPath == item.path }
 
     var body: some View {
+        if item.isDraft {
+            // The transient new-file/folder input row: no hover/menu, no
+            // backing file to act on.
+            draftRow
+                .background(
+                    RoundedRectangle(cornerRadius: 4).fill(Color.primary.opacity(0.05))
+                )
+        } else {
+            content
+                .background(
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(isHovering ? Color.primary.opacity(0.05) : .clear)
+                )
+                .onHover { isHovering = $0 }
+                .contextMenu { rowMenu }
+        }
+    }
+
+    @ViewBuilder
+    private var rowMenu: some View {
+        if !item.isDirectory {
+            Button("Open") {
+                openFile(item.path)
+            }
+        }
+        Button("Open in Default App") {
+            NSWorkspace.shared.open(URL(fileURLWithPath: item.path))
+        }
+        Button("Reveal in Finder") {
+            NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: item.path)])
+        }
+        Button("Copy Path") {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(item.path, forType: .string)
+        }
+        if item.isDirectory {
+            Button("cd Here") {
+                session?.sendCommand("cd " + shellQuote(item.path) + "\n")
+            }
+            Divider()
+            Button("New File…") {
+                model.beginNewFile(in: item.path)
+            }
+            Button("New Folder…") {
+                model.beginNewFolder(in: item.path)
+            }
+        }
+        Divider()
+        Button("Rename") {
+            model.beginRename(item)
+        }
+        Button("Move to Trash", role: .destructive) {
+            model.moveToTrash(item)
+        }
+    }
+
+    /// Commits an inline rename and, when the file actually moved, tells the
+    /// app to follow it in any open tabs. Guarded by `isRenaming` so the
+    /// commit-on-blur that fires right after Enter/Escape is a no-op.
+    private func commitRename() {
+        guard isRenaming else { return }
+        let oldPath = item.path
+        if let newPath = model.rename(item, to: editingName) {
+            onRename(oldPath, newPath)
+        }
+    }
+
+    /// Commits the inline new-file/folder input, opening a newly created file.
+    /// Guarded so the commit-on-blur after Enter/Escape is a no-op.
+    private func commitDraft() {
+        guard item.isDraft, model.draft != nil else { return }
+        if let created = model.commitDraft(name: editingName) {
+            openFile(created)
+        }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        if isRenaming {
+            renameRow
+        } else {
+            rowButton
+        }
+    }
+
+    private var rowButton: some View {
         Button {
             if item.isDirectory {
                 model.toggle(item)
@@ -199,19 +295,7 @@ private struct FileTreeRow: View {
             }
         } label: {
             HStack(spacing: 5) {
-                if item.isDirectory {
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 8, weight: .semibold))
-                        .foregroundStyle(.tertiary)
-                        .rotationEffect(.degrees(model.isExpanded(item) ? 90 : 0))
-                        .frame(width: 10)
-                } else {
-                    Spacer().frame(width: 10)
-                }
-                Image(systemName: item.isDirectory ? "folder.fill" : "doc.text")
-                    .font(.system(size: 10))
-                    .foregroundStyle(item.isDirectory ? Color(nsColor: Theme.cursor).opacity(0.8) : Color.secondary)
-                    .frame(width: 14)
+                leadingGlyphs
                 Text(item.name)
                     .font(.system(size: 11.5))
                     .foregroundStyle(item.name.hasPrefix(".") ? .tertiary : .secondary)
@@ -224,36 +308,88 @@ private struct FileTreeRow: View {
             .contentShape(RoundedRectangle(cornerRadius: 4))
         }
         .buttonStyle(.plain)
-        .background(
-            RoundedRectangle(cornerRadius: 4)
-                .fill(isHovering ? Color.primary.opacity(0.05) : .clear)
-        )
-        .onHover { isHovering = $0 }
-        .contextMenu {
-            if !item.isDirectory {
-                Button("Open") {
-                    openFile(item.path)
+    }
+
+    private var renameRow: some View {
+        HStack(spacing: 5) {
+            leadingGlyphs
+            nameField("Name")
+                .onSubmit { commitRename() }
+                .onKeyPress(.escape) { model.cancelRename(); return .handled }
+                .onChange(of: fieldFocused) {
+                    // Commit on blur (Finder-style); unchanged names no-op.
+                    if !fieldFocused { commitRename() }
                 }
-            }
-            Button("Open in Default App") {
-                NSWorkspace.shared.open(URL(fileURLWithPath: item.path))
-            }
-            Button("Reveal in Finder") {
-                NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: item.path)])
-            }
-            Button("Copy Path") {
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(item.path, forType: .string)
-            }
-            if item.isDirectory {
-                Button("cd Here") {
-                    session?.sendCommand("cd " + shellQuote(item.path) + "\n")
+        }
+        .padding(.leading, CGFloat(item.depth) * 12 + 6)
+        .padding(.trailing, 6)
+        .padding(.vertical, 2)
+        .onAppear {
+            editingName = item.name
+            focusField()
+        }
+    }
+
+    private var draftRow: some View {
+        HStack(spacing: 5) {
+            leadingGlyphs
+            nameField(item.isDirectory ? "Folder name" : "File name")
+                .onSubmit { commitDraft() }
+                .onKeyPress(.escape) { model.cancelDraft(); return .handled }
+                .onChange(of: fieldFocused) {
+                    // Blur commits a typed name, cancels an empty one (VS Code).
+                    if !fieldFocused { commitDraft() }
                 }
+        }
+        .padding(.leading, CGFloat(item.depth) * 12 + 6)
+        .padding(.trailing, 6)
+        .padding(.vertical, 2)
+        .onAppear {
+            editingName = ""
+            focusField()
+        }
+    }
+
+    private func nameField(_ placeholder: String) -> some View {
+        TextField(placeholder, text: $editingName)
+            .textFieldStyle(.plain)
+            .font(.system(size: 11.5))
+            .foregroundStyle(.primary)
+            .focused($fieldFocused)
+            .padding(.horizontal, 4)
+            .padding(.vertical, 1)
+            .background(
+                RoundedRectangle(cornerRadius: 3)
+                    .fill(Color(nsColor: Theme.background))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 3)
+                    .strokeBorder(Color(nsColor: Theme.cursor).opacity(0.7), lineWidth: 1)
+            )
+    }
+
+    /// Grab focus on the next runloop tick — a context menu is still
+    /// dismissing when the input row appears, and a synchronous focus can be
+    /// stolen back as it tears down.
+    private func focusField() {
+        DispatchQueue.main.async { fieldFocused = true }
+    }
+
+    private var leadingGlyphs: some View {
+        Group {
+            if item.isDirectory && !item.isDraft {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 8, weight: .semibold))
+                    .foregroundStyle(.tertiary)
+                    .rotationEffect(.degrees(model.isExpanded(item) ? 90 : 0))
+                    .frame(width: 10)
+            } else {
+                Spacer().frame(width: 10)
             }
-            Divider()
-            Button("Move to Trash", role: .destructive) {
-                model.moveToTrash(item)
-            }
+            Image(systemName: item.isDirectory ? "folder.fill" : "doc.text")
+                .font(.system(size: 10))
+                .foregroundStyle(item.isDirectory ? Color(nsColor: Theme.cursor).opacity(0.8) : Color.secondary)
+                .frame(width: 14)
         }
     }
 }

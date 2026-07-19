@@ -143,6 +143,27 @@ struct SourceTextEditor: NSViewRepresentable {
         apply(to: textView, scrollView: scrollView)
     }
 
+    /// Take exactly the space SwiftUI offers. Without this, SwiftUI sizes the
+    /// editor from the scroll view's `fittingSize`, which STTextView derives
+    /// from the entire document — enormous for a large file, and degenerate
+    /// for an empty one. Because the main window tracks its content's ideal
+    /// size, that runaway measurement drives the window size and drops it into
+    /// an unbounded layout loop (a hard crash: "more Layout Window passes than
+    /// there are views"). Reporting the proposed size keeps the editor a
+    /// space-filling pane that never influences the window's size.
+    func sizeThatFits(
+        _ proposal: ProposedViewSize, nsView: NSScrollView, context: Context
+    ) -> CGSize? {
+        func resolve(_ value: CGFloat?, fallback: CGFloat) -> CGFloat {
+            guard let value, value.isFinite else { return fallback }
+            return value
+        }
+        return CGSize(
+            width: resolve(proposal.width, fallback: nsView.frame.width),
+            height: resolve(proposal.height, fallback: nsView.frame.height)
+        )
+    }
+
     /// Guarded assignments: the font/color setters restyle the whole
     /// document, and this runs on every SwiftUI render.
     private func apply(to textView: STTextView, scrollView: NSScrollView) {
