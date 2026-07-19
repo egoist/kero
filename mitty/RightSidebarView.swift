@@ -18,6 +18,15 @@ struct RightSidebarView: View {
 
     private let refreshTimer = Timer.publish(every: 2, on: .main, in: .common).autoconnect()
 
+    /// Path of the file open in the active tab, so the tree can highlight it.
+    /// Reactive: `selectedTabID` is published up through the project to `manager`.
+    private var openFilePath: String? {
+        if case .file(let file)? = manager.selectedProject?.selectedTab {
+            return file.path
+        }
+        return nil
+    }
+
     var body: some View {
         HStack(spacing: 0) {
             if manager.isPanelVisible {
@@ -32,6 +41,7 @@ struct RightSidebarView: View {
                         FileTreePanel(
                             model: fileTree,
                             session: manager.selectedSession,
+                            currentFilePath: openFilePath,
                             openFile: { manager.openFile($0) },
                             onRename: { manager.fileRenamed(from: $0, to: $1) }
                         )
@@ -150,6 +160,7 @@ private struct PanelHeader: View {
 private struct FileTreePanel: View {
     @ObservedObject var model: FileTreeModel
     let session: TerminalSession?
+    let currentFilePath: String?
     let openFile: (String) -> Void
     let onRename: (_ oldPath: String, _ newPath: String) -> Void
 
@@ -176,6 +187,7 @@ private struct FileTreePanel: View {
                     ForEach(model.items) { item in
                         FileTreeRow(
                             model: model, item: item, session: session,
+                            currentFilePath: currentFilePath,
                             openFile: openFile, onRename: onRename
                         )
                     }
@@ -191,6 +203,7 @@ private struct FileTreeRow: View {
     @ObservedObject var model: FileTreeModel
     let item: FileTreeModel.Item
     let session: TerminalSession?
+    let currentFilePath: String?
     let openFile: (String) -> Void
     let onRename: (_ oldPath: String, _ newPath: String) -> Void
 
@@ -199,6 +212,9 @@ private struct FileTreeRow: View {
     @FocusState private var fieldFocused: Bool
 
     private var isRenaming: Bool { model.renamingPath == item.path }
+
+    /// The file open in the active tab, so it reads as selected in the tree.
+    private var isCurrent: Bool { !item.isDirectory && item.path == currentFilePath }
 
     var body: some View {
         if item.isDraft {
@@ -212,7 +228,7 @@ private struct FileTreeRow: View {
             content
                 .background(
                     RoundedRectangle(cornerRadius: 4)
-                        .fill(isHovering ? Color.primary.opacity(0.05) : .clear)
+                        .fill(isCurrent ? Color.primary.opacity(0.09) : (isHovering ? Color.primary.opacity(0.05) : .clear))
                 )
                 .onHover { isHovering = $0 }
                 .contextMenu { rowMenu }
