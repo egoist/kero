@@ -143,6 +143,7 @@ private struct SessionTabsView: View {
 
     var body: some View {
         HStack(spacing: 4) {
+            ScrollViewReader { proxy in
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 3) {
                     ForEach(project.tabs) { tab in
@@ -158,6 +159,19 @@ private struct SessionTabsView: View {
                 )
             } action: { _, new in
                 overflow = new
+            }
+            // Keep the active tab visible: scrolls the minimum distance to
+            // reveal it (anchor: nil is a no-op when it's already fully in view).
+            .onChange(of: project.selectedTabID) { _, id in
+                guard let id else { return }
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    proxy.scrollTo(id)
+                }
+            }
+            .onAppear {
+                // Restored sessions may open with an off-screen active tab.
+                guard let id = project.selectedTabID else { return }
+                DispatchQueue.main.async { proxy.scrollTo(id) }
             }
             .mask {
                 HStack(spacing: 0) {
@@ -177,6 +191,7 @@ private struct SessionTabsView: View {
             .animation(.easeInOut(duration: 0.15), value: overflow)
             .frame(maxWidth: maxStripWidth, alignment: .leading)
             .fixedSize(horizontal: true, vertical: false)
+            }
 
             Button {
                 project.newSession()
