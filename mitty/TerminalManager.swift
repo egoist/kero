@@ -135,6 +135,11 @@ final class TerminalManager: nonisolated ObservableObject {
             let neighbor = min(index, projects.count - 1)
             selectedProjectID = neighbor >= 0 ? projects[neighbor].id : nil
         }
+        // Nothing left to inspect once the last project is gone, so collapse
+        // the right sidebar — its panels all track the selected session.
+        if projects.isEmpty {
+            isPanelVisible = false
+        }
     }
 
     func selectProject(index: Int) {

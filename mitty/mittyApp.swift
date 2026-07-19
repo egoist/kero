@@ -108,25 +108,25 @@ private struct MittyCommands: Commands {
                 manager?.toggleSidebar()
             }
             .keyboardShortcut("b", modifiers: [.command, .shift])
-            .disabled(manager == nil)
+            .disabled(manager?.selectedProject == nil)
 
             Button("Toggle Files Panel") {
                 manager?.togglePanel(.files)
             }
             .keyboardShortcut("e", modifiers: [.command, .shift])
-            .disabled(manager == nil)
+            .disabled(manager?.selectedProject == nil)
 
             Button("Toggle Git Panel") {
                 manager?.togglePanel(.git)
             }
             .keyboardShortcut("g", modifiers: [.command, .shift])
-            .disabled(manager == nil)
+            .disabled(manager?.selectedProject == nil)
 
             Button("Toggle Info Panel") {
                 manager?.togglePanel(.info)
             }
             .keyboardShortcut("i", modifiers: [.command, .shift])
-            .disabled(manager == nil)
+            .disabled(manager?.selectedProject == nil)
         }
 
         CommandMenu("Projects") {

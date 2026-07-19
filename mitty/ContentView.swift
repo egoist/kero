@@ -99,17 +99,21 @@ private struct MainHeaderView: View {
                     SessionTabsView(project: project, maxStripWidth: max(0, geo.size.width - 82))
                 }
                 Spacer(minLength: 0)
-                Button {
-                    manager.toggleSidebar()
-                } label: {
-                    Image(systemName: "sidebar.right")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(manager.isPanelVisible ? Color(nsColor: Theme.cursor) : .secondary)
-                        .frame(width: 24, height: 24)
-                        .contentShape(RoundedRectangle(cornerRadius: 6))
+                // No project means the sidebar has nothing to show, so drop
+                // its toggle too — matching the panel collapsing itself.
+                if manager.selectedProject != nil {
+                    Button {
+                        manager.toggleSidebar()
+                    } label: {
+                        Image(systemName: "sidebar.right")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(manager.isPanelVisible ? Color(nsColor: Theme.cursor) : .secondary)
+                            .frame(width: 24, height: 24)
+                            .contentShape(RoundedRectangle(cornerRadius: 6))
+                    }
+                    .buttonStyle(.plain)
+                    .help("Toggle Sidebar (⇧⌘B)")
                 }
-                .buttonStyle(.plain)
-                .help("Toggle Sidebar (⇧⌘B)")
             }
             .padding(.leading, 8)
             .padding(.trailing, 8)
