@@ -144,13 +144,24 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
             remove(tabID: file.id)
             return
         }
-        confirmCloseUnsaved(file)
+        let window = NSApp.keyWindow ?? NSApp.mainWindow
+        Task { @MainActor in
+            _ = await confirmCloseUnsaved(file, in: window)
+        }
     }
 
     /// Asks whether to save before discarding an edited file tab, matching the
     /// standard macOS Save / Don't Save / Cancel prompt. Presented as a sheet
-    /// on the active window so it doesn't block the whole app.
-    private func confirmCloseUnsaved(_ file: FileTab) {
+    /// on `window` (app-modal only when there's no window) so it doesn't block
+    /// the whole app. Returns `true` if the user backed out — Cancel, or a save
+    /// that failed — so a batch close can stop before tearing down other tabs.
+    ///
+    /// This is `async` on purpose: awaiting the sheet means each prompt in a
+    /// batch is presented only after the previous one has fully dismissed.
+    /// Presenting the next sheet synchronously from the prior sheet's
+    /// completion handler races AppKit's teardown and drops later sheets.
+    @discardableResult
+    private func confirmCloseUnsaved(_ file: FileTab, in window: NSWindow?) async -> Bool {
         let alert = NSAlert()
         alert.alertStyle = .warning
         alert.messageText = "Do you want to save the changes you made to \(file.name)?"
@@ -162,26 +173,25 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
         let cancel = alert.addButton(withTitle: "Cancel")
         cancel.keyEquivalent = "\u{1b}"
 
-        let respond: (NSApplication.ModalResponse) -> Void = { [weak self, weak file] response in
-            guard let self, let file else { return }
-            switch response {
-            case .alertFirstButtonReturn: // Save
-                file.save()
-                // Keep the tab open if the write failed; the error bar shows why.
-                if file.saveError == nil {
-                    self.remove(tabID: file.id)
-                }
-            case .alertSecondButtonReturn: // Don't Save
-                self.remove(tabID: file.id)
-            default: // Cancel
-                break
-            }
+        let response: NSApplication.ModalResponse
+        if let window {
+            response = await alert.beginSheetModal(for: window)
+        } else {
+            response = alert.runModal()
         }
 
-        if let window = NSApp.keyWindow {
-            alert.beginSheetModal(for: window, completionHandler: respond)
-        } else {
-            respond(alert.runModal())
+        switch response {
+        case .alertFirstButtonReturn: // Save
+            file.save()
+            // Keep the tab open if the write failed; the error bar shows why.
+            guard file.saveError == nil else { return true }
+            remove(tabID: file.id)
+            return false
+        case .alertSecondButtonReturn: // Don't Save
+            remove(tabID: file.id)
+            return false
+        default: // Cancel
+            return true
         }
     }
 
@@ -215,12 +225,66 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
 
     // MARK: - Tab selection
 
-    func closeSelected() {
-        switch selectedTab {
+    /// Closes a tab regardless of its kind — terminating sessions and
+    /// honoring the unsaved-changes prompt for files.
+    func close(_ tab: ProjectTab) {
+        switch tab {
         case .session(let session): close(session)
         case .file(let file): close(file)
         case .diff(let diff): close(diff)
-        case nil: break
+        }
+    }
+
+    func closeSelected() {
+        guard let selectedTab else { return }
+        close(selectedTab)
+    }
+
+    /// Closes every tab except `keep`.
+    func closeOthers(_ keep: ProjectTab) {
+        selectedTabID = keep.id
+        closeBatch(tabs.filter { $0.id != keep.id })
+    }
+
+    /// Closes every tab positioned to the right of `tab` in the strip.
+    func closeToRight(of tab: ProjectTab) {
+        guard let index = tabs.firstIndex(where: { $0.id == tab.id }) else { return }
+        closeBatch(Array(tabs[(index + 1)...]))
+    }
+
+    /// Closes every tab, which empties (and thus removes) the project.
+    func closeAll() {
+        closeBatch(tabs)
+    }
+
+    /// Closes several tabs at once. Any unsaved files are confirmed *first*,
+    /// one prompt at a time; the remaining (clean) tabs are only torn down once
+    /// every prompt has been answered — so cancelling out of a save prompt
+    /// leaves the saved tabs open too, instead of losing them before the user
+    /// decided.
+    private func closeBatch(_ targets: [ProjectTab]) {
+        let dirtyFiles = targets.compactMap { tab -> FileTab? in
+            if case .file(let file) = tab, file.isDirty { return file }
+            return nil
+        }
+        let cleanTabs = targets.filter { tab in
+            if case .file(let file) = tab { return !file.isDirty }
+            return true
+        }
+
+        guard !dirtyFiles.isEmpty else {
+            cleanTabs.forEach { close($0) }
+            return
+        }
+
+        let window = NSApp.keyWindow ?? NSApp.mainWindow
+        Task { @MainActor in
+            for file in dirtyFiles where file.isDirty {
+                // Bail the moment the user backs out — the clean tabs, and any
+                // files not yet prompted, stay open.
+                if await confirmCloseUnsaved(file, in: window) { return }
+            }
+            cleanTabs.forEach { close($0) }
         }
     }
 

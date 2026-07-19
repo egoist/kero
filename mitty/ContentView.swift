@@ -142,31 +142,8 @@ private struct SessionTabsView: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 3) {
                     ForEach(project.tabs) { tab in
-                        switch tab {
-                        case .session(let session):
-                            SessionTabItem(
-                                session: session,
-                                isSelected: tab.id == project.selectedTabID,
-                                select: { project.selectedTabID = tab.id },
-                                close: { project.close(session) }
-                            )
-                        case .file(let file):
-                            FileTabItem(
-                                file: file,
-                                isSelected: tab.id == project.selectedTabID,
-                                select: { project.selectedTabID = tab.id },
-                                close: { project.close(file) }
-                            )
-                        case .diff(let diff):
-                            TabItemChrome(
-                                systemImage: "plus.forwardslash.minus",
-                                title: diff.title,
-                                isSelected: tab.id == project.selectedTabID,
-                                select: { project.selectedTabID = tab.id },
-                                close: { project.close(diff) }
-                            )
-                            .help(diff.path)
-                        }
+                        tabItem(for: tab)
+                            .contextMenu { tabContextMenu(for: tab) }
                     }
                 }
             }
@@ -209,6 +186,46 @@ private struct SessionTabsView: View {
             .buttonStyle(.plain)
             .help("New Session (⌘T)")
         }
+    }
+
+    @ViewBuilder
+    private func tabItem(for tab: ProjectTab) -> some View {
+        switch tab {
+        case .session(let session):
+            SessionTabItem(
+                session: session,
+                isSelected: tab.id == project.selectedTabID,
+                select: { project.selectedTabID = tab.id },
+                close: { project.close(session) }
+            )
+        case .file(let file):
+            FileTabItem(
+                file: file,
+                isSelected: tab.id == project.selectedTabID,
+                select: { project.selectedTabID = tab.id },
+                close: { project.close(file) }
+            )
+        case .diff(let diff):
+            TabItemChrome(
+                systemImage: "plus.forwardslash.minus",
+                title: diff.title,
+                isSelected: tab.id == project.selectedTabID,
+                select: { project.selectedTabID = tab.id },
+                close: { project.close(diff) }
+            )
+            .help(diff.path)
+        }
+    }
+
+    @ViewBuilder
+    private func tabContextMenu(for tab: ProjectTab) -> some View {
+        Button("Close") { project.close(tab) }
+        Button("Close Others") { project.closeOthers(tab) }
+            .disabled(project.tabs.count <= 1)
+        Button("Close Tabs to the Right") { project.closeToRight(of: tab) }
+            .disabled(project.tabs.last?.id == tab.id)
+        Divider()
+        Button("Close All") { project.closeAll() }
     }
 }
 
