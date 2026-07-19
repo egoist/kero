@@ -125,7 +125,7 @@ extension STTextView {
             }
         } else if let viewportRange = textLayoutManager.textViewportLayoutController.viewportRange {
             // Get visible fragment views from the map and sort by document order
-            // mitty patch: after an attribute change (font/color) invalidates layout,
+            // kero patch: after an attribute change (font/color) invalidates layout,
             // fragmentViewMap briefly holds both the old and new NSTextLayoutFragment
             // for the same range (the old one is kept alive by its detached fragment
             // view until the weak map purges). Numbering those stale entries shifts
