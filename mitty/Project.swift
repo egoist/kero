@@ -3,6 +3,7 @@
 //  mitty
 //
 
+import AppKit
 import Combine
 import Foundation
 
@@ -139,7 +140,49 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
     }
 
     func close(_ file: FileTab) {
-        remove(tabID: file.id)
+        guard file.isDirty else {
+            remove(tabID: file.id)
+            return
+        }
+        confirmCloseUnsaved(file)
+    }
+
+    /// Asks whether to save before discarding an edited file tab, matching the
+    /// standard macOS Save / Don't Save / Cancel prompt. Presented as a sheet
+    /// on the active window so it doesn't block the whole app.
+    private func confirmCloseUnsaved(_ file: FileTab) {
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = "Do you want to save the changes you made to \(file.name)?"
+        alert.informativeText = "Your changes will be lost if you don't save them."
+        alert.addButton(withTitle: "Save")
+        let dontSave = alert.addButton(withTitle: "Don't Save")
+        dontSave.keyEquivalent = "d"
+        dontSave.keyEquivalentModifierMask = .command
+        let cancel = alert.addButton(withTitle: "Cancel")
+        cancel.keyEquivalent = "\u{1b}"
+
+        let respond: (NSApplication.ModalResponse) -> Void = { [weak self, weak file] response in
+            guard let self, let file else { return }
+            switch response {
+            case .alertFirstButtonReturn: // Save
+                file.save()
+                // Keep the tab open if the write failed; the error bar shows why.
+                if file.saveError == nil {
+                    self.remove(tabID: file.id)
+                }
+            case .alertSecondButtonReturn: // Don't Save
+                self.remove(tabID: file.id)
+            default: // Cancel
+                break
+            }
+        }
+
+        if let window = NSApp.keyWindow {
+            alert.beginSheetModal(for: window, completionHandler: respond)
+        } else {
+            respond(alert.runModal())
+        }
     }
 
     // MARK: - Diffs

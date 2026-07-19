@@ -73,10 +73,13 @@ struct SourceTextEditor: NSViewRepresentable {
     }
 
     func makeNSView(context: Context) -> NSScrollView {
-        let scrollView = STTextView.scrollableTextView()
-        guard let textView = scrollView.documentView as? STTextView else {
-            return scrollView
-        }
+        let scrollView = RestorableScrollView()
+        let textView = STTextView()
+        scrollView.wantsLayer = true
+        scrollView.hasVerticalScroller = true
+        scrollView.hasHorizontalScroller = true
+        scrollView.documentView = textView
+
         scrollView.autohidesScrollers = true
         scrollView.drawsBackground = true
         // The window uses a full-size content view, so automatic insets
@@ -110,12 +113,26 @@ struct SourceTextEditor: NSViewRepresentable {
 
         context.coordinator.attach(textView: textView, scrollView: scrollView)
 
-        DispatchQueue.main.async {
-            if state.scrollX != nil || state.scrollY != nil {
+        // Restore the saved scroll offset during the first layout pass — while
+        // the frame is finally known but before the first paint — so the file
+        // opens already at its saved position. Doing this asynchronously (after
+        // the initial paint at the top) makes the editor visibly scroll into
+        // place and flashes the auto-hiding scroller.
+        if state.scrollX != nil || state.scrollY != nil {
+            scrollView.restoreOnFirstLayout = { [weak scrollView, weak textView] in
+                guard let scrollView, let textView else { return }
                 let clipView = scrollView.contentView
-                clipView.scroll(to: NSPoint(x: state.scrollX ?? 0, y: state.scrollY ?? 0))
+                // setBoundsOrigin (not scroll(to:)) avoids clamping against a
+                // content height that TextKit2 has only estimated so far.
+                clipView.setBoundsOrigin(NSPoint(x: state.scrollX ?? 0, y: state.scrollY ?? 0))
                 scrollView.reflectScrolledClipView(clipView)
+                // Lay out the viewport around the restored offset in this same
+                // pass so the region is painted in place, not after a scroll.
+                textView.needsLayout = true
             }
+        }
+
+        DispatchQueue.main.async {
             textView.window?.makeFirstResponder(textView)
         }
         return scrollView
@@ -186,7 +203,7 @@ struct SourceTextEditor: NSViewRepresentable {
             let newText = textView.text ?? ""
             guard newText != file.text else { return }
             file.text = newText
-            file.markDirty()
+            file.refreshDirtyState()
         }
 
         func textViewDidChangeSelection(_ notification: Notification) {
@@ -194,6 +211,21 @@ struct SourceTextEditor: NSViewRepresentable {
             let selection = textView.textSelection
             file.editorState.selectionLocation = selection.location
             file.editorState.selectionLength = selection.length
+        }
+    }
+}
+
+/// NSScrollView that runs a one-shot restoration during its first real layout
+/// pass — before the first paint — so a restored file opens already scrolled to
+/// its saved position instead of visibly jumping there afterward.
+private final class RestorableScrollView: NSScrollView {
+    var restoreOnFirstLayout: (() -> Void)?
+
+    override func layout() {
+        super.layout()
+        if bounds.width > 0, bounds.height > 0, let restore = restoreOnFirstLayout {
+            restoreOnFirstLayout = nil
+            restore()
         }
     }
 }

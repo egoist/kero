@@ -24,6 +24,11 @@ final class FileTab: nonisolated ObservableObject, nonisolated Identifiable {
     /// Current editor text, written back by the editor on every edit. Not
     /// published: the editor owns display, this is only read back for saves.
     var text: String
+    /// The content as last loaded from or saved to disk. `isDirty` is the
+    /// difference between this and `text`, so undoing edits back to it (or
+    /// retyping the same characters) clears the dirty indicator rather than
+    /// leaving it stuck on.
+    private var savedText = ""
     /// Scroll position and cursor, written back by the editor as they
     /// change. Lives here (not in the view) so the state survives tab
     /// switches, and in the session snapshot so it survives relaunches. Not
@@ -64,15 +69,25 @@ final class FileTab: nonisolated ObservableObject, nonisolated Identifiable {
         }
         content = .text
         text = string
+        savedText = string
     }
 
     var name: String {
         (path as NSString).lastPathComponent
     }
 
-    func markDirty() {
-        if !isDirty {
-            isDirty = true
+    /// Recompute `isDirty` from the current `text` against the saved
+    /// baseline. Called after every editor change (including undo/redo), so
+    /// reverting to the saved content clears the dirty state.
+    func refreshDirtyState() {
+        let dirty: Bool
+        if case .text = content {
+            dirty = text != savedText
+        } else {
+            dirty = false
+        }
+        if isDirty != dirty {
+            isDirty = dirty
         }
     }
 
@@ -80,6 +95,7 @@ final class FileTab: nonisolated ObservableObject, nonisolated Identifiable {
         guard case .text = content, isDirty else { return }
         do {
             try text.write(toFile: path, atomically: true, encoding: .utf8)
+            savedText = text
             isDirty = false
             saveError = nil
         } catch {
