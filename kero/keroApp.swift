@@ -73,13 +73,15 @@ private struct KeroCommands: Commands {
             .keyboardShortcut("n", modifiers: [.command, .shift])
 
             Button("Close Tab") {
-                // Cmd-W is app-wide: only close a tab when a main window is
-                // key; otherwise close the key window (e.g. Settings).
-                if let keyWindow = NSApp.keyWindow,
-                   keyWindow.identifier?.rawValue.hasPrefix("main") != true {
-                    keyWindow.performClose(nil)
+                // Cmd-W is app-wide: close a tab only when a main window with
+                // an open project is key. Otherwise close the key window
+                // itself — a non-main window (e.g. Settings), or a main window
+                // showing the empty "No open projects" state with no tab left.
+                if let manager, manager.selectedProject != nil,
+                   NSApp.keyWindow?.identifier?.rawValue.hasPrefix("main") == true {
+                    manager.closeSelectedTab()
                 } else {
-                    manager?.closeSelectedTab()
+                    NSApp.keyWindow?.performClose(nil)
                 }
             }
             .keyboardShortcut("w", modifiers: .command)
