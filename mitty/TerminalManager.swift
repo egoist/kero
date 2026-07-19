@@ -103,7 +103,14 @@ final class TerminalManager: nonisolated ObservableObject {
 
     func newProject() {
         let project = makeProject()
-        projects.append(project)
+        // Open the new project next to the current one rather than at the end.
+        // Falls back to appending when nothing is selected yet.
+        if let selectedProjectID,
+           let index = projects.firstIndex(where: { $0.id == selectedProjectID }) {
+            projects.insert(project, at: index + 1)
+        } else {
+            projects.append(project)
+        }
         selectedProjectID = project.id
     }
 

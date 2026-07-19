@@ -103,7 +103,7 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
         sessionObservations[session.id] = session.objectWillChange.sink { [weak self] _ in
             self?.objectWillChange.send()
         }
-        tabs.append(.session(session))
+        insertNextToSelected(.session(session))
         selectedTabID = session.id
         return session
     }
@@ -135,7 +135,7 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
         if let editorState {
             file.editorState = editorState
         }
-        tabs.append(.file(file))
+        insertNextToSelected(.file(file))
         selectedTabID = file.id
     }
 
@@ -227,7 +227,7 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
             repoRoot: repoRoot, path: path, staged: staged,
             untracked: untracked, origPath: origPath
         )
-        tabs.append(.diff(diff))
+        insertNextToSelected(.diff(diff))
         selectedTabID = diff.id
     }
 
@@ -319,6 +319,20 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
         else { return }
         let next = (current + offset + tabs.count) % tabs.count
         selectedTabID = tabs[next].id
+    }
+
+    /// Inserts a newly created tab immediately after the current selection so
+    /// new tabs open next to the current one instead of at the end of the
+    /// strip. Appends when there's no selection — the first tab, or while
+    /// restoring, where selection tracks the last tab added (so "after
+    /// selected" lands at the end and the saved order is preserved).
+    private func insertNextToSelected(_ tab: ProjectTab) {
+        if let selectedTabID,
+           let index = tabs.firstIndex(where: { $0.id == selectedTabID }) {
+            tabs.insert(tab, at: index + 1)
+        } else {
+            tabs.append(tab)
+        }
     }
 
     private func remove(tabID: UUID) {
