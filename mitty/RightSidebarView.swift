@@ -250,6 +250,10 @@ private struct FileTreeRow: View {
                     session?.sendCommand("cd " + shellQuote(item.path) + "\n")
                 }
             }
+            Divider()
+            Button("Move to Trash", role: .destructive) {
+                model.moveToTrash(item)
+            }
         }
     }
 }

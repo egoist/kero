@@ -3,6 +3,7 @@
 //  mitty
 //
 
+import AppKit
 import Combine
 import Foundation
 
@@ -43,6 +44,23 @@ final class FileTreeModel: nonisolated ObservableObject {
         guard item.isDirectory else { return }
         if !expanded.insert(item.path).inserted {
             expanded.remove(item.path)
+        }
+        rebuild()
+    }
+
+    /// Moves `item` to the Trash, then rebuilds so it drops out of the tree.
+    func moveToTrash(_ item: Item) {
+        do {
+            try FileManager.default.trashItem(
+                at: URL(fileURLWithPath: item.path), resultingItemURL: nil
+            )
+            expanded.remove(item.path)
+        } catch {
+            let alert = NSAlert()
+            alert.messageText = "Couldn’t move “\(item.name)” to the Trash."
+            alert.informativeText = error.localizedDescription
+            alert.alertStyle = .warning
+            alert.runModal()
         }
         rebuild()
     }
