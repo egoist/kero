@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		AA10000000000000000000B2 /* SwiftTerm in Frameworks */ = {isa = PBXBuildFile; productRef = AA10000000000000000000B1 /* SwiftTerm */; };
 		AA10000000000000000000C2 /* STTextView in Frameworks */ = {isa = PBXBuildFile; productRef = AA10000000000000000000C1 /* STTextView */; };
+		AA10000000000000000000E2 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = AA10000000000000000000E1 /* Sparkle */; };
 		FF519F43300BBE2100D8B982 /* PierreDiffsSwift in Frameworks */ = {isa = PBXBuildFile; productRef = AA10000000000000000000D1 /* PierreDiffsSwift */; };
 /* End PBXBuildFile section */
 
@@ -16,9 +17,22 @@
 		FF3FDD73300B6A7400112486 /* kero.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = kero.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		AA10000000000000000000F0 /* Exceptions for "kero" folder in "kero" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = FF3FDD72300B6A7400112486 /* kero */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		FF3FDD75300B6A7400112486 /* kero */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				AA10000000000000000000F0 /* Exceptions for "kero" folder in "kero" target */,
+			);
 			path = kero;
 			sourceTree = "<group>";
 		};
@@ -31,6 +45,7 @@
 				FF519F43300BBE2100D8B982 /* PierreDiffsSwift in Frameworks */,
 				AA10000000000000000000B2 /* SwiftTerm in Frameworks */,
 				AA10000000000000000000C2 /* STTextView in Frameworks */,
+				AA10000000000000000000E2 /* Sparkle in Frameworks */,
 			);
 		};
 /* End PBXFrameworksBuildPhase section */
@@ -73,6 +88,7 @@
 				AA10000000000000000000B1 /* SwiftTerm */,
 				AA10000000000000000000C1 /* STTextView */,
 				AA10000000000000000000D1 /* PierreDiffsSwift */,
+				AA10000000000000000000E1 /* Sparkle */,
 			);
 			productName = kero;
 			productReference = FF3FDD73300B6A7400112486 /* kero.app */;
@@ -106,6 +122,7 @@
 				AA10000000000000000000C0 /* XCLocalSwiftPackageReference "Vendor/STTextView" */,
 				AA10000000000000000000B0 /* XCRemoteSwiftPackageReference "SwiftTerm" */,
 				AA10000000000000000000D0 /* XCRemoteSwiftPackageReference "PierreDiffsSwift" */,
+				AA10000000000000000000E0 /* XCRemoteSwiftPackageReference "Sparkle" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = FF3FDD74300B6A7400112486 /* Products */;
@@ -261,8 +278,10 @@
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_APP_SANDBOX = NO;
+				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = kero/Info.plist;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -291,8 +310,10 @@
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_APP_SANDBOX = NO;
+				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = kero/Info.plist;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -357,6 +378,14 @@
 				minimumVersion = 1.3.0;
 			};
 		};
+		AA10000000000000000000E0 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sparkle-project/Sparkle";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.6.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -373,6 +402,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = AA10000000000000000000D0 /* XCRemoteSwiftPackageReference "PierreDiffsSwift" */;
 			productName = PierreDiffsSwift;
+		};
+		AA10000000000000000000E1 /* Sparkle */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AA10000000000000000000E0 /* XCRemoteSwiftPackageReference "Sparkle" */;
+			productName = Sparkle;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

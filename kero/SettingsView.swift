@@ -9,6 +9,7 @@ import SwiftUI
 /// The app settings window (Cmd+,).
 struct SettingsView: View {
     @ObservedObject private var settings = AppSettings.shared
+    @ObservedObject private var updater = Updater.shared
 
     /// Installed fixed-pitch families (bundled default first).
     private let families = TerminalFont.selectableFamilies()
@@ -59,6 +60,18 @@ struct SettingsView: View {
 
             Section("Text Editing") {
                 Toggle("Wrap lines to editor width", isOn: $settings.wrapLines)
+            }
+
+            Section("Updates") {
+                Toggle(
+                    "Automatically check for updates",
+                    isOn: $updater.automaticallyChecksForUpdates
+                )
+
+                Button("Check for Updates…") {
+                    updater.checkForUpdates()
+                }
+                .disabled(!updater.canCheckForUpdates)
             }
 
             Section {

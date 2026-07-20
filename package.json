@@ -1,0 +1,13 @@
+{
+  "name": "kero-release",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "release": "bun run scripts/release.ts",
+    "appcast": "bun run scripts/generate-appcast.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  }
+}

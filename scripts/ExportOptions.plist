@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Export options for `xcodebuild -exportArchive`, used by scripts/release.sh to
+  produce a Developer ID-signed kero.app for distribution outside the App Store.
+
+  Fill in teamID with your 10-character Apple Developer Team ID. Find it via:
+    xcrun security find-identity -v -p codesigning
+  (the ID in parentheses of your "Developer ID Application" identity), or at
+  https://developer.apple.com/account → Membership.
+-->
+<plist version="1.0">
+<dict>
+	<key>method</key>
+	<string>developer-id</string>
+	<key>signingStyle</key>
+	<string>automatic</string>
+	<key>teamID</key>
+	<string>REPLACE_WITH_TEAM_ID</string>
+</dict>
+</plist>
