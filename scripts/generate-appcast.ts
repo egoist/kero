@@ -56,7 +56,10 @@ export async function generateAppcast(
     );
   }
   console.log(`Using: ${gen}`);
-  await $`${gen} --download-url-prefix ${downloadUrlPrefix} ${updatesDir}`;
+  // Same prefix for both: archives and the kero-<version>.md release notes are
+  // served from the same origin. The notes prefix makes generate_appcast emit
+  // <sparkle:releaseNotesLink> for any notes file matching an archive name.
+  await $`${gen} --download-url-prefix ${downloadUrlPrefix} --release-notes-url-prefix ${downloadUrlPrefix} ${updatesDir}`;
   console.log(`Wrote ${join(updatesDir, "appcast.xml")}`);
 }
 

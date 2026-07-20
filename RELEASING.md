@@ -78,6 +78,8 @@ project).
    (R2 → your bucket → Settings → Custom Domains). This serves objects publicly
    at `https://releases.kero.sh/<file>`.
 3. Create an **R2 API token** (R2 → Manage API Tokens → Object Read & Write).
+   It only needs access to this one bucket — the script passes
+   `--s3-no-check-bucket`, so no bucket-creation permission is required.
 
 ### 4. rclone remote for R2
 
@@ -94,9 +96,14 @@ access_key_id = <R2 access key id>
 secret_access_key = <R2 secret access key>
 endpoint = https://<ACCOUNT_ID>.r2.cloudflarestorage.com
 region = auto
+no_check_bucket = true
 ```
 
-Verify with `rclone lsf r2:kero-releases`.
+`no_check_bucket = true` stops rclone from trying to create the (already
+existing) bucket — needed for bucket-scoped tokens. The script also passes
+`--s3-no-check-bucket`, so this line is belt-and-suspenders.
+
+Verify with `rclone lsf r2:kero-releases --s3-no-check-bucket`.
 
 ---
 
@@ -106,15 +113,18 @@ Verify with `rclone lsf r2:kero-releases`.
    - `MARKETING_VERSION` — user-visible, e.g. `1.1` (`CFBundleShortVersionString`).
    - `CURRENT_PROJECT_VERSION` — build number, e.g. `2` (`CFBundleVersion`).
      **Must increase every release** — Sparkle compares it to decide what's newer.
-2. **Run it:**
+2. **Write the release notes** — add a `## [1.1]` section at the top of
+   [`CHANGELOG.md`](CHANGELOG.md) (the heading must match `MARKETING_VERSION`).
+3. **Run it:**
    ```sh
    bun scripts/release.ts        # or: bun run release
    ```
 
 That's it. The script archives → exports a Developer ID app → notarizes and
-staples → zips it → pulls existing archives from R2 (so Sparkle can build
-deltas) → signs and regenerates `appcast.xml` → uploads everything to R2. When it
-finishes, the new version is live at `https://releases.kero.sh`.
+staples → zips it → attaches the matching `CHANGELOG.md` section as release
+notes → pulls existing archives from R2 (so Sparkle can build deltas) → signs
+and regenerates `appcast.xml` → uploads everything to R2. When it finishes, the
+new version is live at `https://releases.kero.sh`.
 
 Test by running an **older** build and choosing **Check for Updates…**.
 
@@ -142,6 +152,11 @@ Test by running an **older** build and choosing **Check for Updates…**.
   <true/>
   ```
   The **Updates** settings toggle lets users change it either way.
+- **Release notes** live in [`CHANGELOG.md`](CHANGELOG.md). The release script
+  publishes the matching version section as `kero-<version>.md` next to the
+  archive, and `generate_appcast` links it as the update's release notes
+  (Sparkle 2.9+ renders Markdown). No matching section → the release just ships
+  without notes. Notes for older versions stay in R2, so they keep showing.
 - Until the real `SUPublicEDKey` is in place, the app runs and checks the feed
   fine, but installing an update fails signature verification by design.
 - kero isn't sandboxed, so no Sparkle XPC services need bundling.

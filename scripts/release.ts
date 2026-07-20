@@ -25,6 +25,7 @@ import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { die, need, say } from "./lib";
 import { generateAppcast } from "./generate-appcast";
+import { extractReleaseNotes } from "./changelog";
 
 // Run from the repo root regardless of where we were invoked.
 process.chdir(join(import.meta.dir, ".."));
@@ -43,6 +44,11 @@ const DOWNLOAD_URL_PREFIX = process.env.DOWNLOAD_URL_PREFIX ?? "https://releases
 const R2_REMOTE = process.env.R2_REMOTE ?? "r2";
 const R2_BUCKET = process.env.R2_BUCKET ?? "kero-releases";
 const R2_DEST = `${R2_REMOTE}:${R2_BUCKET}`;
+
+// A bucket-scoped R2 API token (Object Read & Write) can't create buckets, and
+// rclone otherwise tries to check/create the bucket before uploading. The
+// bucket already exists, so skip that on every call.
+const RCLONE_FLAGS = ["--s3-no-check-bucket"];
 
 process.env.DEVELOPER_DIR ??= "/Applications/Xcode-beta.app/Contents/Developer";
 
@@ -80,7 +86,7 @@ say(`Releasing kero ${version} (build ${build}) → ${zipName}`);
 if (process.env.FORCE !== "1") {
   let existing = "";
   try {
-    existing = await $`rclone lsf ${R2_DEST}`.text();
+    existing = await $`rclone lsf ${R2_DEST} ${RCLONE_FLAGS}`.text();
   } catch {
     existing = ""; // empty/unreachable bucket — let later steps surface it
   }
@@ -103,10 +109,26 @@ if (process.env.NO_HISTORY !== "1") {
   say("Pulling existing archives from R2 (for deltas)…");
   // copy is additive — it never deletes local or remote files. Pull the old
   // appcast too so generate_appcast preserves any hand-added release notes.
-  await $`rclone copy ${R2_DEST} ${UPDATES_DIR} --include ${"*.zip"} --include ${"*.delta"} --include ${"appcast.xml"}`;
+  await $`rclone copy ${R2_DEST} ${UPDATES_DIR} ${RCLONE_FLAGS} --include ${"*.zip"} --include ${"*.delta"} --include ${"*.md"} --include ${"*.html"} --include ${"appcast.xml"}`;
 }
 say(`Packaging ${zipName}…`);
 await $`ditto -c -k --keepParent ${app} ${join(UPDATES_DIR, zipName)}`;
+
+// Release notes: slice this version's section out of CHANGELOG.md next to the
+// archive (as kero-<version>.md). generate_appcast then attaches it as the
+// update's <sparkle:releaseNotesLink>, which Sparkle renders in the prompt.
+const changelog = "CHANGELOG.md";
+if (existsSync(changelog)) {
+  const notes = extractReleaseNotes(await Bun.file(changelog).text(), version);
+  if (notes) {
+    await Bun.write(join(UPDATES_DIR, `kero-${version}.md`), `${notes}\n`);
+    say(`Attached release notes for ${version}`);
+  } else {
+    say(`No "${version}" section in ${changelog} — releasing without notes`);
+  }
+} else {
+  say(`No ${changelog} — releasing without notes`);
+}
 
 // ---- 6. sign + (re)generate the appcast ----------------------------------
 say("Generating appcast…");
@@ -116,9 +138,9 @@ await generateAppcast(UPDATES_DIR, DOWNLOAD_URL_PREFIX);
 // Archives are immutable → cache forever. appcast.xml changes every release →
 // keep it fresh so update checks aren't served stale.
 say(`Uploading archives to ${R2_DEST}…`);
-await $`rclone copy ${UPDATES_DIR} ${R2_DEST} --exclude ${"appcast.xml"} --header-upload ${"Cache-Control: public, max-age=31536000, immutable"} --progress`;
+await $`rclone copy ${UPDATES_DIR} ${R2_DEST} ${RCLONE_FLAGS} --exclude ${"appcast.xml"} --header-upload ${"Cache-Control: public, max-age=31536000, immutable"} --progress`;
 say("Uploading appcast.xml…");
-await $`rclone copyto ${join(UPDATES_DIR, "appcast.xml")} ${`${R2_DEST}/appcast.xml`} --header-upload ${"Cache-Control: public, max-age=300, must-revalidate"}`;
+await $`rclone copyto ${join(UPDATES_DIR, "appcast.xml")} ${`${R2_DEST}/appcast.xml`} ${RCLONE_FLAGS} --header-upload ${"Cache-Control: public, max-age=300, must-revalidate"}`;
 
 say(`Done. kero ${version} is live:`);
 console.log(`     app  : ${DOWNLOAD_URL_PREFIX}${zipName}`);
