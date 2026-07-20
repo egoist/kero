@@ -1,0 +1,16 @@
+# dependencies
+node_modules
+
+# build output
+.output
+.nitro
+.tanstack
+.vinxi
+dist
+
+# generated route tree
+src/routeTree.gen.ts
+
+# logs / os
+*.log
+.DS_Store
