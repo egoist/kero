@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "kero-web",
+  "name": "kero",
   "compatibility_date": "2026-07-20",
   "compatibility_flags": ["nodejs_compat"],
   // TanStack Start's server entry. The @cloudflare/vite-plugin bundles this
