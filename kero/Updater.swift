@@ -34,10 +34,17 @@ final class Updater: ObservableObject {
     }
 
     private init() {
-        // startingUpdater: true starts Sparkle now, which schedules the first
-        // background check according to the user's preference.
+        // Don't run the updater in debug builds. Starting it schedules a
+        // background check and pops Sparkle's "check for updates
+        // automatically?" permission prompt, which is just noise while
+        // developing. Release builds start it and behave normally.
+        #if DEBUG
+        let startImmediately = false
+        #else
+        let startImmediately = true
+        #endif
         controller = SPUStandardUpdaterController(
-            startingUpdater: true,
+            startingUpdater: startImmediately,
             updaterDelegate: nil,
             userDriverDelegate: nil
         )
