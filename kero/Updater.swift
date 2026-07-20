@@ -52,6 +52,17 @@ final class Updater: ObservableObject {
         automaticallyChecksForUpdates = controller.updater.automaticallyChecksForUpdates
         controller.updater.publisher(for: \.canCheckForUpdates)
             .assign(to: &$canCheckForUpdates)
+
+        // Force a silent check on launch when auto-checks are on. Starting the
+        // updater only arms Sparkle's *scheduled* checker, which fires once its
+        // interval (~a day) has elapsed since the last check — so a normal
+        // relaunch checks nothing. Sparkle requires this forced check to run
+        // immediately after the updater starts (calling it later interferes
+        // with its scheduler), which is why it lives here and is gated on the
+        // updater actually having been started.
+        if startImmediately && automaticallyChecksForUpdates {
+            controller.updater.checkForUpdatesInBackground()
+        }
     }
 
     /// Runs Sparkle's user-facing update check (progress window and prompts).
