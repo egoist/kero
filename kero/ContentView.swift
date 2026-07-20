@@ -301,7 +301,7 @@ private struct TabItemChrome: View {
                     .font(.system(size: 9, weight: .medium))
                     .foregroundStyle(isSelected ? AnyShapeStyle(Color(nsColor: Theme.cursor)) : AnyShapeStyle(.tertiary))
                 Text(title)
-                    .font(.system(size: 11.5, weight: isSelected ? .medium : .regular))
+                    .font(.system(size: 11.5))
                     .foregroundStyle(isSelected ? .primary : .secondary)
                     .lineLimit(1)
                 if isHovering {

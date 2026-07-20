@@ -139,7 +139,7 @@ private struct SidebarProjectRow: View {
                         }
                 } else {
                     Text(project.name)
-                        .font(.system(size: 12, weight: isSelected ? .medium : .regular))
+                        .font(.system(size: 12))
                         .foregroundStyle(isSelected ? .primary : .secondary)
                         .lineLimit(1)
                 }
