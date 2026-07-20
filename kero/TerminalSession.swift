@@ -32,7 +32,7 @@ final class TerminalSession: NSObject, nonisolated ObservableObject, nonisolated
         self.initialDirectory = initialDirectory
         shellPath = Self.loginShell()
         title = (shellPath as NSString).lastPathComponent
-        terminalView = LocalProcessTerminalView(frame: NSRect(x: 0, y: 0, width: 800, height: 600))
+        terminalView = KeroTerminalView(frame: NSRect(x: 0, y: 0, width: 800, height: 600))
         super.init()
 
         terminalView.processDelegate = self
