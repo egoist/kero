@@ -1,9 +1,11 @@
 # Releasing kero
 
 kero auto-updates with [Sparkle](https://sparkle-project.org). Releases live in a
-**Cloudflare R2** bucket served at **`https://releases.kero.sh`**. The app reads
-the appcast at `https://releases.kero.sh/appcast.xml`, downloads newer builds,
-verifies their EdDSA signature, and installs them.
+**Cloudflare R2** bucket served at **`https://releases.kero.sh`**. New users
+download a notarized **`.dmg`**; existing users get smaller in-app delta updates
+via Sparkle, which reads the appcast at `https://releases.kero.sh/appcast.xml`,
+verifies each build's EdDSA signature, and installs it. One release command
+produces both.
 
 Once set up, cutting a release is one command:
 
@@ -23,9 +25,10 @@ bun scripts/release.ts        # or: bun run release
 
 ## One-time setup
 
-The release script runs on [Bun](https://bun.sh) (`brew install bun`). Optionally
-run `bun install` once for editor type-checking of the scripts — it isn't needed
-to run them.
+The release script runs on [Bun](https://bun.sh) (`brew install bun`) and builds
+the disk image with [`create-dmg`](https://github.com/create-dmg/create-dmg)
+(`brew install create-dmg`). Optionally run `bun install` once for editor
+type-checking of the scripts — it isn't needed to run them.
 
 ### 1. Sparkle signing keys
 
@@ -61,6 +64,8 @@ Sparkle needs the app signed with your **Developer ID** and **notarized**
 project).
 
 - Install your **Developer ID Application** certificate in the login keychain.
+  The script signs the `.dmg` with it too; if you have more than one such cert,
+  set `SIGN_IDENTITY` to the exact name or SHA-1.
 - Set `teamID` in [`scripts/ExportOptions.plist`](scripts/ExportOptions.plist)
   (find it with `xcrun security find-identity -v -p codesigning`).
 - Store notarization credentials once as a keychain profile named `NOTARY`:
@@ -120,11 +125,17 @@ Verify with `rclone lsf r2:kero-releases --s3-no-check-bucket`.
    bun scripts/release.ts        # or: bun run release
    ```
 
-That's it. The script archives → exports a Developer ID app → notarizes and
-staples → zips it → attaches the matching `CHANGELOG.md` section as release
-notes → pulls existing archives from R2 (so Sparkle can build deltas) → signs
-and regenerates `appcast.xml` → uploads everything to R2. When it finishes, the
-new version is live at `https://releases.kero.sh`.
+That's it. The script archives → exports a Developer ID app → builds a
+notarized, stapled **`.dmg`** → staples the app and zips it for Sparkle →
+attaches the matching `CHANGELOG.md` section as release notes → pulls existing
+archives from R2 (so Sparkle can build deltas) → regenerates `appcast.xml` →
+uploads the DMG and the update archives to R2. When it finishes:
+
+- **Download link** (for the website): `https://releases.kero.sh/kero-<version>.dmg`
+- **In-app updates**: served from the same origin via the appcast.
+
+Notarizing the DMG also notarizes the app's code, so the script staples both from
+a single submission — the DMG for direct downloads, the app for the Sparkle zip.
 
 Test by running an **older** build and choosing **Check for Updates…**.
 
@@ -135,6 +146,7 @@ Test by running an **older** build and choosing **Check for Updates…**.
 | `R2_BUCKET` | `kero-releases` | R2 bucket name |
 | `R2_REMOTE` | `r2` | rclone remote name |
 | `NOTARY_PROFILE` | `NOTARY` | `notarytool` keychain profile |
+| `SIGN_IDENTITY` | `Developer ID Application` | codesigning identity for the DMG |
 | `EXPORT_OPTIONS` | `scripts/ExportOptions.plist` | export config |
 | `DOWNLOAD_URL_PREFIX` | `https://releases.kero.sh/` | base URL in the appcast |
 | `FORCE=1` | — | re-release a version that already exists |
@@ -144,6 +156,11 @@ Test by running an **older** build and choosing **Check for Updates…**.
 
 ## Notes
 
+- **Two artifacts per release:** a notarized `.dmg` (what people download) and a
+  `.zip` (what Sparkle installs, with binary deltas). Only the `.zip` goes in the
+  appcast; point your website's download button at
+  `https://releases.kero.sh/kero-<version>.dmg`. Want a stable URL? Add a
+  Cloudflare redirect from e.g. `/download` to the newest `.dmg`.
 - **Automatic checks:** by default Sparkle asks the user once whether to allow
   automatic update checks. To opt in by default (no prompt), add to
   [`kero/Info.plist`](kero/Info.plist):

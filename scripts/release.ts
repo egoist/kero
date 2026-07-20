@@ -40,6 +40,9 @@ const ARCHIVE_PATH = join(BUILD_DIR, "kero.xcarchive");
 const EXPORT_DIR = join(BUILD_DIR, "export");
 const EXPORT_OPTIONS = process.env.EXPORT_OPTIONS ?? "scripts/ExportOptions.plist";
 const NOTARY_PROFILE = process.env.NOTARY_PROFILE ?? "NOTARY";
+// Codesigning identity for the .dmg itself. A partial name matches when there's
+// a single Developer ID Application cert; override with the full name/SHA-1.
+const SIGN_IDENTITY = process.env.SIGN_IDENTITY ?? "Developer ID Application";
 const DOWNLOAD_URL_PREFIX = process.env.DOWNLOAD_URL_PREFIX ?? "https://releases.kero.sh/";
 const R2_REMOTE = process.env.R2_REMOTE ?? "r2";
 const R2_BUCKET = process.env.R2_BUCKET ?? "kero-releases";
@@ -57,6 +60,7 @@ need("ditto");
 need("xcrun");
 need("plutil");
 need("rclone");
+need("create-dmg"); // brew install create-dmg
 if (!existsSync(EXPORT_OPTIONS)) {
   die(`export options not found: ${EXPORT_OPTIONS} (see RELEASING.md)`);
 }
@@ -79,8 +83,9 @@ const appPlist = join(app, "Contents/Info.plist");
 const version = (await $`plutil -extract CFBundleShortVersionString raw ${appPlist}`.text()).trim();
 const build = (await $`plutil -extract CFBundleVersion raw ${appPlist}`.text()).trim();
 if (!version) die("could not read CFBundleShortVersionString");
-const zipName = `kero-${version}.zip`;
-say(`Releasing kero ${version} (build ${build}) → ${zipName}`);
+const zipName = `kero-${version}.zip`; // Sparkle in-app update (deltas)
+const dmgName = `kero-${version}.dmg`; // notarized download
+say(`Releasing kero ${version} (build ${build})`);
 
 // Don't clobber an already-published version unless forced.
 if (process.env.FORCE !== "1") {
@@ -95,15 +100,43 @@ if (process.env.FORCE !== "1") {
   }
 }
 
-// ---- 4. notarize + staple ------------------------------------------------
+// ---- 4. build the DMG ----------------------------------------------------
+// A staged folder holds only the app, so the disk image window is just the app
+// + the Applications drop target.
+say(`Building ${dmgName}…`);
+const dmgPath = join(BUILD_DIR, dmgName);
+const dmgStaging = join(BUILD_DIR, "dmg");
+rmSync(dmgStaging, { recursive: true, force: true });
+rmSync(dmgPath, { force: true });
+mkdirSync(dmgStaging, { recursive: true });
+await $`ditto ${app} ${join(dmgStaging, "kero.app")}`;
+// create-dmg can return non-zero from cosmetic Finder-scripting hiccups even
+// when the image is fine, so check for the file instead of the exit code.
+await $`create-dmg \
+  --volname ${`kero ${version}`} \
+  --window-size 540 380 \
+  --icon-size 128 \
+  --icon ${"kero.app"} 150 195 \
+  --app-drop-link 390 195 \
+  --hide-extension ${"kero.app"} \
+  --no-internet-enable \
+  ${dmgPath} ${dmgStaging}`.nothrow();
+if (!existsSync(dmgPath)) die("create-dmg did not produce a disk image");
+await $`codesign --force --sign ${SIGN_IDENTITY} ${dmgPath}`;
+
+// ---- 5. notarize + staple ------------------------------------------------
+// Notarizing the DMG also notarizes the app's code hash, so we can staple both
+// the DMG (for downloads) and the app (for the Sparkle zip) from one submission.
 say(`Notarizing (profile: ${NOTARY_PROFILE})…`);
-const notarizeZip = join(BUILD_DIR, "kero-notarize.zip");
-await $`ditto -c -k --keepParent ${app} ${notarizeZip}`;
-await $`xcrun notarytool submit ${notarizeZip} --keychain-profile ${NOTARY_PROFILE} --wait`;
-say("Stapling ticket…");
+await $`xcrun notarytool submit ${dmgPath} --keychain-profile ${NOTARY_PROFILE} --wait`;
+say("Stapling tickets…");
+await $`xcrun stapler staple ${dmgPath}`;
 await $`xcrun stapler staple ${app}`;
 
-// ---- 5. package (pull history first so generate_appcast can build deltas) -
+// ---- 6. package the Sparkle update (pull history first for deltas) --------
+// The DMG is the download; Sparkle updates from this zip so it can build small
+// binary deltas. Only zips live in UPDATES_DIR, so generate_appcast makes one
+// appcast item per version.
 mkdirSync(UPDATES_DIR, { recursive: true });
 if (process.env.NO_HISTORY !== "1") {
   say("Pulling existing archives from R2 (for deltas)…");
@@ -130,18 +163,21 @@ if (existsSync(changelog)) {
   say(`No ${changelog} — releasing without notes`);
 }
 
-// ---- 6. sign + (re)generate the appcast ----------------------------------
+// ---- 7. sign + (re)generate the appcast ----------------------------------
 say("Generating appcast…");
 await generateAppcast(UPDATES_DIR, DOWNLOAD_URL_PREFIX);
 
-// ---- 7. upload to R2 -----------------------------------------------------
-// Archives are immutable → cache forever. appcast.xml changes every release →
-// keep it fresh so update checks aren't served stale.
-say(`Uploading archives to ${R2_DEST}…`);
+// ---- 8. upload to R2 -----------------------------------------------------
+// Archives and the DMG are immutable → cache forever. appcast.xml changes every
+// release → keep it fresh so update checks aren't served stale.
+say(`Uploading the DMG to ${R2_DEST}…`);
+await $`rclone copyto ${dmgPath} ${`${R2_DEST}/${dmgName}`} ${RCLONE_FLAGS} --header-upload ${"Cache-Control: public, max-age=31536000, immutable"} --progress`;
+say(`Uploading update archives to ${R2_DEST}…`);
 await $`rclone copy ${UPDATES_DIR} ${R2_DEST} ${RCLONE_FLAGS} --exclude ${"appcast.xml"} --header-upload ${"Cache-Control: public, max-age=31536000, immutable"} --progress`;
 say("Uploading appcast.xml…");
 await $`rclone copyto ${join(UPDATES_DIR, "appcast.xml")} ${`${R2_DEST}/appcast.xml`} ${RCLONE_FLAGS} --header-upload ${"Cache-Control: public, max-age=300, must-revalidate"}`;
 
 say(`Done. kero ${version} is live:`);
-console.log(`     app  : ${DOWNLOAD_URL_PREFIX}${zipName}`);
-console.log(`     feed : ${DOWNLOAD_URL_PREFIX}appcast.xml`);
+console.log(`     download : ${DOWNLOAD_URL_PREFIX}${dmgName}`);
+console.log(`     update   : ${DOWNLOAD_URL_PREFIX}${zipName}`);
+console.log(`     feed     : ${DOWNLOAD_URL_PREFIX}appcast.xml`);
