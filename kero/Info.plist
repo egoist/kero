@@ -10,11 +10,7 @@
 	<key>SUFeedURL</key>
 	<string>https://releases.kero.sh/appcast.xml</string>
 
-	<!-- EdDSA (ed25519) public key used to verify update signatures.
-	     PLACEHOLDER — decodes to "REPLACE-ME-WITH-REAL-SPARKLE-KEY".
-	     Replace with the real key from `generate_keys` before shipping.
-	     See RELEASING.md. -->
 	<key>SUPublicEDKey</key>
-	<string>UkVQTEFDRS1NRS1XSVRILVJFQUwtU1BBUktMRS1LRVk=</string>
+    <string>gv9GLMPjH5yMQkZMFXnoNfHOyL8/7KGzl/jzAqlzZZY=</string>
 </dict>
 </plist>
