@@ -66,9 +66,9 @@ final class AppSettings: nonisolated ObservableObject {
         fontFamily = toml["font-family"]?.string ?? ""
         let size = toml["font-size"]?.double ?? Self.defaultFontSize
         fontSize = Self.fontSizeRange.contains(size) ? size : Self.defaultFontSize
-        gpuRenderingEnabled = toml["gpu-rendering"]?.bool ?? true
-        wrapLines = toml["wrap-lines"]?.bool ?? false
-        restoreTerminalHistory = toml["restore-terminal-history"]?.bool ?? false
+        gpuRenderingEnabled = toml["terminal.gpu-rendering"]?.bool ?? true
+        wrapLines = toml["editor.wrap-lines"]?.bool ?? false
+        restoreTerminalHistory = toml["terminal.restore-history"]?.bool ?? false
         if existing == nil { save() }
     }
 
@@ -91,13 +91,13 @@ final class AppSettings: nonisolated ObservableObject {
         }
         lines.append("font-size = \(TOML.number(fontSize))")
         if !gpuRenderingEnabled {
-            lines.append("gpu-rendering = false")
+            lines.append("terminal.gpu-rendering = false")
         }
         if wrapLines {
-            lines.append("wrap-lines = true")
+            lines.append("editor.wrap-lines = true")
         }
         if restoreTerminalHistory {
-            lines.append("restore-terminal-history = true")
+            lines.append("terminal.restore-history = true")
         }
         let dir = Self.configURL.deletingLastPathComponent()
         do {
@@ -124,9 +124,10 @@ final class AppSettings: nonisolated ObservableObject {
     }
 }
 
-/// Minimal TOML support covering what the config file uses: `[table]`
-/// headers, string/number/bool values, and `#` comments. Keys are flattened
-/// to `table.key`.
+/// Minimal TOML support covering what the config file uses: flat and dotted
+/// keys (`font-size = 15`, `terminal.gpu-rendering = false`), string/number/
+/// bool values, and `#` comments. `[table]` headers are also accepted and
+/// flattened to `table.key`, matching the dotted form.
 enum TOML {
     enum Value {
         case string(String)
