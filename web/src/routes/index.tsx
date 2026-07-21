@@ -1,6 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
 import {
-  Apple,
   ArrowDown,
   Command,
   Cpu,
@@ -151,7 +150,7 @@ function SiteNav({ latest }: { latest: Release }) {
             className="ml-2 h-8 gap-1.5 rounded-md font-mono text-[13px]"
             render={<a href={latest.dmg} />}
           >
-            <Apple className="size-4" />
+            <span className="i-mingcute-apple-fill size-4" />
             download
           </Button>
         </nav>
@@ -203,7 +202,7 @@ function Hero({ latest }: { latest: Release }) {
               className="h-11 gap-2 rounded-md px-5 font-mono text-[13px]"
               render={<a href={latest.dmg} />}
             >
-              <Apple className="size-[18px]" />
+              <span className="i-mingcute-apple-fill size-[18px]" />
               Download for macOS
             </Button>
             <Button
@@ -420,7 +419,7 @@ function FinalCta({ latest }: { latest: Release }) {
             className="h-11 gap-2 rounded-md px-6 font-mono text-[13px]"
             render={<a href={latest.dmg} />}
           >
-            <Apple className="size-[18px]" />
+            <span className="i-mingcute-apple-fill size-[18px]" />
             Download for macOS
           </Button>
         </div>

@@ -27,6 +27,8 @@
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "^1.45.1",
+    "@egoist/tailwindcss-icons": "^1.9.2",
+    "@iconify-json/mingcute": "^1.2.7",
     "@tailwindcss/vite": "^4.3.3",
     "@types/node": "^26.1.1",
     "@types/react": "^19.2.17",
