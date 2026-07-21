@@ -131,6 +131,13 @@ final class SyntaxHighlightCoordinator {
         textView.font = theme.font(forToken: "plain") ?? textView.font
 
         let textInterface = SyntaxHighlightTextInterface(textView: textView) { neonToken in
+            // Metadata captures aren't colors — skip them so they don't repaint
+            // a real capture on the same range. Swift captures comments as
+            // `@comment @spell`; letting `spell` through (it resolves to the
+            // plain fallback, applied after `comment`) turned comments black.
+            if Self.ignoredCaptures.contains(neonToken.name) {
+                return nil
+            }
             var attributes: [NSAttributedString.Key: Any] = [:]
             attributes[.font] = textView.font
             if let color = Self.themeColor(for: neonToken.name, theme: theme) {
@@ -158,6 +165,12 @@ final class SyntaxHighlightCoordinator {
             completionHandler: {}
         )
     }
+
+    /// tree-sitter capture names that carry no color — spell-check hints,
+    /// concealment, and the explicit "no highlight" marker. Grammars attach
+    /// these alongside real captures (e.g. Swift's `@comment @spell`), so they
+    /// must be dropped rather than resolved to a color.
+    private static let ignoredCaptures: Set<String> = ["spell", "nospell", "conceal", "none"]
 
     /// The theme color for a tree-sitter capture name, trying the most specific
     /// name first and shortening on each dot (`variable.parameter` → `variable`),
