@@ -5,7 +5,7 @@
 
 import SwiftUI
 
-/// One executable entry in the ⌘K palette.
+/// One executable entry in the ⌘P palette.
 struct PaletteCommand: Identifiable {
     let id: String
     let title: String
@@ -14,7 +14,7 @@ struct PaletteCommand: Identifiable {
     let action: () -> Void
 }
 
-/// Centered ⌘K overlay: fuzzy-searchable list of app actions. Arrow keys
+/// Centered ⌘P overlay: fuzzy-searchable list of app actions. Arrow keys
 /// move the selection, Return runs it, Escape (or clicking the backdrop)
 /// dismisses.
 struct CommandPaletteView: View {
@@ -35,6 +35,7 @@ struct CommandPaletteView: View {
         }
         .ignoresSafeArea()
         .onExitCommand { dismiss() }
+        .onDisappear { manager.restoreFocusAfterCommandPalette() }
     }
 
     // MARK: - Commands
@@ -301,6 +302,6 @@ struct CommandPaletteView: View {
     }
 
     private func dismiss() {
-        manager.isCommandPaletteVisible = false
+        manager.dismissCommandPalette()
     }
 }

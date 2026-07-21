@@ -3,6 +3,7 @@
 //  kero
 //
 
+import AppKit
 import Combine
 import Foundation
 import SwiftUI
@@ -23,7 +24,7 @@ final class TerminalManager: nonisolated ObservableObject {
     @Published var selectedProjectID: UUID?
     @Published var isPanelVisible = false
     @Published var panelTab: RightPanel = .files
-    @Published var isCommandPaletteVisible = false
+    @Published private(set) var isCommandPaletteVisible = false
 
     /// Projects publish their own changes (session list, session selection);
     /// re-publish them so views observing the manager stay current.
@@ -34,6 +35,11 @@ final class TerminalManager: nonisolated ObservableObject {
     private var autosaveObservation: AnyCancellable?
     private var terminationObservation: AnyCancellable?
     private var periodicSaveObservation: AnyCancellable?
+    /// The stable terminal/editor responder displaced by the command palette's
+    /// search field. AppKit field editors are deliberately excluded because a
+    /// SwiftUI TextField can reuse the same responder for the palette itself.
+    private weak var commandPalettePreviousResponder: NSResponder?
+    private weak var commandPaletteWindow: NSWindow?
 
     /// Live managers in window-creation order; the persisted snapshot is
     /// one entry per registered manager.
@@ -298,7 +304,46 @@ final class TerminalManager: nonisolated ObservableObject {
     }
 
     func toggleCommandPalette() {
-        isCommandPaletteVisible.toggle()
+        if isCommandPaletteVisible {
+            dismissCommandPalette()
+        } else {
+            commandPaletteWindow = NSApp.keyWindow
+            if let responder = commandPaletteWindow?.firstResponder,
+               responder is KeroTerminalView || responder is FocusReportingTextView {
+                commandPalettePreviousResponder = responder
+            } else {
+                commandPalettePreviousResponder = nil
+            }
+            isCommandPaletteVisible = true
+        }
+    }
+
+    func dismissCommandPalette() {
+        guard isCommandPaletteVisible else { return }
+        isCommandPaletteVisible = false
+    }
+
+    /// Called by the palette after SwiftUI has actually removed its focused
+    /// search field from the window.
+    func restoreFocusAfterCommandPalette() {
+        let window = commandPaletteWindow
+        let responder = commandPalettePreviousResponder
+        commandPaletteWindow = nil
+        commandPalettePreviousResponder = nil
+
+        // Let the removal transaction finish before restoring the displaced
+        // AppKit responder.
+        DispatchQueue.main.async {
+            guard let window, let responder else { return }
+            // A palette command may already have focused a new terminal or
+            // editor. Never let restoration race that newer focus and win.
+            if let current = window.firstResponder,
+               current !== responder,
+               current is KeroTerminalView || current is FocusReportingTextView {
+                return
+            }
+            window.makeFirstResponder(responder)
+        }
     }
 
     /// Shows the sidebar on `panel`, or hides it if already showing that panel.

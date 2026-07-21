@@ -13,8 +13,8 @@ import SwiftTerm
 final class KeroTerminalView: LocalProcessTerminalView {
     /// Fired when this terminal is clicked, right-clicked, or dropped onto —
     /// i.e. takes focus — so the owning pane can mark itself focused in the
-    /// model. (SwiftTerm's `becomeFirstResponder` is not open to override, so
-    /// a passive click recognizer stands in for the plain-click case.)
+    /// model. SwiftTerm's `becomeFirstResponder` is not open to override, so
+    /// the plain-click path is reported from `mouseDown` instead.
     var onBecomeFirstResponder: (() -> Void)?
     /// Owns the split context-menu items. Kept separate from the terminal so
     /// SwiftTerm's `validateUserInterfaceItem` — which disables selectors it
@@ -25,13 +25,11 @@ final class KeroTerminalView: LocalProcessTerminalView {
     override init(frame: CGRect) {
         super.init(frame: frame)
         registerForDraggedTypes([.fileURL])
-        installFocusClickRecognizer()
     }
 
     required init?(coder: NSCoder) {
         super.init(coder: coder)
         registerForDraggedTypes([.fileURL])
-        installFocusClickRecognizer()
     }
 
     override func viewDidMoveToWindow() {
@@ -63,10 +61,16 @@ final class KeroTerminalView: LocalProcessTerminalView {
         }
     }
 
-    private func installFocusClickRecognizer() {
-        let recognizer = FocusClickRecognizer()
-        recognizer.onMouseDown = { [weak self] in self?.onBecomeFirstResponder?() }
-        addGestureRecognizer(recognizer)
+    override func mouseDown(with event: NSEvent) {
+        focusForInteraction()
+        super.mouseDown(with: event)
+    }
+
+    /// SwiftTerm handles selection in `mouseDown` but does not make its macOS
+    /// view first responder. Do that explicitly for every direct interaction.
+    private func focusForInteraction() {
+        window?.makeFirstResponder(self)
+        onBecomeFirstResponder?()
     }
 
     // MARK: - Context menu
@@ -79,8 +83,7 @@ final class KeroTerminalView: LocalProcessTerminalView {
         // A right-click on an unfocused terminal should focus it, so that a
         // following Paste (or typing) lands here rather than in whatever held
         // focus before — matching Terminal.app.
-        window?.makeFirstResponder(self)
-        onBecomeFirstResponder?()
+        focusForInteraction()
 
         let menu = NSMenu()
         menu.addItem(contextItem("Copy", #selector(copy(_:))))
@@ -116,8 +119,7 @@ final class KeroTerminalView: LocalProcessTerminalView {
         guard let urls = fileURLs(sender), !urls.isEmpty else { return false }
         // The drop should type into *this* terminal, so take focus the way a
         // right-click does — otherwise the path lands wherever focus was.
-        window?.makeFirstResponder(self)
-        onBecomeFirstResponder?()
+        focusForInteraction()
         let text = urls.map { Self.shellToken(for: $0.path) }.joined(separator: " ")
         send(txt: text + " ")
         return true
@@ -176,16 +178,4 @@ final class SplitMenuTarget: NSObject {
     @objc private func splitLeft() { onSplit?(.left) }
     @objc private func splitUp() { onSplit?(.top) }
     @objc private func splitDown() { onSplit?(.bottom) }
-}
-
-/// A passive primary-button recognizer: it reports the mouse-down, then
-/// immediately fails so the terminal still receives the event for selection
-/// and mouse reporting. Used purely to notice a click landing on this pane.
-private final class FocusClickRecognizer: NSClickGestureRecognizer {
-    var onMouseDown: (() -> Void)?
-
-    override func mouseDown(with event: NSEvent) {
-        onMouseDown?()
-        state = .failed
-    }
 }
