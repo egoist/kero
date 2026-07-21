@@ -14,6 +14,13 @@ import TreeSitterResource
 // (see `highlightsData(for:)`).
 import TreeSitterCQueries
 import TreeSitterJavaScriptQueries
+// Injection query files, for languages that embed other languages (see
+// `injectionsData(for:)`). Like the base-query modules above, these are
+// internal plugin targets imported directly for MemberImportVisibility.
+import TreeSitterHTMLQueries
+import TreeSitterMarkdownQueries
+import TreeSitterPHPQueries
+import TreeSitterRustQueries
 
 /// Tree-sitter syntax highlighting for the source editor. `SourceTextEditor`
 /// asks for a plugin per file; unsupported file types get `nil` and render as
@@ -44,7 +51,8 @@ enum SyntaxHighlighting {
         return SyntaxHighlightPlugin(
             theme: theme,
             language: language,
-            highlightsData: highlightsData(for: language)
+            highlightsData: highlightsData(for: language),
+            injectionsData: injectionsData(for: language)
         )
     }
 
@@ -76,6 +84,55 @@ enum SyntaxHighlighting {
         }
         return data
     }
+
+    /// The injections query for a language that embeds *other* languages — e.g.
+    /// markdown fenced code blocks (` ```sh `), HTML `<script>`/`<style>`, PHP's
+    /// interleaved HTML, Rust macro bodies — or `nil` for a self-contained
+    /// language. When non-nil, `SyntaxHighlightCoordinator` sub-parses each
+    /// embedded region with its own grammar so, say, a shell block's comments
+    /// get the comment color instead of rendering as plain text.
+    ///
+    /// The single `.scm` isn't inheritance-merged (unlike `highlightsData`):
+    /// injection queries don't use nvim's `; inherits:` convention.
+    static func injectionsData(for language: TreeSitterLanguage) -> Data? {
+        let url: URL
+        switch language {
+        case .markdown: url = TreeSitterMarkdownQueries.Query.injectionsFileURL
+        case .html:     url = TreeSitterHTMLQueries.Query.injectionsFileURL
+        case .php:      url = TreeSitterPHPQueries.Query.injectionsFileURL
+        case .rust:     url = TreeSitterRustQueries.Query.injectionsFileURL
+        default:        return nil
+        }
+        return try? Data(contentsOf: url)
+    }
+
+    /// The tree-sitter language named by an injection's `@injection.language`
+    /// capture — the info string after a code fence (` ```bash `), or a name a
+    /// grammar hard-codes (HTML injects `"javascript"`/`"css"`). Resolved
+    /// against a small alias table and then the file-extension map, since fence
+    /// info strings are usually just extensions (`sh`, `js`, `py`). Names with
+    /// no bundled grammar (`text`, `diff`, `markdown_inline`, …) return `nil`
+    /// and that region is left as plain text.
+    static func language(forInjectionName name: String) -> TreeSitterLanguage? {
+        let key = name.lowercased()
+        if let language = injectionAliases[key] { return language }
+        return byExtension[key]
+    }
+
+    /// Long-form injection names not already covered by `byExtension` (which
+    /// handles `sh`, `js`, `ts`, `py`, `rb`, `rs`, `cpp`, `c++`, `yml`, …).
+    private static let injectionAliases: [String: TreeSitterLanguage] = [
+        "shell": .bash, "shellscript": .bash, "shell-script": .bash,
+        "javascript": .javascript, "node": .javascript,
+        "typescript": .typescript,
+        "python": .python,
+        "ruby": .ruby,
+        "rust": .rust,
+        "golang": .go,
+        "cplusplus": .cpp,
+        "csharp": .csharp, "c#": .csharp,
+        "markdown": .markdown,
+    ]
 
     /// The tree-sitter language for a file, matched by extension first and
     /// then by a few well-known extensionless names.

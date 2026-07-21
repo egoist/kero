@@ -32,6 +32,10 @@ struct SyntaxHighlightPlugin: STPlugin {
     /// The combined highlights query (`inherited base + language-specific`),
     /// already concatenated by `SyntaxHighlighting.highlightsData(for:)`.
     let highlightsData: Data
+    /// The injections query for a language that embeds others (markdown code
+    /// fences, HTML `<script>`, …), or `nil`. Drives the injection-aware token
+    /// provider; see `SyntaxHighlighting.injectionsData(for:)`.
+    let injectionsData: Data?
 
     func setUp(context: any Context) {
         context.events.onWillChangeText { affectedRange, _ in
@@ -60,7 +64,8 @@ struct SyntaxHighlightPlugin: STPlugin {
             textView: context.textView,
             theme: theme,
             language: language,
-            highlightsData: highlightsData
+            highlightsData: highlightsData,
+            injectionsData: injectionsData
         )
     }
 }
@@ -77,6 +82,7 @@ struct SyntaxHighlightPlugin: STPlugin {
 @MainActor
 enum HighlightQueryCache {
     private static var cache: [TreeSitterLanguage: SwiftTreeSitter.Query] = [:]
+    private static var injectionCache: [TreeSitterLanguage: SwiftTreeSitter.Query] = [:]
 
     static func cached(_ language: TreeSitterLanguage) -> SwiftTreeSitter.Query? {
         cache[language]
@@ -84,6 +90,18 @@ enum HighlightQueryCache {
 
     static func store(_ query: SwiftTreeSitter.Query, for language: TreeSitterLanguage) {
         cache[language] = query
+    }
+
+    /// A language's compiled *injections* query. Separate from the highlights
+    /// cache above because it's built from different `.scm` bytes against the
+    /// same grammar. A language embedded in another (bash inside markdown)
+    /// reuses the highlights cache via `cached(_:)` for its own tokens.
+    static func cachedInjection(_ language: TreeSitterLanguage) -> SwiftTreeSitter.Query? {
+        injectionCache[language]
+    }
+
+    static func storeInjection(_ query: SwiftTreeSitter.Query, for language: TreeSitterLanguage) {
+        injectionCache[language] = query
     }
 }
 
@@ -94,16 +112,24 @@ final class SyntaxHighlightCoordinator {
     private let tsLanguage: SwiftTreeSitter.Language
     private let tsClient: TreeSitterClient
     private let highlightsData: Data
+    /// Injections query bytes for the root language, or `nil` when it embeds no
+    /// other languages. Non-nil selects the injection-aware token provider.
+    private let injectionsData: Data?
+    /// Embedded languages whose highlights query is being compiled off the main
+    /// thread right now, so the token provider kicks off each compile only once.
+    private var pendingInjectionCompiles: Set<TreeSitterLanguage> = []
     private var prevViewportRange: NSTextRange?
 
     init(
         textView: STTextView,
         theme: STPluginNeonAppKit.Theme,
         language: TreeSitterLanguage,
-        highlightsData: Data
+        highlightsData: Data,
+        injectionsData: Data?
     ) {
         self.language = language
         self.highlightsData = highlightsData
+        self.injectionsData = injectionsData
         tsLanguage = Language(language: language.parser)
 
         tsClient = try! TreeSitterClient(language: tsLanguage) { codePointIndex in
@@ -191,7 +217,7 @@ final class SyntaxHighlightCoordinator {
     /// colors appear a moment later.
     private func installTokenProvider(textContentManager: NSTextContentManager) {
         if let query = HighlightQueryCache.cached(language) {
-            setTokenProvider(query: query, textContentManager: textContentManager)
+            finishInstall(highlightsQuery: query, textContentManager: textContentManager)
             return
         }
 
@@ -203,9 +229,35 @@ final class SyntaxHighlightCoordinator {
             DispatchQueue.main.async { [weak self] in
                 guard let self, let query else { return }
                 HighlightQueryCache.store(query, for: language)
-                self.setTokenProvider(query: query, textContentManager: textContentManager)
+                self.finishInstall(highlightsQuery: query, textContentManager: textContentManager)
             }
         }
+    }
+
+    /// Install the right token provider now that the highlights query is ready:
+    /// the injection-aware one when the root language embeds others (its
+    /// injections query compiles fast — a handful of patterns against the root
+    /// grammar — so it's done inline and cached), otherwise the plain
+    /// single-language provider, unchanged.
+    private func finishInstall(highlightsQuery: SwiftTreeSitter.Query, textContentManager: NSTextContentManager) {
+        guard let injectionsData else {
+            setTokenProvider(query: highlightsQuery, textContentManager: textContentManager)
+            return
+        }
+
+        let injectionsQuery = HighlightQueryCache.cachedInjection(language)
+            ?? (try? SwiftTreeSitter.Query(language: tsLanguage, data: injectionsData))
+        guard let injectionsQuery else {
+            setTokenProvider(query: highlightsQuery, textContentManager: textContentManager)
+            return
+        }
+        HighlightQueryCache.storeInjection(injectionsQuery, for: language)
+
+        setInjectionTokenProvider(
+            highlightsQuery: highlightsQuery,
+            injectionsQuery: injectionsQuery,
+            textContentManager: textContentManager
+        )
     }
 
     private func setTokenProvider(query: SwiftTreeSitter.Query, textContentManager: NSTextContentManager) {
@@ -216,6 +268,123 @@ final class SyntaxHighlightCoordinator {
         // Re-run highlighting now that the provider exists (the no-op provider
         // produced nothing during the initial parse).
         highlighter?.invalidate()
+    }
+
+    /// A token provider that highlights the root language *and* any embedded
+    /// languages. For each request it runs the root highlights query for the
+    /// base tokens, then the injections query to find embedded regions, and
+    /// sub-highlights each region with its own grammar. Injected tokens are
+    /// appended after the base ones so they win on the shared range: markdown
+    /// tags fenced content `@none` (dropped), and the embedded bash/js/… tokens
+    /// paint over it — e.g. a shell comment finally gets the comment color.
+    private func setInjectionTokenProvider(
+        highlightsQuery: SwiftTreeSitter.Query,
+        injectionsQuery: SwiftTreeSitter.Query,
+        textContentManager: NSTextContentManager
+    ) {
+        let textProvider: SwiftTreeSitter.Predicate.TextProvider = { range, _ in
+            guard !range.isEmpty else { return nil }
+            return textContentManager.attributedString(in: NSTextRange(range, provider: textContentManager))?.string
+        }
+
+        highlighter?.tokenProvider = { [weak self] range, completion in
+            guard let self else {
+                completion(.success(.noChange))
+                return
+            }
+
+            self.tsClient.executeHighlightsQuery(highlightsQuery, in: range, textProvider: textProvider) { baseResult in
+                switch baseResult {
+                case .failure(let error):
+                    completion(.failure(error))
+                case .success(let baseRanges):
+                    var tokens = baseRanges.map { Neon.Token(name: $0.name, range: $0.range) }
+                    // Same tree, so this resolves against the state the base
+                    // tokens came from; an embedded region's own tokens are
+                    // appended so they layer over the base `@none`.
+                    self.tsClient.executeInjectionsQuery(injectionsQuery, in: range, textProvider: textProvider) { injectionResult in
+                        if case .success(let injections) = injectionResult {
+                            for injection in injections {
+                                tokens.append(contentsOf: self.injectedTokens(for: injection, textProvider: textProvider))
+                            }
+                        }
+                        completion(.success(TokenApplication(tokens: tokens)))
+                    }
+                }
+            }
+        }
+        highlighter?.invalidate()
+    }
+
+    /// Highlight one embedded region: parse its text with the embedded
+    /// language's grammar, run that language's highlights query, and shift each
+    /// token by the region's start so the ranges land in document coordinates.
+    /// Returns nothing (leaving the region plain) when the language isn't
+    /// bundled or its query hasn't finished compiling yet.
+    private func injectedTokens(
+        for injection: SwiftTreeSitter.NamedRange,
+        textProvider: SwiftTreeSitter.Predicate.TextProvider
+    ) -> [Neon.Token] {
+        let injectionRange = injection.range
+        guard injectionRange.length > 0,
+              let language = SyntaxHighlighting.language(forInjectionName: injection.name),
+              let query = injectedHighlightsQuery(for: language),
+              let fragment = textProvider(injectionRange, Point.zero..<Point.zero),
+              !fragment.isEmpty
+        else {
+            return []
+        }
+
+        let parser = Parser()
+        do {
+            try parser.setLanguage(language.parser)
+        } catch {
+            return []
+        }
+        guard let tree = parser.parse(fragment), let root = tree.rootNode else {
+            return []
+        }
+
+        // Fragment-relative NSRanges, so resolve predicates against the fragment
+        // text and offset the resulting ranges back into the document.
+        let context = SwiftTreeSitter.Predicate.Context(string: fragment)
+        let offset = injectionRange.location
+        var tokens: [Neon.Token] = []
+        for named in query.execute(node: root, in: tree).resolve(with: context).highlights() {
+            guard named.range.length > 0, !Self.ignoredCaptures.contains(named.name) else { continue }
+            let range = NSRange(location: named.range.location + offset, length: named.range.length)
+            tokens.append(Neon.Token(name: named.name, range: range))
+        }
+        return tokens
+    }
+
+    /// The compiled highlights query for an embedded language, reusing (and
+    /// populating) the shared `HighlightQueryCache`. On a miss the compile —
+    /// which can be costly for a big grammar dropped into a code fence — runs
+    /// off the main thread and `invalidate()` repaints when it lands; the region
+    /// stays plain until then. Mirrors `installTokenProvider`'s root compile.
+    private func injectedHighlightsQuery(for language: TreeSitterLanguage) -> SwiftTreeSitter.Query? {
+        if let query = HighlightQueryCache.cached(language) {
+            return query
+        }
+        guard !pendingInjectionCompiles.contains(language) else { return nil }
+        pendingInjectionCompiles.insert(language)
+
+        let data = SyntaxHighlighting.highlightsData(for: language)
+        let parser = language.parser
+        DispatchQueue.global(qos: .userInitiated).async {
+            let query = try? SwiftTreeSitter.Query(language: Language(language: parser), data: data)
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.pendingInjectionCompiles.remove(language)
+                if let query {
+                    HighlightQueryCache.store(query, for: language)
+                }
+                // Repaint: the token provider can now emit this region's tokens.
+                self.highlighter?.invalidate()
+            }
+        }
+        return nil
     }
 
     func updateViewportRange(_ range: NSTextRange?) {
