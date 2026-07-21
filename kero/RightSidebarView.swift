@@ -83,6 +83,10 @@ struct RightSidebarView: View {
         .onChange(of: manager.isPanelVisible) { syncModels() }
         .onChange(of: manager.panelTab) { syncModels() }
         .onChange(of: manager.selectedSession?.id) { syncModels() }
+        // A `cd` in the terminal publishes the new cwd immediately (OSC 7 →
+        // session.workingDirectory); resync at once instead of waiting for the
+        // next refreshTimer tick, which is what made the panel lag the change.
+        .onChange(of: manager.selectedSession?.workingDirectory) { syncModels() }
     }
 
     private var tabBar: some View {
