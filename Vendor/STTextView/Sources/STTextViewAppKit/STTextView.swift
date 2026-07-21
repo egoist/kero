@@ -1440,6 +1440,13 @@ open class STTextView: NSView, NSTextInput, NSTextContent, STTextViewProtocol {
             usageBoundsForTextContainerSize.width = max(usageBoundsForTextContainerSize.width, layoutFragment.layoutFragmentFrame.size.width)
             return false
         }
+        // kero patch: the reverse enumeration above visits only the final
+        // layout fragment. A shorter final line must not hide wider lines
+        // from the scroll view's document width.
+        usageBoundsForTextContainerSize.width = max(
+            usageBoundsForTextContainerSize.width,
+            textLayoutManager.usageBoundsForTextContainer.width
+        )
 
         let segmentRange = NSTextRange(location: documentEndLocation)
         textLayoutManager.ensureLayout(for: segmentRange)
@@ -1519,6 +1526,19 @@ open class STTextView: NSView, NSTextInput, NSTextContent, STTextViewProtocol {
         ) { layoutFragment in
             estimatedSize.width = max(estimatedSize.width, layoutFragment.layoutFragmentFrame.size.width)
             return false
+        }
+        // kero patch: the final fragment is not necessarily the widest one.
+        // Preserve the widest laid-out line so NSScrollView has a horizontal
+        // range whenever no-wrap content extends beyond the viewport.
+        estimatedSize.width = max(
+            estimatedSize.width,
+            textLayoutManager.usageBoundsForTextContainer.width
+        )
+        if isHorizontallyResizable {
+            // usageBounds stops one leading line-fragment padding short of
+            // the glyphs' trailing typographic edge. Add that missing padding
+            // plus a readable gap after the final glyph.
+            estimatedSize.width += textContainer.lineFragmentPadding + 16
         }
 
         let segmentRange = NSTextRange(location: documentEndLocation)

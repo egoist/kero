@@ -775,6 +775,53 @@
             XCTAssertGreaterThanOrEqual(stTextView.frame.width, textWidth + gutterWidth - 1, "Frame should include both text content and gutter")
         }
 
+        @MainActor
+        func testContentSizeUsesWidestLineForHorizontalScrolling() {
+            let scrollView = STTextView.scrollableTextView(
+                frame: CGRect(x: 0, y: 0, width: 100, height: 100)
+            )
+            let stTextView = scrollView.documentView as! STTextView
+            stTextView.font = NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
+            stTextView.isHorizontallyResizable = true
+            stTextView.showsLineNumbers = true
+            stTextView.setString("x\n\(String(repeating: "x", count: 200))\nx")
+            stTextView.textLayoutManager.ensureLayout(for: stTextView.textLayoutManager.documentRange)
+
+            stTextView.updateContentSizeIfNeeded()
+
+            var rightmostTextEdge: CGFloat = 0
+            stTextView.textLayoutManager.enumerateTextLayoutFragments(
+                from: stTextView.textLayoutManager.documentRange.location,
+                options: [.ensuresLayout]
+            ) { fragment in
+                for line in fragment.textLineFragments {
+                    rightmostTextEdge = max(
+                        rightmostTextEdge,
+                        fragment.layoutFragmentFrame.minX + line.typographicBounds.maxX
+                    )
+                }
+                return true
+            }
+
+            XCTAssertGreaterThan(stTextView.frame.width, scrollView.contentView.bounds.width)
+            XCTAssertGreaterThanOrEqual(
+                stTextView.frame.width,
+                rightmostTextEdge
+                    + (stTextView.gutterView?.frame.width ?? 0)
+                    + 16
+            )
+
+            let clipView = scrollView.contentView
+            clipView.scroll(
+                to: CGPoint(x: stTextView.frame.width - clipView.bounds.width, y: 0)
+            )
+            scrollView.reflectScrolledClipView(clipView)
+            let visibleTrailingGap = clipView.bounds.maxX
+                - rightmostTextEdge
+                - (stTextView.gutterView?.frame.width ?? 0)
+            XCTAssertGreaterThanOrEqual(visibleTrailingGap, 16)
+        }
+
     }
 
 #endif

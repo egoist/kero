@@ -1,12 +1,14 @@
 # Why kero vendors STTextView
 
-This directory is a **verbatim copy of upstream [STTextView](https://github.com/krzyzanowskim/STTextView) tag `2.3.11`**, with exactly **one** local source patch. It is wired into the app as a local Swift package (`XCLocalSwiftPackageReference "Vendor/STTextView"` in `kero.xcodeproj`), not as a remote SPM dependency.
+This directory is a **verbatim copy of upstream [STTextView](https://github.com/krzyzanowskim/STTextView) tag `2.3.11`**, with exactly **two** local source patches. It is wired into the app as a local Swift package (`XCLocalSwiftPackageReference "Vendor/STTextView"` in `kero.xcodeproj`), not as a remote SPM dependency.
 
-We vendor it for one reason: **to carry a source-level fix that isn't in any upstream release.** SPM has no patch/overlay mechanism for a remote package — the only way to ship a change to a dependency's own source is to check that source into the repo and point the project at the local copy. If the patch below lands upstream, we can delete this directory and go back to a pinned remote dependency (see [Exit path](#exit-path)).
+We vendor it for one reason: **to carry source-level fixes that aren't in any upstream release.** SPM has no patch/overlay mechanism for a remote package — the only way to ship changes to a dependency's own source is to check that source into the repo and point the project at the local copy. Once the patches below land upstream, we can delete this directory and go back to a pinned remote dependency (see [Exit path](#exit-path)).
 
-`Package.swift` is byte-identical to upstream 2.3.11; the fix is the whole delta.
+`Package.swift` is byte-identical to upstream 2.3.11; the fixes below are the source delta.
 
-## The patch
+## The patches
+
+### Gutter numbering after an attribute change
 
 **`Sources/STTextViewAppKit/STTextView+Gutter.swift`** — gutter line numbers go off-by-one after a font or text-color change.
 
@@ -31,22 +33,32 @@ We vendor it for one reason: **to carry a source-level fix that isn't in any ups
 
 **Why the fix is safe.** A detached fragment view (`superview == nil`) is by definition not on screen, so it can never be a *visible* fragment. Filtering those out removes only the stale duplicates and leaves the real viewport fragments untouched. Worth upstreaming.
 
+### Horizontal document sizing
+
+**`Sources/STTextViewAppKit/STTextView.swift`** — no-wrap documents cannot scroll horizontally when their last line is shorter than an earlier line.
+
+Both `sizeToFit()` and `updateContentSizeIfNeeded()` ask TextKit for the layout fragment immediately before the end of the document, then use that single fragment's width as the document width. That is the final line's width, not the widest line's width. Kero takes the maximum of that value and `usageBoundsForTextContainer.width`, which tracks the widest laid-out line. The scroll-view estimate also adds one `lineFragmentPadding` because TextKit's usage width stops that far short of the final glyph's trailing typographic edge, plus a 16 px readable gap after the final glyph.
+
+**Symptom.** The editor renders long lines past the viewport but its document view can remain only as wide as the short final line, leaving `NSScrollView` with no horizontal scroll range. Even when a range exists, omitting the trailing padding leaves the last few pixels clipped at the rightmost position.
+
+**Why the fix is safe.** It only increases the estimated width when TextKit has already measured wider content. Wrapped editors still replace the estimate with the viewport width in the existing `!isHorizontallyResizable` branch.
+
 ## Identifying the vendored version
 
-Don't trust `CHANGELOG.md` in this directory — upstream's own changelog stops at `2.3.8` even on the `2.3.11` tag, so it is not a version marker. To confirm the base, diff `Sources/` against upstream tags and pick the one that differs only by the patch above:
+Don't trust `CHANGELOG.md` in this directory — upstream's own changelog stops at `2.3.8` even on the `2.3.11` tag, so it is not a version marker. To confirm the base, diff `Sources/` against upstream tags and pick the one that differs only by the patches above:
 
 ```sh
 git clone https://github.com/krzyzanowskim/STTextView.git /tmp/sttv && cd /tmp/sttv
 git checkout 2.3.11 -- Sources
 diff -ru Sources /path/to/kero/Vendor/STTextView/Sources
-# expect: only STTextView+Gutter.swift differs, only the hunk above
+# expect: only the two documented source files and hunks differ
 ```
 
 ## Re-vendoring / bumping the version
 
 1. Check out the new upstream tag's tree over this directory (keep the `.md` docs like this one).
-2. Re-apply the gutter patch above. It's a one-line change (`.filter { $0.1.superview != nil }`); grep for `kero patch` to find where it went, and check whether upstream has since fixed the duplicate-fragment numbering — if so, drop the patch.
-3. Verify the delta is *only* the gutter file, using the diff recipe above.
+2. Re-apply both patches above; grep for `kero patch` to find them, and check whether upstream has since fixed either root cause — if so, drop the corresponding patch.
+3. Verify the delta is limited to the documented source files, using the diff recipe above.
 4. Build with the project's usual command and confirm gutter numbers stay aligned after changing font/size (settings → editor) with a file open.
 
 ## What is NOT a patch here
@@ -59,4 +71,4 @@ Don't re-add these to the package — they live on the app side, in [`kero/Sourc
 
 ## Exit path
 
-The gutter fix is the only thing keeping this vendored. Upstream it (PR the `superview != nil` filter), and once it ships in a release, delete `Vendor/STTextView`, remove the `XCLocalSwiftPackageReference` from `kero.xcodeproj`, and add STTextView back as a normal remote package dependency pinned to that release.
+These two fixes are the only things keeping this vendored. Upstream them, and once both ship in a release, delete `Vendor/STTextView`, remove the `XCLocalSwiftPackageReference` from `kero.xcodeproj`, and add STTextView back as a normal remote package dependency pinned to that release.

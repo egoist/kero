@@ -78,6 +78,7 @@ struct SourceTextEditor: NSViewRepresentable {
         scrollView.wantsLayer = true
         scrollView.hasVerticalScroller = true
         scrollView.hasHorizontalScroller = true
+        scrollView.horizontalScrollElasticity = .none
         scrollView.documentView = textView
 
         scrollView.autohidesScrollers = true
