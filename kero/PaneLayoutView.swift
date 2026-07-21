@@ -19,6 +19,8 @@ struct PaneLayoutView: View {
     private let gap: CGFloat = 10
     /// Smallest share any single tile may be shrunk to.
     private let minFraction: CGFloat = 0.1
+    /// Size of the drag thumbnail that follows the cursor.
+    private let thumbnailSize = CGSize(width: 200, height: 125)
 
     @State private var drag: DragState?
     /// While a divider drag is in flight the new weights live here — local
@@ -26,6 +28,15 @@ struct PaneLayoutView: View {
     /// whose @Published change would re-render the whole window every frame.
     /// Committed back to the model once, on release.
     @State private var dragColumns: [PaneColumn]?
+
+    /// Global-space frame of every pane, so a pane-move drag can tell which
+    /// pane the cursor is over.
+    @State private var paneFrames: [UUID: CGRect] = [:]
+    /// In-flight pane-move drag: which pane is being carried, where the pointer
+    /// is, and which pane it is hovering over (the drop target).
+    @State private var paneDrag: PaneMove?
+    /// A snapshot of the carried pane, shown as a thumbnail under the cursor.
+    @State private var dragThumbnail: NSImage?
 
     private struct DragState {
         enum Kind: Equatable {
@@ -37,31 +48,54 @@ struct PaneLayoutView: View {
         var weights: [CGFloat]
     }
 
+    private struct PaneMove {
+        let sourceID: UUID
+        var location: CGPoint
+        var targetID: UUID?
+        var edge: PaneDropEdge?
+    }
+
     var body: some View {
         GeometryReader { geo in
             let columns = dragColumns ?? tab.columns
             let availableWidth = max(0, geo.size.width - gap * CGFloat(max(0, columns.count - 1)))
             let widths = sizes(for: columns.map(\.weight), available: availableWidth)
 
-            HStack(spacing: 0) {
-                ForEach(Array(columns.enumerated()), id: \.element.id) { columnIndex, column in
-                    columnView(
-                        column,
-                        columnIndex: columnIndex,
-                        width: widths[columnIndex],
-                        height: geo.size.height
-                    )
-                    if columnIndex < columns.count - 1 {
-                        ResizableDivider(orientation: .columns, thickness: gap) { translation in
-                            resizeColumns(
-                                dividerAt: columnIndex,
-                                translation: translation,
-                                availableWidth: availableWidth
-                            )
-                        } onEnded: {
-                            commitDrag()
+            ZStack(alignment: .topLeading) {
+                HStack(spacing: 0) {
+                    ForEach(Array(columns.enumerated()), id: \.element.id) { columnIndex, column in
+                        columnView(
+                            column,
+                            columnIndex: columnIndex,
+                            width: widths[columnIndex],
+                            height: geo.size.height
+                        )
+                        if columnIndex < columns.count - 1 {
+                            ResizableDivider(orientation: .columns, thickness: gap) { translation in
+                                resizeColumns(
+                                    dividerAt: columnIndex,
+                                    translation: translation,
+                                    availableWidth: availableWidth
+                                )
+                            } onEnded: {
+                                commitDrag()
+                            }
                         }
                     }
+                }
+
+                // The carried pane's thumbnail, trailing the cursor. Positioned
+                // in this grid's local space by subtracting its global origin
+                // from the (global) pointer location.
+                if let paneDrag {
+                    let origin = geo.frame(in: .global).origin
+                    dragThumbnailView(for: paneDrag.sourceID)
+                        // Centered on the pointer, both axes.
+                        .offset(
+                            x: paneDrag.location.x - origin.x - thumbnailSize.width / 2,
+                            y: paneDrag.location.y - origin.y - thumbnailSize.height / 2
+                        )
+                        .allowsHitTesting(false)
                 }
             }
         }
@@ -69,6 +103,7 @@ struct PaneLayoutView: View {
         // tiles, so a split tab has even breathing room on every side. A
         // single-pane tab stays full-bleed, exactly as before splits existed.
         .padding(tab.hasMultiplePanes ? gap : 0)
+        .onPreferenceChange(PaneFramePreferenceKey.self) { paneFrames = $0 }
     }
 
     @ViewBuilder
@@ -80,8 +115,16 @@ struct PaneLayoutView: View {
 
         VStack(spacing: 0) {
             ForEach(Array(column.panes.enumerated()), id: \.element.id) { paneIndex, pane in
-                PaneView(tab: tab, pane: pane, showFocusRing: tab.hasMultiplePanes)
-                    .frame(width: width, height: heights[paneIndex])
+                PaneView(
+                    tab: tab,
+                    pane: pane,
+                    showFocusRing: tab.hasMultiplePanes,
+                    isMoveSource: paneDrag?.sourceID == pane.id,
+                    dropEdge: paneDrag?.targetID == pane.id ? paneDrag?.edge : nil,
+                    onMove: { updateDropTarget(source: pane.id, location: $0) },
+                    onMoveEnded: { commitPaneMove() }
+                )
+                .frame(width: width, height: heights[paneIndex])
                 if paneIndex < column.panes.count - 1 {
                     ResizableDivider(orientation: .rows, thickness: gap) { translation in
                         resizePanes(
@@ -149,6 +192,90 @@ struct PaneLayoutView: View {
         }
         dragColumns = nil
         drag = nil
+    }
+
+    // MARK: - Moving panes
+
+    /// Tracks a pane-move drag: `location` is the pointer in global space. The
+    /// drop target is whichever *other* pane's frame contains it (none over a
+    /// gap), and the edge is which quadrant of that pane the pointer is in.
+    /// Local @State, so only this grid re-renders per frame.
+    private func updateDropTarget(source: UUID, location: CGPoint) {
+        // First frame of the drag: grab the thumbnail once.
+        if paneDrag == nil {
+            dragThumbnail = thumbnail(for: source)
+        }
+        if let (targetID, frame) = paneFrames.first(where: { $0.key != source && $0.value.contains(location) }) {
+            paneDrag = PaneMove(sourceID: source, location: location, targetID: targetID, edge: dropEdge(at: location, in: frame))
+            NSCursor.closedHand.set()
+        } else {
+            paneDrag = PaneMove(sourceID: source, location: location, targetID: nil, edge: nil)
+            NSCursor.operationNotAllowed.set()
+        }
+    }
+
+    /// Commits a pane-move on release: splits the target on the chosen edge and
+    /// drops the carried pane there.
+    private func commitPaneMove() {
+        if let paneDrag, let target = paneDrag.targetID, let edge = paneDrag.edge {
+            tab.movePane(paneDrag.sourceID, edge, of: target)
+        }
+        paneDrag = nil
+        dragThumbnail = nil
+        // Clear the drag cursor; the next hover/move asserts the right one.
+        NSCursor.arrow.set()
+    }
+
+    /// A snapshot of the carried pane's terminal (falls back to a labeled card
+    /// for files), shown trailing the cursor while dragging.
+    @ViewBuilder
+    private func dragThumbnailView(for sourceID: UUID) -> some View {
+        let content = tab.allPanes.first { $0.id == sourceID }?.content
+        Group {
+            if let dragThumbnail {
+                Image(nsImage: dragThumbnail)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: thumbnailSize.width, height: thumbnailSize.height)
+                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            } else if let content {
+                HStack(spacing: 6) {
+                    Image(systemName: content.systemImage)
+                    Text(content.title).lineLimit(1)
+                }
+                .font(.system(size: 12, weight: .medium))
+                .padding(.horizontal, 12)
+                .frame(width: thumbnailSize.width, height: thumbnailSize.height, alignment: .center)
+                .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Color(nsColor: Theme.background)))
+            }
+        }
+        .overlay(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .strokeBorder(Color(nsColor: Theme.cursor), lineWidth: 1.5)
+        )
+        .shadow(color: .black.opacity(0.35), radius: 14, y: 6)
+        .opacity(0.9)
+    }
+
+    private func thumbnail(for sourceID: UUID) -> NSImage? {
+        guard let content = tab.allPanes.first(where: { $0.id == sourceID })?.content else { return nil }
+        if case .session(let session) = content {
+            return session.terminalView.paneSnapshot()
+        }
+        return nil
+    }
+
+    /// Which edge of `frame` the pointer is nearest — the target is cut into
+    /// four triangular quadrants by its diagonals, the standard drop-zone
+    /// scheme (VS Code, Ghostty).
+    private func dropEdge(at location: CGPoint, in frame: CGRect) -> PaneDropEdge {
+        let dx = (location.x - frame.midX) / max(frame.width, 1)
+        let dy = (location.y - frame.midY) / max(frame.height, 1)
+        if abs(dx) > abs(dy) {
+            return dx < 0 ? .left : .right
+        } else {
+            return dy < 0 ? .top : .bottom
+        }
     }
 
     /// Baseline weights captured at the start of a drag, so the cumulative
@@ -222,11 +349,27 @@ private struct ResizableDivider: View {
 }
 
 /// One tile: hosts its content and, when the tab holds more than one pane,
-/// draws a focus ring (accent for the focused pane, faint otherwise).
+/// draws a focus ring (accent for the focused pane, faint otherwise), a thin
+/// top strip you can grab to move the pane onto another, and a highlight while
+/// it's the drop target.
 private struct PaneView: View {
     @ObservedObject var tab: PaneTab
     let pane: Pane
     let showFocusRing: Bool
+    /// The pane currently being carried by a move drag (dimmed).
+    let isMoveSource: Bool
+    /// When this pane is the drop target, the edge the carried pane will land
+    /// on — drives the half-pane preview. Nil when it isn't the target.
+    let dropEdge: PaneDropEdge?
+    /// Reports the pointer (global space) as the top strip is dragged.
+    let onMove: (CGPoint) -> Void
+    let onMoveEnded: () -> Void
+
+    /// Height of the grab strip at the pane's top.
+    private let handleHeight: CGFloat = 8
+
+    @State private var isHandleHovered = false
+    @State private var isDragging = false
 
     private var isFocused: Bool { tab.focusedPaneID == pane.id }
 
@@ -239,24 +382,19 @@ private struct PaneView: View {
     }
 
     var body: some View {
-        // Single-pane tabs render exactly as before splits existed — no ring —
-        // so nothing about the common case changes. For split tabs we draw a
-        // rounded outline but deliberately do NOT clip the hosted terminal /
-        // editor: masking an AppKit view forces an offscreen recomposite that
-        // flickers on live resize. The content background is the same color as
-        // the gaps around it, so the square content corners blend in and only
-        // the rounded stroke reads.
+        // Single-pane tabs render exactly as before splits existed — no ring,
+        // no handle — so nothing about the common case changes.
         if showFocusRing {
             content
-                .overlay {
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .strokeBorder(
-                            isFocused
-                                ? Color(nsColor: Theme.cursor).opacity(0.85)
-                                : Color.primary.opacity(0.06),
-                            lineWidth: isFocused ? 1.5 : 1
-                        )
-                }
+                // Deliberately no clip: masking an AppKit view forces an
+                // offscreen recomposite that flickers on live resize. The
+                // content background matches the surrounding gaps, so square
+                // content corners blend in and only the rounded stroke reads.
+                .overlay { focusRing }
+                .overlay(alignment: .top) { moveHandle }
+                .overlay { dropHighlight }
+                .opacity(isMoveSource ? 0.55 : 1)
+                .background(frameReporter)
         } else {
             content
         }
@@ -276,5 +414,117 @@ private struct PaneView: View {
             // transparent and non-interactive so clicks and scrolls reach it.
             Color.clear.allowsHitTesting(false)
         }
+    }
+
+    private var focusRing: some View {
+        RoundedRectangle(cornerRadius: 6, style: .continuous)
+            .strokeBorder(
+                isFocused
+                    ? Color(nsColor: Theme.cursor).opacity(0.85)
+                    : Color.primary.opacity(0.06),
+                lineWidth: isFocused ? 1.5 : 1
+            )
+    }
+
+    /// Thin strip pinned to the pane's top edge — an absolutely-positioned grab
+    /// handle over the content — that you drag to move this pane onto another.
+    /// A grab bar fades in on hover so the zone is easy to find; the strip sits
+    /// in the terminal's own top padding, so it doesn't cover text. Global
+    /// coordinate space so the reported location survives the layout shifting.
+    private var moveHandle: some View {
+        Color.clear
+            .frame(height: handleHeight)
+            .frame(maxWidth: .infinity)
+            .overlay {
+                Image(systemName: "ellipsis")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(.secondary)
+                    .opacity(isHandleHovered ? 0.9 : 0)
+            }
+            .contentShape(Rectangle())
+            // onContinuousHover (not onHover): re-assert the open hand on every
+            // move so it wins against the terminal re-setting its own cursor.
+            // On exit, reset explicitly — moving *up* off the handle lands in the
+            // gap, which has no cursor management to revert it otherwise. Both
+            // guarded by !isDragging so they never fight the drag cursor.
+            .onContinuousHover { phase in
+                switch phase {
+                case .active:
+                    isHandleHovered = true
+                    if !isDragging { NSCursor.openHand.set() }
+                case .ended:
+                    isHandleHovered = false
+                    if !isDragging { NSCursor.arrow.set() }
+                }
+            }
+            .gesture(
+                DragGesture(minimumDistance: 4, coordinateSpace: .global)
+                    .onChanged { value in
+                        isDragging = true
+                        onMove(value.location)
+                    }
+                    .onEnded { _ in
+                        isDragging = false
+                        onMoveEnded()
+                    }
+            )
+    }
+
+    @ViewBuilder
+    private var dropHighlight: some View {
+        if let dropEdge {
+            GeometryReader { geo in
+                let rect = highlightRect(for: dropEdge, in: geo.size)
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(Color(nsColor: Theme.cursor).opacity(0.18))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .strokeBorder(Color(nsColor: Theme.cursor), lineWidth: 2)
+                    )
+                    .frame(width: rect.width, height: rect.height)
+                    .position(x: rect.midX, y: rect.midY)
+            }
+            .allowsHitTesting(false)
+        }
+    }
+
+    /// The half of the pane that previews where the dragged pane will land.
+    private func highlightRect(for edge: PaneDropEdge, in size: CGSize) -> CGRect {
+        switch edge {
+        case .left:   return CGRect(x: 0, y: 0, width: size.width / 2, height: size.height)
+        case .right:  return CGRect(x: size.width / 2, y: 0, width: size.width / 2, height: size.height)
+        case .top:    return CGRect(x: 0, y: 0, width: size.width, height: size.height / 2)
+        case .bottom: return CGRect(x: 0, y: size.height / 2, width: size.width, height: size.height / 2)
+        }
+    }
+
+    private var frameReporter: some View {
+        GeometryReader { proxy in
+            Color.clear.preference(
+                key: PaneFramePreferenceKey.self,
+                value: [pane.id: proxy.frame(in: .global)]
+            )
+        }
+    }
+}
+
+/// Collects each pane's global-space frame so a move drag can hit-test the
+/// cursor against them.
+private struct PaneFramePreferenceKey: PreferenceKey {
+    static let defaultValue: [UUID: CGRect] = [:]
+    static func reduce(value: inout [UUID: CGRect], nextValue: () -> [UUID: CGRect]) {
+        value.merge(nextValue()) { $1 }
+    }
+}
+
+private extension NSView {
+    /// A bitmap of the view's current rendering, used as the drag thumbnail.
+    func paneSnapshot() -> NSImage? {
+        guard bounds.width > 0, bounds.height > 0,
+              let rep = bitmapImageRepForCachingDisplay(in: bounds) else { return nil }
+        cacheDisplay(in: bounds, to: rep)
+        let image = NSImage(size: bounds.size)
+        image.addRepresentation(rep)
+        return image
     }
 }

@@ -53,6 +53,12 @@ extension PaneContent {
     }
 }
 
+/// Which side of a target pane a dragged pane is dropped on, deciding where it
+/// lands relative to that pane.
+enum PaneDropEdge {
+    case left, right, top, bottom
+}
+
 /// One tile in a tab's layout. A value type so any structural change reassigns
 /// the enclosing `@Published` column array and SwiftUI re-renders; the content
 /// objects it points at are the long-lived reference types.
@@ -173,6 +179,47 @@ final class PaneTab: nonisolated ObservableObject, nonisolated Identifiable {
         inserted.weight = share
         columns[col].panes.insert(inserted, at: row + 1)
         focusedPaneID = inserted.id
+    }
+
+    /// Moves `dragged` next to `target` on the given edge — the drag-to-split
+    /// gesture. Top/bottom stack it directly above/below the target inside the
+    /// target's column; left/right place it in a new column beside the target's
+    /// column (niri moves windows between columns, so there's no nesting). The
+    /// moved pane takes half the space it splits into, and focus follows it.
+    func movePane(_ dragged: UUID, _ edge: PaneDropEdge, of target: UUID) {
+        guard dragged != target, let from = location(of: dragged) else { return }
+        var moved = columns[from.col].panes[from.row]
+
+        // Remove from the old slot first — indices shift, so the target is
+        // re-found by id below rather than trusting a stale position.
+        columns[from.col].panes.remove(at: from.row)
+        if columns[from.col].panes.isEmpty {
+            columns.remove(at: from.col)
+        }
+
+        guard let to = location(of: target) else {
+            // Shouldn't happen, but never drop the pane on the floor.
+            moved.weight = 1
+            columns.append(PaneColumn(panes: [moved]))
+            focusedPaneID = moved.id
+            return
+        }
+
+        switch edge {
+        case .top, .bottom:
+            let share = columns[to.col].panes[to.row].weight / 2
+            columns[to.col].panes[to.row].weight = share
+            moved.weight = share
+            columns[to.col].panes.insert(moved, at: edge == .top ? to.row : to.row + 1)
+        case .left, .right:
+            let share = columns[to.col].weight / 2
+            columns[to.col].weight = share
+            moved.weight = 1
+            var column = PaneColumn(panes: [moved])
+            column.weight = share
+            columns.insert(column, at: edge == .left ? to.col : to.col + 1)
+        }
+        focusedPaneID = moved.id
     }
 
     /// Removes the pane with `id`, dropping its column when it empties and
