@@ -164,8 +164,7 @@ final class TerminalSession: NSObject, nonisolated ObservableObject, nonisolated
         // the trailing newline drops the new prompt onto its own line.
         if AppSettings.shared.restoreTerminalHistory,
            let restoredHistory, !restoredHistory.isEmpty {
-            let banner = TerminalHistorySerializer.restoredBanner(
-                width: terminalView.getTerminal().cols)
+            let banner = TerminalHistorySerializer.restoredBanner()
             terminalView.feed(text: restoredHistory + "\r\n" + banner + "\r\n")
         }
         restoredHistory = nil

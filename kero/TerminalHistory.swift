@@ -28,8 +28,11 @@ enum TerminalHistorySerializer {
         var lines: [String] = []
         var row = start
         while let line = terminal.getScrollInvariantLine(row: row) {
-            lines.append(encode(line: line))
             row += 1
+            // Drop the divider a previous restore injected, so successive
+            // restores show one fresh banner instead of stacking them.
+            if isRestoredBanner(plainText(of: line)) { continue }
+            lines.append(encode(line: line))
         }
 
         // The bottom of the buffer is usually blank rows below the last prompt;
@@ -45,27 +48,57 @@ enum TerminalHistorySerializer {
         return lines.joined(separator: "\r\n")
     }
 
+    /// Label shown in the restored-history divider.
+    static let restoredBannerLabel = "Session Contents Restored"
+
+    /// The rule that brackets the label on each side of the divider.
+    private static let restoredBannerRule = String(repeating: "\u{2500}", count: 4)
+
+    /// The divider's plain, unstyled text — `<rule> <label> <rule>`. `plainText`
+    /// yields exactly this for a divider row, so recognizing one is an equality
+    /// check against it.
+    private static var restoredBannerText: String {
+        "\(restoredBannerRule) \(restoredBannerLabel) \(restoredBannerRule)"
+    }
+
     /// A single-line divider fed into the terminal directly beneath replayed
     /// scrollback, marking where the restored output ends and the live shell
     /// begins. Rendered with default colors so it tracks the light/dark theme:
-    /// dim rule characters bracket a normal-weight, centered label across
-    /// `width` columns (the terminal's column count at replay time). When the
-    /// terminal is too narrow to bracket the label, the label alone is shown.
-    static func restoredBanner(width: Int) -> String {
-        let label = "Session Contents Restored"
+    /// a fixed run of dim rule characters brackets the normal-weight label.
+    ///
+    /// The rule is a fixed width rather than one spanning the terminal on
+    /// purpose. The column count is not reliably known when the banner is built
+    /// — the view has not been laid out at its final size yet — so a full-width
+    /// rule sized to the wrong count wraps onto a second line. A short rule
+    /// always fits and reads the same at any width.
+    static func restoredBanner() -> String {
         let dim = "\u{1b}[2m"
         let normal = "\u{1b}[22m"
         let reset = "\u{1b}[0m"
+        return dim + restoredBannerRule + " " + normal
+            + restoredBannerLabel + dim + " " + restoredBannerRule + reset
+    }
 
-        // Layout: <rule> <space> <label> <space> <rule>. Keep at least two rule
-        // cells per side; below that a divider reads as noise, so drop it.
-        let fixed = label.count + 2
-        guard width - fixed >= 4 else { return dim + label + reset }
+    /// True only when a line is exactly the divider a previous restore injected.
+    /// Matched precisely, not fuzzily, so real output is never taken for it.
+    private static func isRestoredBanner(_ plain: String) -> Bool {
+        plain == restoredBannerText
+    }
 
-        let ruleCells = width - fixed
-        let left = ruleCells / 2
-        let rule = { (count: Int) in String(repeating: "\u{2500}", count: count) }
-        return dim + rule(left) + " " + normal + label + dim + " " + rule(ruleCells - left) + reset
+    /// The unstyled characters of a buffer line, using the same character
+    /// handling as `encode` (trailing halves of wide cells skipped, interior
+    /// NULs shown as spaces). Used only to recognize an injected banner.
+    private static func plainText(of line: BufferLine) -> String {
+        let length = line.getTrimmedLength()
+        guard length > 0 else { return "" }
+        var out = ""
+        for col in 0..<length {
+            let cell = line[col]
+            if cell.width == 0 { continue }
+            let character = cell.getCharacter()
+            out.append(character == "\0" ? " " : character)
+        }
+        return out
     }
 
     /// Encodes one buffer line: the shortest run of SGR escapes that reproduces
