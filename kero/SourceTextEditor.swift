@@ -242,12 +242,48 @@ struct SourceTextEditor: NSViewRepresentable {
 /// its saved position instead of visibly jumping there afterward.
 private final class RestorableScrollView: NSScrollView {
     var restoreOnFirstLayout: (() -> Void)?
+    private var lastViewportSize: NSSize = .zero
+    private var geometryUpdateScheduled = false
 
     override func layout() {
         super.layout()
+        let viewportSize = contentView.bounds.size
+        if viewportSize != lastViewportSize {
+            lastViewportSize = viewportSize
+            scheduleEditorGeometryUpdate()
+        }
         if bounds.width > 0, bounds.height > 0, let restore = restoreOnFirstLayout {
             restoreOnFirstLayout = nil
             restore()
+        }
+    }
+
+    override func viewDidEndLiveResize() {
+        super.viewDidEndLiveResize()
+        scheduleEditorGeometryUpdate()
+    }
+
+    /// STTextView's document view can inherit the viewport's width while the
+    /// window is resizing. Re-run its content sizing after AppKit finishes the
+    /// scroll-view layout, then clamp the old offset to the new scroll range
+    /// and refresh the scroller thumb/proportion.
+    private func scheduleEditorGeometryUpdate() {
+        guard !geometryUpdateScheduled else { return }
+        geometryUpdateScheduled = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.geometryUpdateScheduled = false
+            guard let textView = self.documentView as? STTextView else { return }
+
+            textView.needsLayout = true
+            textView.layoutSubtreeIfNeeded()
+
+            let clipView = self.contentView
+            let constrainedBounds = clipView.constrainBoundsRect(clipView.bounds)
+            if constrainedBounds.origin != clipView.bounds.origin {
+                clipView.setBoundsOrigin(constrainedBounds.origin)
+            }
+            self.reflectScrolledClipView(clipView)
         }
     }
 }
