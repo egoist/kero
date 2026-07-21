@@ -155,6 +155,8 @@ struct SourceTextEditor: NSViewRepresentable {
             }
         }
         context.coordinator.wasFocused = isFocused
+        // Expose the view so a pane-move drag can snapshot it as a thumbnail.
+        file.editorView = scrollView
         return scrollView
     }
 

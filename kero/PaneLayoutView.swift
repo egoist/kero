@@ -272,11 +272,11 @@ struct PaneLayoutView: View {
     }
 
     private func thumbnail(for sourceID: UUID) -> NSImage? {
-        guard let content = tab.allPanes.first(where: { $0.id == sourceID })?.content else { return nil }
-        if case .session(let session) = content {
-            return session.terminalView.paneSnapshot()
+        switch tab.allPanes.first(where: { $0.id == sourceID })?.content {
+        case .session(let session): return session.terminalView.paneSnapshot()
+        case .file(let file): return file.editorView?.paneSnapshot()
+        default: return nil
         }
-        return nil
     }
 
     /// Which edge of `frame` the pointer is nearest — the target is cut into

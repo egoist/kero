@@ -40,6 +40,11 @@ final class FileTab: nonisolated ObservableObject, nonisolated Identifiable {
     @Published private(set) var isDirty = false
     @Published var saveError: String?
 
+    /// The editor's scroll view while this file is on screen, so a pane-move
+    /// drag can snapshot it for the drag thumbnail. Weak — owned by the mounted
+    /// editor, nils out when the pane unmounts.
+    weak var editorView: NSView?
+
     private static let maxTextBytes = 5 << 20
     private static let imageExtensions: Set<String> = [
         "png", "jpg", "jpeg", "gif", "heic", "webp", "tiff", "bmp", "icns",
