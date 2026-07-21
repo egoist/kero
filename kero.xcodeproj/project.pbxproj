@@ -10,6 +10,7 @@
 		AA10000000000000000000B2 /* SwiftTerm in Frameworks */ = {isa = PBXBuildFile; productRef = AA10000000000000000000B1 /* SwiftTerm */; };
 		AA10000000000000000000C2 /* STTextView in Frameworks */ = {isa = PBXBuildFile; productRef = AA10000000000000000000C1 /* STTextView */; };
 		AA10000000000000000000E2 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = AA10000000000000000000E1 /* Sparkle */; };
+		AA20000000000000000000A2 /* STTextView-Plugin-Neon in Frameworks */ = {isa = PBXBuildFile; productRef = AA20000000000000000000A1 /* STTextView-Plugin-Neon */; };
 		FF519F43300BBE2100D8B982 /* PierreDiffsSwift in Frameworks */ = {isa = PBXBuildFile; productRef = AA10000000000000000000D1 /* PierreDiffsSwift */; };
 /* End PBXBuildFile section */
 
@@ -46,6 +47,7 @@
 				AA10000000000000000000B2 /* SwiftTerm in Frameworks */,
 				AA10000000000000000000C2 /* STTextView in Frameworks */,
 				AA10000000000000000000E2 /* Sparkle in Frameworks */,
+				AA20000000000000000000A2 /* STTextView-Plugin-Neon in Frameworks */,
 			);
 		};
 /* End PBXFrameworksBuildPhase section */
@@ -89,6 +91,7 @@
 				AA10000000000000000000C1 /* STTextView */,
 				AA10000000000000000000D1 /* PierreDiffsSwift */,
 				AA10000000000000000000E1 /* Sparkle */,
+				AA20000000000000000000A1 /* STTextView-Plugin-Neon */,
 			);
 			productName = kero;
 			productReference = FF3FDD73300B6A7400112486 /* kero.app */;
@@ -123,6 +126,7 @@
 				AA10000000000000000000B0 /* XCRemoteSwiftPackageReference "SwiftTerm" */,
 				AA10000000000000000000D0 /* XCRemoteSwiftPackageReference "PierreDiffsSwift" */,
 				AA10000000000000000000E0 /* XCRemoteSwiftPackageReference "Sparkle" */,
+				AA20000000000000000000A0 /* XCRemoteSwiftPackageReference "STTextView-Plugin-Neon" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = FF3FDD74300B6A7400112486 /* Products */;
@@ -384,6 +388,14 @@
 				minimumVersion = 2.6.0;
 			};
 		};
+		AA20000000000000000000A0 /* XCRemoteSwiftPackageReference "STTextView-Plugin-Neon" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/krzyzanowskim/STTextView-Plugin-Neon";
+			requirement = {
+				kind = revision;
+				revision = 5a30db4ce7908a5414e7b499e2379bdc49991cd1;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -405,6 +417,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = AA10000000000000000000E0 /* XCRemoteSwiftPackageReference "Sparkle" */;
 			productName = Sparkle;
+		};
+		AA20000000000000000000A1 /* STTextView-Plugin-Neon */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AA20000000000000000000A0 /* XCRemoteSwiftPackageReference "STTextView-Plugin-Neon" */;
+			productName = "STTextView-Plugin-Neon";
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

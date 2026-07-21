@@ -1,5 +1,5 @@
 {
-  "originHash" : "11e01bda93544577fb754059dc672a8013bf7464710bb6ad64f517bc14188e1e",
+  "originHash" : "9c669077150af430244f8b8befdff200469d10c2327a5f8ead8e521a113e4b5e",
   "pins" : [
     {
       "identity" : "coretextswift",
@@ -11,12 +11,30 @@
       }
     },
     {
+      "identity" : "neon",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/kylemacomber/Neon",
+      "state" : {
+        "branch" : "ce8d252",
+        "revision" : "ce8d252c8fd53ea0b6960e02c423315eef11f141"
+      }
+    },
+    {
       "identity" : "pierrediffsswift",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/egoist-labs/PierreDiffsSwift",
       "state" : {
         "revision" : "fcaf43e0c6509ec4a2906631de98dde7c8a8e44b",
         "version" : "1.3.0"
+      }
+    },
+    {
+      "identity" : "rearrange",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/ChimeHQ/Rearrange",
+      "state" : {
+        "revision" : "5ff7f3363f7a08f77e0d761e38e6add31c2136e1",
+        "version" : "1.8.1"
       }
     },
     {
@@ -38,6 +56,14 @@
       }
     },
     {
+      "identity" : "sttextview-plugin-neon",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/krzyzanowskim/STTextView-Plugin-Neon",
+      "state" : {
+        "revision" : "5a30db4ce7908a5414e7b499e2379bdc49991cd1"
+      }
+    },
+    {
       "identity" : "swift-argument-parser",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-argument-parser",
@@ -53,6 +79,24 @@
       "state" : {
         "revision" : "849e8a4f3d6f79ddee07152400137f1370c32621",
         "version" : "1.14.0"
+      }
+    },
+    {
+      "identity" : "swifttreesitter",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/ChimeHQ/SwiftTreeSitter",
+      "state" : {
+        "revision" : "08ef81eb8620617b55b08868126707ad72bf754f",
+        "version" : "0.25.0"
+      }
+    },
+    {
+      "identity" : "tree-sitter",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/tree-sitter/tree-sitter",
+      "state" : {
+        "revision" : "da6fe9beb4f7f67beb75914ca8e0d48ae48d6406",
+        "version" : "0.25.10"
       }
     }
   ],
