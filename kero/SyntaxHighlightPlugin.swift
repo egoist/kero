@@ -70,27 +70,20 @@ struct SyntaxHighlightPlugin: STPlugin {
 /// Compiling a tree-sitter query (`ts_query_new`) costs O(grammar complexity),
 /// not O(query size): it resolves every pattern against the grammar's symbol
 /// table. For the Swift grammar (a 12 MB parser) that is ~190 ms, versus ~30 ms
-/// for TypeScript — and it runs synchronously while the editor opens a file. The
-/// query is identical for every file of a language and is immutable and
-/// thread-safe once built, so it's compiled once and shared across editors;
-/// only the first file of each language pays the cost.
+/// for TypeScript. The query is identical for every file of a language and is
+/// immutable and thread-safe once built, so it's compiled once and shared: the
+/// first file of a language compiles it (off the main thread — see
+/// `SyntaxHighlightCoordinator.installTokenProvider`), every later file reuses it.
 @MainActor
 enum HighlightQueryCache {
     private static var cache: [TreeSitterLanguage: SwiftTreeSitter.Query] = [:]
 
-    static func query(
-        for language: TreeSitterLanguage,
-        tsLanguage: SwiftTreeSitter.Language,
-        data: Data
-    ) -> SwiftTreeSitter.Query? {
-        if let cached = cache[language] {
-            return cached
-        }
-        guard let query = try? SwiftTreeSitter.Query(language: tsLanguage, data: data) else {
-            return nil
-        }
+    static func cached(_ language: TreeSitterLanguage) -> SwiftTreeSitter.Query? {
+        cache[language]
+    }
+
+    static func store(_ query: SwiftTreeSitter.Query, for language: TreeSitterLanguage) {
         cache[language] = query
-        return query
     }
 }
 
@@ -149,10 +142,10 @@ final class SyntaxHighlightCoordinator {
             return attributes.isEmpty ? nil : attributes
         }
 
-        highlighter = Neon.Highlighter(
-            textInterface: textInterface,
-            tokenProvider: tokenProvider(textContentManager: textView.textContentManager)
-        )
+        // Start with no token provider (a no-op); it's installed below once the
+        // query is ready — off the main thread on first use, so opening a file
+        // never blocks on the ~190 ms Swift query compile.
+        highlighter = Neon.Highlighter(textInterface: textInterface)
 
         // Parse the whole document once up front.
         let documentRange = NSRange(textView.textContentManager.documentRange, in: textView.textContentManager)
@@ -164,6 +157,8 @@ final class SyntaxHighlightCoordinator {
             readHandler: Parser.readFunction(for: textView.textContentManager.attributedString(in: nil)?.string ?? ""),
             completionHandler: {}
         )
+
+        installTokenProvider(textContentManager: textView.textContentManager)
     }
 
     /// tree-sitter capture names that carry no color — spell-check hints,
@@ -189,14 +184,38 @@ final class SyntaxHighlightCoordinator {
         return theme.color(forToken: "plain")
     }
 
-    private func tokenProvider(textContentManager: NSTextContentManager) -> Neon.TokenProvider? {
-        guard let query = HighlightQueryCache.query(for: language, tsLanguage: tsLanguage, data: highlightsData) else {
-            return nil
+    /// Install the highlighter's token provider. If the language's query is
+    /// already compiled, this is synchronous (instant); otherwise the compile —
+    /// the expensive part — runs on a background queue and the provider is
+    /// installed when it finishes, so the editor opens without blocking and the
+    /// colors appear a moment later.
+    private func installTokenProvider(textContentManager: NSTextContentManager) {
+        if let query = HighlightQueryCache.cached(language) {
+            setTokenProvider(query: query, textContentManager: textContentManager)
+            return
         }
-        return tsClient.tokenProvider(with: query) { range, _ in
+
+        let data = highlightsData
+        let tsLanguage = self.tsLanguage
+        let language = self.language
+        DispatchQueue.global(qos: .userInitiated).async {
+            let query = try? SwiftTreeSitter.Query(language: tsLanguage, data: data)
+            DispatchQueue.main.async { [weak self] in
+                guard let self, let query else { return }
+                HighlightQueryCache.store(query, for: language)
+                self.setTokenProvider(query: query, textContentManager: textContentManager)
+            }
+        }
+    }
+
+    private func setTokenProvider(query: SwiftTreeSitter.Query, textContentManager: NSTextContentManager) {
+        highlighter?.tokenProvider = tsClient.tokenProvider(with: query) { range, _ in
             guard !range.isEmpty else { return nil }
             return textContentManager.attributedString(in: NSTextRange(range, provider: textContentManager))?.string
         }
+        // Re-run highlighting now that the provider exists (the no-op provider
+        // produced nothing during the initial parse).
+        highlighter?.invalidate()
     }
 
     func updateViewportRange(_ range: NSTextRange?) {
