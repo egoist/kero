@@ -15,11 +15,67 @@ import { Button } from '@/components/ui/button'
 
 export const Route = createFileRoute('/')({
   component: Home,
+  // Fetched per request (SSR) so the page always advertises the newest release.
+  loader: () => fetchLatestRelease(),
+  staleTime: 5 * 60 * 1000,
 })
 
-const LATEST = {
-  version: '0.1',
-  dmg: 'https://releases.kero.sh/kero-0.1.dmg',
+type Release = { version: string; minSystem: string; dmg: string }
+
+const RELEASES_ORIGIN = 'https://releases.kero.sh'
+const APPCAST_URL = `${RELEASES_ORIGIN}/appcast.xml`
+
+// Shown only if the appcast can't be reached; kept current so downloads still work.
+const FALLBACK: Release = {
+  version: '0.1.3',
+  minSystem: '15.6',
+  dmg: `${RELEASES_ORIGIN}/kero-0.1.3.dmg`,
+}
+
+/**
+ * Pick the newest release out of the Sparkle appcast — the item with the highest
+ * build number (`sparkle:version`). The site links the notarized `.dmg`, which
+ * sits beside the `.zip` update enclosure at `kero-<version>.dmg`.
+ */
+function parseLatestRelease(xml: string): Release | null {
+  let best: { build: number; version: string; minSystem: string } | null = null
+  for (const [, item] of xml.matchAll(/<item>([\s\S]*?)<\/item>/g)) {
+    const version = item
+      .match(/<sparkle:shortVersionString>([^<]+)<\/sparkle:shortVersionString>/)?.[1]
+      ?.trim()
+    if (!version) continue
+    const build = Number(
+      item.match(/<sparkle:version>([^<]+)<\/sparkle:version>/)?.[1]?.trim() ?? '0',
+    )
+    const minSystem = item
+      .match(/<sparkle:minimumSystemVersion>([^<]+)<\/sparkle:minimumSystemVersion>/)?.[1]
+      ?.trim()
+    if (!best || build > best.build) {
+      best = { build, version, minSystem: minSystem || FALLBACK.minSystem }
+    }
+  }
+  if (!best) return null
+  return {
+    version: best.version,
+    minSystem: best.minSystem,
+    dmg: `${RELEASES_ORIGIN}/kero-${best.version}.dmg`,
+  }
+}
+
+async function fetchLatestRelease(): Promise<Release> {
+  try {
+    const res = await fetch(APPCAST_URL, {
+      signal: AbortSignal.timeout(2500),
+      // The site runs as a Cloudflare Worker; cache the appcast at the edge so we
+      // don't refetch on every render (matches its own 5-min max-age). `cf` isn't
+      // part of the DOM RequestInit type, hence the cast.
+      cf: { cacheTtl: 300, cacheEverything: true },
+    } as RequestInit & { cf: { cacheTtl: number; cacheEverything: boolean } })
+    if (!res.ok) return FALLBACK
+    return parseLatestRelease(await res.text()) ?? FALLBACK
+  } catch {
+    return FALLBACK
+  }
 }
 
 const features: { index: string; icon: LucideIcon; title: string; body: string }[] = [
@@ -62,23 +118,24 @@ const features: { index: string; icon: LucideIcon; title: string; body: string }
 ]
 
 function Home() {
+  const latest = Route.useLoaderData()
   return (
     <div className="relative min-h-screen">
-      <SiteNav />
+      <SiteNav latest={latest} />
       <main>
-        <Hero />
+        <Hero latest={latest} />
         <Features />
         <Details />
-        <FinalCta />
+        <FinalCta latest={latest} />
       </main>
-      <SiteFooter />
+      <SiteFooter latest={latest} />
     </div>
   )
 }
 
 /* ------------------------------------------------------------------ */
 
-function SiteNav() {
+function SiteNav({ latest }: { latest: Release }) {
   return (
     <header className="sticky top-0 z-50 border-b border-border/70 bg-background/80 backdrop-blur-md">
       <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-6">
@@ -92,7 +149,7 @@ function SiteNav() {
           <Button
             size="sm"
             className="ml-2 h-8 gap-1.5 rounded-md font-mono text-[13px]"
-            render={<a href={LATEST.dmg} />}
+            render={<a href={latest.dmg} />}
           >
             <Apple className="size-4" />
             download
@@ -116,7 +173,7 @@ function NavLink({ href, children }: { href: string; children: ReactNode }) {
 
 /* ------------------------------------------------------------------ */
 
-function Hero() {
+function Hero({ latest }: { latest: Release }) {
   return (
     <section id="top" className="relative overflow-hidden">
       <div aria-hidden className="pointer-events-none absolute inset-0 -z-10">
@@ -144,7 +201,7 @@ function Hero() {
           <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row">
             <Button
               className="h-11 gap-2 rounded-md px-5 font-mono text-[13px]"
-              render={<a href={LATEST.dmg} />}
+              render={<a href={latest.dmg} />}
             >
               <Apple className="size-[18px]" />
               Download for macOS
@@ -160,7 +217,7 @@ function Hero() {
           </div>
 
           <p className="mt-5 font-mono text-xs text-muted-foreground/70">
-            v{LATEST.version} — macOS 15.6+ — free
+            v{latest.version} — macOS {latest.minSystem}+ — free
           </p>
         </div>
 
@@ -342,7 +399,7 @@ function Kbd({ children }: { children: ReactNode }) {
 
 /* ------------------------------------------------------------------ */
 
-function FinalCta() {
+function FinalCta({ latest }: { latest: Release }) {
   return (
     <section id="download" className="scroll-mt-20 border-t border-border/70">
       <div className="relative mx-auto max-w-6xl overflow-hidden px-6 py-24 text-center sm:py-32">
@@ -361,14 +418,14 @@ function FinalCta() {
         <div className="mt-8 flex justify-center">
           <Button
             className="h-11 gap-2 rounded-md px-6 font-mono text-[13px]"
-            render={<a href={LATEST.dmg} />}
+            render={<a href={latest.dmg} />}
           >
             <Apple className="size-[18px]" />
             Download for macOS
           </Button>
         </div>
         <p className="mt-5 font-mono text-xs text-muted-foreground/70">
-          v{LATEST.version} — macOS 15.6+ — free
+          v{latest.version} — macOS {latest.minSystem}+ — free
         </p>
       </div>
     </section>
@@ -377,7 +434,7 @@ function FinalCta() {
 
 /* ------------------------------------------------------------------ */
 
-function SiteFooter() {
+function SiteFooter({ latest }: { latest: Release }) {
   return (
     <footer className="border-t border-border/70">
       <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-6 py-8 font-mono text-[13px] sm:flex-row">
@@ -392,7 +449,7 @@ function SiteFooter() {
           <a href="#features" className="transition-colors hover:text-foreground">
             features
           </a>
-          <a href={LATEST.dmg} className="transition-colors hover:text-foreground">
+          <a href={latest.dmg} className="transition-colors hover:text-foreground">
             download
           </a>
           <span>© 2026</span>
