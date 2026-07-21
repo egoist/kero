@@ -32,6 +32,18 @@ final class KeroTerminalView: LocalProcessTerminalView {
         registerForDraggedTypes([.fileURL])
     }
 
+    override func viewWillMove(toWindow newWindow: NSWindow?) {
+        // SwiftUI reparents this long-lived view when a single pane becomes a
+        // split layout. AppKit drops a detached first responder without
+        // calling resignFirstResponder(), which leaves SwiftTerm's hasFocus
+        // flag (and therefore its cursor) active. Resign while the old window
+        // still owns us so the inactive pane redraws with an outline cursor.
+        if newWindow == nil, let window, window.firstResponder === self {
+            window.makeFirstResponder(nil)
+        }
+        super.viewWillMove(toWindow: newWindow)
+    }
+
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         updateRenderer()
