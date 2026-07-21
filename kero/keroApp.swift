@@ -13,6 +13,7 @@ struct keroApp: App {
 
     init() {
         TerminalFont.registerBundledFonts()
+        TerminalNotificationService.shared.configure()
     }
 
     var body: some Scene {

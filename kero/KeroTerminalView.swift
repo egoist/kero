@@ -7,9 +7,8 @@ import AppKit
 import SwiftTerm
 
 /// The per-session terminal NSView. Subclasses SwiftTerm's
-/// `LocalProcessTerminalView` to add two things SwiftTerm ships without:
-/// a right-click context menu, and a dragging destination that inserts
-/// dropped files' paths at the prompt (from the Files panel or from Finder).
+/// `LocalProcessTerminalView` for Kero-specific terminal integrations,
+/// context menus, and file drops.
 final class KeroTerminalView: LocalProcessTerminalView {
     /// Fired when this terminal is clicked, right-clicked, or dropped onto —
     /// i.e. takes focus — so the owning pane can mark itself focused in the
@@ -21,15 +20,118 @@ final class KeroTerminalView: LocalProcessTerminalView {
     /// doesn't recognize — doesn't grey them out.
     let splitTarget = SplitMenuTarget()
     private var gpuRenderingEnabled = true
+    private var lastReportedTerminalFocus = false
+
+    /// Keep Kero's deduplication state in sync with the focus reports
+    /// SwiftTerm sends from its non-open first-responder overrides.
+    override var hasFocus: Bool {
+        get { super.hasFocus }
+        set {
+            super.hasFocus = newValue
+            lastReportedTerminalFocus = newValue
+        }
+    }
 
     override init(frame: CGRect) {
         super.init(frame: frame)
+        installEffectiveFocusReporting()
+        installOSC9Handler()
         registerForDraggedTypes([.fileURL])
     }
 
     required init?(coder: NSCoder) {
         super.init(coder: coder)
+        installEffectiveFocusReporting()
+        installOSC9Handler()
         registerForDraggedTypes([.fileURL])
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+
+    /// SwiftTerm reports DECSET 1004 focus changes when this view gains or
+    /// resigns first responder, but AppKit keeps a view as first responder when
+    /// its window deactivates. Report key-window transitions too so terminal
+    /// apps can distinguish foreground/background.
+    private func installEffectiveFocusReporting() {
+        // A session starts its PTY before SwiftUI attaches this view. SwiftTerm
+        // otherwise defaults the reported state to focused, so an app enabling
+        // focus reporting during startup can receive a false FocusGained.
+        getTerminal().setTerminalFocus(false)
+        lastReportedTerminalFocus = false
+
+        let center = NotificationCenter.default
+        center.addObserver(
+            self,
+            selector: #selector(applicationFocusChanged(_:)),
+            name: NSApplication.didBecomeActiveNotification,
+            object: nil
+        )
+        center.addObserver(
+            self,
+            selector: #selector(applicationFocusChanged(_:)),
+            name: NSApplication.didResignActiveNotification,
+            object: nil
+        )
+        center.addObserver(
+            self,
+            selector: #selector(windowFocusChanged(_:)),
+            name: NSWindow.didBecomeKeyNotification,
+            object: nil
+        )
+        center.addObserver(
+            self,
+            selector: #selector(windowFocusChanged(_:)),
+            name: NSWindow.didResignKeyNotification,
+            object: nil
+        )
+    }
+
+    @objc private func applicationFocusChanged(_ notification: Notification) {
+        reportEffectiveTerminalFocus()
+    }
+
+    @objc private func windowFocusChanged(_ notification: Notification) {
+        guard let changedWindow = notification.object as? NSWindow,
+              changedWindow === window else { return }
+        reportEffectiveTerminalFocus()
+    }
+
+    private var hasEffectiveTerminalFocus: Bool {
+        NSApp.isActive && window?.isKeyWindow == true && window?.firstResponder === self
+    }
+
+    private func reportEffectiveTerminalFocus() {
+        let focused = hasEffectiveTerminalFocus
+        guard focused != lastReportedTerminalFocus else { return }
+        lastReportedTerminalFocus = focused
+        getTerminal().setTerminalFocus(focused)
+    }
+
+    private func installOSC9Handler() {
+        getTerminal().registerOscHandler(code: 9) { [weak self] data in
+            guard let self else { return }
+
+            if let report = OSC9PayloadParser.progressReport(from: data) {
+                // A registered OSC handler replaces SwiftTerm's built-in one,
+                // so forward valid 9;4 reports to preserve its progress bar.
+                self.progressReport(source: self.getTerminal(), report: report)
+            } else if let message = String(bytes: data, encoding: .utf8),
+                      !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                TerminalNotificationService.shared.post(message: message)
+            }
+        }
+    }
+
+    override func bell(source: Terminal) {
+        super.bell(source: source)
+        guard !hasEffectiveTerminalFocus else { return }
+
+        TerminalNotificationService.shared.post(message: "Terminal bell")
+        if !NSApp.isActive {
+            NSApp.requestUserAttention(.informationalRequest)
+        }
     }
 
     override func viewWillMove(toWindow newWindow: NSWindow?) {
@@ -46,6 +148,7 @@ final class KeroTerminalView: LocalProcessTerminalView {
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
+        reportEffectiveTerminalFocus()
         updateRenderer()
     }
 
@@ -159,6 +262,38 @@ final class KeroTerminalView: LocalProcessTerminalView {
             return path
         }
         return "'" + path.replacingOccurrences(of: "'", with: "'\\''") + "'"
+    }
+}
+
+/// Pure parser matching SwiftTerm's OSC 9;4 behavior. Keeping it separate
+/// makes the compatibility rule independently testable without a terminal.
+enum OSC9PayloadParser {
+    static func progressReport(from data: ArraySlice<UInt8>) -> Terminal.ProgressReport? {
+        guard let text = String(bytes: data, encoding: .ascii) else { return nil }
+
+        let parts = text.split(separator: ";", omittingEmptySubsequences: false)
+        guard parts.count >= 2, parts[0] == "4" else { return nil }
+
+        let statePart = parts[1]
+        guard statePart.count == 1,
+              let stateValue = Int(statePart),
+              let state = Terminal.ProgressReportState(rawValue: stateValue) else {
+            return nil
+        }
+
+        var progress: UInt8?
+        if parts.count >= 3, !parts[2].isEmpty {
+            guard let rawProgress = Int(parts[2]) else { return nil }
+            progress = UInt8(max(0, min(rawProgress, 100)))
+        } else if state == .set {
+            progress = 0
+        }
+
+        if state == .remove {
+            progress = nil
+        }
+
+        return Terminal.ProgressReport(state: state, progress: progress)
     }
 }
 
