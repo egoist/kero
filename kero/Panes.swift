@@ -89,6 +89,14 @@ final class PaneTab: nonisolated ObservableObject, nonisolated Identifiable {
     @Published var columns: [PaneColumn]
     @Published var focusedPaneID: UUID
 
+    /// The terminal whose directory this tab is oriented around when it holds
+    /// no terminal of its own — captured from the focused session when a file
+    /// or diff is opened into a fresh tab. Lets the file-tree / git / info
+    /// panels keep tracking the directory the file was opened from instead of
+    /// falling back to the project's first session. Weak, so closing that
+    /// shell simply drops the association.
+    weak var contextSession: TerminalSession?
+
     /// A fresh single-pane tab wrapping one piece of content.
     init(content: PaneContent) {
         let pane = Pane(content: content)

@@ -66,14 +66,20 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
         tabs.flatMap { tab in tab.diffs.map { (diff: $0, tabID: tab.id) } }
     }
 
-    /// The focused terminal session; while a file (or diff) pane is focused
-    /// this falls back to the project's first session so panels that need a
-    /// working directory (file tree, git) keep tracking the project.
+    /// The focused terminal session; while a file (or diff) pane is focused it
+    /// has no directory of its own, so panels that need a working directory
+    /// (file tree, git, info) track a terminal that does: one sharing the
+    /// file's tab (a split), else the session the file was opened from (the
+    /// tab's `contextSession`), else the project's first session. The last two
+    /// fallbacks are why opening a file from one tab kept showing another tab's
+    /// directory when it landed on `sessions.first`.
     var selectedSession: TerminalSession? {
         if case .session(let session)? = focusedContent {
             return session
         }
-        return sessions.first
+        return selectedTab?.sessions.first
+            ?? selectedTab?.contextSession
+            ?? sessions.first
     }
 
     /// Whether the selected tab's focused pane can be split (false for diffs).
@@ -151,11 +157,15 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
             tab.focusedPaneID = paneID
             return
         }
+        // Capture the current directory context *before* selection moves to the
+        // new tab, so its panels track the tab the file was opened from.
+        let context = selectedSession
         let file = FileTab(path: path)
         if let editorState {
             file.editorState = editorState
         }
         let tab = makeTab(content: .file(file))
+        tab.contextSession = context
         insertNextToSelected(tab)
         selectedTabID = tab.id
     }
@@ -220,11 +230,13 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
             tab.focusedPaneID = pane.id
             return
         }
+        let context = selectedSession
         let diff = DiffTab(
             repoRoot: repoRoot, path: path, staged: staged,
             untracked: untracked, origPath: origPath
         )
         let tab = makeTab(content: .diff(diff))
+        tab.contextSession = context
         insertNextToSelected(tab)
         selectedTabID = tab.id
     }
