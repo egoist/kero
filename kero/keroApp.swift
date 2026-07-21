@@ -236,6 +236,15 @@ private struct KeroCommands: Commands {
             }
             .keyboardShortcut("[", modifiers: [.command, .shift])
             .disabled(manager == nil)
+
+            Divider()
+
+            ForEach(Array((manager?.selectedProject?.tabs ?? []).prefix(9).enumerated()), id: \.element.id) { index, tab in
+                Button(tab.focusedContent?.title ?? "Tab \(index + 1)") {
+                    manager?.selectTab(index: index)
+                }
+                .keyboardShortcut(KeyEquivalent(Character("\(index + 1)")), modifiers: [.control, .shift])
+            }
         }
     }
 }

@@ -282,6 +282,10 @@ final class TerminalManager: nonisolated ObservableObject {
         selectedProject?.selectPrevious()
     }
 
+    func selectTab(index: Int) {
+        selectedProject?.select(index: index)
+    }
+
     // MARK: - Files
 
     /// Opens `path` as a file tab in the current project.
