@@ -4,6 +4,10 @@
 @import '@fontsource-variable/geist';
 @import '@fontsource-variable/geist-mono';
 
+/* Iconify collections as `i-{set}-{name}` utilities (mingcute installed for the
+   accurate Apple logo). Auto-detects any installed @iconify-json/* package. */
+@plugin '@egoist/tailwindcss-icons';
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
