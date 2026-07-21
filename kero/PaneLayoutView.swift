@@ -19,8 +19,10 @@ struct PaneLayoutView: View {
     private let gap: CGFloat = 10
     /// Smallest share any single tile may be shrunk to.
     private let minFraction: CGFloat = 0.1
-    /// Size of the drag thumbnail that follows the cursor.
-    private let thumbnailSize = CGSize(width: 200, height: 125)
+    /// Bounding box the drag thumbnail is scaled to fit within, preserving the
+    /// pane's aspect ratio so a tall pane yields a tall thumbnail (rather than
+    /// cropping to its empty middle).
+    private let thumbnailMaxSize = CGSize(width: 220, height: 160)
 
     @State private var drag: DragState?
     /// While a divider drag is in flight the new weights live here — local
@@ -89,11 +91,12 @@ struct PaneLayoutView: View {
                 // from the (global) pointer location.
                 if let paneDrag {
                     let origin = geo.frame(in: .global).origin
-                    dragThumbnailView(for: paneDrag.sourceID)
+                    let size = thumbnailFrame(for: paneDrag.sourceID)
+                    dragThumbnailView(for: paneDrag.sourceID, size: size)
                         // Centered on the pointer, both axes.
                         .offset(
-                            x: paneDrag.location.x - origin.x - thumbnailSize.width / 2,
-                            y: paneDrag.location.y - origin.y - thumbnailSize.height / 2
+                            x: paneDrag.location.x - origin.x - size.width / 2,
+                            y: paneDrag.location.y - origin.y - size.height / 2
                         )
                         .allowsHitTesting(false)
                 }
@@ -227,16 +230,17 @@ struct PaneLayoutView: View {
     }
 
     /// A snapshot of the carried pane's terminal (falls back to a labeled card
-    /// for files), shown trailing the cursor while dragging.
+    /// for files), shown centered under the cursor while dragging. `size` is
+    /// aspect-matched to the pane, so the whole pane scales down instead of
+    /// being cropped.
     @ViewBuilder
-    private func dragThumbnailView(for sourceID: UUID) -> some View {
+    private func dragThumbnailView(for sourceID: UUID, size: CGSize) -> some View {
         let content = tab.allPanes.first { $0.id == sourceID }?.content
         Group {
             if let dragThumbnail {
                 Image(nsImage: dragThumbnail)
                     .resizable()
-                    .aspectRatio(contentMode: .fill)
-                    .frame(width: thumbnailSize.width, height: thumbnailSize.height)
+                    .frame(width: size.width, height: size.height)
                     .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
             } else if let content {
                 HStack(spacing: 6) {
@@ -245,7 +249,7 @@ struct PaneLayoutView: View {
                 }
                 .font(.system(size: 12, weight: .medium))
                 .padding(.horizontal, 12)
-                .frame(width: thumbnailSize.width, height: thumbnailSize.height, alignment: .center)
+                .frame(width: size.width, height: size.height, alignment: .center)
                 .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Color(nsColor: Theme.background)))
             }
         }
@@ -255,6 +259,16 @@ struct PaneLayoutView: View {
         )
         .shadow(color: .black.opacity(0.35), radius: 14, y: 6)
         .opacity(0.9)
+    }
+
+    /// The thumbnail's on-screen size: the source pane's aspect ratio scaled to
+    /// fit within `thumbnailMaxSize`.
+    private func thumbnailFrame(for sourceID: UUID) -> CGSize {
+        guard let frame = paneFrames[sourceID], frame.width > 0, frame.height > 0 else {
+            return thumbnailMaxSize
+        }
+        let scale = min(thumbnailMaxSize.width / frame.width, thumbnailMaxSize.height / frame.height)
+        return CGSize(width: frame.width * scale, height: frame.height * scale)
     }
 
     private func thumbnail(for sourceID: UUID) -> NSImage? {
