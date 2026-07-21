@@ -134,6 +134,20 @@ final class TerminalSession: NSObject, nonisolated ObservableObject, nonisolated
         if !env.contains(where: { $0.hasPrefix("LANG=") }) {
             env.append("LANG=en_US.UTF-8")
         }
+
+        // Identify the actual host terminal. Replace inherited values so a
+        // Kero instance launched from another terminal does not misidentify
+        // its child sessions as that parent terminal.
+        env.removeAll {
+            $0.hasPrefix("TERM_PROGRAM=") || $0.hasPrefix("TERM_PROGRAM_VERSION=")
+        }
+        env.append("TERM_PROGRAM=Kero")
+        if let version = Bundle.main.object(
+            forInfoDictionaryKey: "CFBundleShortVersionString"
+        ) as? String, !version.isEmpty {
+            env.append("TERM_PROGRAM_VERSION=\(version)")
+        }
+
         let execName = "-" + (shellPath as NSString).lastPathComponent
         var directory = NSHomeDirectory()
         // A restored directory may have been deleted since the last run.
