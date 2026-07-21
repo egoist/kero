@@ -94,7 +94,7 @@ const features: { index: string; icon: LucideIcon; title: string; body: string }
   {
     index: '03',
     icon: Command,
-    title: 'The ⌘K palette',
+    title: 'Command palette',
     body: 'One command palette to jump to any project, session, or file. Keyboard-first, mouse entirely optional.',
   },
   {
@@ -194,7 +194,7 @@ function Hero({ latest }: { latest: Release }) {
 
           <p className="mt-5 max-w-xl text-base leading-relaxed text-balance text-muted-foreground sm:text-lg">
             Kero wraps the terminal you already use in projects, persistent
-            sessions, a ⌘K palette, and built-in git — one fast, native macOS
+            sessions, a command palette, and built-in git — one fast, native macOS
             window.
           </p>
 
