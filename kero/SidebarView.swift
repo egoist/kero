@@ -10,6 +10,8 @@ import SwiftUI
 struct SidebarView: View {
     @ObservedObject var manager: TerminalManager
     @AppStorage("leftSidebarWidth") private var width: Double = 220
+    @State private var draggedProjectID: UUID?
+    @State private var projectFrames: [UUID: CGRect] = [:]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -25,8 +27,19 @@ struct SidebarView: View {
                             index: index,
                             isSelected: project.id == manager.selectedProjectID,
                             select: { manager.selectedProjectID = project.id },
-                            close: { manager.close(project) }
+                            close: { manager.close(project) },
+                            isDragging: draggedProjectID == project.id,
+                            onDrag: { updateProjectDrag(source: project.id, location: $0) },
+                            onDragEnded: endProjectDrag
                         )
+                        .background {
+                            GeometryReader { proxy in
+                                Color.clear.preference(
+                                    key: ProjectFramePreferenceKey.self,
+                                    value: [project.id: proxy.frame(in: .global)]
+                                )
+                            }
+                        }
                     }
                 }
                 .padding(.horizontal, 8)
@@ -71,6 +84,31 @@ struct SidebarView: View {
                 defaultWidth: 220
             )
         }
+        .onPreferenceChange(ProjectFramePreferenceKey.self) { projectFrames = $0 }
+    }
+
+    private func updateProjectDrag(source: UUID, location: CGPoint) {
+        draggedProjectID = source
+        NSCursor.closedHand.set()
+        guard let target = projectFrames.first(where: {
+            $0.key != source && $0.value.contains(location)
+        })?.key else { return }
+        withAnimation(.easeInOut(duration: 0.12)) {
+            manager.moveProject(source, to: target)
+        }
+    }
+
+    private func endProjectDrag() {
+        draggedProjectID = nil
+        NSCursor.arrow.set()
+    }
+}
+
+private struct ProjectFramePreferenceKey: PreferenceKey {
+    static let defaultValue: [UUID: CGRect] = [:]
+
+    static func reduce(value: inout [UUID: CGRect], nextValue: () -> [UUID: CGRect]) {
+        value.merge(nextValue()) { $1 }
     }
 }
 
@@ -80,6 +118,9 @@ private struct SidebarProjectRow: View {
     let isSelected: Bool
     let select: () -> Void
     let close: () -> Void
+    let isDragging: Bool
+    let onDrag: (CGPoint) -> Void
+    let onDragEnded: () -> Void
 
     @State private var isHovering = false
     @State private var isRenaming = false
@@ -95,8 +136,14 @@ private struct SidebarProjectRow: View {
                     rowContent
                 }
                 .buttonStyle(.plain)
+                .highPriorityGesture(
+                    DragGesture(minimumDistance: 4, coordinateSpace: .global)
+                        .onChanged { onDrag($0.location) }
+                        .onEnded { _ in onDragEnded() }
+                )
             }
         }
+        .opacity(isDragging ? 0.65 : 1)
         .background(
             RoundedRectangle(cornerRadius: 6)
                 .fill(isSelected ? Color.primary.opacity(0.09) : (isHovering ? Color.primary.opacity(0.04) : .clear))

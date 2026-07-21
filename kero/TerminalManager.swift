@@ -149,6 +149,20 @@ final class TerminalManager: nonisolated ObservableObject {
         }
     }
 
+    /// Moves a dragged project across `targetID`: after it when moving down,
+    /// or before it when moving up. Selection continues to follow its project ID.
+    func moveProject(_ draggedID: UUID, to targetID: UUID) {
+        guard draggedID != targetID,
+              let draggedIndex = projects.firstIndex(where: { $0.id == draggedID }),
+              let targetIndex = projects.firstIndex(where: { $0.id == targetID })
+        else { return }
+
+        var reorderedProjects = projects
+        let draggedProject = reorderedProjects.remove(at: draggedIndex)
+        reorderedProjects.insert(draggedProject, at: targetIndex)
+        projects = reorderedProjects
+    }
+
     func selectProject(index: Int) {
         guard projects.indices.contains(index) else { return }
         selectedProjectID = projects[index].id
