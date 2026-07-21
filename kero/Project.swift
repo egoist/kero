@@ -9,8 +9,9 @@ import Foundation
 
 /// A project groups tabs and appears as one row in the left sidebar. Each tab
 /// is a niri-style layout of panes (terminal sessions and open files); see
-/// `PaneTab`. It always starts with one session; closing the last pane empties
-/// the project, which removes it from the manager.
+/// `PaneTab`. It always starts with one session; closing the last tab leaves
+/// the project open but empty — only the explicit "Close Project" action (see
+/// `TerminalManager.close(_:)`) removes it from the manager.
 @MainActor
 final class Project: nonisolated ObservableObject, nonisolated Identifiable {
     nonisolated let id = UUID()
@@ -20,9 +21,6 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
     @Published var customName: String?
     @Published var tabs: [PaneTab] = []
     @Published var selectedTabID: UUID?
-
-    /// Called after the last tab is removed.
-    var onEmptied: ((Project) -> Void)?
 
     private let fallbackName: String
     /// Sessions publish their own changes (title, directory); re-publish them
@@ -295,7 +293,7 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
         closeBatch(Array(tabs[(index + 1)...]).flatMap(\.allContents))
     }
 
-    /// Closes every tab, which empties (and thus removes) the project.
+    /// Closes every tab, leaving the project open but empty.
     func closeAll() {
         closeBatch(tabs.flatMap(\.allContents))
     }
@@ -513,8 +511,7 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
             let neighbor = min(index, tabs.count - 1)
             selectedTabID = neighbor >= 0 ? tabs[neighbor].id : nil
         }
-        if tabs.isEmpty {
-            onEmptied?(self)
-        }
+        // Emptying the project does not close it — the project row stays in the
+        // sidebar until the user explicitly closes it.
     }
 }

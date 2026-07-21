@@ -75,16 +75,35 @@ struct ContentView: View {
         return tab.diffs.isEmpty
     }
 
+    @ViewBuilder
     private var emptyState: some View {
+        if manager.selectedProject == nil {
+            emptyStatePrompt(
+                title: "No open projects",
+                buttonTitle: "New Project  ⌘N",
+                action: { manager.newProject() }
+            )
+        } else {
+            // A project whose tabs were all closed stays open; offer to reopen
+            // a session rather than showing the no-projects prompt.
+            emptyStatePrompt(
+                title: "No open sessions",
+                buttonTitle: "New Session  ⌘T",
+                action: { manager.newSession() }
+            )
+        }
+    }
+
+    private func emptyStatePrompt(
+        title: String, buttonTitle: String, action: @escaping () -> Void
+    ) -> some View {
         VStack(spacing: 12) {
             Image(systemName: "terminal")
                 .font(.system(size: 36, weight: .light))
                 .foregroundStyle(.tertiary)
-            Text("No open projects")
+            Text(title)
                 .foregroundStyle(.secondary)
-            Button("New Project  ⌘N") {
-                manager.newProject()
-            }
+            Button(buttonTitle, action: action)
         }
     }
 }

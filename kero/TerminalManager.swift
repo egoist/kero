@@ -140,9 +140,6 @@ final class TerminalManager: nonisolated ObservableObject {
             fallbackName: "Project \(projectCounter)",
             createInitialSession: createInitialSession
         )
-        project.onEmptied = { [weak self] project in
-            self?.remove(project)
-        }
         projectObservations[project.id] = project.objectWillChange.sink { [weak self] _ in
             self?.objectWillChange.send()
         }
@@ -230,9 +227,15 @@ final class TerminalManager: nonisolated ObservableObject {
     }
 
     /// Closes the focused pane (⌘W). When it's the last pane in its tab the
-    /// tab closes too — matching the old single-content-tab behavior.
+    /// tab closes too — matching the old single-content-tab behavior. Once the
+    /// project has no tabs left, ⌘W closes the project itself.
     func closeSelectedTab() {
-        selectedProject?.closeFocusedPane()
+        guard let project = selectedProject else { return }
+        if project.tabs.isEmpty {
+            close(project)
+        } else {
+            project.closeFocusedPane()
+        }
     }
 
     // MARK: - Panes
