@@ -104,7 +104,8 @@ private struct MainHeaderView: View {
                     // toggle (24), "+" button and its spacing (26).
                     SessionTabsView(project: project, maxStripWidth: max(0, geo.size.width - 82))
                 }
-                Spacer(minLength: 0)
+                WindowDragArea()
+                    .frame(maxWidth: .infinity)
                 // No project means the sidebar has nothing to show, so drop
                 // its toggle too — matching the panel collapsing itself.
                 if manager.selectedProject != nil {
@@ -140,6 +141,8 @@ private struct SessionTabsView: View {
     @ObservedObject var project: Project
     let maxStripWidth: CGFloat
     @State private var overflow = StripOverflow()
+    @State private var draggedTabID: UUID?
+    @State private var tabFrames: [UUID: CGRect] = [:]
 
     /// Which edges have off-screen tabs, i.e. where to show a fade hint.
     private struct StripOverflow: Equatable {
@@ -160,6 +163,22 @@ private struct SessionTabsView: View {
                             close: { project.close(tab) }
                         )
                         .contextMenu { tabContextMenu(for: tab) }
+                        .background {
+                            GeometryReader { proxy in
+                                Color.clear.preference(
+                                    key: TabFramePreferenceKey.self,
+                                    value: [tab.id: proxy.frame(in: .global)]
+                                )
+                            }
+                        }
+                        .opacity(draggedTabID == tab.id ? 0.65 : 1)
+                        .highPriorityGesture(
+                            DragGesture(minimumDistance: 4, coordinateSpace: .global)
+                                .onChanged { value in
+                                    updateTabDrag(source: tab.id, location: value.location)
+                                }
+                                .onEnded { _ in endTabDrag() }
+                        )
                     }
                 }
             }
@@ -216,6 +235,26 @@ private struct SessionTabsView: View {
             .buttonStyle(.plain)
             .help("New Session (⌘T)")
         }
+        .onPreferenceChange(TabFramePreferenceKey.self) { tabFrames = $0 }
+    }
+
+    /// Reorders immediately as the pointer crosses another tab. This direct
+    /// gesture deliberately avoids a pasteboard drag session, which the
+    /// hidden title bar can otherwise claim as a window move first.
+    private func updateTabDrag(source: UUID, location: CGPoint) {
+        draggedTabID = source
+        NSCursor.closedHand.set()
+        guard let target = tabFrames.first(where: {
+            $0.key != source && $0.value.contains(location)
+        })?.key else { return }
+        withAnimation(.easeInOut(duration: 0.12)) {
+            project.moveTab(source, to: target)
+        }
+    }
+
+    private func endTabDrag() {
+        draggedTabID = nil
+        NSCursor.arrow.set()
     }
 
     @ViewBuilder
@@ -237,6 +276,16 @@ private struct SessionTabsView: View {
             .disabled(project.tabs.last?.id == tab.id)
         Divider()
         Button("Close All") { project.closeAll() }
+    }
+}
+
+/// Collects each tab's global frame so a direct drag gesture can hit-test the
+/// pointer even while the horizontal strip is moving under it.
+private struct TabFramePreferenceKey: PreferenceKey {
+    static let defaultValue: [UUID: CGRect] = [:]
+
+    static func reduce(value: inout [UUID: CGRect], nextValue: () -> [UUID: CGRect]) {
+        value.merge(nextValue()) { $1 }
     }
 }
 

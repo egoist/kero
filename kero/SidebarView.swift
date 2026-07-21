@@ -14,7 +14,7 @@ struct SidebarView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Header-height strip housing the traffic-light buttons.
-            Spacer()
+            WindowDragArea()
                 .frame(height: 38)
 
             ScrollView {

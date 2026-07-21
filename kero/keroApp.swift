@@ -20,6 +20,9 @@ struct keroApp: App {
             WindowRootView()
         }
         .windowStyle(.hiddenTitleBar)
+        // Keep title-bar dragging away from interactive tabs. The empty
+        // header surfaces opt in explicitly through WindowDragArea.
+        .windowBackgroundDragBehavior(.disabled)
         .defaultSize(width: 900, height: 600)
         .commands {
             CommandGroup(after: .appInfo) {
