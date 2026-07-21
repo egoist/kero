@@ -70,6 +70,7 @@ struct SourceTextEditor: NSViewRepresentable {
     let wrapLines: Bool
     var isFocused: Bool = true
     var onFocused: () -> Void = {}
+    var onSplit: (PaneDropEdge) -> Void = { _ in }
 
     func makeCoordinator() -> Coordinator {
         Coordinator(file: file)
@@ -79,6 +80,7 @@ struct SourceTextEditor: NSViewRepresentable {
         let scrollView = RestorableScrollView()
         let textView = FocusReportingTextView()
         textView.onBecomeFirstResponder = onFocused
+        textView.splitTarget.onSplit = onSplit
         scrollView.wantsLayer = true
         scrollView.hasVerticalScroller = true
         scrollView.hasHorizontalScroller = true
@@ -163,6 +165,7 @@ struct SourceTextEditor: NSViewRepresentable {
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
         guard let textView = scrollView.documentView as? STTextView else { return }
         (textView as? FocusReportingTextView)?.onBecomeFirstResponder = onFocused
+        (textView as? FocusReportingTextView)?.splitTarget.onSplit = onSplit
         apply(to: textView, scrollView: scrollView)
         // Take focus on the unfocused→focused edge (keyboard navigation moving
         // focus here), never on every render.
@@ -271,14 +274,25 @@ struct SourceTextEditor: NSViewRepresentable {
 }
 
 /// STTextView that reports when it takes first-responder status (a click, or a
-/// programmatic focus), so the owning pane can mark itself focused in the model.
+/// programmatic focus), so the owning pane can mark itself focused in the model,
+/// and appends pane-split items to its context menu.
 final class FocusReportingTextView: STTextView {
     var onBecomeFirstResponder: (() -> Void)?
+    /// Owns the split context-menu items, kept off the text view so its own
+    /// menu validation doesn't disable them.
+    let splitTarget = SplitMenuTarget()
 
     override func becomeFirstResponder() -> Bool {
         let became = super.becomeFirstResponder()
         if became { onBecomeFirstResponder?() }
         return became
+    }
+
+    override func menu(for event: NSEvent) -> NSMenu? {
+        let menu = super.menu(for: event) ?? NSMenu()
+        menu.addItem(.separator())
+        for item in splitTarget.menuItems() { menu.addItem(item) }
+        return menu
     }
 }
 

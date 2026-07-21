@@ -12,6 +12,8 @@ import SwiftUI
 /// neighbors. Only the selected tab's layout is ever mounted.
 struct PaneLayoutView: View {
     @ObservedObject var tab: PaneTab
+    /// Splits the focused pane on the given edge — from a pane's context menu.
+    var onSplit: (PaneDropEdge) -> Void = { _ in }
 
     /// Gap between tiles, which doubles as the divider hit area. The same
     /// value insets the whole grid from the parent, so the spacing around the
@@ -125,7 +127,8 @@ struct PaneLayoutView: View {
                     isMoveSource: paneDrag?.sourceID == pane.id,
                     dropEdge: paneDrag?.targetID == pane.id ? paneDrag?.edge : nil,
                     onMove: { updateDropTarget(source: pane.id, location: $0) },
-                    onMoveEnded: { commitPaneMove() }
+                    onMoveEnded: { commitPaneMove() },
+                    onSplit: onSplit
                 )
                 .frame(width: width, height: heights[paneIndex])
                 if paneIndex < column.panes.count - 1 {
@@ -378,6 +381,9 @@ private struct PaneView: View {
     /// Reports the pointer (global space) as the top strip is dragged.
     let onMove: (CGPoint) -> Void
     let onMoveEnded: () -> Void
+    /// Splits the focused pane on the given edge (from the content's context
+    /// menu).
+    let onSplit: (PaneDropEdge) -> Void
 
     /// Height of the grab strip at the pane's top.
     private let handleHeight: CGFloat = 8
@@ -414,14 +420,21 @@ private struct PaneView: View {
         }
     }
 
+    /// Focuses this pane, then splits it — the context menu acts on the pane it
+    /// was opened over, not whatever held focus before.
+    private func splitFromMenu(_ edge: PaneDropEdge) {
+        focus()
+        onSplit(edge)
+    }
+
     @ViewBuilder
     private var content: some View {
         switch pane.content {
         case .session(let session):
-            TerminalHostView(session: session, isFocused: isFocused, onFocused: focus)
+            TerminalHostView(session: session, isFocused: isFocused, onFocused: focus, onSplit: splitFromMenu)
                 .background(Color(nsColor: Theme.background))
         case .file(let file):
-            FileViewerView(file: file, isFocused: isFocused, onFocused: focus)
+            FileViewerView(file: file, isFocused: isFocused, onFocused: focus, onSplit: splitFromMenu)
                 .background(Color(nsColor: Theme.background))
         case .diff:
             // Rendered by the always-mounted diff stack behind the layout; stay

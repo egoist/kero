@@ -153,32 +153,30 @@ final class PaneTab: nonisolated ObservableObject, nonisolated Identifiable {
 
     // MARK: - Structure
 
-    /// Inserts `pane` as a new column immediately right of the focused pane's
-    /// column, halving that column's width to make room. Focuses the new pane.
-    func splitRight(with pane: Pane) {
-        guard let (col, _) = focusedLocation() else {
+    /// Inserts `pane` next to the focused pane on the given edge, taking half
+    /// the space it splits into. Left/right open a new column beside the focused
+    /// column; top/bottom stack within it. Focuses the new pane.
+    func split(_ pane: Pane, toward edge: PaneDropEdge) {
+        guard let (col, row) = focusedLocation() else {
             columns.append(PaneColumn(panes: [pane]))
             focusedPaneID = pane.id
             return
         }
-        let share = columns[col].weight / 2
-        columns[col].weight = share
-        var column = PaneColumn(panes: [pane])
-        column.weight = share
-        columns.insert(column, at: col + 1)
+        switch edge {
+        case .left, .right:
+            let share = columns[col].weight / 2
+            columns[col].weight = share
+            var column = PaneColumn(panes: [pane])
+            column.weight = share
+            columns.insert(column, at: edge == .left ? col : col + 1)
+        case .top, .bottom:
+            let share = columns[col].panes[row].weight / 2
+            columns[col].panes[row].weight = share
+            var inserted = pane
+            inserted.weight = share
+            columns[col].panes.insert(inserted, at: edge == .top ? row : row + 1)
+        }
         focusedPaneID = pane.id
-    }
-
-    /// Inserts `pane` directly below the focused pane in its column, halving
-    /// that pane's height to make room. Focuses the new pane.
-    func splitDown(with pane: Pane) {
-        guard let (col, row) = focusedLocation() else { return }
-        let share = columns[col].panes[row].weight / 2
-        columns[col].panes[row].weight = share
-        var inserted = pane
-        inserted.weight = share
-        columns[col].panes.insert(inserted, at: row + 1)
-        focusedPaneID = inserted.id
     }
 
     /// Moves `dragged` next to `target` on the given edge — the drag-to-split

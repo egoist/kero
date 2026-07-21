@@ -183,6 +183,16 @@ private struct KeroCommands: Commands {
             .keyboardShortcut("d", modifiers: [.command, .shift])
             .disabled(manager?.canSplit != true)
 
+            Button("Split Left") {
+                manager?.splitLeft()
+            }
+            .disabled(manager?.canSplit != true)
+
+            Button("Split Up") {
+                manager?.splitUp()
+            }
+            .disabled(manager?.canSplit != true)
+
             Divider()
 
             Button("Focus Pane Left") {

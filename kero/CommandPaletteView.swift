@@ -50,8 +50,14 @@ struct CommandPaletteView: View {
             PaletteCommand(id: "split-right", title: "Split Right", systemImage: "rectangle.split.2x1", shortcut: "⌘D") {
                 manager.splitRight()
             },
+            PaletteCommand(id: "split-left", title: "Split Left", systemImage: "rectangle.split.2x1") {
+                manager.splitLeft()
+            },
             PaletteCommand(id: "split-down", title: "Split Down", systemImage: "rectangle.split.1x2", shortcut: "⇧⌘D") {
                 manager.splitDown()
+            },
+            PaletteCommand(id: "split-up", title: "Split Up", systemImage: "rectangle.split.1x2") {
+                manager.splitUp()
             },
             PaletteCommand(id: "focus-pane-left", title: "Focus Pane Left", systemImage: "arrow.left", shortcut: "⌥⌘←") {
                 manager.focusPaneLeft()

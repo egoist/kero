@@ -16,6 +16,10 @@ final class KeroTerminalView: LocalProcessTerminalView {
     /// model. (SwiftTerm's `becomeFirstResponder` is not open to override, so
     /// a passive click recognizer stands in for the plain-click case.)
     var onBecomeFirstResponder: (() -> Void)?
+    /// Owns the split context-menu items. Kept separate from the terminal so
+    /// SwiftTerm's `validateUserInterfaceItem` — which disables selectors it
+    /// doesn't recognize — doesn't grey them out.
+    let splitTarget = SplitMenuTarget()
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -53,6 +57,8 @@ final class KeroTerminalView: LocalProcessTerminalView {
         menu.addItem(contextItem("Paste", #selector(paste(_:))))
         menu.addItem(.separator())
         menu.addItem(contextItem("Select All", #selector(selectAll(_:))))
+        menu.addItem(.separator())
+        for item in splitTarget.menuItems() { menu.addItem(item) }
         return menu
     }
 
@@ -110,6 +116,36 @@ final class KeroTerminalView: LocalProcessTerminalView {
         }
         return "'" + path.replacingOccurrences(of: "'", with: "'\\''") + "'"
     }
+}
+
+/// Target for the pane-split context-menu items. A dedicated NSObject (rather
+/// than the terminal/editor itself) so the host view's own menu validation —
+/// which disables selectors it doesn't know — leaves these enabled: AppKit
+/// enables an item whose target responds to its action and doesn't veto it.
+final class SplitMenuTarget: NSObject {
+    /// Splits the pane on the given edge.
+    var onSplit: ((PaneDropEdge) -> Void)?
+
+    /// The four split items, targeting this object.
+    func menuItems() -> [NSMenuItem] {
+        [
+            item("Split Right", #selector(splitRight)),
+            item("Split Left", #selector(splitLeft)),
+            item("Split Up", #selector(splitUp)),
+            item("Split Down", #selector(splitDown)),
+        ]
+    }
+
+    private func item(_ title: String, _ action: Selector) -> NSMenuItem {
+        let menuItem = NSMenuItem(title: title, action: action, keyEquivalent: "")
+        menuItem.target = self
+        return menuItem
+    }
+
+    @objc private func splitRight() { onSplit?(.right) }
+    @objc private func splitLeft() { onSplit?(.left) }
+    @objc private func splitUp() { onSplit?(.top) }
+    @objc private func splitDown() { onSplit?(.bottom) }
 }
 
 /// A passive primary-button recognizer: it reports the mouse-down, then

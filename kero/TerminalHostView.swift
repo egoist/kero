@@ -17,6 +17,8 @@ struct TerminalHostView: NSViewRepresentable {
     /// Called when the terminal takes focus itself (e.g. a click), so the
     /// model's focused pane can follow.
     var onFocused: () -> Void = {}
+    /// Splits this pane on the given edge — wired to the context-menu items.
+    var onSplit: (PaneDropEdge) -> Void = { _ in }
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 
@@ -26,6 +28,7 @@ struct TerminalHostView: NSViewRepresentable {
         container.focusOnAppear = isFocused
         let terminal = session.terminalView
         (terminal as? KeroTerminalView)?.onBecomeFirstResponder = onFocused
+        (terminal as? KeroTerminalView)?.splitTarget.onSplit = onSplit
         let scrollbar = session.overlayScrollbar
         terminal.translatesAutoresizingMaskIntoConstraints = false
         scrollbar.translatesAutoresizingMaskIntoConstraints = false
@@ -47,6 +50,7 @@ struct TerminalHostView: NSViewRepresentable {
 
     func updateNSView(_ view: NSView, context: Context) {
         (session.terminalView as? KeroTerminalView)?.onBecomeFirstResponder = onFocused
+        (session.terminalView as? KeroTerminalView)?.splitTarget.onSplit = onSplit
         // Take focus only on the unfocused→focused edge (keyboard navigation,
         // a split landing here), never on every render — that would fight the
         // user for focus and make sidebar text fields untypable.

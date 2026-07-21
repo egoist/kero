@@ -204,7 +204,10 @@ final class TerminalManager: nonisolated ObservableObject {
     // MARK: - Panes
 
     func splitRight() { selectedProject?.splitRight() }
+    func splitLeft() { selectedProject?.splitLeft() }
     func splitDown() { selectedProject?.splitDown() }
+    func splitUp() { selectedProject?.splitUp() }
+    func split(toward edge: PaneDropEdge) { selectedProject?.split(toward: edge) }
     func focusPaneLeft() { selectedProject?.focusLeft() }
     func focusPaneRight() { selectedProject?.focusRight() }
     func focusPaneUp() { selectedProject?.focusUp() }

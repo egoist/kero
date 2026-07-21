@@ -129,6 +129,8 @@ struct FileViewerView: View {
     /// Called when the editor takes focus itself (e.g. a click), so the
     /// model's focused pane can follow.
     var onFocused: () -> Void = {}
+    /// Splits this pane on the given edge — wired to the context-menu items.
+    var onSplit: (PaneDropEdge) -> Void = { _ in }
 
     @ObservedObject private var settings = AppSettings.shared
     @Environment(\.colorScheme) private var colorScheme
@@ -146,7 +148,8 @@ struct FileViewerView: View {
                     palette: .github(dark: colorScheme == .dark),
                     wrapLines: settings.wrapLines,
                     isFocused: isFocused,
-                    onFocused: onFocused
+                    onFocused: onFocused,
+                    onSplit: onSplit
                 )
             }
         case .image(let image):

@@ -120,20 +120,18 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
 
     // MARK: - Splits
 
-    /// Splits the focused pane into a new column to its right, holding a fresh
-    /// terminal. No-op while a diff is focused.
-    func splitRight() {
-        guard let tab = selectedTab, tab.canSplit else { return }
-        let session = makeSession()
-        tab.splitRight(with: Pane(content: .session(session)))
-    }
+    func splitRight() { split(toward: .right) }
+    func splitLeft() { split(toward: .left) }
+    func splitDown() { split(toward: .bottom) }
+    func splitUp() { split(toward: .top) }
 
-    /// Splits the focused pane, stacking a fresh terminal directly below it in
-    /// the same column. No-op while a diff is focused.
-    func splitDown() {
+    /// Splits the focused pane on `edge` with a fresh terminal. Left/right open
+    /// a new column; top/bottom stack within the focused column. No-op while a
+    /// diff is focused.
+    func split(toward edge: PaneDropEdge) {
         guard let tab = selectedTab, tab.canSplit else { return }
         let session = makeSession()
-        tab.splitDown(with: Pane(content: .session(session)))
+        tab.split(Pane(content: .session(session)), toward: edge)
     }
 
     func focusLeft() { selectedTab?.focusLeft() }
@@ -175,7 +173,7 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
             tab.focusedPaneID = existing.id
             return
         }
-        tab.splitRight(with: Pane(content: .file(FileTab(path: path))))
+        tab.split(Pane(content: .file(FileTab(path: path))), toward: .right)
     }
 
     private func findFilePane(path: String) -> (tab: PaneTab, paneID: UUID)? {

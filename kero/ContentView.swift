@@ -37,7 +37,7 @@ struct ContentView: View {
                     }
                     Group {
                         if let tab = manager.selectedProject?.selectedTab {
-                            PaneLayoutView(tab: tab)
+                            PaneLayoutView(tab: tab, onSplit: { manager.split(toward: $0) })
                         } else {
                             emptyState
                         }
