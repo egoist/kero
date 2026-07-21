@@ -53,6 +53,13 @@ final class AppSettings: nonisolated ObservableObject {
         didSet { save() }
     }
 
+    /// Restore each terminal's previous scrollback (as static, styled text)
+    /// when the app relaunches, above the freshly started shell. Off by
+    /// default: opt-in, and it writes captured output to disk.
+    @Published var restoreTerminalHistory: Bool {
+        didSet { save() }
+    }
+
     private init() {
         let existing = TOML.parse(at: Self.configURL)
         let toml = existing ?? Self.legacyDefaults()
@@ -61,6 +68,7 @@ final class AppSettings: nonisolated ObservableObject {
         fontSize = Self.fontSizeRange.contains(size) ? size : Self.defaultFontSize
         gpuRenderingEnabled = toml["gpu-rendering"]?.bool ?? true
         wrapLines = toml["wrap-lines"]?.bool ?? false
+        restoreTerminalHistory = toml["restore-terminal-history"]?.bool ?? false
         if existing == nil { save() }
     }
 
@@ -73,6 +81,7 @@ final class AppSettings: nonisolated ObservableObject {
         resetFont()
         gpuRenderingEnabled = true
         wrapLines = false
+        restoreTerminalHistory = false
     }
 
     private func save() {
@@ -86,6 +95,9 @@ final class AppSettings: nonisolated ObservableObject {
         }
         if wrapLines {
             lines.append("wrap-lines = true")
+        }
+        if restoreTerminalHistory {
+            lines.append("restore-terminal-history = true")
         }
         let dir = Self.configURL.deletingLastPathComponent()
         do {

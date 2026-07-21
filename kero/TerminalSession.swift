@@ -25,11 +25,20 @@ final class TerminalSession: NSObject, nonisolated ObservableObject, nonisolated
 
     private let shellPath: String
     private let initialDirectory: String?
+    /// Styled ANSI scrollback captured from a previous run, replayed once at
+    /// startup so the reopened terminal shows where the user left off. Cleared
+    /// after it is fed. See `TerminalHistorySerializer`.
+    private var restoredHistory: String?
+    /// Last non-alternate-buffer capture, reused while a full-screen program
+    /// owns the screen so quitting from inside `vim` still restores the shell
+    /// scrollback behind it rather than nothing.
+    private var lastHistorySnapshot: String?
     let overlayScrollbar = OverlayScrollbarView()
     private var scrollerObservations: [NSKeyValueObservation] = []
 
-    init(initialDirectory: String? = nil) {
+    init(initialDirectory: String? = nil, restoredHistory: String? = nil) {
         self.initialDirectory = initialDirectory
+        self.restoredHistory = restoredHistory
         shellPath = Self.loginShell()
         title = (shellPath as NSString).lastPathComponent
         terminalView = KeroTerminalView(frame: NSRect(x: 0, y: 0, width: 800, height: 600))
@@ -134,6 +143,15 @@ final class TerminalSession: NSObject, nonisolated ObservableObject, nonisolated
            isDir.boolValue {
             directory = initialDirectory
         }
+        // Replay previous scrollback into the emulator before the shell
+        // launches, so restored history sits above the first prompt. Feeding
+        // here is safe — `startProcess` starts the PTY without resetting the
+        // buffer. A trailing newline drops the new prompt onto its own line.
+        if AppSettings.shared.restoreTerminalHistory,
+           let restoredHistory, !restoredHistory.isEmpty {
+            terminalView.feed(text: restoredHistory + "\r\n")
+        }
+        restoredHistory = nil
         terminalView.startProcess(
             executable: shellPath,
             args: [],
@@ -183,6 +201,24 @@ final class TerminalSession: NSObject, nonisolated ObservableObject, nonisolated
     func clear() {
         terminalView.feed(text: "\u{1b}[2J\u{1b}[3J\u{1b}[H")
         terminalView.send(txt: "\u{0c}")
+    }
+
+    /// Styled ANSI snapshot of the scrollback for session restore, or nil when
+    /// the feature is off or there is nothing to save. While a full-screen app
+    /// owns the alternate buffer, the last normal-buffer capture is returned so
+    /// the persisted history is the shell output, not the transient TUI frame.
+    func serializedHistory() -> String? {
+        guard AppSettings.shared.restoreTerminalHistory else { return nil }
+        let terminal = terminalView.getTerminal()
+        if terminal.isCurrentBufferAlternate {
+            return lastHistorySnapshot
+        }
+        // Cap to the live scrollback so everything captured survives being fed
+        // back into a terminal with the same capacity.
+        let snapshot = TerminalHistorySerializer.serialize(
+            terminal: terminal, maxLines: terminal.options.scrollback)
+        lastHistorySnapshot = snapshot
+        return snapshot
     }
 
     /// Executable name of the shell, e.g. "fish".

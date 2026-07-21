@@ -95,10 +95,14 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
     }
 
     /// Builds a session wired for exit + change observation, without placing
-    /// it in a tab — shared by new tabs and splits.
-    private func makeSession(directory: String? = nil) -> TerminalSession {
+    /// it in a tab — shared by new tabs and splits. `restoredHistory` seeds the
+    /// scrollback when reopening a saved session.
+    private func makeSession(
+        directory: String? = nil, restoredHistory: String? = nil
+    ) -> TerminalSession {
         let session = TerminalSession(
-            initialDirectory: directory ?? selectedSession?.currentDirectoryPath
+            initialDirectory: directory ?? selectedSession?.currentDirectoryPath,
+            restoredHistory: restoredHistory
         )
         session.onExited = { [weak self] session in
             // Already dead — just drop its pane, no second terminate.
@@ -427,13 +431,17 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
     /// Rebuilds a saved tab's pane layout — recreating its sessions (wired for
     /// exit + observation), files and diffs — then registers and appends it.
     /// Skips panes whose content can't be rebuilt; a tab with none is dropped.
-    func restoreTab(from snap: SessionSnapshot.ProjectSnapshot.TabSnapshot) {
+    func restoreTab(
+        from snap: SessionSnapshot.ProjectSnapshot.TabSnapshot,
+        histories: [String: String] = [:]
+    ) {
         var columns: [PaneColumn] = []
         for columnSnap in snap.columns {
             var panes: [Pane] = []
             for paneSnap in columnSnap.panes {
+                let restoredHistory = paneSnap.historyKey.flatMap { histories[$0] }
                 panes.append(Pane(
-                    content: makeContent(from: paneSnap.content),
+                    content: makeContent(from: paneSnap.content, restoredHistory: restoredHistory),
                     weight: CGFloat(paneSnap.weight)
                 ))
             }
@@ -447,11 +455,12 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
     }
 
     private func makeContent(
-        from snap: SessionSnapshot.ProjectSnapshot.PaneContentSnapshot
+        from snap: SessionSnapshot.ProjectSnapshot.PaneContentSnapshot,
+        restoredHistory: String? = nil
     ) -> PaneContent {
         switch snap {
         case .session(let workingDirectory):
-            return .session(makeSession(directory: workingDirectory))
+            return .session(makeSession(directory: workingDirectory, restoredHistory: restoredHistory))
         case .file(let path, let editorState):
             let file = FileTab(path: path)
             if let editorState { file.editorState = editorState }

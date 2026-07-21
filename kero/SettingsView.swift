@@ -60,6 +60,14 @@ struct SettingsView: View {
 
             Section("Terminal") {
                 Toggle("Use GPU rendering", isOn: $settings.gpuRenderingEnabled)
+
+                Toggle(
+                    "Restore session history on relaunch",
+                    isOn: $settings.restoreTerminalHistory
+                )
+                Text("Reopened terminals show their previous scrollback above a fresh shell.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
             }
 
             Section("Text Editing") {
@@ -87,7 +95,8 @@ struct SettingsView: View {
                     .disabled(settings.fontFamily.isEmpty
                         && settings.fontSize == AppSettings.defaultFontSize
                         && settings.gpuRenderingEnabled
-                        && !settings.wrapLines)
+                        && !settings.wrapLines
+                        && !settings.restoreTerminalHistory)
                 }
             }
         }

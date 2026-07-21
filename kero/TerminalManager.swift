@@ -48,6 +48,10 @@ final class TerminalManager: nonisolated ObservableObject {
     /// Each new manager claims the next; extras beyond the saved count
     /// start fresh.
     private static var pendingRestores: [SessionSnapshot] = []
+    /// Terminal scrollback loaded from the sidecar store, keyed by the
+    /// `historyKey` each restoring session pane carries. Shared across windows
+    /// (keys are unique per pane), so restores read from it without consuming.
+    private static var pendingHistories: [String: String] = [:]
     private static var hasLoadedStore = false
     /// Set on app termination so window teardown can't re-save a partial
     /// snapshot over the final full one.
@@ -58,6 +62,7 @@ final class TerminalManager: nonisolated ObservableObject {
         if !Self.hasLoadedStore {
             Self.hasLoadedStore = true
             Self.pendingRestores = SessionStore.load()
+            Self.pendingHistories = TerminalHistoryStore.load()
         }
         Self.registry.append(self)
         var restored = false
@@ -412,11 +417,15 @@ final class TerminalManager: nonisolated ObservableObject {
     /// kill its shells.
     func windowClosed() {
         guard !Self.isQuitting else { return }
-        let snapshot = makeWindowSnapshot()
+        let window = makeWindowSnapshot()
         Self.registry.removeAll { $0 === self }
         if Self.registry.isEmpty {
-            SessionStore.save([snapshot])
-            Self.pendingRestores = [snapshot]
+            // Last window: keep its snapshot and scrollback saved and queued so
+            // reopening (or relaunching) restores them.
+            SessionStore.save([window.snapshot])
+            TerminalHistoryStore.save(window.histories)
+            Self.pendingRestores = [window.snapshot]
+            Self.pendingHistories = window.histories
         } else {
             Self.saveAll()
         }
@@ -429,21 +438,42 @@ final class TerminalManager: nonisolated ObservableObject {
 
     private static func saveAll() {
         guard !registry.isEmpty else { return }
-        SessionStore.save(registry.map { $0.makeWindowSnapshot() })
+        var snapshots: [SessionSnapshot] = []
+        var histories: [String: String] = [:]
+        for manager in registry {
+            let window = manager.makeWindowSnapshot()
+            snapshots.append(window.snapshot)
+            histories.merge(window.histories) { _, new in new }
+        }
+        SessionStore.save(snapshots)
+        TerminalHistoryStore.save(histories)
     }
 
-    private func makeWindowSnapshot() -> SessionSnapshot {
+    /// Builds this window's layout snapshot and, alongside it, the scrollback
+    /// to persist for its sessions. Each captured session gets a fresh
+    /// `historyKey` stored on both sides so restore can pair them; sessions
+    /// with no history (feature off, empty, or unserializable) get no key.
+    private func makeWindowSnapshot() -> (snapshot: SessionSnapshot, histories: [String: String]) {
         typealias ProjectSnapshot = SessionSnapshot.ProjectSnapshot
-        return SessionSnapshot(
+        var histories: [String: String] = [:]
+        let snapshot = SessionSnapshot(
             projects: projects.compactMap { project in
                 guard !project.tabs.isEmpty else { return nil }
                 let tabs = project.tabs.map { tab -> ProjectSnapshot.TabSnapshot in
                     let columns = tab.columns.map { column in
                         ProjectSnapshot.ColumnSnapshot(
                             panes: column.panes.map { pane in
-                                ProjectSnapshot.PaneSnapshot(
+                                var historyKey: String?
+                                if case .session(let session) = pane.content,
+                                   let history = session.serializedHistory(), !history.isEmpty {
+                                    let key = UUID().uuidString
+                                    histories[key] = history
+                                    historyKey = key
+                                }
+                                return ProjectSnapshot.PaneSnapshot(
                                     content: Self.contentSnapshot(pane.content),
-                                    weight: Double(pane.weight)
+                                    weight: Double(pane.weight),
+                                    historyKey: historyKey
                                 )
                             },
                             weight: Double(column.weight)
@@ -462,6 +492,7 @@ final class TerminalManager: nonisolated ObservableObject {
             },
             selectedProjectIndex: projects.firstIndex { $0.id == selectedProjectID }
         )
+        return (snapshot, histories)
     }
 
     private static func contentSnapshot(
@@ -487,7 +518,7 @@ final class TerminalManager: nonisolated ObservableObject {
             let project = makeProject(createInitialSession: false)
             project.customName = saved.customName
             for tab in saved.tabs {
-                project.restoreTab(from: tab)
+                project.restoreTab(from: tab, histories: Self.pendingHistories)
             }
             guard !project.tabs.isEmpty else {
                 projectObservations[project.id] = nil

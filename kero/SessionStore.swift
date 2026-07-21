@@ -7,7 +7,10 @@ import Foundation
 
 /// Snapshot of open projects and tabs, saved so a relaunch restores the
 /// previous layout. Terminal sessions restore as fresh shells started in
-/// their last known working directory; file and diff panes reload from disk.
+/// their last known working directory — with their previous scrollback
+/// replayed above the prompt when the "Restore session history" setting is on
+/// (see `historyKey` and `TerminalHistoryStore`); file and diff panes reload
+/// from disk.
 struct SessionSnapshot: Codable {
     struct ProjectSnapshot: Codable {
         /// A single pane's content — the terminal/file/diff it holds. The case
@@ -22,6 +25,10 @@ struct SessionSnapshot: Codable {
         struct PaneSnapshot: Codable {
             var content: PaneContentSnapshot
             var weight: Double
+            /// Key into the sidecar terminal-history store for a session pane;
+            /// nil for files, diffs, or when history restore is off. Optional so
+            /// snapshots written before this feature still decode.
+            var historyKey: String?
         }
 
         struct ColumnSnapshot: Codable {
