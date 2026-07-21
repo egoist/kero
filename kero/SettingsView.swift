@@ -58,6 +58,10 @@ struct SettingsView: View {
                 .padding(.vertical, 4)
             }
 
+            Section("Terminal") {
+                Toggle("Use GPU rendering", isOn: $settings.gpuRenderingEnabled)
+            }
+
             Section("Text Editing") {
                 Toggle("Wrap lines to editor width", isOn: $settings.wrapLines)
             }
@@ -82,6 +86,7 @@ struct SettingsView: View {
                     }
                     .disabled(settings.fontFamily.isEmpty
                         && settings.fontSize == AppSettings.defaultFontSize
+                        && settings.gpuRenderingEnabled
                         && !settings.wrapLines)
                 }
             }

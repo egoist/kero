@@ -20,6 +20,7 @@ final class KeroTerminalView: LocalProcessTerminalView {
     /// SwiftTerm's `validateUserInterfaceItem` — which disables selectors it
     /// doesn't recognize — doesn't grey them out.
     let splitTarget = SplitMenuTarget()
+    private var gpuRenderingEnabled = true
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -31,6 +32,35 @@ final class KeroTerminalView: LocalProcessTerminalView {
         super.init(coder: coder)
         registerForDraggedTypes([.fileURL])
         installFocusClickRecognizer()
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        updateRenderer()
+    }
+
+    /// Switches rendering without replacing the terminal view, preserving the
+    /// running process, scrollback, selection, and focus.
+    func setGPURenderingEnabled(_ enabled: Bool) {
+        gpuRenderingEnabled = enabled
+        updateRenderer()
+    }
+
+    private func updateRenderer() {
+        // Disabling is safe even while the terminal is temporarily detached.
+        // Enabling must wait until AppKit attaches the view to a window so
+        // SwiftTerm can bind its CAMetalLayer to the correct WindowServer surface.
+        if gpuRenderingEnabled {
+            guard window != nil, !isUsingMetalRenderer else { return }
+        } else {
+            guard isUsingMetalRenderer else { return }
+        }
+
+        do {
+            try setUseMetal(gpuRenderingEnabled)
+        } catch {
+            NSLog("Kero: SwiftTerm Metal renderer unavailable: %@", String(describing: error))
+        }
     }
 
     private func installFocusClickRecognizer() {

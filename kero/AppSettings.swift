@@ -41,6 +41,12 @@ final class AppSettings: nonisolated ObservableObject {
         didSet { save() }
     }
 
+    /// Render terminal contents with SwiftTerm's Metal renderer. Enabled by
+    /// default; Core Graphics remains available for compatibility.
+    @Published var gpuRenderingEnabled: Bool {
+        didSet { save() }
+    }
+
     /// Soft-wrap file editor lines to the viewport width. Off by default so
     /// long lines scroll horizontally.
     @Published var wrapLines: Bool {
@@ -53,6 +59,7 @@ final class AppSettings: nonisolated ObservableObject {
         fontFamily = toml["font-family"]?.string ?? ""
         let size = toml["font-size"]?.double ?? Self.defaultFontSize
         fontSize = Self.fontSizeRange.contains(size) ? size : Self.defaultFontSize
+        gpuRenderingEnabled = toml["gpu-rendering"]?.bool ?? true
         wrapLines = toml["wrap-lines"]?.bool ?? false
         if existing == nil { save() }
     }
@@ -64,6 +71,7 @@ final class AppSettings: nonisolated ObservableObject {
 
     func resetToDefaults() {
         resetFont()
+        gpuRenderingEnabled = true
         wrapLines = false
     }
 
@@ -73,6 +81,9 @@ final class AppSettings: nonisolated ObservableObject {
             lines.append("font-family = \(TOML.quote(fontFamily))")
         }
         lines.append("font-size = \(TOML.number(fontSize))")
+        if !gpuRenderingEnabled {
+            lines.append("gpu-rendering = false")
+        }
         if wrapLines {
             lines.append("wrap-lines = true")
         }
