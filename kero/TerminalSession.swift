@@ -169,6 +169,16 @@ final class TerminalSession: NSObject, nonisolated ObservableObject, nonisolated
         terminalView.send(txt: text)
     }
 
+    /// Clears the terminal — like ⌘K in Terminal.app. Erases the visible
+    /// screen and drops the scrollback straight in the emulator (so it
+    /// happens even while a foreground program is running), then sends
+    /// Ctrl-L so the shell repaints its prompt, and any half-typed
+    /// command, at the top.
+    func clear() {
+        terminalView.feed(text: "\u{1b}[2J\u{1b}[3J\u{1b}[H")
+        terminalView.send(txt: "\u{0c}")
+    }
+
     /// Executable name of the shell, e.g. "fish".
     var shellName: String {
         (shellPath as NSString).lastPathComponent

@@ -181,6 +181,20 @@ final class TerminalManager: nonisolated ObservableObject {
         project.newSession()
     }
 
+    /// Clears the terminal shown in the active tab. No-op while a file or
+    /// diff tab is selected, so ⌘K never wipes an off-screen terminal.
+    func clearActiveTerminal() {
+        if case .session(let session)? = selectedProject?.selectedTab {
+            session.clear()
+        }
+    }
+
+    /// Whether ⌘K has a terminal on screen to act on right now.
+    var canClearActiveTerminal: Bool {
+        if case .session? = selectedProject?.selectedTab { return true }
+        return false
+    }
+
     func closeSelectedTab() {
         selectedProject?.closeSelected()
     }

@@ -102,6 +102,14 @@ private struct KeroCommands: Commands {
             .disabled(manager == nil)
         }
 
+        CommandGroup(after: .pasteboard) {
+            Button("Clear Terminal") {
+                manager?.clearActiveTerminal()
+            }
+            .keyboardShortcut("k", modifiers: .command)
+            .disabled(manager?.canClearActiveTerminal != true)
+        }
+
         // Frees ⌘P from the default Print item for the command palette.
         CommandGroup(replacing: .printItem) {}
 
