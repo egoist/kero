@@ -45,6 +45,29 @@ enum TerminalHistorySerializer {
         return lines.joined(separator: "\r\n")
     }
 
+    /// A single-line divider fed into the terminal directly beneath replayed
+    /// scrollback, marking where the restored output ends and the live shell
+    /// begins. Rendered with default colors so it tracks the light/dark theme:
+    /// dim rule characters bracket a normal-weight, centered label across
+    /// `width` columns (the terminal's column count at replay time). When the
+    /// terminal is too narrow to bracket the label, the label alone is shown.
+    static func restoredBanner(width: Int) -> String {
+        let label = "Session Contents Restored"
+        let dim = "\u{1b}[2m"
+        let normal = "\u{1b}[22m"
+        let reset = "\u{1b}[0m"
+
+        // Layout: <rule> <space> <label> <space> <rule>. Keep at least two rule
+        // cells per side; below that a divider reads as noise, so drop it.
+        let fixed = label.count + 2
+        guard width - fixed >= 4 else { return dim + label + reset }
+
+        let ruleCells = width - fixed
+        let left = ruleCells / 2
+        let rule = { (count: Int) in String(repeating: "\u{2500}", count: count) }
+        return dim + rule(left) + " " + normal + label + dim + " " + rule(ruleCells - left) + reset
+    }
+
     /// Encodes one buffer line: the shortest run of SGR escapes that reproduces
     /// its per-cell colors and styles, followed by the characters. Trailing
     /// blank cells are dropped and a reset is appended only when the line ends
