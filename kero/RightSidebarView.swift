@@ -328,6 +328,12 @@ private struct FileTreeRow: View {
             .contentShape(RoundedRectangle(cornerRadius: 4))
         }
         .buttonStyle(.plain)
+        // Drag a row out as a file URL: onto the terminal (which inserts its
+        // path) or into Finder and other apps. A click still opens/toggles;
+        // the drag only begins once the pointer moves.
+        .onDrag {
+            NSItemProvider(object: URL(fileURLWithPath: item.path) as NSURL)
+        }
     }
 
     private var renameRow: some View {
