@@ -5,12 +5,40 @@
 
 import SwiftUI
 
-/// One executable entry in the ⌘P palette.
+/// Groups palette rows under a header — built-in actions vs. open sessions.
+enum PaletteSection: Hashable {
+    case command
+    case session
+
+    var title: String {
+        switch self {
+        case .command: return "Commands"
+        case .session: return "Sessions"
+        }
+    }
+
+    /// Sections render in this order regardless of match score.
+    var order: Int {
+        switch self {
+        case .command: return 0
+        case .session: return 1
+        }
+    }
+}
+
+/// One selectable entry in the ⌘P palette: a built-in action, or a jump to an
+/// open terminal session.
 struct PaletteCommand: Identifiable {
     let id: String
     let title: String
     let systemImage: String
+    /// Secondary text shown after the title — a session's working directory.
+    var subtitle: String? = nil
     var shortcut: String? = nil
+    var section: PaletteSection = .command
+    /// Text the fuzzy filter matches against; defaults to `title`, widened for
+    /// sessions to also cover the project name and directory.
+    var searchText: String? = nil
     let action: () -> Void
 }
 
@@ -136,14 +164,58 @@ struct CommandPaletteView: View {
         return items
     }
 
+    /// Every open terminal session across all projects, as a jump-to entry.
+    /// The directory shows as a subtitle and the project name folds into the
+    /// searchable text, so typing a repo or folder name finds its sessions.
+    private var sessionCommands: [PaletteCommand] {
+        manager.projects.flatMap { project in
+            project.sessions.map { session in
+                let directory = sessionDirectory(session)
+                let search = [session.title, project.name, directory]
+                    .compactMap { $0 }
+                    .joined(separator: " ")
+                return PaletteCommand(
+                    id: "session-\(session.id)",
+                    title: session.title,
+                    systemImage: "terminal",
+                    subtitle: directory,
+                    section: .session,
+                    searchText: search
+                ) {
+                    manager.revealSession(session)
+                }
+            }
+        }
+    }
+
+    /// Tilde-abbreviated working directory for a session's subtitle, or nil
+    /// when the shell hasn't reported one yet.
+    private func sessionDirectory(_ session: TerminalSession) -> String? {
+        guard let dir = session.workingDirectory else { return nil }
+        let path = URL(string: dir)?.path ?? dir
+        guard !path.isEmpty else { return nil }
+        let home = NSHomeDirectory()
+        if path == home { return "~" }
+        if path.hasPrefix(home + "/") { return "~" + String(path.dropFirst(home.count)) }
+        return path
+    }
+
     private var filtered: [PaletteCommand] {
         let pattern = query.trimmingCharacters(in: .whitespaces)
-        guard !pattern.isEmpty else { return commands }
-        return commands
+        let all = commands + sessionCommands
+        guard !pattern.isEmpty else { return all }
+        // Rank by match score within each section, but keep the sections in
+        // their fixed order (commands first) so the layout stays stable as the
+        // query changes.
+        return all
             .compactMap { command in
-                fuzzyScore(command.title, pattern).map { (command, $0) }
+                fuzzyScore(command.searchText ?? command.title, pattern).map { (command, $0) }
             }
-            .sorted { $0.1 > $1.1 }
+            .sorted { lhs, rhs in
+                lhs.0.section.order != rhs.0.section.order
+                    ? lhs.0.section.order < rhs.0.section.order
+                    : lhs.1 > rhs.1
+            }
             .map(\.0)
     }
 
@@ -185,7 +257,7 @@ struct CommandPaletteView: View {
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(.secondary)
-                TextField("Type a command…", text: $query)
+                TextField("Search commands and sessions…", text: $query)
                     .textFieldStyle(.plain)
                     .font(.system(size: 15))
                     .focused($searchFocused)
@@ -200,32 +272,7 @@ struct CommandPaletteView: View {
             Divider()
                 .opacity(0.5)
 
-            if filtered.isEmpty {
-                Text("No matching commands")
-                    .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 24)
-            } else {
-                ScrollViewReader { proxy in
-                    ScrollView {
-                        LazyVStack(spacing: 1) {
-                            ForEach(Array(filtered.enumerated()), id: \.element.id) { index, command in
-                                row(command, index: index)
-                                    .id(command.id)
-                            }
-                        }
-                        .padding(6)
-                    }
-                    .frame(maxHeight: 322)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .onChange(of: selection) {
-                        if filtered.indices.contains(selection) {
-                            proxy.scrollTo(filtered[selection].id)
-                        }
-                    }
-                }
-            }
+            results
         }
         .frame(width: 560)
         .background(
@@ -240,11 +287,67 @@ struct CommandPaletteView: View {
         .onAppear {
             query = ""
             selection = 0
-            searchFocused = true
+            // Defer to the next runloop tick: assigning focus synchronously
+            // inside the appearance pass can be dropped before the field
+            // editor is ready, which left the palette opening unfocused.
+            DispatchQueue.main.async {
+                searchFocused = true
+            }
         }
         .onChange(of: query) {
             selection = 0
         }
+    }
+
+    /// Result list, computing `filtered` once per render. Section headers only
+    /// appear when both commands and sessions are present, so a query that
+    /// matches only one kind reads as a plain list.
+    @ViewBuilder
+    private var results: some View {
+        let items = filtered
+        if items.isEmpty {
+            Text("No matches")
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 24)
+        } else {
+            let showHeaders = items.contains { $0.section == .command }
+                && items.contains { $0.section == .session }
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(spacing: 1) {
+                        ForEach(Array(items.enumerated()), id: \.element.id) { index, command in
+                            if showHeaders,
+                               index == 0 || items[index - 1].section != command.section {
+                                sectionHeader(command.section, isFirst: index == 0)
+                            }
+                            row(command, index: index)
+                                .id(command.id)
+                        }
+                    }
+                    .padding(6)
+                }
+                .frame(maxHeight: 322)
+                .fixedSize(horizontal: false, vertical: true)
+                .onChange(of: selection) {
+                    if items.indices.contains(selection) {
+                        proxy.scrollTo(items[selection].id)
+                    }
+                }
+            }
+        }
+    }
+
+    private func sectionHeader(_ section: PaletteSection, isFirst: Bool) -> some View {
+        Text(section.title)
+            .font(.system(size: 10, weight: .semibold))
+            .foregroundStyle(.tertiary)
+            .textCase(.uppercase)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 9)
+            .padding(.top, isFirst ? 4 : 10)
+            .padding(.bottom, 3)
     }
 
     private func row(_ command: PaletteCommand, index: Int) -> some View {
@@ -261,6 +364,14 @@ struct CommandPaletteView: View {
                     .font(.system(size: 12.5))
                     .foregroundStyle(isSelected ? .primary : .secondary)
                     .lineLimit(1)
+                if let subtitle = command.subtitle, !subtitle.isEmpty {
+                    Text(subtitle)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .layoutPriority(-1)
+                }
                 Spacer(minLength: 12)
                 if let shortcut = command.shortcut {
                     Text(shortcut)

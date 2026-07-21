@@ -212,6 +212,21 @@ final class TerminalManager: nonisolated ObservableObject {
         project.newSession()
     }
 
+    /// Brings `session` to the foreground: selects its project and tab, then
+    /// focuses its pane. Backs the command palette's session switcher; a no-op
+    /// if the session is no longer open anywhere.
+    func revealSession(_ session: TerminalSession) {
+        for project in projects {
+            for tab in project.tabs {
+                guard let paneID = tab.paneID(forContent: session.id) else { continue }
+                selectedProjectID = project.id
+                project.selectedTabID = tab.id
+                tab.focusedPaneID = paneID
+                return
+            }
+        }
+    }
+
     /// Clears the terminal in the focused pane. No-op while a file or diff pane
     /// is focused, so ⌘K never wipes an off-screen terminal.
     func clearActiveTerminal() {
