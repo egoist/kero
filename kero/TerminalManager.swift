@@ -181,23 +181,38 @@ final class TerminalManager: nonisolated ObservableObject {
         project.newSession()
     }
 
-    /// Clears the terminal shown in the active tab. No-op while a file or
-    /// diff tab is selected, so ⌘K never wipes an off-screen terminal.
+    /// Clears the terminal in the focused pane. No-op while a file or diff pane
+    /// is focused, so ⌘K never wipes an off-screen terminal.
     func clearActiveTerminal() {
-        if case .session(let session)? = selectedProject?.selectedTab {
+        if case .session(let session)? = selectedProject?.focusedContent {
             session.clear()
         }
     }
 
     /// Whether ⌘K has a terminal on screen to act on right now.
     var canClearActiveTerminal: Bool {
-        if case .session? = selectedProject?.selectedTab { return true }
+        if case .session? = selectedProject?.focusedContent { return true }
         return false
     }
 
+    /// Closes the focused pane (⌘W). When it's the last pane in its tab the
+    /// tab closes too — matching the old single-content-tab behavior.
     func closeSelectedTab() {
-        selectedProject?.closeSelected()
+        selectedProject?.closeFocusedPane()
     }
+
+    // MARK: - Panes
+
+    func splitRight() { selectedProject?.splitRight() }
+    func splitDown() { selectedProject?.splitDown() }
+    func focusPaneLeft() { selectedProject?.focusLeft() }
+    func focusPaneRight() { selectedProject?.focusRight() }
+    func focusPaneUp() { selectedProject?.focusUp() }
+    func focusPaneDown() { selectedProject?.focusDown() }
+
+    /// Whether the focused pane can be split right now (false for diffs / no
+    /// project).
+    var canSplit: Bool { selectedProject?.canSplit ?? false }
 
     func selectNextTab() {
         selectedProject?.selectNext()
@@ -214,6 +229,11 @@ final class TerminalManager: nonisolated ObservableObject {
         selectedProject?.openFile(path)
     }
 
+    /// Opens `path` as a pane beside the focused one in the current tab.
+    func openFileToSide(_ path: String) {
+        selectedProject?.openFileToSide(path)
+    }
+
     /// Opens a git diff tab in the current project.
     func openDiff(
         repoRoot: String, path: String, staged: Bool, untracked: Bool, origPath: String?
@@ -224,9 +244,9 @@ final class TerminalManager: nonisolated ObservableObject {
         )
     }
 
-    /// Saves the selected tab if it is a file tab.
+    /// Saves the focused pane if it holds a file.
     func saveSelectedFile() {
-        if case .file(let file)? = selectedProject?.selectedTab {
+        if case .file(let file)? = selectedProject?.focusedContent {
             file.save()
         }
     }
@@ -310,23 +330,28 @@ final class TerminalManager: nonisolated ObservableObject {
     }
 
     private func makeWindowSnapshot() -> SessionSnapshot {
-        let snapshot = SessionSnapshot(
+        typealias ProjectSnapshot = SessionSnapshot.ProjectSnapshot
+        return SessionSnapshot(
             projects: projects.compactMap { project in
                 guard !project.tabs.isEmpty else { return nil }
-                let tabs = project.tabs.map { tab -> SessionSnapshot.ProjectSnapshot.Tab in
-                    switch tab {
-                    case .session(let session):
-                        return .session(workingDirectory: session.currentDirectoryPath)
-                    case .file(let file):
-                        return .file(path: file.path, editorState: file.editorState)
-                    case .diff(let diff):
-                        return .diff(
-                            repoRoot: diff.repoRoot, path: diff.path, staged: diff.staged,
-                            untracked: diff.untracked, origPath: diff.origPath
+                let tabs = project.tabs.map { tab -> ProjectSnapshot.TabSnapshot in
+                    let columns = tab.columns.map { column in
+                        ProjectSnapshot.ColumnSnapshot(
+                            panes: column.panes.map { pane in
+                                ProjectSnapshot.PaneSnapshot(
+                                    content: Self.contentSnapshot(pane.content),
+                                    weight: Double(pane.weight)
+                                )
+                            },
+                            weight: Double(column.weight)
                         )
                     }
+                    let (col, row) = tab.focusedLocation() ?? (0, 0)
+                    return ProjectSnapshot.TabSnapshot(
+                        columns: columns, focusedColumn: col, focusedRow: row
+                    )
                 }
-                return SessionSnapshot.ProjectSnapshot(
+                return ProjectSnapshot(
                     customName: project.customName,
                     tabs: tabs,
                     selectedTabIndex: project.tabs.firstIndex { $0.id == project.selectedTabID }
@@ -334,7 +359,22 @@ final class TerminalManager: nonisolated ObservableObject {
             },
             selectedProjectIndex: projects.firstIndex { $0.id == selectedProjectID }
         )
-        return snapshot
+    }
+
+    private static func contentSnapshot(
+        _ content: PaneContent
+    ) -> SessionSnapshot.ProjectSnapshot.PaneContentSnapshot {
+        switch content {
+        case .session(let session):
+            return .session(workingDirectory: session.currentDirectoryPath)
+        case .file(let file):
+            return .file(path: file.path, editorState: file.editorState)
+        case .diff(let diff):
+            return .diff(
+                repoRoot: diff.repoRoot, path: diff.path, staged: diff.staged,
+                untracked: diff.untracked, origPath: diff.origPath
+            )
+        }
     }
 
     /// Rebuilds projects and tabs from a saved window snapshot. Returns
@@ -344,17 +384,11 @@ final class TerminalManager: nonisolated ObservableObject {
             let project = makeProject(createInitialSession: false)
             project.customName = saved.customName
             for tab in saved.tabs {
-                switch tab {
-                case .session(let workingDirectory):
-                    project.newSession(directory: workingDirectory)
-                case .file(let path, let editorState):
-                    project.openFile(path, editorState: editorState)
-                case .diff(let repoRoot, let path, let staged, let untracked, let origPath):
-                    project.openDiff(
-                        repoRoot: repoRoot, path: path, staged: staged,
-                        untracked: untracked, origPath: origPath
-                    )
-                }
+                project.restoreTab(from: tab)
+            }
+            guard !project.tabs.isEmpty else {
+                projectObservations[project.id] = nil
+                continue
             }
             if let index = saved.selectedTabIndex, project.tabs.indices.contains(index) {
                 project.selectedTabID = project.tabs[index].id

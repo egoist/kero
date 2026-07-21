@@ -119,6 +119,11 @@ final class FileTab: nonisolated ObservableObject, nonisolated Identifiable {
 /// oversized.
 struct FileViewerView: View {
     @ObservedObject var file: FileTab
+    /// Whether this file's pane is the focused one in its tab.
+    var isFocused: Bool = true
+    /// Called when the editor takes focus itself (e.g. a click), so the
+    /// model's focused pane can follow.
+    var onFocused: () -> Void = {}
 
     @ObservedObject private var settings = AppSettings.shared
     @Environment(\.colorScheme) private var colorScheme
@@ -134,7 +139,9 @@ struct FileViewerView: View {
                     file: file,
                     font: TerminalFont.current(),
                     palette: .github(dark: colorScheme == .dark),
-                    wrapLines: settings.wrapLines
+                    wrapLines: settings.wrapLines,
+                    isFocused: isFocused,
+                    onFocused: onFocused
                 )
             }
         case .image(let image):

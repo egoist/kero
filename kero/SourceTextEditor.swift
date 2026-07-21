@@ -68,6 +68,8 @@ struct SourceTextEditor: NSViewRepresentable {
     let font: NSFont
     let palette: EditorPalette
     let wrapLines: Bool
+    var isFocused: Bool = true
+    var onFocused: () -> Void = {}
 
     func makeCoordinator() -> Coordinator {
         Coordinator(file: file)
@@ -75,7 +77,8 @@ struct SourceTextEditor: NSViewRepresentable {
 
     func makeNSView(context: Context) -> NSScrollView {
         let scrollView = RestorableScrollView()
-        let textView = STTextView()
+        let textView = FocusReportingTextView()
+        textView.onBecomeFirstResponder = onFocused
         scrollView.wantsLayer = true
         scrollView.hasVerticalScroller = true
         scrollView.hasHorizontalScroller = true
@@ -144,15 +147,29 @@ struct SourceTextEditor: NSViewRepresentable {
             }
         }
 
-        DispatchQueue.main.async {
-            textView.window?.makeFirstResponder(textView)
+        // Only grab focus on mount when this pane is the focused one, so an
+        // unfocused split doesn't steal the caret.
+        if isFocused {
+            DispatchQueue.main.async {
+                textView.window?.makeFirstResponder(textView)
+            }
         }
+        context.coordinator.wasFocused = isFocused
         return scrollView
     }
 
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
         guard let textView = scrollView.documentView as? STTextView else { return }
+        (textView as? FocusReportingTextView)?.onBecomeFirstResponder = onFocused
         apply(to: textView, scrollView: scrollView)
+        // Take focus on the unfocused→focused edge (keyboard navigation moving
+        // focus here), never on every render.
+        if isFocused, !context.coordinator.wasFocused {
+            DispatchQueue.main.async {
+                textView.window?.makeFirstResponder(textView)
+            }
+        }
+        context.coordinator.wasFocused = isFocused
     }
 
     /// Take exactly the space SwiftUI offers. Without this, SwiftUI sizes the
@@ -204,6 +221,9 @@ struct SourceTextEditor: NSViewRepresentable {
         private let file: FileTab
         private weak var textView: STTextView?
         private var scrollObserver: (any NSObjectProtocol)?
+        /// Last-applied focus state, so `updateNSView` can act only on the
+        /// unfocused→focused edge.
+        var wasFocused = false
 
         init(file: FileTab) {
             self.file = file
@@ -245,6 +265,18 @@ struct SourceTextEditor: NSViewRepresentable {
             file.editorState.selectionLocation = selection.location
             file.editorState.selectionLength = selection.length
         }
+    }
+}
+
+/// STTextView that reports when it takes first-responder status (a click, or a
+/// programmatic focus), so the owning pane can mark itself focused in the model.
+final class FocusReportingTextView: STTextView {
+    var onBecomeFirstResponder: (() -> Void)?
+
+    override func becomeFirstResponder() -> Bool {
+        let became = super.becomeFirstResponder()
+        if became { onBecomeFirstResponder?() }
+        return became
     }
 }
 

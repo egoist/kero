@@ -79,8 +79,8 @@ private struct KeroCommands: Commands {
             }
             .keyboardShortcut("n", modifiers: [.command, .shift])
 
-            Button("Close Tab") {
-                // Cmd-W is app-wide: close a tab only when a main window with
+            Button("Close Pane") {
+                // Cmd-W is app-wide: close a pane only when a main window with
                 // an open project is key. Otherwise close the key window
                 // itself — a non-main window (e.g. Settings), or a main window
                 // showing the empty "No open projects" state with no tab left.
@@ -171,6 +171,46 @@ private struct KeroCommands: Commands {
         }
 
         CommandMenu("Tabs") {
+            Button("Split Right") {
+                manager?.splitRight()
+            }
+            .keyboardShortcut("d", modifiers: .command)
+            .disabled(manager?.canSplit != true)
+
+            Button("Split Down") {
+                manager?.splitDown()
+            }
+            .keyboardShortcut("d", modifiers: [.command, .shift])
+            .disabled(manager?.canSplit != true)
+
+            Divider()
+
+            Button("Focus Pane Left") {
+                manager?.focusPaneLeft()
+            }
+            .keyboardShortcut(.leftArrow, modifiers: [.command, .option])
+            .disabled(manager == nil)
+
+            Button("Focus Pane Right") {
+                manager?.focusPaneRight()
+            }
+            .keyboardShortcut(.rightArrow, modifiers: [.command, .option])
+            .disabled(manager == nil)
+
+            Button("Focus Pane Up") {
+                manager?.focusPaneUp()
+            }
+            .keyboardShortcut(.upArrow, modifiers: [.command, .option])
+            .disabled(manager == nil)
+
+            Button("Focus Pane Down") {
+                manager?.focusPaneDown()
+            }
+            .keyboardShortcut(.downArrow, modifiers: [.command, .option])
+            .disabled(manager == nil)
+
+            Divider()
+
             Button("Next Tab") {
                 manager?.selectNextTab()
             }

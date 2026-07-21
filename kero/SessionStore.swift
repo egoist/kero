@@ -7,17 +7,65 @@ import Foundation
 
 /// Snapshot of open projects and tabs, saved so a relaunch restores the
 /// previous layout. Terminal sessions restore as fresh shells started in
-/// their last known working directory; file and diff tabs reload from disk.
+/// their last known working directory; file and diff panes reload from disk.
 struct SessionSnapshot: Codable {
     struct ProjectSnapshot: Codable {
-        enum Tab: Codable {
+        /// A single pane's content — the terminal/file/diff it holds. The case
+        /// shapes match the pre-split format exactly, so old saved tabs (which
+        /// were one of these directly) still decode; see `TabSnapshot`.
+        enum PaneContentSnapshot: Codable {
             case session(workingDirectory: String)
             case file(path: String, editorState: EditorState?)
             case diff(repoRoot: String, path: String, staged: Bool, untracked: Bool, origPath: String?)
         }
 
+        struct PaneSnapshot: Codable {
+            var content: PaneContentSnapshot
+            var weight: Double
+        }
+
+        struct ColumnSnapshot: Codable {
+            var panes: [PaneSnapshot]
+            var weight: Double
+        }
+
+        /// One tab's niri layout: a row of columns plus the focused pane's
+        /// position. Decodes the pre-split format too — where a tab *was* a
+        /// single content enum — by wrapping it in a one-pane layout.
+        struct TabSnapshot: Codable {
+            var columns: [ColumnSnapshot]
+            var focusedColumn: Int
+            var focusedRow: Int
+
+            init(columns: [ColumnSnapshot], focusedColumn: Int, focusedRow: Int) {
+                self.columns = columns
+                self.focusedColumn = focusedColumn
+                self.focusedRow = focusedRow
+            }
+
+            enum CodingKeys: String, CodingKey {
+                case columns, focusedColumn, focusedRow
+            }
+
+            init(from decoder: any Decoder) throws {
+                if let container = try? decoder.container(keyedBy: CodingKeys.self),
+                   let columns = try? container.decode([ColumnSnapshot].self, forKey: .columns) {
+                    self.columns = columns
+                    focusedColumn = (try? container.decode(Int.self, forKey: .focusedColumn)) ?? 0
+                    focusedRow = (try? container.decode(Int.self, forKey: .focusedRow)) ?? 0
+                    return
+                }
+                // Legacy: the tab was a single content enum. Wrap it in a
+                // one-column, one-pane layout.
+                let content = try PaneContentSnapshot(from: decoder)
+                columns = [ColumnSnapshot(panes: [PaneSnapshot(content: content, weight: 1)], weight: 1)]
+                focusedColumn = 0
+                focusedRow = 0
+            }
+        }
+
         var customName: String?
-        var tabs: [Tab]
+        var tabs: [TabSnapshot]
         var selectedTabIndex: Int?
     }
 

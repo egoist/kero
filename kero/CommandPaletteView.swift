@@ -47,6 +47,24 @@ struct CommandPaletteView: View {
             PaletteCommand(id: "clear-terminal", title: "Clear Terminal", systemImage: "eraser", shortcut: "⌘K") {
                 manager.clearActiveTerminal()
             },
+            PaletteCommand(id: "split-right", title: "Split Right", systemImage: "rectangle.split.2x1", shortcut: "⌘D") {
+                manager.splitRight()
+            },
+            PaletteCommand(id: "split-down", title: "Split Down", systemImage: "rectangle.split.1x2", shortcut: "⇧⌘D") {
+                manager.splitDown()
+            },
+            PaletteCommand(id: "focus-pane-left", title: "Focus Pane Left", systemImage: "arrow.left", shortcut: "⌥⌘←") {
+                manager.focusPaneLeft()
+            },
+            PaletteCommand(id: "focus-pane-right", title: "Focus Pane Right", systemImage: "arrow.right", shortcut: "⌥⌘→") {
+                manager.focusPaneRight()
+            },
+            PaletteCommand(id: "focus-pane-up", title: "Focus Pane Up", systemImage: "arrow.up", shortcut: "⌥⌘↑") {
+                manager.focusPaneUp()
+            },
+            PaletteCommand(id: "focus-pane-down", title: "Focus Pane Down", systemImage: "arrow.down", shortcut: "⌥⌘↓") {
+                manager.focusPaneDown()
+            },
             PaletteCommand(id: "new-project", title: "New Project", systemImage: "folder.badge.plus", shortcut: "⌘N") {
                 manager.newProject()
             },

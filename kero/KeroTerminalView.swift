@@ -11,14 +11,28 @@ import SwiftTerm
 /// a right-click context menu, and a dragging destination that inserts
 /// dropped files' paths at the prompt (from the Files panel or from Finder).
 final class KeroTerminalView: LocalProcessTerminalView {
+    /// Fired when this terminal is clicked, right-clicked, or dropped onto —
+    /// i.e. takes focus — so the owning pane can mark itself focused in the
+    /// model. (SwiftTerm's `becomeFirstResponder` is not open to override, so
+    /// a passive click recognizer stands in for the plain-click case.)
+    var onBecomeFirstResponder: (() -> Void)?
+
     override init(frame: CGRect) {
         super.init(frame: frame)
         registerForDraggedTypes([.fileURL])
+        installFocusClickRecognizer()
     }
 
     required init?(coder: NSCoder) {
         super.init(coder: coder)
         registerForDraggedTypes([.fileURL])
+        installFocusClickRecognizer()
+    }
+
+    private func installFocusClickRecognizer() {
+        let recognizer = FocusClickRecognizer()
+        recognizer.onMouseDown = { [weak self] in self?.onBecomeFirstResponder?() }
+        addGestureRecognizer(recognizer)
     }
 
     // MARK: - Context menu
@@ -32,6 +46,7 @@ final class KeroTerminalView: LocalProcessTerminalView {
         // following Paste (or typing) lands here rather than in whatever held
         // focus before — matching Terminal.app.
         window?.makeFirstResponder(self)
+        onBecomeFirstResponder?()
 
         let menu = NSMenu()
         menu.addItem(contextItem("Copy", #selector(copy(_:))))
@@ -66,6 +81,7 @@ final class KeroTerminalView: LocalProcessTerminalView {
         // The drop should type into *this* terminal, so take focus the way a
         // right-click does — otherwise the path lands wherever focus was.
         window?.makeFirstResponder(self)
+        onBecomeFirstResponder?()
         let text = urls.map { Self.shellToken(for: $0.path) }.joined(separator: " ")
         send(txt: text + " ")
         return true
@@ -93,5 +109,17 @@ final class KeroTerminalView: LocalProcessTerminalView {
             return path
         }
         return "'" + path.replacingOccurrences(of: "'", with: "'\\''") + "'"
+    }
+}
+
+/// A passive primary-button recognizer: it reports the mouse-down, then
+/// immediately fails so the terminal still receives the event for selection
+/// and mouse reporting. Used purely to notice a click landing on this pane.
+private final class FocusClickRecognizer: NSClickGestureRecognizer {
+    var onMouseDown: (() -> Void)?
+
+    override func mouseDown(with event: NSEvent) {
+        onMouseDown?()
+        state = .failed
     }
 }

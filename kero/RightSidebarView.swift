@@ -18,10 +18,10 @@ struct RightSidebarView: View {
 
     private let refreshTimer = Timer.publish(every: 2, on: .main, in: .common).autoconnect()
 
-    /// Path of the file open in the active tab, so the tree can highlight it.
-    /// Reactive: `selectedTabID` is published up through the project to `manager`.
+    /// Path of the file in the focused pane, so the tree can highlight it.
+    /// Reactive: focus/selection is published up through the project to `manager`.
     private var openFilePath: String? {
-        if case .file(let file)? = manager.selectedProject?.selectedTab {
+        if case .file(let file)? = manager.selectedProject?.focusedContent {
             return file.path
         }
         return nil
@@ -43,6 +43,7 @@ struct RightSidebarView: View {
                             session: manager.selectedSession,
                             currentFilePath: openFilePath,
                             openFile: { manager.openFile($0) },
+                            openToSide: { manager.openFileToSide($0) },
                             onRename: { manager.fileRenamed(from: $0, to: $1) }
                         )
                     case .git:
@@ -50,6 +51,7 @@ struct RightSidebarView: View {
                             model: git,
                             session: manager.selectedSession,
                             openFile: { manager.openFile($0) },
+                            openToSide: { manager.openFileToSide($0) },
                             openDiff: { entry, staged in
                                 manager.openDiff(
                                     repoRoot: git.repoRoot,
@@ -166,6 +168,7 @@ private struct FileTreePanel: View {
     let session: TerminalSession?
     let currentFilePath: String?
     let openFile: (String) -> Void
+    let openToSide: (String) -> Void
     let onRename: (_ oldPath: String, _ newPath: String) -> Void
 
     var body: some View {
@@ -192,7 +195,7 @@ private struct FileTreePanel: View {
                         FileTreeRow(
                             model: model, item: item, session: session,
                             currentFilePath: currentFilePath,
-                            openFile: openFile, onRename: onRename
+                            openFile: openFile, openToSide: openToSide, onRename: onRename
                         )
                     }
                 }
@@ -209,6 +212,7 @@ private struct FileTreeRow: View {
     let session: TerminalSession?
     let currentFilePath: String?
     let openFile: (String) -> Void
+    let openToSide: (String) -> Void
     let onRename: (_ oldPath: String, _ newPath: String) -> Void
 
     @State private var isHovering = false
@@ -244,6 +248,9 @@ private struct FileTreeRow: View {
         if !item.isDirectory {
             Button("Open") {
                 openFile(item.path)
+            }
+            Button("Open to the Side") {
+                openToSide(item.path)
             }
         }
         Button("Open in Default App") {
@@ -426,6 +433,7 @@ private struct GitPanel: View {
     @ObservedObject var model: GitStatusModel
     let session: TerminalSession?
     let openFile: (String) -> Void
+    let openToSide: (String) -> Void
     let openDiff: (_ entry: GitStatusModel.Entry, _ staged: Bool) -> Void
 
     @State private var commitMessage = ""
@@ -721,6 +729,7 @@ private struct GitPanel: View {
             disabled: model.isBusy,
             openDiff: { openDiff(entry, kind == .staged) },
             openFile: { openIfPossible(entry) },
+            openToSide: { openIfPossible(entry, toSide: true) },
             stage: { model.stage(entry) },
             unstage: { model.unstage(entry) },
             discard: { pendingDiscard = entry },
@@ -728,10 +737,14 @@ private struct GitPanel: View {
         )
     }
 
-    private func openIfPossible(_ entry: GitStatusModel.Entry) {
+    private func openIfPossible(_ entry: GitStatusModel.Entry, toSide: Bool = false) {
         let path = model.absolutePath(for: entry)
         guard FileManager.default.fileExists(atPath: path) else { return }
-        openFile(path)
+        if toSide {
+            openToSide(path)
+        } else {
+            openFile(path)
+        }
     }
 
     private func discardTitle(for entry: GitStatusModel.Entry?) -> String {
@@ -873,6 +886,7 @@ private struct GitEntryRow: View {
     let disabled: Bool
     let openDiff: () -> Void
     let openFile: () -> Void
+    let openToSide: () -> Void
     let stage: () -> Void
     let unstage: () -> Void
     let discard: () -> Void
@@ -952,6 +966,7 @@ private struct GitEntryRow: View {
     private var menu: some View {
         Button("Open Changes") { openDiff() }
         Button("Open File") { openFile() }
+        Button("Open File to the Side") { openToSide() }
         Divider()
         switch kind {
         case .merge:
