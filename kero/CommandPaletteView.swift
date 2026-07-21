@@ -34,7 +34,7 @@ struct CommandPaletteView: View {
                 .padding(.top, 110)
         }
         .ignoresSafeArea()
-        .onExitCommand { dismiss() }
+        .onExitCommand { dismissFromKeyboard() }
         .onDisappear { manager.restoreFocusAfterCommandPalette() }
     }
 
@@ -191,7 +191,7 @@ struct CommandPaletteView: View {
                     .focused($searchFocused)
                     .onKeyPress(.downArrow) { move(1); return .handled }
                     .onKeyPress(.upArrow) { move(-1); return .handled }
-                    .onKeyPress(.escape) { dismiss(); return .handled }
+                    .onKeyPress(.escape) { dismissFromKeyboard(); return .handled }
                     .onSubmit { runSelected() }
             }
             .padding(.horizontal, 14)
@@ -303,5 +303,15 @@ struct CommandPaletteView: View {
 
     private func dismiss() {
         manager.dismissCommandPalette()
+    }
+
+    /// Escape reaches us as AppKit's `cancelOperation:`, which SwiftUI can
+    /// dispatch inside a view-update pass — flipping the manager's published
+    /// `isCommandPaletteVisible` there logs "Publishing changes from within
+    /// view updates". Hop to the next runloop so the removal lands cleanly.
+    /// (Return and backdrop taps arrive during normal event handling and can
+    /// dismiss synchronously.)
+    private func dismissFromKeyboard() {
+        DispatchQueue.main.async { dismiss() }
     }
 }
