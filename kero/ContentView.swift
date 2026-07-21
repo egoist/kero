@@ -220,6 +220,16 @@ private struct SessionTabsView: View {
 
     @ViewBuilder
     private func tabContextMenu(for tab: PaneTab) -> some View {
+        if case .file(let file) = tab.focusedContent {
+            Button("Reveal in Finder") {
+                NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: file.path)])
+            }
+            Button("Copy Absolute Path") {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(file.path, forType: .string)
+            }
+            Divider()
+        }
         Button("Close") { project.close(tab) }
         Button("Close Others") { project.closeOthers(tab) }
             .disabled(project.tabs.count <= 1)
