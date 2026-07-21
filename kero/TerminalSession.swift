@@ -160,10 +160,13 @@ final class TerminalSession: NSObject, nonisolated ObservableObject, nonisolated
         // Replay previous scrollback into the emulator before the shell
         // launches, so restored history sits above the first prompt. Feeding
         // here is safe — `startProcess` starts the PTY without resetting the
-        // buffer. A trailing newline drops the new prompt onto its own line.
+        // buffer. A divider banner marks where the replayed output ends, and
+        // the trailing newline drops the new prompt onto its own line.
         if AppSettings.shared.restoreTerminalHistory,
            let restoredHistory, !restoredHistory.isEmpty {
-            terminalView.feed(text: restoredHistory + "\r\n")
+            let banner = TerminalHistorySerializer.restoredBanner(
+                width: terminalView.getTerminal().cols)
+            terminalView.feed(text: restoredHistory + "\r\n" + banner + "\r\n")
         }
         restoredHistory = nil
         terminalView.startProcess(
