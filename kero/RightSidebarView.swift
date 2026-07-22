@@ -124,6 +124,8 @@ struct RightSidebarView: View {
         }
         .buttonStyle(.plain)
         .help(help)
+        .accessibilityLabel(title)
+        .accessibilityValue(isActive ? "Selected" : "Not selected")
     }
 
     private func syncModels() {
@@ -430,6 +432,21 @@ private struct FileTreeRow: View {
 // MARK: - Git panel
 
 private struct GitPanel: View {
+    private struct FileFingerprint: Equatable {
+        let exists: Bool
+        let size: UInt64
+        let modificationDate: Date?
+        let fileNumber: UInt64?
+        let symbolicLinkDestination: String?
+    }
+
+    private struct PendingDiscard {
+        let entry: GitStatusModel.Entry
+        let fingerprints: [String: FileFingerprint]
+        let branch: String?
+        let headOID: String?
+    }
+
     @ObservedObject var model: GitStatusModel
     let session: TerminalSession?
     let openFile: (String) -> Void
@@ -437,52 +454,98 @@ private struct GitPanel: View {
     let openDiff: (_ entry: GitStatusModel.Entry, _ staged: Bool) -> Void
 
     @State private var commitMessage = ""
-    @State private var pendingDiscard: GitStatusModel.Entry?
+    @State private var pendingDiscard: PendingDiscard?
+    @State private var pendingDiscardAll: [PendingDiscard] = []
     @State private var confirmDiscardAll = false
     @State private var mergeCollapsed = false
     @State private var stagedCollapsed = false
     @State private var changesCollapsed = false
+    @State private var historyCollapsed = true
+    @State private var filterText = ""
+    @State private var showFilter = false
+    @State private var showBranchCreator = false
+    @State private var newBranchName = ""
+    @State private var operationExpanded = false
+    @FocusState private var branchFieldFocused: Bool
 
     var body: some View {
         VStack(spacing: 0) {
             header
+            operationBanner
 
-            if !model.isRepo {
-                placeholder(icon: "arrow.triangle.branch", text: "Not a git repository")
-            } else {
-                if let error = model.lastError {
-                    errorBar(error)
-                }
-                commitBox
-                if model.totalChangeCount == 0 {
-                    placeholder(icon: "checkmark.circle", text: "Working tree clean")
+            if let statusError = model.statusError {
+                statusFailure(statusError)
+            } else if !model.isRepo {
+                if model.isRefreshing {
+                    placeholder(icon: "arrow.clockwise", text: "Finding repository…")
+                } else if model.isBusy {
+                    placeholder(icon: "hourglass", text: "Finishing Git operation…")
                 } else {
-                    changeList
+                    notRepository
                 }
+            } else {
+                trackingBar
+                repositoryOperationBanner
+                branchCreator
+                commitBox
+                filterBar
+                changeList
             }
         }
         .confirmationDialog(
-            discardTitle(for: pendingDiscard),
+            discardTitle(for: pendingDiscard?.entry),
             isPresented: Binding(
                 get: { pendingDiscard != nil },
                 set: { if !$0 { pendingDiscard = nil } }
             ),
             titleVisibility: .visible
         ) {
-            Button(pendingDiscard?.isUntracked == true ? "Move to Trash" : "Discard Changes",
+            Button(discardActionTitle(for: pendingDiscard?.entry),
                    role: .destructive) {
-                if let entry = pendingDiscard { model.discard(entry) }
+                if let pendingDiscard {
+                    if discardSnapshotIsCurrent(pendingDiscard) {
+                        model.discard(pendingDiscard.entry)
+                    } else {
+                        model.cancelStaleDiscard()
+                    }
+                }
                 pendingDiscard = nil
             }
+            .disabled(model.isBusy)
         }
         .confirmationDialog(
-            "Discard all \(model.changedEntries.count) changes? Untracked files move to the Trash.",
-            isPresented: $confirmDiscardAll,
+            "Discard the \(pendingDiscardAll.count) reviewed changes? Untracked and moved files go to the Trash.",
+            isPresented: Binding(
+                get: { confirmDiscardAll },
+                set: {
+                    confirmDiscardAll = $0
+                    if !$0 { pendingDiscardAll = [] }
+                }
+            ),
             titleVisibility: .visible
         ) {
             Button("Discard All Changes", role: .destructive) {
-                model.discardAllChanges()
+                let snapshot = pendingDiscardAll
+                if !snapshot.isEmpty && snapshot.allSatisfy(discardSnapshotIsCurrent) {
+                    model.discardChanges(snapshot.map(\.entry))
+                } else {
+                    model.cancelStaleDiscard()
+                }
+                pendingDiscardAll = []
+                confirmDiscardAll = false
             }
+            .disabled(model.isBusy)
+        }
+        .onChange(of: model.rootPath) {
+            // A dialog must never carry a destructive file target across cwd.
+            pendingDiscard = nil
+            pendingDiscardAll = []
+            confirmDiscardAll = false
+            showBranchCreator = false
+            newBranchName = ""
+        }
+        .onChange(of: model.repositoryIdentity) {
+            resetRepositoryDrafts()
         }
     }
 
@@ -490,27 +553,27 @@ private struct GitPanel: View {
 
     private var header: some View {
         HStack(spacing: 6) {
-            Image(systemName: "arrow.triangle.branch")
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(Color(nsColor: Theme.cursor))
-            PanelHeader(
-                title: model.isRepo ? (model.branch ?? "…") : "Git",
-                subtitle: model.rootPath
-            )
-            if model.isBusy {
+            if model.isRepo {
+                branchMenu
+            } else {
+                Image(systemName: "arrow.triangle.branch")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(Color(nsColor: Theme.cursor))
+                PanelHeader(title: "Git", subtitle: model.rootPath)
+            }
+            if model.isBusy || model.isRefreshing {
                 ProgressView()
                     .controlSize(.small)
                     .scaleEffect(0.6)
                     .frame(width: 12, height: 12)
+                    .accessibilityLabel(model.isBusy ? "Git operation in progress" : "Refreshing Git status")
             }
             if model.isRepo {
-                if model.behind > 0 {
-                    badge("↓\(model.behind)")
+                headerButton("line.3.horizontal.decrease", help: "Filter Changed Files", disabled: false) {
+                    showFilter.toggle()
+                    if !showFilter { filterText = "" }
                 }
-                if model.ahead > 0 {
-                    badge("↑\(model.ahead)")
-                }
-                headerButton("arrow.clockwise", help: "Refresh", disabled: false) {
+                headerButton("arrow.clockwise", help: "Refresh Git Status", disabled: model.isRefreshing) {
                     model.refresh()
                 }
                 moreMenu
@@ -521,12 +584,86 @@ private struct GitPanel: View {
         .padding(.bottom, 8)
     }
 
+    private var branchMenu: some View {
+        Menu {
+            if !model.branches.isEmpty {
+                ForEach(model.branches, id: \.self) { branch in
+                    Button {
+                        model.switchBranch(to: branch)
+                    } label: {
+                        if branch == model.branch {
+                            Label(branch, systemImage: "checkmark")
+                        } else {
+                            Text(branch)
+                        }
+                    }
+                    .disabled(branch == model.branch || model.isBusy)
+                }
+                Divider()
+            }
+            Button("Create New Branch…") {
+                newBranchName = ""
+                showBranchCreator = true
+                DispatchQueue.main.async { branchFieldFocused = true }
+            }
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "arrow.triangle.branch")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(Color(nsColor: Theme.cursor))
+                PanelHeader(title: model.branch ?? "Detached HEAD", subtitle: model.rootPath)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .menuStyle(.button)
+        .menuIndicator(.hidden)
+        .fixedSize(horizontal: false, vertical: true)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .help("Switch or Create Branch")
+        .accessibilityLabel("Current branch, \(model.branch ?? "detached HEAD")")
+    }
+
     private var moreMenu: some View {
         Menu {
-            Button("Pull") { model.pull() }
+            Button("Fetch") { model.fetch() }
+                .disabled(model.isBusy || model.remotes.isEmpty)
+            Button("Pull (Fast-forward Only)") { model.pull() }
                 .disabled(model.isBusy || !model.hasUpstream)
-            Button(model.hasUpstream ? "Push" : "Publish Branch") { model.push() }
-                .disabled(model.isBusy)
+            if model.hasUpstream {
+                Button("Push") { model.push() }
+                    .disabled(model.isBusy)
+            } else if model.remotes.count > 1 {
+                Menu("Publish Branch to") {
+                    ForEach(model.remotes, id: \.self) { remote in
+                        Button(remote) { model.publish(to: remote) }
+                    }
+                }
+                .disabled(model.isBusy || model.branch == "detached HEAD")
+            } else {
+                Button("Publish Branch") { model.push() }
+                    .disabled(model.isBusy || model.remotes.isEmpty || model.branch == "detached HEAD")
+            }
+            Button("Sync Changes") { model.syncChanges() }
+                .disabled(
+                    model.isBusy || model.remotes.isEmpty
+                        || (!model.hasUpstream && model.remotes.count != 1)
+                        || model.branch == "detached HEAD"
+                )
+            Divider()
+            Button("Stash All Changes") { model.stash(includeUntracked: true) }
+                .disabled(model.isBusy || model.totalChangeCount == 0)
+            Button(model.stashCount == 1 ? "Pop Stash" : "Pop Stash (\(model.stashCount))") {
+                model.stashPop()
+            }
+            .disabled(model.isBusy || model.stashCount == 0)
+            Divider()
+            Button("Copy Changed Paths") { copyChangedPaths() }
+                .disabled(model.totalChangeCount == 0)
+            Button("Copy Repository Path") { copyToPasteboard(model.repoRoot) }
+            Button("Reveal Repository in Finder") {
+                NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: model.repoRoot)])
+            }
         } label: {
             Image(systemName: "ellipsis")
                 .font(.system(size: 10, weight: .medium))
@@ -539,6 +676,7 @@ private struct GitPanel: View {
         .menuIndicator(.hidden)
         .fixedSize()
         .help("More Actions…")
+        .accessibilityLabel("More Git Actions")
     }
 
     private func headerButton(
@@ -555,6 +693,203 @@ private struct GitPanel: View {
         .disabled(disabled)
         .opacity(disabled ? 0.4 : 1)
         .help(help)
+        .accessibilityLabel(help)
+    }
+
+    @ViewBuilder
+    private var trackingBar: some View {
+        if let branch = model.branch {
+            HStack(spacing: 5) {
+                Image(systemName: model.hasUpstream ? "arrow.triangle.2.circlepath" : "icloud.slash")
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundStyle(.tertiary)
+                Text(model.upstream ?? (branch == "detached HEAD" ? "Detached HEAD" : "Unpublished branch"))
+                    .font(.system(size: 9.5))
+                    .foregroundStyle(.tertiary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                Spacer(minLength: 0)
+                if model.behind > 0 {
+                    badge("↓\(model.behind)", label: "\(model.behind) incoming commits")
+                }
+                if model.ahead > 0 {
+                    badge("↑\(model.ahead)", label: "\(model.ahead) outgoing commits")
+                }
+            }
+            .frame(height: 17)
+            .padding(.horizontal, 12)
+            .padding(.bottom, 6)
+            .accessibilityElement(children: .combine)
+        }
+    }
+
+    // MARK: Repository and operation state
+
+    @ViewBuilder
+    private var repositoryOperationBanner: some View {
+        if let current = model.repositoryOperation {
+            HStack(spacing: 6) {
+                Image(systemName: "arrow.triangle.merge")
+                    .font(.system(size: 10, weight: .semibold))
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(current)
+                        .font(.system(size: 10.5, weight: .medium))
+                    Text(model.mergeEntries.isEmpty
+                         ? "Finish or abort from the terminal"
+                         : "Resolve and stage \(model.mergeEntries.count) conflicted \(model.mergeEntries.count == 1 ? "file" : "files")")
+                        .font(.system(size: 9.5))
+                        .foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 0)
+            }
+            .foregroundStyle(Color(red: 0.74, green: 0.55, blue: 1.0))
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+            .background(
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(Color(red: 0.74, green: 0.55, blue: 1.0).opacity(0.08))
+            )
+            .padding(.horizontal, 10)
+            .padding(.bottom, 7)
+            .accessibilityElement(children: .combine)
+        }
+    }
+
+    @ViewBuilder
+    private var operationBanner: some View {
+        if let operation = model.operation {
+            VStack(spacing: 0) {
+                HStack(spacing: 6) {
+                    operationIcon(operation)
+                    Text(operation.statusLabel)
+                        .font(.system(size: 10.5, weight: .medium))
+                        .lineLimit(1)
+                    Spacer(minLength: 0)
+                    if !operation.output.isEmpty {
+                        Button {
+                            operationExpanded.toggle()
+                        } label: {
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 8, weight: .semibold))
+                                .rotationEffect(.degrees(operationExpanded ? 90 : 0))
+                                .frame(width: 16, height: 16)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .help(operationExpanded ? "Hide Git Output" : "Show Git Output")
+                        .accessibilityLabel(operationExpanded ? "Hide Git Output" : "Show Git Output")
+                    }
+                    if !operation.isRunning {
+                        Button {
+                            operationExpanded = false
+                            model.dismissOperation()
+                        } label: {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 8, weight: .semibold))
+                                .frame(width: 16, height: 16)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .help("Dismiss")
+                        .accessibilityLabel("Dismiss Git Result")
+                    }
+                }
+                if operationExpanded, !operation.output.isEmpty {
+                    ScrollView([.horizontal, .vertical]) {
+                        Text(operation.output)
+                            .font(.system(size: 9, design: .monospaced))
+                            .textSelection(.enabled)
+                            .fixedSize(horizontal: true, vertical: false)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.top, 6)
+                    }
+                    .frame(maxHeight: 96)
+                    .accessibilityLabel("Git Output")
+                }
+            }
+            .foregroundStyle(operationColor(operation))
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+            .background(
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(operationColor(operation).opacity(0.08))
+            )
+            .padding(.horizontal, 10)
+            .padding(.bottom, 7)
+        }
+    }
+
+    @ViewBuilder
+    private func operationIcon(_ operation: GitStatusModel.Operation) -> some View {
+        switch operation.state {
+        case .running:
+            ProgressView().controlSize(.mini).frame(width: 11, height: 11)
+        case .succeeded:
+            Image(systemName: "checkmark.circle.fill").font(.system(size: 10))
+        case .failed:
+            Image(systemName: "exclamationmark.triangle.fill").font(.system(size: 10))
+        }
+    }
+
+    private func operationColor(_ operation: GitStatusModel.Operation) -> Color {
+        switch operation.state {
+        case .running: return Color(nsColor: Theme.cursor)
+        case .succeeded: return Color(red: 0.25, green: 0.68, blue: 0.33)
+        case .failed: return Color(red: 0.88, green: 0.42, blue: 0.36)
+        }
+    }
+
+    @ViewBuilder
+    private var branchCreator: some View {
+        if showBranchCreator {
+            HStack(spacing: 5) {
+                Image(systemName: "arrow.triangle.branch")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                TextField("New branch name", text: $newBranchName)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 11))
+                    .focused($branchFieldFocused)
+                    .onSubmit(createBranch)
+                    .onKeyPress(.escape) {
+                        showBranchCreator = false
+                        return .handled
+                    }
+                Button("Create", action: createBranch)
+                    .buttonStyle(.borderless)
+                    .font(.system(size: 10, weight: .medium))
+                    .disabled(newBranchName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || model.isBusy)
+                Button {
+                    showBranchCreator = false
+                } label: {
+                    Image(systemName: "xmark").font(.system(size: 8, weight: .semibold))
+                }
+                .buttonStyle(.plain)
+                .help("Cancel")
+                .accessibilityLabel("Cancel Branch Creation")
+            }
+            .padding(.horizontal, 8)
+            .frame(height: 28)
+            .background(
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(Color.primary.opacity(0.05))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 6)
+                    .strokeBorder(Color(nsColor: Theme.cursor).opacity(0.45))
+            )
+            .padding(.horizontal, 10)
+            .padding(.bottom, 8)
+        }
+    }
+
+    private func createBranch() {
+        let name = newBranchName
+        model.createBranch(named: name) { success in
+            guard success else { return }
+            newBranchName = ""
+            showBranchCreator = false
+        }
     }
 
     // MARK: Commit box
@@ -571,31 +906,65 @@ private struct GitPanel: View {
                     RoundedRectangle(cornerRadius: 6)
                         .fill(Color.primary.opacity(0.05))
                 )
-                .onSubmit(performCommit)
+                .onKeyPress(keys: [.return]) { press in
+                    guard press.modifiers.contains(.command) else { return .ignored }
+                    performPrimaryAction()
+                    return .handled
+                }
+
+            HStack(spacing: 4) {
+                actionButton(
+                    icon: "checkmark",
+                    title: commitButtonTitle,
+                    enabled: canCommit(includeAll: false),
+                    help: "Commit staged changes (⌘Return)",
+                    action: performPrimaryAction
+                )
+                commitMenu
+            }
 
             if showSyncButton {
                 actionButton(
                     icon: "arrow.triangle.2.circlepath",
                     title: syncButtonTitle,
                     enabled: !model.isBusy,
-                    help: "Pull remote commits, then push local ones"
-                ) {
-                    model.syncChanges()
-                }
-            } else {
-                actionButton(
-                    icon: "checkmark",
-                    title: commitButtonTitle,
-                    enabled: canCommit,
-                    help: model.stagedEntries.isEmpty
-                        ? "Stage all changes and commit"
-                        : "Commit staged changes",
-                    action: performCommit
+                    help: "Pull remote commits, then push local ones",
+                    action: model.syncChanges
                 )
             }
         }
         .padding(.horizontal, 10)
         .padding(.bottom, 8)
+    }
+
+    private var commitMenu: some View {
+        Menu {
+            Button("Commit Staged") { performCommit(includeAll: false) }
+                .disabled(!canCommit(includeAll: false))
+            Button("Stage All & Commit") { performCommit(includeAll: true) }
+                .disabled(!canCommit(includeAll: true))
+            Divider()
+            Button("Amend Last Commit") { performCommit(includeAll: false, amend: true) }
+                .disabled(!canAmend(includeAll: false))
+            Button("Stage All & Amend") { performCommit(includeAll: true, amend: true) }
+                .disabled(!canAmend(includeAll: true))
+        } label: {
+            Image(systemName: "chevron.down")
+                .font(.system(size: 8, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 24, height: 24)
+                .background(
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(Color.primary.opacity(0.06))
+                )
+                .contentShape(RoundedRectangle(cornerRadius: 6))
+        }
+        .buttonStyle(.plain)
+        .menuStyle(.button)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help("Commit Options")
+        .accessibilityLabel("Commit Options")
     }
 
     private func actionButton(
@@ -621,13 +990,19 @@ private struct GitPanel: View {
         .buttonStyle(.plain)
         .disabled(!enabled)
         .help(help)
+        .accessibilityLabel(title)
     }
 
     private var commitFieldPlaceholder: String {
-        if let branch = model.branch {
-            return "Message (⏎ to commit on \"\(branch)\")"
+        if model.stagedEntries.isEmpty {
+            return model.recentCommits.isEmpty
+                ? "Message (stage changes to use ⌘⏎)"
+                : "Message (stage changes to use ⌘⏎, or choose Amend)"
         }
-        return "Message (⏎ to commit)"
+        if let branch = model.branch {
+            return "Message (⌘⏎ to commit on \"\(branch)\")"
+        }
+        return "Message (⌘⏎ to commit)"
     }
 
     private var showSyncButton: Bool {
@@ -642,20 +1017,79 @@ private struct GitPanel: View {
     }
 
     private var commitButtonTitle: String {
-        model.stagedEntries.isEmpty && model.totalChangeCount > 0 ? "Commit All" : "Commit"
+        if model.stagedEntries.count == 1 { return "Commit 1 Staged File" }
+        if model.stagedEntries.count > 1 { return "Commit \(model.stagedEntries.count) Staged Files" }
+        return "Commit Staged"
     }
 
-    private var canCommit: Bool {
-        !commitMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && model.totalChangeCount > 0
+    private func canCommit(includeAll: Bool) -> Bool {
+        let hasEligibleChanges = includeAll
+            ? (!model.changedEntries.isEmpty || !model.stagedEntries.isEmpty)
+            : !model.stagedEntries.isEmpty
+        return !commitMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && hasEligibleChanges
             && model.mergeEntries.isEmpty
             && !model.isBusy
     }
 
-    private func performCommit() {
-        guard canCommit else { return }
-        model.commit(message: commitMessage)
-        commitMessage = ""
+    private func canAmend(includeAll: Bool) -> Bool {
+        let hasCommit = !model.recentCommits.isEmpty
+        let hasEligibleChanges = !includeAll
+            || !model.changedEntries.isEmpty
+            || !model.stagedEntries.isEmpty
+        return !commitMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && hasCommit
+            && hasEligibleChanges
+            && model.mergeEntries.isEmpty
+            && !model.isBusy
+    }
+
+    private func performPrimaryAction() {
+        performCommit(includeAll: false)
+    }
+
+    private func performCommit(includeAll: Bool, amend: Bool = false) {
+        guard amend ? canAmend(includeAll: includeAll) : canCommit(includeAll: includeAll) else { return }
+        let submittedMessage = commitMessage
+        model.commit(message: submittedMessage, includeAll: includeAll, amend: amend) { success in
+            if success, commitMessage == submittedMessage { commitMessage = "" }
+        }
+    }
+
+    // MARK: Filter
+
+    @ViewBuilder
+    private var filterBar: some View {
+        if showFilter {
+            HStack(spacing: 6) {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.tertiary)
+                TextField("Filter changed files", text: $filterText)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 11))
+                if !filterText.isEmpty {
+                    Button {
+                        filterText = ""
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.tertiary)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Clear Filter")
+                    .accessibilityLabel("Clear Git Filter")
+                }
+            }
+            .padding(.horizontal, 8)
+            .frame(height: 26)
+            .background(
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(Color.primary.opacity(0.045))
+            )
+            .padding(.horizontal, 10)
+            .padding(.bottom, 4)
+        }
     }
 
     // MARK: Change list
@@ -663,53 +1097,75 @@ private struct GitPanel: View {
     private var changeList: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 1) {
-                if !model.mergeEntries.isEmpty {
+                if model.totalChangeCount == 0 {
+                    cleanState
+                } else if visibleChangeCount == 0 {
+                    inlinePlaceholder(icon: "line.3.horizontal.decrease", text: "No changed files match “\(filterText)”")
+                }
+                if !filteredMergeEntries.isEmpty {
                     GitSectionHeader(
                         title: "MERGE CHANGES",
-                        count: model.mergeEntries.count,
+                        count: filteredMergeEntries.count,
                         isCollapsed: $mergeCollapsed,
-                        actions: []
+                        actions: [],
+                        actionsDisabled: model.isBusy
                     )
                     if !mergeCollapsed {
-                        ForEach(model.mergeEntries, id: \.mergeRowID) { entry in
+                        ForEach(filteredMergeEntries, id: \.mergeRowID) { entry in
                             row(entry, status: "U", kind: .merge)
                         }
                     }
                 }
-                if !model.stagedEntries.isEmpty {
+                if !filteredStagedEntries.isEmpty {
                     GitSectionHeader(
                         title: "STAGED CHANGES",
-                        count: model.stagedEntries.count,
+                        count: filteredStagedEntries.count,
                         isCollapsed: $stagedCollapsed,
-                        actions: [
+                        actions: filterText.isEmpty ? [
                             .init(systemImage: "minus", help: "Unstage All Changes") {
                                 model.unstageAll()
                             }
-                        ]
+                        ] : [],
+                        actionsDisabled: model.isBusy
                     )
                     if !stagedCollapsed {
-                        ForEach(model.stagedEntries, id: \.stagedRowID) { entry in
+                        ForEach(filteredStagedEntries, id: \.stagedRowID) { entry in
                             row(entry, status: entry.staged, kind: .staged)
                         }
                     }
                 }
-                if !model.changedEntries.isEmpty {
+                if !filteredChangedEntries.isEmpty {
                     GitSectionHeader(
                         title: "CHANGES",
-                        count: model.changedEntries.count,
+                        count: filteredChangedEntries.count,
                         isCollapsed: $changesCollapsed,
-                        actions: [
+                        actions: filterText.isEmpty ? [
                             .init(systemImage: "arrow.uturn.backward", help: "Discard All Changes") {
-                                confirmDiscardAll = true
+                                requestDiscardAll()
                             },
                             .init(systemImage: "plus", help: "Stage All Changes") {
                                 model.stageAll()
                             },
-                        ]
+                        ] : [],
+                        actionsDisabled: model.isBusy
                     )
                     if !changesCollapsed {
-                        ForEach(model.changedEntries, id: \.changedRowID) { entry in
+                        ForEach(filteredChangedEntries, id: \.changedRowID) { entry in
                             row(entry, status: entry.unstaged, kind: .unstaged)
+                        }
+                    }
+                }
+                if filterText.isEmpty, !model.recentCommits.isEmpty {
+                    GitSectionHeader(
+                        title: "RECENT COMMITS",
+                        count: model.recentCommits.count,
+                        isCollapsed: $historyCollapsed,
+                        actions: [],
+                        actionsDisabled: model.isBusy
+                    )
+                    if !historyCollapsed {
+                        ForEach(model.recentCommits) { commit in
+                            GitCommitRow(commit: commit)
                         }
                     }
                 }
@@ -717,6 +1173,34 @@ private struct GitPanel: View {
             .padding(.horizontal, 6)
             .padding(.bottom, 8)
         }
+    }
+
+    private var filteredMergeEntries: [GitStatusModel.Entry] {
+        model.mergeEntries.filter(matchesFilter)
+    }
+
+    private var filteredStagedEntries: [GitStatusModel.Entry] {
+        model.stagedEntries.filter(matchesFilter)
+    }
+
+    private var filteredChangedEntries: [GitStatusModel.Entry] {
+        model.changedEntries.filter(matchesFilter)
+    }
+
+    private var visibleChangeCount: Int {
+        filteredMergeEntries.count + filteredStagedEntries.count + filteredChangedEntries.count
+    }
+
+    private func matchesFilter(_ entry: GitStatusModel.Entry) -> Bool {
+        let query = filterText.trimmingCharacters(in: .whitespacesAndNewlines)
+        return query.isEmpty || entry.path.localizedCaseInsensitiveContains(query)
+    }
+
+    private var cleanState: some View {
+        inlinePlaceholder(
+            icon: model.ahead > 0 || model.behind > 0 ? "arrow.triangle.2.circlepath" : "checkmark.circle",
+            text: model.ahead > 0 || model.behind > 0 ? "Working tree clean, sync is pending" : "Working tree clean"
+        )
     }
 
     private func row(
@@ -727,17 +1211,31 @@ private struct GitPanel: View {
             status: status,
             kind: kind,
             disabled: model.isBusy,
-            openDiff: { openDiff(entry, kind == .staged) },
+            openDiff: {
+                guard model.isCurrent(entry) else { return }
+                var diffEntry = entry
+                if kind == .unstaged && (entry.staged == "R" || entry.staged == "C") {
+                    // A staged rename/copy's unstaged side compares the
+                    // destination in the index with that same worktree path.
+                    diffEntry.origPath = nil
+                }
+                openDiff(diffEntry, kind == .staged)
+            },
             openFile: { openIfPossible(entry) },
             openToSide: { openIfPossible(entry, toSide: true) },
             stage: { model.stage(entry) },
             unstage: { model.unstage(entry) },
-            discard: { pendingDiscard = entry },
-            absolutePath: model.absolutePath(for: entry)
+            discard: { pendingDiscard = makePendingDiscard(entry) },
+            absolutePath: model.absolutePath(for: entry),
+            copyRelativePath: { copyToPasteboard(entry.path) },
+            insertInTerminal: session.map { session in
+                { session.sendCommand(shellQuoted(model.absolutePath(for: entry)) + " ") }
+            }
         )
     }
 
     private func openIfPossible(_ entry: GitStatusModel.Entry, toSide: Bool = false) {
+        guard model.isCurrent(entry) else { return }
         let path = model.absolutePath(for: entry)
         guard FileManager.default.fileExists(atPath: path) else { return }
         if toSide {
@@ -749,9 +1247,77 @@ private struct GitPanel: View {
 
     private func discardTitle(for entry: GitStatusModel.Entry?) -> String {
         guard let entry else { return "" }
-        return entry.isUntracked
-            ? "Delete \(entry.fileName)? It is untracked and will move to the Trash."
-            : "Discard changes in \(entry.fileName)?"
+        if entry.isUntracked {
+            return "Delete \(entry.fileName)? Its contents will move to the Trash."
+        }
+        if entry.isWorktreeRename, let original = entry.origPath {
+            return "Undo this rename? \(entry.fileName) will move to the Trash and \((original as NSString).lastPathComponent) will be restored."
+        }
+        if entry.isWorktreeCopy {
+            return "Discard this copy? \(entry.fileName) will move to the Trash."
+        }
+        return "Discard changes in \(entry.fileName)?"
+    }
+
+    private func discardActionTitle(for entry: GitStatusModel.Entry?) -> String {
+        guard let entry else { return "Discard Changes" }
+        if entry.isUntracked || entry.isWorktreeCopy { return "Move to Trash" }
+        if entry.isWorktreeRename { return "Undo Rename" }
+        return "Discard Changes"
+    }
+
+    private func makePendingDiscard(_ entry: GitStatusModel.Entry) -> PendingDiscard {
+        var paths = [entry.path]
+        if entry.isWorktreeRename, let original = entry.origPath {
+            paths.append(original)
+        }
+        return PendingDiscard(
+            entry: entry,
+            fingerprints: Dictionary(uniqueKeysWithValues: paths.map { path in
+                (path, fileFingerprint(at: absolutePath(path, for: entry)))
+            }),
+            branch: model.branch,
+            headOID: model.headOID
+        )
+    }
+
+    private func discardSnapshotIsCurrent(_ pending: PendingDiscard) -> Bool {
+        model.isCurrent(pending.entry)
+            && model.branch == pending.branch
+            && model.headOID == pending.headOID
+            && model.changedEntries.contains(pending.entry)
+            && pending.fingerprints.allSatisfy { path, fingerprint in
+                fileFingerprint(at: absolutePath(path, for: pending.entry)) == fingerprint
+            }
+    }
+
+    private func absolutePath(_ path: String, for entry: GitStatusModel.Entry) -> String {
+        let root = entry.repositoryRoot.isEmpty ? model.repoRoot : entry.repositoryRoot
+        return (root as NSString).appendingPathComponent(path)
+    }
+
+    private func fileFingerprint(at path: String) -> FileFingerprint {
+        let fm = FileManager.default
+        let linkDestination = try? fm.destinationOfSymbolicLink(atPath: path)
+        guard linkDestination != nil || fm.fileExists(atPath: path) else {
+            return FileFingerprint(
+                exists: false, size: 0, modificationDate: nil,
+                fileNumber: nil, symbolicLinkDestination: nil
+            )
+        }
+        let attributes = try? fm.attributesOfItem(atPath: path)
+        return FileFingerprint(
+            exists: true,
+            size: (attributes?[.size] as? NSNumber)?.uint64Value ?? 0,
+            modificationDate: attributes?[.modificationDate] as? Date,
+            fileNumber: (attributes?[.systemFileNumber] as? NSNumber)?.uint64Value,
+            symbolicLinkDestination: linkDestination
+        )
+    }
+
+    private func requestDiscardAll() {
+        pendingDiscardAll = model.changedEntries.map(makePendingDiscard)
+        confirmDiscardAll = !pendingDiscardAll.isEmpty
     }
 
     // MARK: Bits
@@ -770,41 +1336,115 @@ private struct GitPanel: View {
         .frame(maxWidth: .infinity)
     }
 
-    private func errorBar(_ message: String) -> some View {
-        HStack(alignment: .top, spacing: 6) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 9))
-                .padding(.top, 1)
-            Text(message)
+    private func inlinePlaceholder(icon: String, text: String) -> some View {
+        VStack(spacing: 6) {
+            Image(systemName: icon)
+                .font(.system(size: 18, weight: .light))
+                .foregroundStyle(.quaternary)
+            Text(text)
                 .font(.system(size: 10.5))
-                .lineLimit(3)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            Button {
-                model.lastError = nil
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 8, weight: .semibold))
-            }
-            .buttonStyle(.plain)
+                .foregroundStyle(.tertiary)
+                .multilineTextAlignment(.center)
         }
-        .foregroundStyle(Color(red: 0.82, green: 0.60, blue: 0.13))
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .background(
-            RoundedRectangle(cornerRadius: 6)
-                .fill(Color(red: 0.82, green: 0.60, blue: 0.13).opacity(0.08))
-        )
-        .padding(.horizontal, 10)
-        .padding(.bottom, 8)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 18)
+        .padding(.horizontal, 12)
     }
 
-    private func badge(_ text: String) -> some View {
+    private var notRepository: some View {
+        VStack(spacing: 9) {
+            Spacer()
+            Image(systemName: "arrow.triangle.branch")
+                .font(.system(size: 24, weight: .light))
+                .foregroundStyle(.quaternary)
+            VStack(spacing: 2) {
+                Text("No Git Repository")
+                    .font(.system(size: 11.5, weight: .medium))
+                Text("Initialize the terminal’s current directory to start tracking changes.")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.tertiary)
+                    .multilineTextAlignment(.center)
+            }
+            Button("Initialize Repository") {
+                model.initializeRepository()
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.small)
+            .tint(Color(nsColor: Theme.cursor))
+            .disabled(model.rootPath.isEmpty || model.isBusy)
+            Spacer()
+        }
+        .padding(.horizontal, 18)
+        .frame(maxWidth: .infinity)
+    }
+
+    private func statusFailure(_ message: String) -> some View {
+        VStack(spacing: 9) {
+            Spacer()
+            Image(systemName: "exclamationmark.triangle")
+                .font(.system(size: 24, weight: .light))
+                .foregroundStyle(Color(red: 0.88, green: 0.42, blue: 0.36))
+            VStack(spacing: 3) {
+                Text("Git Status Unavailable")
+                    .font(.system(size: 11.5, weight: .medium))
+                Text(message)
+                    .font(.system(size: 10, design: .monospaced))
+                    .foregroundStyle(.tertiary)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(5)
+                    .textSelection(.enabled)
+            }
+            Button("Retry") { model.refresh() }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .disabled(model.isRefreshing || model.isBusy)
+            Spacer()
+        }
+        .padding(.horizontal, 18)
+        .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .contain)
+    }
+
+    private func badge(_ text: String, label: String) -> some View {
         Text(text)
             .font(.system(size: 10, weight: .medium))
             .foregroundStyle(.secondary)
             .padding(.horizontal, 5)
             .padding(.vertical, 2)
             .background(Capsule().fill(Color.primary.opacity(0.07)))
+            .accessibilityLabel(label)
+    }
+
+    private func copyChangedPaths() {
+        let paths = Set(
+            (model.mergeEntries + model.stagedEntries + model.changedEntries).map(\.path)
+        ).sorted()
+        copyToPasteboard(paths.joined(separator: "\n"))
+    }
+
+    private func copyToPasteboard(_ text: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
+    }
+
+    private func resetRepositoryDrafts() {
+        commitMessage = ""
+        filterText = ""
+        showFilter = false
+        newBranchName = ""
+        showBranchCreator = false
+        operationExpanded = false
+        pendingDiscard = nil
+        pendingDiscardAll = []
+        confirmDiscardAll = false
+        mergeCollapsed = false
+        stagedCollapsed = false
+        changesCollapsed = false
+        historyCollapsed = true
+    }
+
+    private func shellQuoted(_ path: String) -> String {
+        "'" + path.replacingOccurrences(of: "'", with: "'\\''") + "'"
     }
 }
 
@@ -820,6 +1460,7 @@ private struct GitSectionHeader: View {
     let count: Int
     @Binding var isCollapsed: Bool
     let actions: [Action]
+    var actionsDisabled = false
 
     @State private var isHovering = false
 
@@ -840,19 +1481,22 @@ private struct GitSectionHeader: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(title)
+            .accessibilityValue(isCollapsed ? "Collapsed" : "Expanded")
 
-            if isHovering {
-                ForEach(actions) { action in
-                    Button(action: action.perform) {
-                        Image(systemName: action.systemImage)
-                            .font(.system(size: 9, weight: .medium))
-                            .foregroundStyle(.secondary)
-                            .frame(width: 16, height: 16)
-                            .contentShape(RoundedRectangle(cornerRadius: 3))
-                    }
-                    .buttonStyle(.plain)
-                    .help(action.help)
+            ForEach(actions) { action in
+                Button(action: action.perform) {
+                    Image(systemName: action.systemImage)
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 16, height: 16)
+                        .contentShape(RoundedRectangle(cornerRadius: 3))
                 }
+                .buttonStyle(.plain)
+                .disabled(actionsDisabled)
+                .opacity(actionsDisabled ? 0.3 : (isHovering ? 1 : 0.55))
+                .help(action.help)
+                .accessibilityLabel(action.help)
             }
 
             Spacer(minLength: 0)
@@ -872,6 +1516,55 @@ private struct GitSectionHeader: View {
         .padding(.top, 8)
         .padding(.bottom, 3)
         .onHover { isHovering = $0 }
+        .contextMenu {
+            ForEach(actions) { action in
+                Button(action.help, action: action.perform)
+                    .disabled(actionsDisabled)
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("\(title), \(count) items")
+        .accessibilityValue(isCollapsed ? "Collapsed" : "Expanded")
+    }
+}
+
+private struct GitCommitRow: View {
+    let commit: GitStatusModel.RecentCommit
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(commit.subject)
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+            HStack(spacing: 4) {
+                Text(commit.shortHash)
+                    .font(.system(size: 9.5, design: .monospaced))
+                    .foregroundStyle(Color(nsColor: Theme.cursor).opacity(0.85))
+                Text("·")
+                Text(commit.author)
+                Text("·")
+                Text(commit.relativeDate)
+            }
+            .font(.system(size: 9.5))
+            .foregroundStyle(.tertiary)
+            .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .contentShape(Rectangle())
+        .contextMenu {
+            Button("Copy Commit Hash") { copy(commit.hash) }
+            Button("Copy Commit Message") { copy(commit.subject) }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(commit.subject), \(commit.shortHash), by \(commit.author), \(commit.relativeDate)")
+    }
+
+    private func copy(_ text: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
     }
 }
 
@@ -891,44 +1584,56 @@ private struct GitEntryRow: View {
     let unstage: () -> Void
     let discard: () -> Void
     let absolutePath: String
+    let copyRelativePath: () -> Void
+    let insertInTerminal: (() -> Void)?
 
     @State private var isHovering = false
+    @FocusState private var isFocused: Bool
 
     var body: some View {
-        Button(action: openDiff) {
-            HStack(spacing: 7) {
-                Text(String(status))
-                    .font(.system(size: 10, weight: .bold, design: .monospaced))
-                    .foregroundStyle(statusColor)
-                    .frame(width: 12)
-                Text(entry.fileName)
-                    .font(.system(size: 11.5))
-                    .foregroundStyle(.secondary)
-                    .strikethrough(status == "D")
-                    .lineLimit(1)
-                    .layoutPriority(1)
-                if !isHovering {
-                    Text(entry.directory)
-                        .font(.system(size: 10))
-                        .foregroundStyle(.tertiary)
+        HStack(spacing: 2) {
+            Button(action: openDiff) {
+                HStack(spacing: 7) {
+                    Text(String(status))
+                        .font(.system(size: 10, weight: .bold, design: .monospaced))
+                        .foregroundStyle(statusColor)
+                        .frame(width: 12)
+                    Text(entry.fileName)
+                        .font(.system(size: 11.5))
+                        .foregroundStyle(.secondary)
+                        .strikethrough(status == "D")
                         .lineLimit(1)
-                        .truncationMode(.head)
+                        .layoutPriority(1)
+                    if !isHovering && !isFocused {
+                        Text(entry.directory)
+                            .font(.system(size: 10))
+                            .foregroundStyle(.tertiary)
+                            .lineLimit(1)
+                            .truncationMode(.head)
+                    }
+                    Spacer(minLength: 0)
                 }
-                Spacer(minLength: 0)
-                if isHovering && !disabled {
-                    hoverActions
-                }
+                .frame(maxWidth: .infinity, minHeight: 16, alignment: .leading)
+                .contentShape(Rectangle())
             }
-            // Fixed height so the taller hover buttons don't grow the row.
-            .frame(height: 16)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 3)
-            .contentShape(RoundedRectangle(cornerRadius: 4))
+            .buttonStyle(.plain)
+            .focused($isFocused)
+            .accessibilityLabel("\(entry.fileName), \(statusName)")
+            .accessibilityHint(kind == .merge ? "Opens conflict changes" : "Opens changes")
+
+            if !disabled {
+                hoverActions
+                    .opacity(isHovering || isFocused ? 1 : 0.55)
+            }
         }
-        .buttonStyle(.plain)
+        // Fixed height so action buttons do not grow the dense file row.
+        .frame(minHeight: 16)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 3)
+        .contentShape(RoundedRectangle(cornerRadius: 4))
         .background(
             RoundedRectangle(cornerRadius: 4)
-                .fill(isHovering ? Color.primary.opacity(0.05) : .clear)
+                .fill(isHovering || isFocused ? Color.primary.opacity(0.05) : .clear)
         )
         .onHover { isHovering = $0 }
         .contextMenu { menu }
@@ -960,22 +1665,32 @@ private struct GitEntryRow: View {
         }
         .buttonStyle(.plain)
         .help(help)
+        .accessibilityLabel(help)
     }
 
     @ViewBuilder
     private var menu: some View {
-        Button("Open Changes") { openDiff() }
-        Button("Open File") { openFile() }
+        if kind == .merge {
+            Button("Open Changes") { openDiff() }
+            Button("Open Conflicted File") { openFile() }
+        } else {
+            Button("Open Changes") { openDiff() }
+            Button("Open File") { openFile() }
+        }
         Button("Open File to the Side") { openToSide() }
         Divider()
         switch kind {
         case .merge:
             Button("Mark Resolved (Stage)") { stage() }
+                .disabled(disabled)
         case .staged:
             Button("Unstage Changes") { unstage() }
+                .disabled(disabled)
         case .unstaged:
             Button("Stage Changes") { stage() }
-            Button(entry.isUntracked ? "Delete File…" : "Discard Changes…") { discard() }
+                .disabled(disabled)
+            Button(destructiveMenuTitle) { discard() }
+                .disabled(disabled)
         }
         Divider()
         Button("Reveal in Finder") {
@@ -985,6 +1700,29 @@ private struct GitEntryRow: View {
             NSPasteboard.general.clearContents()
             NSPasteboard.general.setString(absolutePath, forType: .string)
         }
+        Button("Copy Relative Path") { copyRelativePath() }
+        if let insertInTerminal {
+            Button("Insert Absolute Path in Terminal") { insertInTerminal() }
+        }
+    }
+
+    private var statusName: String {
+        switch status {
+        case "M": return "Modified"
+        case "A": return "Added"
+        case "?": return "Untracked"
+        case "D": return "Deleted"
+        case "R": return "Renamed"
+        case "C": return "Copied"
+        case "U": return "Conflict"
+        default: return "Changed"
+        }
+    }
+
+    private var destructiveMenuTitle: String {
+        if entry.isUntracked || entry.isWorktreeCopy { return "Move to Trash…" }
+        if entry.isWorktreeRename { return "Undo Rename…" }
+        return "Discard Changes…"
     }
 
     private var statusColor: Color {
