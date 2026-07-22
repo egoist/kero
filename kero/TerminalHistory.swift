@@ -20,14 +20,14 @@ enum TerminalHistorySerializer {
     private static let reset = "\u{1b}[0m"
 
     /// Captures the screen and scrollback exposed by Ghostty's screen-file
-    /// action, keeping at most the last `maxLines` rows. Kero reads the path
-    /// from Ghostty's synchronous clipboard callback and restores the previous
-    /// clipboard before reading the temporary file.
+    /// action, keeping at most the last `maxLines` rows. Kero consumes the
+    /// action's synchronous open-URL callback as a file path, so history saves
+    /// do not touch the user's clipboard or actually open the temporary file.
     @MainActor
     static func capture(from view: KeroTerminalView, maxLines: Int) -> CaptureResult {
         guard maxLines > 0,
               let captureFile = exportedFile(
-                  from: view, action: "write_screen_file:copy,vt")
+                  from: view, action: "write_screen_file:open,vt")
         else { return .failed }
         defer { removeCaptureFile(captureFile) }
 
@@ -43,7 +43,7 @@ enum TerminalHistorySerializer {
     @MainActor
     static func hasPrimaryScrollback(_ view: KeroTerminalView) -> Bool {
         guard let captureFile = exportedFile(
-            from: view, action: "write_scrollback_file:copy,vt"
+            from: view, action: "write_scrollback_file:open,vt"
         ) else { return false }
         removeCaptureFile(captureFile)
         return true

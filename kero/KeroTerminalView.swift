@@ -17,6 +17,7 @@ final class KeroTerminalView: AppTerminalView {
     private var progressReportTimer: Timer?
     private var lastProgressValue: Int?
     private var isCapturingHistoryExport = false
+    private var capturedHistoryExportPath: String?
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -94,55 +95,25 @@ final class KeroTerminalView: AppTerminalView {
         progressBar.apply(state: .remove, progress: nil)
     }
 
-    /// Reads the path produced by one of Ghostty's `copy` file-export actions
-    /// while restoring the user's clipboard immediately afterwards.
-    ///
-    /// `libghostty-spm` currently reports every host action as unhandled. Using
-    /// the export action's `open` destination therefore also starts Ghostty's
-    /// fallback OS opener, whose stderr watcher can spin indefinitely. The
-    /// clipboard callback is synchronous and has no fallback process, making it
-    /// safe to use as a short-lived path channel here.
+    /// Uses Ghostty's `open` export action as a synchronous host callback. The
+    /// delegate consumes that one URL into this slot instead of opening it.
     func captureHistoryExportPath(action: String) -> String? {
         guard !isCapturingHistoryExport else { return nil }
         isCapturingHistoryExport = true
-        defer { isCapturingHistoryExport = false }
-
-        let pasteboard = NSPasteboard.general
-        let originalItems = Self.snapshotItems(on: pasteboard)
-        let originalChangeCount = pasteboard.changeCount
-        var exportChangeCount: Int?
+        capturedHistoryExportPath = nil
         defer {
-            if let exportChangeCount,
-               pasteboard.changeCount == exportChangeCount {
-                pasteboard.clearContents()
-                if !originalItems.isEmpty {
-                    pasteboard.writeObjects(originalItems)
-                }
-            }
+            isCapturingHistoryExport = false
+            capturedHistoryExportPath = nil
         }
-
-        let didPerformAction = performBindingAction(action)
-        let currentChangeCount = pasteboard.changeCount
-        if currentChangeCount != originalChangeCount {
-            exportChangeCount = currentChangeCount
-        }
-        guard didPerformAction, exportChangeCount != nil else { return nil }
-        return pasteboard.string(forType: .string)
+        guard performBindingAction(action) else { return nil }
+        return capturedHistoryExportPath
     }
 
-    /// Materializes every available representation before the export clears the
-    /// system pasteboard, so restoring it does not depend on invalidated lazy
-    /// pasteboard providers.
-    private static func snapshotItems(on pasteboard: NSPasteboard) -> [NSPasteboardItem] {
-        (pasteboard.pasteboardItems ?? []).compactMap { source in
-            let snapshot = NSPasteboardItem()
-            for type in source.types {
-                if let data = source.data(forType: type) {
-                    snapshot.setData(data, forType: type)
-                }
-            }
-            return snapshot.types.isEmpty ? nil : snapshot
-        }
+    func consumeHistoryExportURL(_ url: String, kind: TerminalOpenURLKind) -> Bool {
+        guard isCapturingHistoryExport else { return false }
+        guard case .text = kind else { return false }
+        capturedHistoryExportPath = url
+        return true
     }
 
     /// The terminal is effectively focused only while Kero itself is active,
