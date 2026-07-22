@@ -476,7 +476,7 @@ private struct GitPanel: View {
             if let statusError = model.statusError {
                 statusFailure(statusError)
             } else if !model.isRepo {
-                if model.isRefreshing {
+                if model.isResolvingInitialStatus {
                     placeholder(icon: "arrow.clockwise", text: "Finding repository…")
                 } else if model.isBusy {
                     placeholder(icon: "hourglass", text: "Finishing Git operation…")
@@ -561,7 +561,11 @@ private struct GitPanel: View {
                     .foregroundStyle(Color(nsColor: Theme.cursor))
                 PanelHeader(title: "Git", subtitle: model.rootPath)
             }
-            if model.isBusy || model.isRefreshing {
+            // Only surface progress for user operations and the initial
+            // repository discovery. Routine two-second background polls resolve
+            // in milliseconds; showing a spinner for them just makes the header
+            // flicker.
+            if model.isBusy || model.isResolvingInitialStatus {
                 ProgressView()
                     .controlSize(.small)
                     .scaleEffect(0.6)
@@ -573,7 +577,11 @@ private struct GitPanel: View {
                     showFilter.toggle()
                     if !showFilter { filterText = "" }
                 }
-                headerButton("arrow.clockwise", help: "Refresh Git Status", disabled: model.isRefreshing) {
+                headerButton(
+                    "arrow.clockwise",
+                    help: "Refresh Git Status",
+                    disabled: model.isBusy || model.isResolvingInitialStatus
+                ) {
                     model.refresh()
                 }
                 moreMenu
@@ -1397,7 +1405,7 @@ private struct GitPanel: View {
             Button("Retry") { model.refresh() }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
-                .disabled(model.isRefreshing || model.isBusy)
+                .disabled(model.isBusy || model.isResolvingInitialStatus)
             Spacer()
         }
         .padding(.horizontal, 18)

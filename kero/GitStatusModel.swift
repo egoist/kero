@@ -102,6 +102,11 @@ final class GitStatusModel: nonisolated ObservableObject {
     @Published private(set) var repositoryOperation: String?
     @Published private(set) var stashCount = 0
     @Published private(set) var isRefreshing = false
+    /// True once a status load has completed for the current `rootPath`. The
+    /// UI keeps showing resolved content (the repo view or the "no repository"
+    /// state) during routine background polls instead of flashing a loading
+    /// placeholder every two-second refresh tick.
+    @Published private(set) var hasResolvedStatus = false
     @Published private(set) var statusError: String?
     /// True while a user-initiated Git operation (not a status poll) runs.
     @Published private(set) var isBusy = false
@@ -127,6 +132,14 @@ final class GitStatusModel: nonisolated ObservableObject {
         mergeEntries.count + stagedEntries.count + changedEntries.count
     }
 
+    /// True while the first status load for the current directory is still in
+    /// flight. Distinguishes the initial "finding repository" phase from the
+    /// fast background polls that follow, so the UI can show progress for the
+    /// former without flickering a spinner on every two-second tick.
+    var isResolvingInitialStatus: Bool {
+        isRefreshing && !hasResolvedStatus
+    }
+
     var repoRoot: String {
         topLevel.isEmpty ? rootPath : topLevel
     }
@@ -144,6 +157,7 @@ final class GitStatusModel: nonisolated ObservableObject {
         if root != rootPath {
             contextGeneration &+= 1
             rootPath = root
+            hasResolvedStatus = false
             clearRepositoryState(preserveIdentity: true)
         }
         refresh()
@@ -172,6 +186,7 @@ final class GitStatusModel: nonisolated ObservableObject {
                   self.rootPath == root else { return }
             self.isRefreshing = false
             self.apply(result)
+            self.hasResolvedStatus = true
             if case .repository(let snapshot) = result, snapshot.loadedDetails {
                 self.lastDetailsRefresh = Date()
             }
