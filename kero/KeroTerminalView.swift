@@ -4,7 +4,6 @@
 //
 
 import AppKit
-import QuartzCore
 import SwiftTerm
 
 /// The per-session terminal NSView. Subclasses SwiftTerm's
@@ -20,7 +19,6 @@ final class KeroTerminalView: LocalProcessTerminalView {
     /// SwiftTerm's `validateUserInterfaceItem` — which disables selectors it
     /// doesn't recognize — doesn't grey them out.
     let splitTarget = SplitMenuTarget()
-    private var gpuRenderingEnabled = true
     private var lastReportedTerminalFocus = false
 
     /// Keep Kero's deduplication state in sync with the focus reports
@@ -150,45 +148,6 @@ final class KeroTerminalView: LocalProcessTerminalView {
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         reportEffectiveTerminalFocus()
-        updateRenderer()
-    }
-
-    /// Switches rendering without replacing the terminal view, preserving the
-    /// running process, scrollback, selection, and focus.
-    func setGPURenderingEnabled(_ enabled: Bool) {
-        gpuRenderingEnabled = enabled
-        updateRenderer()
-    }
-
-    private func updateRenderer() {
-        // Disabling is safe even while the terminal is temporarily detached.
-        // Enabling must wait until AppKit attaches the view to a window so
-        // SwiftTerm can bind its CAMetalLayer to the correct WindowServer surface.
-        if gpuRenderingEnabled {
-            guard window != nil, !isUsingMetalRenderer else { return }
-        } else {
-            guard isUsingMetalRenderer else { return }
-        }
-
-        do {
-            try setUseMetal(gpuRenderingEnabled)
-            if gpuRenderingEnabled { primeMetalLayerBackground() }
-        } catch {
-            NSLog("Kero: SwiftTerm Metal renderer unavailable: %@", String(describing: error))
-        }
-    }
-
-    /// Enabling Metal inserts an `MTKView` whose `CAMetalLayer` has no drawable
-    /// until its first frame is presented. On the initial enable SwiftTerm only
-    /// schedules that frame with `setNeedsDisplay` (its window-rebind path draws
-    /// synchronously, but this one doesn't), so the empty, opaque layer
-    /// composites as black for a frame or two before the terminal first paints —
-    /// the black flash on launch. Fill the layer background with the terminal's
-    /// own background color so that gap shows the theme instead of black.
-    private func primeMetalLayerBackground() {
-        for subview in subviews where subview.layer is CAMetalLayer {
-            subview.layer?.backgroundColor = nativeBackgroundColor.cgColor
-        }
     }
 
     override func mouseDown(with event: NSEvent) {

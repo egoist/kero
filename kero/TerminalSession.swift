@@ -46,7 +46,6 @@ final class TerminalSession: NSObject, nonisolated ObservableObject, nonisolated
 
         terminalView.processDelegate = self
         applyTheme()
-        setGPURenderingEnabled(AppSettings.shared.gpuRenderingEnabled)
         installOverlayScrollbar()
         start()
     }
@@ -113,11 +112,6 @@ final class TerminalSession: NSObject, nonisolated ObservableObject, nonisolated
         let engine = terminalView.getTerminal()
         engine.foregroundColor = Self.engineColor(theme.foreground)
         engine.backgroundColor = Self.engineColor(theme.background)
-    }
-
-    /// Switches this long-lived view's renderer without restarting its shell.
-    func setGPURenderingEnabled(_ enabled: Bool) {
-        (terminalView as? KeroTerminalView)?.setGPURenderingEnabled(enabled)
     }
 
     private static func engineColor(_ color: NSColor) -> SwiftTerm.Color {

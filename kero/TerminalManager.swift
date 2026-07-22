@@ -34,7 +34,6 @@ final class TerminalManager: nonisolated ObservableObject {
     private var projectObservations: [UUID: AnyCancellable] = [:]
     private var projectCounter = 0
     private var settingsObservation: AnyCancellable?
-    private var gpuRenderingObservation: AnyCancellable?
     private var autosaveObservation: AnyCancellable?
     private var terminationObservation: AnyCancellable?
     private var periodicSaveObservation: AnyCancellable?
@@ -85,15 +84,6 @@ final class TerminalManager: nonisolated ObservableObject {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
                 self?.refreshAppearance()
-            }
-        // Renderer changes are separate so toggling Metal never resets the
-        // font (which would clear the terminal's current selection).
-        gpuRenderingObservation = AppSettings.shared.$gpuRenderingEnabled
-            .removeDuplicates()
-            .dropFirst()
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] enabled in
-                self?.setGPURenderingEnabled(enabled)
             }
         // Every project/tab/selection change re-publishes through the
         // manager, so a debounced sink snapshots after mutations settle.
@@ -395,15 +385,6 @@ final class TerminalManager: nonisolated ObservableObject {
         for project in projects {
             for session in project.sessions {
                 session.applyTheme()
-            }
-        }
-    }
-
-    /// Switches every live terminal between Metal and Core Graphics.
-    private func setGPURenderingEnabled(_ enabled: Bool) {
-        for project in projects {
-            for session in project.sessions {
-                session.setGPURenderingEnabled(enabled)
             }
         }
     }

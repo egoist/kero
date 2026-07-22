@@ -278,11 +278,6 @@ struct PaneLayoutView: View {
     private func thumbnail(for sourceID: UUID) -> NSImage? {
         switch tab.allPanes.first(where: { $0.id == sourceID })?.content {
         case .session(let session):
-            // SwiftTerm renders Metal terminals in a framebuffer-only MTKView,
-            // which AppKit's bitmap cache cannot read and captures as black.
-            // Returning nil selects the labeled card preview while leaving the
-            // live renderer and its GPU caches untouched.
-            guard !session.terminalView.isUsingMetalRenderer else { return nil }
             return session.terminalView.paneSnapshot()
         case .file(let file): return file.editorView?.paneSnapshot()
         default: return nil
