@@ -10,6 +10,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com). Add a new
 `## [<version>]` section at the top for each release, matching the version you
 set in the Xcode project.
 
+## [0.1.6]
+
+- Fix window maximizing
+
 ## [0.1.5]
 
 - Double-click the title bar to zoom the window (honors the system "double-click a window's title bar to" setting)
