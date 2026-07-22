@@ -105,11 +105,35 @@ struct WindowChromeAccessor: NSViewRepresentable {
 
 /// A deliberate window-moving surface. Interactive header controls are kept
 /// outside this view so their own drag gestures receive the full mouse stream.
+///
+/// Double-clicking runs the standard title-bar action (zoom / minimize per
+/// System Settings) — behavior our non-movable, hidden title bar would
+/// otherwise lose. The tap is simultaneous with the drag: a stationary
+/// double-click never registers a move, so the two don't conflict.
 struct WindowDragArea: View {
     var body: some View {
         Color.clear
             .contentShape(Rectangle())
             .gesture(WindowDragGesture())
+            .simultaneousGesture(TapGesture(count: 2).onEnded {
+                NSApp.keyWindow?.performTitlebarDoubleClickAction()
+            })
             .allowsWindowActivationEvents()
+    }
+}
+
+extension NSWindow {
+    /// Mirrors what a standard title bar does on double-click, honoring the
+    /// "Double-click a window's title bar to" setting in System Settings.
+    /// The global default is absent when set to Zoom, which is the default.
+    func performTitlebarDoubleClickAction() {
+        switch UserDefaults.standard.string(forKey: "AppleActionOnDoubleClick") {
+        case "Minimize":
+            performMiniaturize(nil)
+        case "None":
+            break
+        default: // "Maximize" or unset
+            performZoom(nil)
+        }
     }
 }

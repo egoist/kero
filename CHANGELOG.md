@@ -12,6 +12,7 @@ set in the Xcode project.
 
 ## [0.1.5]
 
+- Double-click the title bar to zoom the window (honors the system "double-click a window's title bar to" setting)
 - fix gpu rendering
 
 ## [0.1.4]
