@@ -36,7 +36,6 @@ final class TerminalManager: nonisolated ObservableObject {
     private var settingsObservation: AnyCancellable?
     private var autosaveObservation: AnyCancellable?
     private var terminationObservation: AnyCancellable?
-    private var periodicSaveObservation: AnyCancellable?
     /// The stable terminal/editor responder displaced by the command palette's
     /// search field. AppKit field editors are deliberately excluded because a
     /// SwiftUI TextField can reuse the same responder for the palette itself.
@@ -86,8 +85,8 @@ final class TerminalManager: nonisolated ObservableObject {
                 self?.refreshAppearance()
             }
         // Every project/tab/selection change re-publishes through the manager,
-        // so a debounced sink snapshots layout after mutations settle while
-        // reusing the latest bounded terminal-history capture.
+        // so a debounced sink snapshots layout after mutations settle without
+        // reading live terminal contents.
         autosaveObservation = objectWillChange
             .debounce(for: .milliseconds(500), scheduler: DispatchQueue.main)
             .sink { _ in
@@ -98,15 +97,8 @@ final class TerminalManager: nonisolated ObservableObject {
         terminationObservation = NotificationCenter.default
             .publisher(for: NSApplication.willTerminateNotification)
             .sink { _ in
+                guard !TerminalManager.isQuitting else { return }
                 TerminalManager.isQuitting = true
-                TerminalManager.saveAll(captureTerminalHistory: true)
-            }
-        // Shell cwd changes don't always publish (not every shell emits OSC 7),
-        // so refresh live terminal history on a slow timer to survive force
-        // quits without dumping every surface for ordinary model changes.
-        periodicSaveObservation = Timer.publish(every: 30, on: .main, in: .common)
-            .autoconnect()
-            .sink { _ in
                 TerminalManager.saveAll(captureTerminalHistory: true)
             }
     }
@@ -411,9 +403,11 @@ final class TerminalManager: nonisolated ObservableObject {
     /// kill its shells.
     func windowClosed() {
         guard !Self.isQuitting else { return }
-        let window = makeWindowSnapshot(captureTerminalHistory: true)
         Self.registry.removeAll { $0 === self }
         if Self.registry.isEmpty {
+            // These shells are about to be destroyed, so this is their final
+            // capture even though the macOS app may remain open with no window.
+            let window = makeWindowSnapshot(captureTerminalHistory: true)
             // Last window: keep its snapshot and scrollback saved and queued so
             // reopening (or relaunching) restores them.
             SessionStore.save([window.snapshot])

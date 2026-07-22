@@ -482,7 +482,6 @@ extension TerminalSession: TerminalSurfaceProgressReportDelegate {
 
 extension TerminalSession: TerminalSurfaceOpenURLDelegate {
     func terminalDidRequestOpenURL(_ url: String, kind: TerminalOpenURLKind) {
-        if terminalView.consumeHistoryExportURL(url, kind: kind) { return }
         guard let target = URL(string: url) else { return }
         NSWorkspace.shared.open(target)
     }
