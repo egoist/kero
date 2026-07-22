@@ -3,49 +3,61 @@
 //  kero
 //
 
+import AppKit
+import Darwin
 import Foundation
-import SwiftTerm
+import GhosttyTerminal
 
-/// Serializes a terminal's scrollback + on-screen buffer to an ANSI byte
-/// stream that can be fed back into a fresh terminal to reproduce what the
-/// user saw — colors and text styles included. This is how a relaunched
-/// session shows its previous output above the new shell prompt.
-///
-/// Only the *normal* buffer is captured: a full-screen program (vim, less)
-/// runs on the alternate buffer, and replaying that as static text would be
-/// meaningless — `TerminalSession` handles that case by reusing the last
-/// normal-buffer capture instead.
+/// Captures and normalizes styled terminal history without reaching into a
+/// terminal backend's buffer representation. Ghostty writes its screen to a
+/// temporary VT file; the rest of this utility operates only on that stream.
 enum TerminalHistorySerializer {
-    /// Builds the ANSI history for `terminal`, keeping at most the last
-    /// `maxLines` non-empty lines. Returns nil when there is nothing to save.
-    static func serialize(terminal: Terminal, maxLines: Int) -> String? {
-        guard maxLines > 0 else { return nil }
+    enum CaptureResult {
+        case captured(String?)
+        case failed
+    }
 
-        // `getScrollInvariantLine` indexes from the top of the scrollback,
-        // which starts at `totalLinesTrimmed` (lines already evicted from the
-        // ring). Walk upward until it runs off the end.
-        let start = terminal.buffer.totalLinesTrimmed
-        var lines: [String] = []
-        var row = start
-        while let line = terminal.getScrollInvariantLine(row: row) {
-            row += 1
-            // Drop the divider a previous restore injected, so successive
-            // restores show one fresh banner instead of stacking them.
-            if isRestoredBanner(plainText(of: line)) { continue }
-            lines.append(encode(line: line))
-        }
+    private static let reset = "\u{1b}[0m"
 
-        // The bottom of the buffer is usually blank rows below the last prompt;
-        // dropping them keeps the restored prompt from starting pages down.
-        while let last = lines.last, last.isEmpty {
-            lines.removeLast()
-        }
-        guard !lines.isEmpty else { return nil }
+    /// Captures the screen and scrollback exposed by Ghostty's screen-file
+    /// action, keeping at most the last `maxLines` rows. Kero consumes the
+    /// action's synchronous open-URL callback as a file path, so autosaves do
+    /// not touch the user's clipboard or actually open the temporary file.
+    @MainActor
+    static func capture(from view: KeroTerminalView, maxLines: Int) -> CaptureResult {
+        guard maxLines > 0,
+              let captureFile = exportedFile(
+                  from: view, action: "write_screen_file:open,vt")
+        else { return .failed }
+        defer { removeCaptureFile(captureFile) }
 
-        if lines.count > maxLines {
-            lines.removeFirst(lines.count - maxLines)
+        guard let capturedVT = try? String(contentsOf: captureFile.fileURL, encoding: .utf8) else {
+            return .failed
         }
-        return lines.joined(separator: "\r\n")
+        return .captured(normalizedHistory(from: capturedVT, maxLines: maxLines))
+    }
+
+    /// A positive-only probe for a primary-buffer scrollback snapshot. Ghostty
+    /// does not export scrollback while an alternate buffer is active, but an
+    /// empty primary buffer can also produce no file, so false is inconclusive.
+    @MainActor
+    static func hasPrimaryScrollback(_ view: KeroTerminalView) -> Bool {
+        guard let captureFile = exportedFile(
+            from: view, action: "write_scrollback_file:open,vt"
+        ) else { return false }
+        removeCaptureFile(captureFile)
+        return true
+    }
+
+    /// Runs a Ghostty file-export action and returns only its validated output.
+    @MainActor
+    private static func exportedFile(
+        from view: KeroTerminalView, action: String
+    ) -> CaptureFile? {
+        guard let emittedPath = view.captureHistoryExportPath(action: action) else {
+            return nil
+        }
+        return validatedCaptureFile(for: emittedPath)
     }
 
     /// Label shown in the restored-history divider.
@@ -54,7 +66,7 @@ enum TerminalHistorySerializer {
     /// The rule that brackets the label on each side of the divider.
     private static let restoredBannerRule = String(repeating: "\u{2500}", count: 4)
 
-    /// The divider's plain, unstyled text — `<rule> <label> <rule>`. `plainText`
+    /// The divider's plain, unstyled text — `<rule> <label> <rule>`. `visibleText`
     /// yields exactly this for a divider row, so recognizing one is an equality
     /// check against it.
     private static var restoredBannerText: String {
@@ -74,98 +86,248 @@ enum TerminalHistorySerializer {
     static func restoredBanner() -> String {
         let dim = "\u{1b}[2m"
         let normal = "\u{1b}[22m"
-        let reset = "\u{1b}[0m"
         return dim + restoredBannerRule + " " + normal
             + restoredBannerLabel + dim + " " + restoredBannerRule + reset
     }
 
-    /// True only when a line is exactly the divider a previous restore injected.
-    /// Matched precisely, not fuzzily, so real output is never taken for it.
-    private static func isRestoredBanner(_ plain: String) -> Bool {
-        plain == restoredBannerText
-    }
+    /// Normalizes a backend-emitted VT stream for replay into a fresh terminal.
+    private static func normalizedHistory(from capture: String, maxLines: Int) -> String? {
+        let capture = strippingColorConfigurationOSC(from: capture)
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
 
-    /// The unstyled characters of a buffer line, using the same character
-    /// handling as `encode` (trailing halves of wide cells skipped, interior
-    /// NULs shown as spaces). Used only to recognize an injected banner.
-    private static func plainText(of line: BufferLine) -> String {
-        let length = line.getTrimmedLength()
-        guard length > 0 else { return "" }
-        var out = ""
-        for col in 0..<length {
-            let cell = line[col]
-            if cell.width == 0 { continue }
-            let character = cell.getCharacter()
-            out.append(character == "\0" ? " " : character)
+        var lines = capture
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .map(String.init)
+            .filter { !isRestoredBanner($0) }
+
+        // Screen dumps include unused rows below the last prompt. ANSI-only
+        // rows (for example a trailing SGR reset) are blank for this purpose.
+        while let last = lines.last, isVisiblyBlank(last) {
+            lines.removeLast()
         }
-        return out
+        guard !lines.isEmpty else { return nil }
+
+        if lines.count > maxLines {
+            lines.removeFirst(lines.count - maxLines)
+        }
+
+        let history = lines.joined(separator: "\r\n")
+        guard containsANSI(in: history) else { return history }
+
+        // A capped capture may begin in the middle of an attribute run, and a
+        // backend dump must never leak its final SGR state into the live prompt.
+        var wrapped = history
+        if !startsWithReset(wrapped) { wrapped = reset + wrapped }
+        if !endsWithReset(wrapped) { wrapped += reset }
+        return wrapped
     }
 
-    /// Encodes one buffer line: the shortest run of SGR escapes that reproduces
-    /// its per-cell colors and styles, followed by the characters. Trailing
-    /// blank cells are dropped and a reset is appended only when the line ends
-    /// mid-attribute.
-    private static func encode(line: BufferLine) -> String {
-        let length = line.getTrimmedLength()
-        guard length > 0 else { return "" }
+    /// Removes only palette/default-color OSC commands. SGR and semantic OSC
+    /// sequences such as hyperlinks remain byte-for-byte intact.
+    private static func strippingColorConfigurationOSC(from input: String) -> String {
+        let scalars = Array(input.unicodeScalars)
+        var output = ""
+        var index = 0
 
-        var out = ""
-        var current = Attribute.empty
-        var dirty = false
-        for col in 0..<length {
-            let cell = line[col]
-            // The trailing half of a wide (CJK/emoji) cell carries no glyph.
-            if cell.width == 0 { continue }
-            let attribute = cell.attribute
-            if attribute != current {
-                out += sgr(for: attribute)
-                current = attribute
-                dirty = true
+        while index < scalars.count {
+            guard let sequence = oscSequence(in: scalars, at: index) else {
+                output.unicodeScalars.append(scalars[index])
+                index += 1
+                continue
             }
-            let character = cell.getCharacter()
-            // Interior null cells (gaps) render as spaces, never a raw NUL.
-            out.append(character == "\0" ? " " : character)
+
+            if !isColorConfigurationCommand(in: scalars[sequence.payload]) {
+                output.unicodeScalars.append(contentsOf: scalars[index..<sequence.end])
+            }
+            index = sequence.end
         }
-        if dirty && current != Attribute.empty {
-            out += "\u{1b}[0m"
-        }
-        return out
+        return output
     }
 
-    /// The SGR sequence that establishes `attribute` from a clean slate. Always
-    /// starts with a reset (`0`) so each run fully specifies its own state.
-    private static func sgr(for attribute: Attribute) -> String {
-        var codes = "0"
-        let style = attribute.style
-        if style.contains(.bold) { codes += ";1" }
-        if style.contains(.dim) { codes += ";2" }
-        if style.contains(.italic) { codes += ";3" }
-        if style.contains(.underline) { codes += ";4" }
-        if style.contains(.blink) { codes += ";5" }
-        if style.contains(.inverse) { codes += ";7" }
-        if style.contains(.invisible) { codes += ";8" }
-        if style.contains(.crossedOut) { codes += ";9" }
-        codes += colorCode(attribute.fg, foreground: true)
-        codes += colorCode(attribute.bg, foreground: false)
-        return "\u{1b}[\(codes)m"
-    }
+    private static func isColorConfigurationCommand(
+        in payload: ArraySlice<Unicode.Scalar>
+    ) -> Bool {
+        var command = 0
+        var digitCount = 0
+        var index = payload.startIndex
+        while index < payload.endIndex {
+            let value = payload[index].value
+            guard (48...57).contains(value) else { break }
+            digitCount += 1
+            // Every color command of interest is at most three digits. Bail
+            // out before arithmetic on an attacker-controlled OSC can overflow.
+            guard digitCount <= 3 else { return false }
+            command = command * 10 + Int(value - 48)
+            index += 1
+        }
 
-    /// SGR fragment for one color slot. Default colors emit nothing — the
-    /// leading reset already selects them.
-    private static func colorCode(_ color: Attribute.Color, foreground: Bool) -> String {
-        switch color {
-        case .ansi256(let code) where code < 8:
-            return ";\((foreground ? 30 : 40) + Int(code))"
-        case .ansi256(let code) where code < 16:
-            return ";\((foreground ? 90 : 100) + Int(code) - 8)"
-        case .ansi256(let code):
-            return ";\(foreground ? 38 : 48);5;\(code)"
-        case .trueColor(let r, let g, let b):
-            return ";\(foreground ? 38 : 48);2;\(r);\(g);\(b)"
-        case .defaultColor, .defaultInvertedColor:
-            return ""
+        guard digitCount > 0,
+              index == payload.endIndex || payload[index].value == 59
+        else { return false }
+
+        switch command {
+        case 4, 5, 10...19, 104, 105, 110...119:
+            return true
+        default:
+            return false
         }
     }
+
+    /// Finds a complete OSC introduced by either ESC ] or the C1 OSC scalar.
+    /// BEL, ESC \\, and the C1 ST scalar are all accepted terminators.
+    private static func oscSequence(
+        in scalars: [Unicode.Scalar], at index: Int
+    ) -> (payload: Range<Int>, end: Int)? {
+        let payloadStart: Int
+        if scalars[index].value == 0x9d {
+            payloadStart = index + 1
+        } else if scalars[index].value == 0x1b,
+                  index + 1 < scalars.count,
+                  scalars[index + 1].value == 0x5d {
+            payloadStart = index + 2
+        } else {
+            return nil
+        }
+
+        var cursor = payloadStart
+        while cursor < scalars.count {
+            switch scalars[cursor].value {
+            case 0x07, 0x9c:
+                return (payloadStart..<cursor, cursor + 1)
+            case 0x1b where cursor + 1 < scalars.count
+                && scalars[cursor + 1].value == 0x5c:
+                return (payloadStart..<cursor, cursor + 2)
+            default:
+                cursor += 1
+            }
+        }
+        return nil
+    }
+
+    private static func isRestoredBanner(_ line: String) -> Bool {
+        visibleText(in: line).trimmingCharacters(in: .whitespaces) == restoredBannerText
+    }
+
+    private static func isVisiblyBlank(_ line: String) -> Bool {
+        visibleText(in: line).trimmingCharacters(in: .whitespaces).isEmpty
+    }
+
+    /// Drops non-printing OSC and CSI sequences for comparisons only. The
+    /// original line, including SGR and hyperlinks, is retained in the capture.
+    private static func visibleText(in input: String) -> String {
+        let scalars = Array(input.unicodeScalars)
+        var output = ""
+        var index = 0
+
+        while index < scalars.count {
+            if let sequence = oscSequence(in: scalars, at: index) {
+                index = sequence.end
+                continue
+            }
+            if let end = csiSequenceEnd(in: scalars, at: index) {
+                index = end
+                continue
+            }
+
+            let value = scalars[index].value
+            if value >= 0x20 && value != 0x7f {
+                output.unicodeScalars.append(scalars[index])
+            }
+            index += 1
+        }
+        return output
+    }
+
+    private static func csiSequenceEnd(
+        in scalars: [Unicode.Scalar], at index: Int
+    ) -> Int? {
+        let parameterStart: Int
+        if scalars[index].value == 0x9b {
+            parameterStart = index + 1
+        } else if scalars[index].value == 0x1b,
+                  index + 1 < scalars.count,
+                  scalars[index + 1].value == 0x5b {
+            parameterStart = index + 2
+        } else {
+            return nil
+        }
+
+        var cursor = parameterStart
+        while cursor < scalars.count {
+            if (0x40...0x7e).contains(scalars[cursor].value) {
+                return cursor + 1
+            }
+            cursor += 1
+        }
+        return nil
+    }
+
+    private static func containsANSI(in string: String) -> Bool {
+        string.unicodeScalars.contains {
+            $0.value == 0x1b || (0x80...0x9f).contains($0.value)
+        }
+    }
+
+    private static func startsWithReset(_ string: String) -> Bool {
+        string.hasPrefix(reset) || string.hasPrefix("\u{1b}[m")
+            || string.hasPrefix("\u{9b}0m") || string.hasPrefix("\u{9b}m")
+    }
+
+    private static func endsWithReset(_ string: String) -> Bool {
+        string.hasSuffix(reset) || string.hasSuffix("\u{1b}[m")
+            || string.hasSuffix("\u{9b}0m") || string.hasSuffix("\u{9b}m")
+    }
+
+    private struct CaptureFile {
+        let fileURL: URL
+        let parentURL: URL
+    }
+
+    /// Accept only a regular file in a direct, non-symlink child of the OS temp
+    /// directory. That child is the unique directory Ghostty creates for this
+    /// screen dump and is the only directory cleanup may remove.
+    private static func validatedCaptureFile(for emittedPath: String) -> CaptureFile? {
+        let path = emittedPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard path.hasPrefix("/"), !path.contains("\0") else { return nil }
+
+        let manager = FileManager.default
+        let unresolvedFile = URL(fileURLWithPath: path).standardizedFileURL
+        let unresolvedParent = unresolvedFile.deletingLastPathComponent()
+        guard let fileValues = try? unresolvedFile.resourceValues(
+                  forKeys: [.isRegularFileKey, .isSymbolicLinkKey]),
+              fileValues.isRegularFile == true,
+              fileValues.isSymbolicLink != true,
+              let parentValues = try? unresolvedParent.resourceValues(
+                  forKeys: [.isDirectoryKey, .isSymbolicLinkKey]),
+              parentValues.isDirectory == true,
+              parentValues.isSymbolicLink != true
+        else { return nil }
+
+        let fileURL = unresolvedFile.resolvingSymlinksInPath()
+        let parentURL = fileURL.deletingLastPathComponent()
+        let temporaryDirectory = manager.temporaryDirectory
+            .standardizedFileURL
+            .resolvingSymlinksInPath()
+
+        guard parentURL.deletingLastPathComponent() == temporaryDirectory else {
+            return nil
+        }
+        return CaptureFile(fileURL: fileURL, parentURL: parentURL)
+    }
+
+    private static func removeCaptureFile(_ capture: CaptureFile) {
+        let manager = FileManager.default
+        guard (try? manager.removeItem(at: capture.fileURL)) != nil else { return }
+
+        // `rmdir` is deliberately non-recursive: if anything else appeared in
+        // the supposedly unique directory, leave it untouched.
+        capture.parentURL.withUnsafeFileSystemRepresentation { path in
+            guard let path else { return }
+            _ = Darwin.rmdir(path)
+        }
+    }
+
 }
 
 /// Persists per-session terminal history to a sidecar file, keyed by an opaque

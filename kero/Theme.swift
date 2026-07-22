@@ -4,14 +4,14 @@
 //
 
 import AppKit
-import SwiftTerm
 
 /// Colors a terminal session needs, resolved for one appearance.
-struct TerminalTheme {
+struct KeroTerminalTheme {
     let background: NSColor
     let foreground: NSColor
     let cursor: NSColor
-    let ansi: [SwiftTerm.Color]
+    /// The 16 ANSI colors (normal, then bright) as `RRGGBB` strings.
+    let ansi: [String]
 }
 
 /// App theme, loosely based on GitHub Dark / GitHub Light.
@@ -22,15 +22,15 @@ enum Theme {
     static let sidebar = dynamic(light: 0xf6f8fa, dark: 0x010409)
     static let cursor = dynamic(light: 0x0969da, dark: 0x58a6ff)
 
-    static func terminal(dark: Bool) -> TerminalTheme {
+    static func terminal(dark: Bool) -> KeroTerminalTheme {
         dark
-            ? TerminalTheme(
+            ? KeroTerminalTheme(
                 background: nsColor(0x0d1117),
                 foreground: nsColor(0xe6edf3),
                 cursor: nsColor(0x58a6ff),
                 ansi: darkAnsi
             )
-            : TerminalTheme(
+            : KeroTerminalTheme(
                 background: nsColor(0xffffff),
                 foreground: nsColor(0x1f2328),
                 cursor: nsColor(0x0969da),
@@ -39,7 +39,7 @@ enum Theme {
     }
 
     /// The 16 ANSI colors (normal + bright), dark variant.
-    private static let darkAnsi: [SwiftTerm.Color] = [
+    private static let darkAnsi: [String] = [
         ansi(0x21262d), // black
         ansi(0xff7b72), // red
         ansi(0x3fb950), // green
@@ -59,7 +59,7 @@ enum Theme {
     ]
 
     /// The 16 ANSI colors (normal + bright), light variant.
-    private static let lightAnsi: [SwiftTerm.Color] = [
+    private static let lightAnsi: [String] = [
         ansi(0x24292f), // black
         ansi(0xcf222e), // red
         ansi(0x116329), // green
@@ -94,11 +94,15 @@ enum Theme {
         )
     }
 
-    private static func ansi(_ hex: Int) -> SwiftTerm.Color {
-        let r = UInt16((hex >> 16) & 0xff)
-        let g = UInt16((hex >> 8) & 0xff)
-        let b = UInt16(hex & 0xff)
-        // SwiftTerm colors use 16-bit components
-        return SwiftTerm.Color(red: r * 257, green: g * 257, blue: b * 257)
+    static func hex(_ color: NSColor) -> String {
+        let srgb = color.usingColorSpace(.sRGB) ?? color
+        let r = Int((srgb.redComponent * 255).rounded())
+        let g = Int((srgb.greenComponent * 255).rounded())
+        let b = Int((srgb.blueComponent * 255).rounded())
+        return String(format: "%02X%02X%02X", r, g, b)
+    }
+
+    private static func ansi(_ hex: Int) -> String {
+        String(format: "%06X", hex)
     }
 }

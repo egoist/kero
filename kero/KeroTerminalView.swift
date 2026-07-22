@@ -4,150 +4,142 @@
 //
 
 import AppKit
-import SwiftTerm
+import GhosttyTerminal
 
-/// The per-session terminal NSView. Subclasses SwiftTerm's
-/// `LocalProcessTerminalView` for Kero-specific terminal integrations,
-/// context menus, and file drops.
-final class KeroTerminalView: LocalProcessTerminalView {
-    /// Fired when this terminal is clicked, right-clicked, or dropped onto —
-    /// i.e. takes focus — so the owning pane can mark itself focused in the
-    /// model. SwiftTerm's `becomeFirstResponder` is not open to override, so
-    /// the plain-click path is reported from `mouseDown` instead.
+/// Ghostty's Metal-backed terminal surface with Kero's pane focus, context
+/// menu, effective application focus, and Finder/file-tree drop behavior.
+final class KeroTerminalView: AppTerminalView {
+    /// Fired whenever direct interaction makes this pane the active one.
     var onBecomeFirstResponder: (() -> Void)?
-    /// Owns the split context-menu items. Kept separate from the terminal so
-    /// SwiftTerm's `validateUserInterfaceItem` — which disables selectors it
-    /// doesn't recognize — doesn't grey them out.
     let splitTarget = SplitMenuTarget()
-    private var lastReportedTerminalFocus = false
 
-    /// Keep Kero's deduplication state in sync with the focus reports
-    /// SwiftTerm sends from its non-open first-responder overrides.
-    override var hasFocus: Bool {
-        get { super.hasFocus }
-        set {
-            super.hasFocus = newValue
-            lastReportedTerminalFocus = newValue
-        }
-    }
+    private let progressBar = KeroTerminalProgressBarView(frame: .zero)
+    private var progressReportTimer: Timer?
+    private var lastProgressValue: Int?
+    private var isCapturingHistoryExport = false
+    private var capturedHistoryExportPath: String?
 
     override init(frame: CGRect) {
         super.init(frame: frame)
-        installEffectiveFocusReporting()
-        installOSC9Handler()
-        registerForDraggedTypes([.fileURL])
-    }
-
-    required init?(coder: NSCoder) {
-        super.init(coder: coder)
-        installEffectiveFocusReporting()
-        installOSC9Handler()
+        installProgressBar()
         registerForDraggedTypes([.fileURL])
     }
 
     deinit {
-        NotificationCenter.default.removeObserver(self)
+        progressReportTimer?.invalidate()
     }
 
-    /// SwiftTerm reports DECSET 1004 focus changes when this view gains or
-    /// resigns first responder, but AppKit keeps a view as first responder when
-    /// its window deactivates. Report key-window transitions too so terminal
-    /// apps can distinguish foreground/background.
-    private func installEffectiveFocusReporting() {
-        // A session starts its PTY before SwiftUI attaches this view. SwiftTerm
-        // otherwise defaults the reported state to focused, so an app enabling
-        // focus reporting during startup can receive a false FocusGained.
-        getTerminal().setTerminalFocus(false)
-        lastReportedTerminalFocus = false
-
-        let center = NotificationCenter.default
-        center.addObserver(
-            self,
-            selector: #selector(applicationFocusChanged(_:)),
-            name: NSApplication.didBecomeActiveNotification,
-            object: nil
-        )
-        center.addObserver(
-            self,
-            selector: #selector(applicationFocusChanged(_:)),
-            name: NSApplication.didResignActiveNotification,
-            object: nil
-        )
-        center.addObserver(
-            self,
-            selector: #selector(windowFocusChanged(_:)),
-            name: NSWindow.didBecomeKeyNotification,
-            object: nil
-        )
-        center.addObserver(
-            self,
-            selector: #selector(windowFocusChanged(_:)),
-            name: NSWindow.didResignKeyNotification,
-            object: nil
+    override func layout() {
+        super.layout()
+        let height: CGFloat = 2
+        progressBar.frame = CGRect(
+            x: 0, y: bounds.height - height,
+            width: bounds.width, height: height
         )
     }
 
-    @objc private func applicationFocusChanged(_ notification: Notification) {
-        reportEffectiveTerminalFocus()
+    private func installProgressBar() {
+        progressBar.isHidden = true
+        addSubview(progressBar)
     }
 
-    @objc private func windowFocusChanged(_ notification: Notification) {
-        guard let changedWindow = notification.object as? NSWindow,
-              changedWindow === window else { return }
-        reportEffectiveTerminalFocus()
+    /// Mirrors Kero's OSC 9;4 indicator: a two-point bar
+    /// at the top of the terminal, with error/pause colors and a 15-second
+    /// stale-report timeout.
+    func applyProgressReport(state: TerminalProgressState, percent: Int?) {
+        if case .remove = state {
+            clearProgressReport()
+            return
+        }
+
+        let resolved: Int?
+        switch state {
+        case .remove:
+            resolved = nil
+        case .set:
+            resolved = percent ?? 0
+        case .error:
+            resolved = percent ?? lastProgressValue
+        case .indeterminate:
+            resolved = nil
+        case .pause:
+            resolved = percent ?? lastProgressValue ?? 100
+        }
+
+        if let resolved {
+            lastProgressValue = min(max(resolved, 0), 100)
+        }
+        progressBar.apply(state: state, progress: lastProgressValueForDisplay(
+            state: state, resolved: resolved
+        ))
+        progressReportTimer?.invalidate()
+        progressReportTimer = Timer.scheduledTimer(
+            withTimeInterval: 15, repeats: false
+        ) { [weak self] _ in
+            self?.clearProgressReport()
+        }
     }
 
-    private var hasEffectiveTerminalFocus: Bool {
+    private func lastProgressValueForDisplay(
+        state: TerminalProgressState, resolved: Int?
+    ) -> Int? {
+        if case .indeterminate = state { return nil }
+        guard let resolved else { return nil }
+        return min(max(resolved, 0), 100)
+    }
+
+    private func clearProgressReport() {
+        progressReportTimer?.invalidate()
+        progressReportTimer = nil
+        lastProgressValue = nil
+        progressBar.apply(state: .remove, progress: nil)
+    }
+
+    /// Uses Ghostty's `open` export action as a synchronous host callback. The
+    /// delegate consumes that one URL into this slot instead of opening it.
+    func captureHistoryExportPath(action: String) -> String? {
+        guard !isCapturingHistoryExport else { return nil }
+        isCapturingHistoryExport = true
+        capturedHistoryExportPath = nil
+        defer {
+            isCapturingHistoryExport = false
+            capturedHistoryExportPath = nil
+        }
+        guard performBindingAction(action) else { return nil }
+        return capturedHistoryExportPath
+    }
+
+    func consumeHistoryExportURL(_ url: String, kind: TerminalOpenURLKind) -> Bool {
+        guard isCapturingHistoryExport else { return false }
+        guard case .text = kind else { return false }
+        capturedHistoryExportPath = url
+        return true
+    }
+
+    /// The terminal is effectively focused only while Kero itself is active,
+    /// its window is key, and this exact surface owns the first responder.
+    var hasEffectiveTerminalFocus: Bool {
         NSApp.isActive && window?.isKeyWindow == true && window?.firstResponder === self
     }
 
-    private func reportEffectiveTerminalFocus() {
-        let focused = hasEffectiveTerminalFocus
-        guard focused != lastReportedTerminalFocus else { return }
-        lastReportedTerminalFocus = focused
-        getTerminal().setTerminalFocus(focused)
+    override func becomeFirstResponder() -> Bool {
+        let accepted = super.becomeFirstResponder()
+        if accepted { onBecomeFirstResponder?() }
+        return accepted
     }
 
-    private func installOSC9Handler() {
-        getTerminal().registerOscHandler(code: 9) { [weak self] data in
-            guard let self else { return }
-
-            if let report = OSC9PayloadParser.progressReport(from: data) {
-                // A registered OSC handler replaces SwiftTerm's built-in one,
-                // so forward valid 9;4 reports to preserve its progress bar.
-                self.progressReport(source: self.getTerminal(), report: report)
-            } else if let message = String(bytes: data, encoding: .utf8),
-                      !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                TerminalNotificationService.shared.post(message: message)
-            }
-        }
-    }
-
-    override func bell(source: Terminal) {
-        super.bell(source: source)
-        guard !hasEffectiveTerminalFocus else { return }
-
-        TerminalNotificationService.shared.post(message: "Terminal bell")
-        if !NSApp.isActive {
-            NSApp.requestUserAttention(.informationalRequest)
-        }
+    override func resignFirstResponder() -> Bool {
+        super.resignFirstResponder()
     }
 
     override func viewWillMove(toWindow newWindow: NSWindow?) {
-        // SwiftUI reparents this long-lived view when a single pane becomes a
-        // split layout. AppKit drops a detached first responder without
-        // calling resignFirstResponder(), which leaves SwiftTerm's hasFocus
-        // flag (and therefore its cursor) active. Resign while the old window
-        // still owns us so the inactive pane redraws with an outline cursor.
+        // This view is long-lived and reparented as panes split. Resign while
+        // the old window still owns us so Ghostty receives FocusOut and draws
+        // an inactive cursor instead of retaining stale focus state.
         if newWindow == nil, let window, window.firstResponder === self {
             window.makeFirstResponder(nil)
         }
         super.viewWillMove(toWindow: newWindow)
-    }
-
-    override func viewDidMoveToWindow() {
-        super.viewDidMoveToWindow()
-        reportEffectiveTerminalFocus()
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -155,28 +147,34 @@ final class KeroTerminalView: LocalProcessTerminalView {
         super.mouseDown(with: event)
     }
 
-    /// SwiftTerm handles selection in `mouseDown` but does not make its macOS
-    /// view first responder. Do that explicitly for every direct interaction.
     private func focusForInteraction() {
-        window?.makeFirstResponder(self)
-        onBecomeFirstResponder?()
+        if window?.firstResponder === self {
+            onBecomeFirstResponder?()
+        } else {
+            window?.makeFirstResponder(self)
+        }
     }
 
     // MARK: - Context menu
 
-    /// AppKit calls this on right-/control-click to build the context menu.
-    /// Items target `self` so AppKit routes validation through SwiftTerm's
-    /// `validateUserInterfaceItem(_:)` — that's what greys out Copy when
-    /// nothing is selected.
-    override func menu(for event: NSEvent) -> NSMenu? {
-        // A right-click on an unfocused terminal should focus it, so that a
-        // following Paste (or typing) lands here rather than in whatever held
-        // focus before — matching Terminal.app.
+    /// Kero consistently reserves right-click for its terminal/pane menu. This
+    /// matches Kero's existing UI, including focusing before Paste.
+    override func rightMouseDown(with event: NSEvent) {
         focusForInteraction()
+        NSMenu.popUpContextMenu(contextMenu(), with: event, for: self)
+    }
 
+    override func rightMouseUp(with event: NSEvent) {}
+
+    override func menu(for event: NSEvent) -> NSMenu? {
+        focusForInteraction()
+        return contextMenu()
+    }
+
+    private func contextMenu() -> NSMenu {
         let menu = NSMenu()
         menu.addItem(contextItem("Copy", #selector(copy(_:))))
-        menu.addItem(contextItem("Paste", #selector(paste(_:))))
+        menu.addItem(contextItem("Paste", #selector(NSText.paste(_:))))
         menu.addItem(.separator())
         menu.addItem(contextItem("Select All", #selector(selectAll(_:))))
         menu.addItem(.separator())
@@ -200,17 +198,13 @@ final class KeroTerminalView: LocalProcessTerminalView {
         canReadFileURLs(sender) ? .copy : []
     }
 
-    /// Inserts the dropped files' absolute paths at the prompt — space
-    /// separated, shell-escaped, with a trailing space — as if pasted.
-    /// Handles drags from the Files panel and from Finder alike; both vend
-    /// `public.file-url`.
+    /// Inserts dropped absolute paths, shell-escaped and space-separated, at
+    /// the active prompt exactly as a paste would.
     override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
         guard let urls = fileURLs(sender), !urls.isEmpty else { return false }
-        // The drop should type into *this* terminal, so take focus the way a
-        // right-click does — otherwise the path lands wherever focus was.
         focusForInteraction()
         let text = urls.map { Self.shellToken(for: $0.path) }.joined(separator: " ")
-        send(txt: text + " ")
+        sendText(text + " ")
         return true
     }
 
@@ -226,10 +220,6 @@ final class KeroTerminalView: LocalProcessTerminalView {
         ) as? [URL]
     }
 
-    /// Renders a path for the prompt: bare when it's made only of "safe"
-    /// characters, otherwise single-quoted — which neutralises spaces, quotes,
-    /// glob characters and the like uniformly (an embedded `'` via the classic
-    /// `'\''` dance).
     private static func shellToken(for path: String) -> String {
         let safe = Set("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._-/")
         if !path.isEmpty, path.allSatisfy({ safe.contains($0) }) {
@@ -239,47 +229,125 @@ final class KeroTerminalView: LocalProcessTerminalView {
     }
 }
 
-/// Pure parser matching SwiftTerm's OSC 9;4 behavior. Keeping it separate
-/// makes the compatibility rule independently testable without a terminal.
-enum OSC9PayloadParser {
-    static func progressReport(from data: ArraySlice<UInt8>) -> Terminal.ProgressReport? {
-        guard let text = String(bytes: data, encoding: .ascii) else { return nil }
+/// Layer-backed progress indicator used for OSC 9;4 reports. It deliberately
+/// ignores hit testing so terminal selection and clicks pass through it.
+private final class KeroTerminalProgressBarView: NSView {
+    private let trackLayer = CALayer()
+    private let barLayer = CALayer()
+    private let indeterminateAnimationKey = "keroTerminalProgressIndeterminate"
 
-        let parts = text.split(separator: ";", omittingEmptySubsequences: false)
-        guard parts.count >= 2, parts[0] == "4" else { return nil }
+    private var state: TerminalProgressState = .remove
+    private var progress: Int?
 
-        let statePart = parts[1]
-        guard statePart.count == 1,
-              let stateValue = Int(statePart),
-              let state = Terminal.ProgressReportState(rawValue: stateValue) else {
-            return nil
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        wantsLayer = true
+        layer?.masksToBounds = true
+        trackLayer.isHidden = true
+        layer?.addSublayer(trackLayer)
+        layer?.addSublayer(barLayer)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+    override func layout() {
+        super.layout()
+        updateForCurrentState(animated: false)
+    }
+
+    func apply(state: TerminalProgressState, progress: Int?) {
+        self.state = state
+        self.progress = progress
+
+        if case .remove = state {
+            isHidden = true
+            stopIndeterminateAnimation()
+            return
         }
 
-        var progress: UInt8?
-        if parts.count >= 3, !parts[2].isEmpty {
-            guard let rawProgress = Int(parts[2]) else { return nil }
-            progress = UInt8(max(0, min(rawProgress, 100)))
-        } else if state == .set {
-            progress = 0
+        isHidden = false
+        let color: NSColor
+        switch state {
+        case .error:
+            color = .systemRed
+        case .pause:
+            color = .systemOrange
+        default:
+            color = .controlAccentColor
+        }
+        barLayer.backgroundColor = color.cgColor
+        trackLayer.backgroundColor = color.withAlphaComponent(0.3).cgColor
+        updateForCurrentState(animated: true)
+    }
+
+    private func updateForCurrentState(animated: Bool) {
+        guard !isHidden else { return }
+        trackLayer.frame = bounds
+        if let progress {
+            updateDeterminate(progress: progress, animated: animated)
+        } else {
+            updateIndeterminate()
+        }
+    }
+
+    private func updateDeterminate(progress: Int, animated: Bool) {
+        trackLayer.isHidden = true
+        stopIndeterminateAnimation()
+        let width = bounds.width * CGFloat(progress) / 100
+        let target = CGRect(x: 0, y: 0, width: width, height: bounds.height)
+
+        CATransaction.begin()
+        if animated {
+            CATransaction.setAnimationDuration(0.2)
+            CATransaction.setAnimationTimingFunction(
+                CAMediaTimingFunction(name: .easeInEaseOut)
+            )
+        } else {
+            CATransaction.setDisableActions(true)
+        }
+        barLayer.frame = target
+        CATransaction.commit()
+    }
+
+    private func updateIndeterminate() {
+        trackLayer.isHidden = false
+        let width = bounds.width * 0.25
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        barLayer.frame = CGRect(x: 0, y: 0, width: width, height: bounds.height)
+        CATransaction.commit()
+
+        guard width > 0, bounds.width > width else {
+            stopIndeterminateAnimation()
+            return
         }
 
-        if state == .remove {
-            progress = nil
-        }
+        stopIndeterminateAnimation()
+        let animation = CABasicAnimation(keyPath: "position.x")
+        animation.fromValue = width / 2
+        animation.toValue = bounds.width - width / 2
+        animation.duration = 1.2
+        animation.autoreverses = true
+        animation.repeatCount = .infinity
+        animation.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+        barLayer.add(animation, forKey: indeterminateAnimationKey)
+    }
 
-        return Terminal.ProgressReport(state: state, progress: progress)
+    private func stopIndeterminateAnimation() {
+        barLayer.removeAnimation(forKey: indeterminateAnimationKey)
     }
 }
 
-/// Target for the pane-split context-menu items. A dedicated NSObject (rather
-/// than the terminal/editor itself) so the host view's own menu validation —
-/// which disables selectors it doesn't know — leaves these enabled: AppKit
-/// enables an item whose target responds to its action and doesn't veto it.
+/// Target for pane-split context-menu items, kept separate from terminal menu
+/// validation so these actions remain enabled even when there is no selection.
 final class SplitMenuTarget: NSObject {
-    /// Splits the pane on the given edge.
     var onSplit: ((PaneDropEdge) -> Void)?
 
-    /// The four split items, targeting this object.
     func menuItems() -> [NSMenuItem] {
         [
             item("Split Right", #selector(splitRight)),

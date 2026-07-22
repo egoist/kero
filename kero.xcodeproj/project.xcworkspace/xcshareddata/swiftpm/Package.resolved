@@ -1,5 +1,5 @@
 {
-  "originHash" : "9c669077150af430244f8b8befdff200469d10c2327a5f8ead8e521a113e4b5e",
+  "originHash" : "b54fe6961e4e9c5786aaf8368d8e58d43391444a6af342357072e5c223f0be72",
   "pins" : [
     {
       "identity" : "coretextswift",
@@ -8,6 +8,24 @@
       "state" : {
         "revision" : "833177201d6421e6322296f39fce6ff6ae52618a",
         "version" : "0.2.0"
+      }
+    },
+    {
+      "identity" : "libghostty-spm",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/Lakr233/libghostty-spm",
+      "state" : {
+        "revision" : "5530721e8e975178ac8293708f23815281f16f72",
+        "version" : "1.3.2"
+      }
+    },
+    {
+      "identity" : "msdisplaylink",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/Lakr233/MSDisplayLink.git",
+      "state" : {
+        "revision" : "1ba3e769b734e456317fa7e45321fa7f53eefb67",
+        "version" : "2.1.0"
       }
     },
     {
@@ -61,24 +79,6 @@
       "location" : "https://github.com/krzyzanowskim/STTextView-Plugin-Neon",
       "state" : {
         "revision" : "5a30db4ce7908a5414e7b499e2379bdc49991cd1"
-      }
-    },
-    {
-      "identity" : "swift-argument-parser",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/apple/swift-argument-parser",
-      "state" : {
-        "revision" : "6a52f3251125d74daf04fcbd5e6f08a75d074382",
-        "version" : "1.8.2"
-      }
-    },
-    {
-      "identity" : "swiftterm",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/migueldeicaza/SwiftTerm",
-      "state" : {
-        "revision" : "dd2fb8ac5b861e7bf617c872895e338f38165648",
-        "version" : "1.15.0"
       }
     },
     {

@@ -4,7 +4,6 @@
 //
 
 import AppKit
-import SwiftTerm
 import SwiftUI
 
 /// Tiles a tab's panes niri-style: columns laid out left-to-right, each a

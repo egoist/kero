@@ -58,6 +58,12 @@ struct ContentView: View {
             RightSidebarView(manager: manager)
         }
         .ignoresSafeArea()
+        .overlay(alignment: .topLeading) {
+            TerminalParkingView(sessions: parkedTerminalSessions)
+                .frame(width: 1, height: 1)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
         .overlay {
             if manager.isCommandPaletteVisible {
                 CommandPaletteView(manager: manager)
@@ -67,6 +73,17 @@ struct ContentView: View {
         .onChange(of: colorScheme) {
             manager.refreshAppearance()
         }
+    }
+
+    /// Sessions in the visible tab are owned by `TerminalHostView`; every
+    /// other session stays window-attached in the invisible parking host.
+    private var parkedTerminalSessions: [TerminalSession] {
+        let visibleIDs = Set(
+            manager.selectedProject?.selectedTab?.sessions.map(\.id) ?? []
+        )
+        return manager.projects
+            .flatMap(\.sessions)
+            .filter { !visibleIDs.contains($0.id) }
     }
 
     /// The pane layer paints an opaque background to hide unselected diffs in

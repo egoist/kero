@@ -85,12 +85,13 @@ final class TerminalManager: nonisolated ObservableObject {
             .sink { [weak self] _ in
                 self?.refreshAppearance()
             }
-        // Every project/tab/selection change re-publishes through the
-        // manager, so a debounced sink snapshots after mutations settle.
+        // Every project/tab/selection change re-publishes through the manager,
+        // so a debounced sink snapshots layout after mutations settle while
+        // reusing the latest bounded terminal-history capture.
         autosaveObservation = objectWillChange
             .debounce(for: .milliseconds(500), scheduler: DispatchQueue.main)
             .sink { _ in
-                TerminalManager.saveAll()
+                TerminalManager.saveAll(captureTerminalHistory: false)
             }
         // The debounce can swallow changes made just before quitting;
         // capture a final snapshot while the shells are still alive.
@@ -98,14 +99,15 @@ final class TerminalManager: nonisolated ObservableObject {
             .publisher(for: NSApplication.willTerminateNotification)
             .sink { _ in
                 TerminalManager.isQuitting = true
-                TerminalManager.saveAll()
+                TerminalManager.saveAll(captureTerminalHistory: true)
             }
-        // Shell cwd changes don't always publish (not every shell emits
-        // OSC 7), so also snapshot on a slow timer to survive force quits.
+        // Shell cwd changes don't always publish (not every shell emits OSC 7),
+        // so refresh live terminal history on a slow timer to survive force
+        // quits without dumping every surface for ordinary model changes.
         periodicSaveObservation = Timer.publish(every: 30, on: .main, in: .common)
             .autoconnect()
             .sink { _ in
-                TerminalManager.saveAll()
+                TerminalManager.saveAll(captureTerminalHistory: true)
             }
     }
 
@@ -409,7 +411,7 @@ final class TerminalManager: nonisolated ObservableObject {
     /// kill its shells.
     func windowClosed() {
         guard !Self.isQuitting else { return }
-        let window = makeWindowSnapshot()
+        let window = makeWindowSnapshot(captureTerminalHistory: true)
         Self.registry.removeAll { $0 === self }
         if Self.registry.isEmpty {
             // Last window: keep its snapshot and scrollback saved and queued so
@@ -419,7 +421,7 @@ final class TerminalManager: nonisolated ObservableObject {
             Self.pendingRestores = [window.snapshot]
             Self.pendingHistories = window.histories
         } else {
-            Self.saveAll()
+            Self.saveAll(captureTerminalHistory: false)
         }
         for project in projects {
             project.terminateAll()
@@ -428,12 +430,14 @@ final class TerminalManager: nonisolated ObservableObject {
 
     // MARK: - Persistence
 
-    private static func saveAll() {
+    private static func saveAll(captureTerminalHistory: Bool) {
         guard !registry.isEmpty else { return }
         var snapshots: [SessionSnapshot] = []
         var histories: [String: String] = [:]
         for manager in registry {
-            let window = manager.makeWindowSnapshot()
+            let window = manager.makeWindowSnapshot(
+                captureTerminalHistory: captureTerminalHistory
+            )
             snapshots.append(window.snapshot)
             histories.merge(window.histories) { _, new in new }
         }
@@ -445,7 +449,9 @@ final class TerminalManager: nonisolated ObservableObject {
     /// to persist for its sessions. Each captured session gets a fresh
     /// `historyKey` stored on both sides so restore can pair them; sessions
     /// with no history (feature off, empty, or unserializable) get no key.
-    private func makeWindowSnapshot() -> (snapshot: SessionSnapshot, histories: [String: String]) {
+    private func makeWindowSnapshot(
+        captureTerminalHistory: Bool
+    ) -> (snapshot: SessionSnapshot, histories: [String: String]) {
         typealias ProjectSnapshot = SessionSnapshot.ProjectSnapshot
         var histories: [String: String] = [:]
         let snapshot = SessionSnapshot(
@@ -457,7 +463,9 @@ final class TerminalManager: nonisolated ObservableObject {
                             panes: column.panes.map { pane in
                                 var historyKey: String?
                                 if case .session(let session) = pane.content,
-                                   let history = session.serializedHistory(), !history.isEmpty {
+                                   let history = session.serializedHistory(
+                                       captureLive: captureTerminalHistory
+                                   ), !history.isEmpty {
                                     let key = UUID().uuidString
                                     histories[key] = history
                                     historyKey = key
