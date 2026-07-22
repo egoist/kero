@@ -4,6 +4,7 @@
 //
 
 import AppKit
+import QuartzCore
 import SwiftTerm
 
 /// The per-session terminal NSView. Subclasses SwiftTerm's
@@ -171,8 +172,22 @@ final class KeroTerminalView: LocalProcessTerminalView {
 
         do {
             try setUseMetal(gpuRenderingEnabled)
+            if gpuRenderingEnabled { primeMetalLayerBackground() }
         } catch {
             NSLog("Kero: SwiftTerm Metal renderer unavailable: %@", String(describing: error))
+        }
+    }
+
+    /// Enabling Metal inserts an `MTKView` whose `CAMetalLayer` has no drawable
+    /// until its first frame is presented. On the initial enable SwiftTerm only
+    /// schedules that frame with `setNeedsDisplay` (its window-rebind path draws
+    /// synchronously, but this one doesn't), so the empty, opaque layer
+    /// composites as black for a frame or two before the terminal first paints —
+    /// the black flash on launch. Fill the layer background with the terminal's
+    /// own background color so that gap shows the theme instead of black.
+    private func primeMetalLayerBackground() {
+        for subview in subviews where subview.layer is CAMetalLayer {
+            subview.layer?.backgroundColor = nativeBackgroundColor.cgColor
         }
     }
 
