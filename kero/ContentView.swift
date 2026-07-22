@@ -461,6 +461,9 @@ private struct TabItemChrome: View {
             .contentShape(RoundedRectangle(cornerRadius: 6))
         }
         .buttonStyle(.plain)
+        // Cap tab width so a long title truncates instead of stretching the
+        // tab; short titles still shrink to fit (maxWidth is an upper bound).
+        .frame(maxWidth: 220)
         .background(
             RoundedRectangle(cornerRadius: 6)
                 .fill(isSelected ? Color.primary.opacity(0.09) : (isHovering ? Color.primary.opacity(0.04) : .clear))
