@@ -10,6 +10,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com). Add a new
 `## [<version>]` section at the top for each release, matching the version you
 set in the Xcode project.
 
+## [0.1.8]
+
+- Use libghostty
+
 ## [0.1.7]
 
 - Remove GPU rendering temporarily
