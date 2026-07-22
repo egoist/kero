@@ -109,6 +109,9 @@ struct CommandPaletteView: View {
             PaletteCommand(id: "save-file", title: "Save File", systemImage: "square.and.arrow.down", shortcut: "⌘S") {
                 manager.saveSelectedFile()
             },
+            PaletteCommand(id: "toggle-left-sidebar", title: "Toggle Left Sidebar", systemImage: "sidebar.left", shortcut: "⌘B") {
+                manager.toggleLeftSidebar()
+            },
             PaletteCommand(id: "toggle-sidebar", title: "Toggle Sidebar", systemImage: "sidebar.right", shortcut: "⇧⌘B") {
                 manager.toggleSidebar()
             },

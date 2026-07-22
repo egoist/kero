@@ -13,6 +13,7 @@ set in the Xcode project.
 ## [0.1.6]
 
 - Fix window maximizing
+- Shortcut for left sidebar: cmd-b
 
 ## [0.1.5]
 

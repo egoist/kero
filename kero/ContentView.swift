@@ -11,7 +11,9 @@ struct ContentView: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            SidebarView(manager: manager)
+            if manager.isLeftSidebarVisible {
+                SidebarView(manager: manager)
+            }
 
             VStack(spacing: 0) {
                 MainHeaderView(manager: manager)
@@ -114,14 +116,20 @@ struct ContentView: View {
 private struct MainHeaderView: View {
     @ObservedObject var manager: TerminalManager
 
+    /// With the left sidebar hidden the header slides under the window's
+    /// traffic-light buttons, so inset its content to clear them.
+    private var leadingInset: CGFloat {
+        manager.isLeftSidebarVisible ? 8 : 78
+    }
+
     var body: some View {
         GeometryReader { geo in
             HStack(spacing: 8) {
                 if let project = manager.selectedProject {
                     // Everything in the header that isn't the scrollable tab
-                    // strip: paddings (16), HStack spacings (16), sidebar
-                    // toggle (24), "+" button and its spacing (26).
-                    SessionTabsView(project: project, maxStripWidth: max(0, geo.size.width - 82))
+                    // strip: leading inset + trailing padding (8), HStack
+                    // spacings (16), sidebar toggle (24), "+" and spacing (26).
+                    SessionTabsView(project: project, maxStripWidth: max(0, geo.size.width - leadingInset - 74))
                 }
                 WindowDragArea()
                     .frame(maxWidth: .infinity)
@@ -141,7 +149,7 @@ private struct MainHeaderView: View {
                     .help("Toggle Sidebar (⇧⌘B)")
                 }
             }
-            .padding(.leading, 8)
+            .padding(.leading, leadingInset)
             .padding(.trailing, 8)
             .frame(height: geo.size.height)
         }

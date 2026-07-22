@@ -24,6 +24,9 @@ final class TerminalManager: nonisolated ObservableObject {
     @Published var selectedProjectID: UUID?
     @Published var isPanelVisible = false
     @Published var panelTab: RightPanel = .files
+    /// Visibility of the left project sidebar (⌘B). `isPanelVisible` above is
+    /// the separate right panel.
+    @Published var isLeftSidebarVisible = true
     @Published private(set) var isCommandPaletteVisible = false
 
     /// Projects publish their own changes (session list, session selection);
@@ -328,6 +331,10 @@ final class TerminalManager: nonisolated ObservableObject {
 
     func toggleSidebar() {
         isPanelVisible.toggle()
+    }
+
+    func toggleLeftSidebar() {
+        isLeftSidebarVisible.toggle()
     }
 
     func toggleCommandPalette() {
