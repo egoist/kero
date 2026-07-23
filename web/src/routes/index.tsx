@@ -77,16 +77,17 @@ const FEATURES: { group: string; rows: Row[] }[] = [
     rows: [
       {
         name: 'Projects, not windows',
-        detail: 'each repo is a project in the sidebar — ⌘1–9 switches, ⌘N adds one',
+        detail: 'each repo is a project in the sidebar — Cmd+1–9 switches, Cmd+N adds one',
       },
       {
         name: 'Sessions per project',
         detail:
-          'open as many terminal tabs as a project needs with ⌘T, each with its own directory and scrollback',
+          'open as many terminal tabs as a project needs with Cmd+T, each with its own directory and scrollback',
       },
       {
         name: 'Split panes',
-        detail: '⌘D splits right, ⌘⇧D splits down, ⌥⌘ + arrows moves focus between panes',
+        detail:
+          'Cmd+D splits right, Cmd+Shift+D splits down, Opt+Cmd+arrows moves focus between panes',
       },
       {
         name: 'Restored on relaunch',
@@ -95,7 +96,7 @@ const FEATURES: { group: string; rows: Row[] }[] = [
       },
       {
         name: 'Command palette',
-        detail: '⌘P to jump to any project or session, or run any command',
+        detail: 'Cmd+P to jump to any project or session, or run any command',
       },
     ],
   },
@@ -119,7 +120,7 @@ const FEATURES: { group: string; rows: Row[] }[] = [
       {
         name: 'Files panel',
         detail:
-          'browse the working tree, open a file, edit it with tree-sitter highlighting, ⌘S to save',
+          'browse the working tree, open a file, edit it with tree-sitter highlighting, Cmd+S to save',
       },
       {
         name: 'Session info',
@@ -160,18 +161,24 @@ const FEATURES: { group: string; rows: Row[] }[] = [
   },
 ]
 
+/**
+ * Modifiers are spelled out rather than set as ⌘/⇧/⌥/⌃. Geist Mono ships no
+ * subset covering U+2318, U+21E7, U+2325, or U+2303, so those glyphs always
+ * fall back to another family mid-word — thinner, differently sized, and off
+ * the mono grid — and go missing entirely on most non-Apple systems.
+ */
 const SHORTCUTS: Row[] = [
-  { name: '⌘N', detail: 'new project' },
-  { name: '⌘T', detail: 'new session' },
-  { name: '⌘1–9', detail: 'switch project' },
-  { name: '⌃⇧1–9', detail: 'switch tab' },
-  { name: '⌘P', detail: 'command palette' },
-  { name: '⌘D / ⌘⇧D', detail: 'split right / split down' },
-  { name: '⌥⌘ + arrows', detail: 'focus the pane in that direction' },
-  { name: '⌘B / ⌘⇧B', detail: 'toggle the left / right sidebar' },
-  { name: '⌘⇧G / E / I', detail: 'git / files / info panel' },
-  { name: '⌘K', detail: 'clear the terminal' },
-  { name: '⌘S', detail: 'save the open file' },
+  { name: 'Cmd+N', detail: 'new project' },
+  { name: 'Cmd+T', detail: 'new session' },
+  { name: 'Cmd+1–9', detail: 'switch project' },
+  { name: 'Ctrl+Shift+1–9', detail: 'switch tab' },
+  { name: 'Cmd+P', detail: 'command palette' },
+  { name: 'Cmd+D / Cmd+Shift+D', detail: 'split right / split down' },
+  { name: 'Opt+Cmd+arrows', detail: 'focus the pane in that direction' },
+  { name: 'Cmd+B / Cmd+Shift+B', detail: 'toggle the left / right sidebar' },
+  { name: 'Cmd+Shift+G / E / I', detail: 'git / files / info panel' },
+  { name: 'Cmd+K', detail: 'clear the terminal' },
+  { name: 'Cmd+S', detail: 'save the open file' },
 ]
 
 const FAQ: { q: string; a: ReactNode }[] = [
