@@ -1,16 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import {
-  ArrowDown,
-  Command,
-  Cpu,
-  FolderGit2,
-  GitBranch,
-  type LucideIcon,
-  PanelRight,
-  SquareTerminal,
-} from 'lucide-react'
 import type { ReactNode } from 'react'
-import { Button } from '@/components/ui/button'
 
 export const Route = createFileRoute('/')({
   component: Home,
@@ -27,9 +16,9 @@ const X_URL = 'https://x.com/localhost_4173'
 
 // Shown only if the appcast can't be reached; kept current so downloads still work.
 const FALLBACK: Release = {
-  version: '0.1.3',
+  version: '0.1.11',
   minSystem: '15.6',
-  dmg: `${RELEASES_ORIGIN}/kero-0.1.3.dmg`,
+  dmg: `${RELEASES_ORIGIN}/kero-0.1.11.dmg`,
 }
 
 /**
@@ -78,391 +67,289 @@ async function fetchLatestRelease(): Promise<Release> {
   }
 }
 
-const features: { index: string; icon: LucideIcon; title: string; body: string }[] = [
+/* ------------------------------------------------------------------ */
+
+type Row = { name: string; detail: string }
+
+const FEATURES: { group: string; rows: Row[] }[] = [
   {
-    index: '01',
-    icon: FolderGit2,
-    title: 'Projects, not windows',
-    body: 'Each repo is a project in the sidebar. Switch with ⌘1–9, open a new one with ⌘N. State is remembered.',
+    group: 'projects & sessions',
+    rows: [
+      {
+        name: 'Projects, not windows',
+        detail: 'each repo is a project in the sidebar — ⌘1–9 switches, ⌘N adds one',
+      },
+      {
+        name: 'Sessions per project',
+        detail:
+          'open as many terminal tabs as a project needs with ⌘T, each with its own directory and scrollback',
+      },
+      {
+        name: 'Split panes',
+        detail: '⌘D splits right, ⌘⇧D splits down, ⌥⌘ + arrows moves focus between panes',
+      },
+      {
+        name: 'Restored on relaunch',
+        detail:
+          'quit and reopen: projects, tabs, and pane layout come back, each shell fresh beneath its previous scrollback',
+      },
+      {
+        name: 'Command palette',
+        detail: '⌘P to jump to any project or session, or run any command',
+      },
+    ],
   },
   {
-    index: '02',
-    icon: SquareTerminal,
-    title: 'Persistent sessions',
-    body: 'Open as many terminal tabs as a project needs. Quit, reopen, and every session is right where you left it.',
+    group: 'review & ship',
+    rows: [
+      {
+        name: 'Git panel',
+        detail:
+          'stage, unstage, discard, and commit — amend included — beside the shell that made the changes',
+      },
+      {
+        name: 'Inline diffs',
+        detail: 'click a changed file to read its diff in place, without leaving the window',
+      },
+      {
+        name: 'Branch work',
+        detail:
+          'switch or create a branch, fetch, fast-forward pull, push, publish a new upstream, or stash',
+      },
+      {
+        name: 'Files panel',
+        detail:
+          'browse the working tree, open a file, edit it with tree-sitter highlighting, ⌘S to save',
+      },
+      {
+        name: 'Session info',
+        detail:
+          'the processes running under a session and the TCP ports they are listening on',
+      },
+    ],
   },
   {
-    index: '03',
-    icon: Command,
-    title: 'Command palette',
-    body: 'One command palette to jump to any project, session, or file. Keyboard-first, mouse entirely optional.',
-  },
-  {
-    index: '04',
-    icon: GitBranch,
-    title: 'Git, built in',
-    body: 'Stage, commit, and push from a panel beside your shell — with the changed files and diffs right there.',
-  },
-  {
-    index: '05',
-    icon: PanelRight,
-    title: 'Files & info at hand',
-    body: 'Flip the side panel between Git, Files, and Info. Browse the working tree without leaving the window.',
-  },
-  {
-    index: '06',
-    icon: Cpu,
-    title: 'Native & yours',
-    body: 'A real SwiftUI Mac app that runs your shell, your prompt, your dotfiles — and updates itself quietly.',
+    group: 'the terminal itself',
+    rows: [
+      {
+        name: 'Your shell, unchanged',
+        detail: 'zsh, fish, or bash exactly as you configured it — prompt, aliases, dotfiles and all',
+      },
+      {
+        name: 'Built on libghostty',
+        detail: "Ghostty's terminal core, embedded and hosted natively by kero",
+      },
+      {
+        name: 'Desktop notifications',
+        detail:
+          'a bell in an unfocused session, or a notification escape from a long-running command, reaches Notification Center',
+      },
+      {
+        name: 'Progress reports',
+        detail: 'OSC 9;4 progress shows as a slim bar above the terminal, error and pause states included',
+      },
+      {
+        name: 'Fonts',
+        detail: 'ships with JetBrains Mono and Nerd Font symbols; swap in any monospace family and size',
+      },
+      {
+        name: 'Quiet updates',
+        detail: 'signed, notarized builds check in with Sparkle and install in the background',
+      },
+    ],
   },
 ]
+
+const SHORTCUTS: Row[] = [
+  { name: '⌘N', detail: 'new project' },
+  { name: '⌘T', detail: 'new session' },
+  { name: '⌘1–9', detail: 'switch project' },
+  { name: '⌃⇧1–9', detail: 'switch tab' },
+  { name: '⌘P', detail: 'command palette' },
+  { name: '⌘D / ⌘⇧D', detail: 'split right / split down' },
+  { name: '⌥⌘ + arrows', detail: 'focus the pane in that direction' },
+  { name: '⌘B / ⌘⇧B', detail: 'toggle the left / right sidebar' },
+  { name: '⌘⇧G / E / I', detail: 'git / files / info panel' },
+  { name: '⌘K', detail: 'clear the terminal' },
+  { name: '⌘S', detail: 'save the open file' },
+]
+
+const FAQ: { q: string; a: ReactNode }[] = [
+  {
+    q: 'Is kero free?',
+    a: 'Yes. Free to download, no subscription, no account.',
+  },
+  {
+    q: 'Does it replace my shell?',
+    a: 'No. kero hosts the shell you already run and leaves your prompt, aliases, and dotfiles untouched. The terminal underneath is libghostty, the same core as Ghostty.',
+  },
+  {
+    q: 'Does it collect any data?',
+    a: 'No telemetry, no analytics. The only network call kero makes is the update check against releases.kero.sh.',
+  },
+  {
+    q: 'What happens to my sessions when I quit?',
+    a: 'Projects, tabs, and pane layout come back on relaunch. Each terminal reopens as a fresh shell in its old directory, with the previous scrollback restored above a "Session Contents Restored" divider.',
+  },
+  {
+    q: 'Is this an IDE?',
+    a: 'No — the terminal stays the center of gravity. The git and files panels exist so you can review and ship what happens in the terminal without switching to an editor.',
+  },
+]
+
+/* ------------------------------------------------------------------ */
 
 function Home() {
   const latest = Route.useLoaderData()
   return (
-    <div className="relative min-h-screen">
-      <SiteNav latest={latest} />
-      <main>
-        <Hero latest={latest} />
-        <Features />
-        <Details />
-        <FinalCta latest={latest} />
-      </main>
-      <SiteFooter latest={latest} />
-    </div>
-  )
-}
-
-/* ------------------------------------------------------------------ */
-
-function SiteNav({ latest }: { latest: Release }) {
-  return (
-    <header className="sticky top-0 z-50 border-b border-border/70 bg-background/80 backdrop-blur-md">
-      <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-6">
-        <a href="#top" className="flex items-center gap-2.5">
-          <img src="/kero-icon.png" alt="Kero" className="size-6 rounded-md" />
-          <span className="font-mono text-sm tracking-tight">kero</span>
-        </a>
-        <nav className="flex items-center gap-1">
-          <NavLink href="#features">features</NavLink>
-          <NavLink href="#details">how</NavLink>
-          <Button
-            size="sm"
-            className="ml-2 h-8 gap-1.5 rounded-md font-mono text-[13px]"
-            render={<a href={latest.dmg} />}
-          >
-            <span className="i-mingcute-apple-fill size-4" />
-            download
-          </Button>
-        </nav>
-      </div>
-    </header>
-  )
-}
-
-function NavLink({ href, children }: { href: string; children: ReactNode }) {
-  return (
-    <a
-      href={href}
-      className="hidden rounded-md px-3 py-2 font-mono text-[13px] text-muted-foreground transition-colors hover:text-foreground sm:block"
-    >
-      {children}
-    </a>
-  )
-}
-
-/* ------------------------------------------------------------------ */
-
-function Hero({ latest }: { latest: Release }) {
-  return (
-    <section id="top" className="relative overflow-hidden">
-      <div aria-hidden className="pointer-events-none absolute inset-0 -z-10">
-        <div className="grid-bg absolute inset-x-0 top-0 h-[760px]" />
-      </div>
-
-      <div className="mx-auto max-w-6xl px-6 pt-20 sm:pt-28">
-        <div className="mx-auto flex max-w-3xl flex-col items-center text-center">
-          <div className="inline-flex items-center gap-2 rounded-md border border-border/80 bg-card/60 px-3 py-1 font-mono text-xs text-muted-foreground">
-            <span className="text-[#3fb950]">❯</span>
-            <span>native terminal workspace · macOS</span>
-            <span className="inline-block h-3 w-[7px] animate-caret bg-[#58a6ff]" />
-          </div>
-
-          <h1 className="mt-6 text-4xl font-semibold tracking-tight text-balance sm:text-6xl">
-            Your terminal, finally organized.
-          </h1>
-
-          <p className="mt-5 max-w-xl text-base leading-relaxed text-balance text-muted-foreground sm:text-lg">
-            Kero wraps the terminal you already use in projects, persistent
-            sessions, a command palette, and built-in git — one fast, native macOS
-            window.
-          </p>
-
-          <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row">
-            <Button
-              className="h-11 gap-2 rounded-md px-5 font-mono text-[13px]"
-              render={<a href={latest.dmg} />}
-            >
-              <span className="i-mingcute-apple-fill size-[18px]" />
-              Download for macOS
-            </Button>
-            <Button
-              variant="outline"
-              className="h-11 gap-1.5 rounded-md px-5 font-mono text-[13px]"
-              render={<a href="#features" />}
-            >
-              See features
-              <ArrowDown className="size-4" />
-            </Button>
-          </div>
-
-          <p className="mt-5 font-mono text-xs text-muted-foreground/70">
-            v{latest.version} — macOS {latest.minSystem}+ — free
-          </p>
-        </div>
-
-        {/* Product shot (transparent padding + shadow baked into the PNG) */}
-        <div className="relative mx-auto mt-16 max-w-[1160px] sm:mt-20">
-          <div className="aurora pointer-events-none absolute -inset-x-16 -top-28 bottom-0 -z-10 opacity-40 blur-[100px]" />
+    <main className="mx-auto flex max-w-[680px] flex-col gap-11 px-6 pt-[12vh] pb-[14vh] font-mono text-[14px] leading-[1.6]">
+      <header className="flex flex-col gap-2.5">
+        <h1 className="flex items-center gap-2.5 text-[15px] font-semibold tracking-[0.02em]">
           <img
-            src="/kero-screenshot.png"
-            alt="Kero showing a project's terminal session with the git panel open"
-            className="relative w-full rounded-4xl select-none"
-            draggable={false}
+            src="/kero-icon.png"
+            alt=""
+            width={26}
+            height={26}
+            className="block size-6.5 rounded-md"
           />
+          kero
+        </h1>
+        <p className="text-foreground/70">
+          Your terminal, with the <span className="text-brand">whole project</span> around it.
+          <span
+            aria-hidden
+            className="ml-[5px] inline-block h-[1.05em] w-[7px] animate-caret rounded-[1px] bg-brand align-[-0.15em] motion-reduce:animate-none"
+          />
+        </p>
+        <p className="mt-3.5 text-muted-foreground">
+          A native macOS workspace built around the terminal — projects, persistent
+          sessions, files, and git in one window.
+          <br />
+          Free, no telemetry, no subscription.
+        </p>
+      </header>
+
+      <section className="flex flex-col gap-3.5">
+        <div>
+          <a
+            href={latest.dmg}
+            download
+            className="inline-flex items-center gap-2 rounded-[9px] border border-border bg-card px-4 py-[7px] text-foreground transition-colors hover:border-brand hover:bg-brand/8 hover:text-brand"
+          >
+            <span className="i-mingcute-apple-fill size-4 shrink-0" />
+            Download .dmg
+          </a>
         </div>
-      </div>
-    </section>
-  )
-}
-
-/** Four faint HUD corner ticks framing the product shot. */
-function Ticks() {
-  const base = 'pointer-events-none absolute z-10 font-mono text-sm text-border select-none'
-  return (
-    <>
-      <span className={`${base} top-2 left-2`}>+</span>
-      <span className={`${base} top-2 right-2`}>+</span>
-      <span className={`${base} bottom-6 left-2`}>+</span>
-      <span className={`${base} right-2 bottom-6`}>+</span>
-    </>
-  )
-}
-
-/* ------------------------------------------------------------------ */
-
-function SectionLabel({ children }: { children: ReactNode }) {
-  return (
-    <div className="flex items-center gap-4">
-      <span className="h-px flex-1 bg-border" />
-      <span className="font-mono text-xs tracking-[0.25em] text-muted-foreground uppercase">
-        {children}
-      </span>
-      <span className="h-px flex-1 bg-border" />
-    </div>
-  )
-}
-
-function Features() {
-  return (
-    <section id="features" className="scroll-mt-20">
-      <div className="mx-auto max-w-6xl px-6 py-20 sm:py-28">
-        <SectionLabel>[ features ]</SectionLabel>
-
-        <div className="mx-auto mt-10 max-w-2xl text-center">
-          <h2 className="text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
-            A workspace, not just a prompt
-          </h2>
-          <p className="mt-4 leading-relaxed text-muted-foreground">
-            Everything that usually lives in other windows — projects, git,
-            files — one keystroke from your shell.
-          </p>
+        <div className="flex flex-wrap items-center gap-2 text-[13px] text-muted-foreground">
+          <Pill>v{latest.version}</Pill>
+          <Pill>macOS {latest.minSystem}+</Pill>
+          <Pill>signed &amp; notarized</Pill>
+          <Pill>free</Pill>
         </div>
+      </section>
 
-        <div className="mt-14 grid overflow-hidden rounded-lg border border-border sm:grid-cols-2 lg:grid-cols-3">
-          {features.map((f) => (
-            <FeatureCell key={f.index} {...f} />
+      <figure className="m-0 flex flex-col gap-2">
+        <img
+          src="/kero-screenshot.png"
+          alt="kero showing a project's terminal session with the git panel open"
+          width={2286}
+          height={1568}
+          className="block w-full rounded-lg border border-border bg-card"
+        />
+        <figcaption className="text-[13px] text-muted-foreground">
+          One project, one session, the git panel open beside it
+        </figcaption>
+      </figure>
+
+      <section className="flex flex-col gap-3.5">
+        <SectionHeading>Features</SectionHeading>
+        <div className="flex flex-col gap-7">
+          {FEATURES.map((section) => (
+            <div key={section.group} className="flex flex-col gap-3">
+              <h3 className="flex items-center gap-3 text-xs font-normal tracking-[0.04em] text-foreground/60 after:h-px after:flex-1 after:bg-border after:content-['']">
+                {section.group}
+              </h3>
+              <ul className="grid list-none gap-2 p-0">
+                {section.rows.map((row) => (
+                  <DefinitionRow key={row.name} {...row} />
+                ))}
+              </ul>
+            </div>
           ))}
         </div>
-      </div>
-    </section>
-  )
-}
+      </section>
 
-function FeatureCell({
-  index,
-  icon: Icon,
-  title,
-  body,
-}: {
-  index: string
-  icon: LucideIcon
-  title: string
-  body: string
-}) {
-  return (
-    <div className="group -mt-px -ml-px border-t border-l border-border bg-background p-6 transition-colors hover:bg-card">
-      <div className="flex items-center justify-between">
-        <span className="font-mono text-xs text-muted-foreground/70 transition-colors group-hover:text-brand">
-          {index}
-        </span>
-        <Icon className="size-[18px] text-muted-foreground/50 transition-colors group-hover:text-foreground" />
-      </div>
-      <h3 className="mt-5 font-medium">{title}</h3>
-      <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{body}</p>
-    </div>
-  )
-}
+      <section className="flex flex-col gap-3.5">
+        <SectionHeading>Shortcuts</SectionHeading>
+        <ul className="grid list-none gap-2 p-0">
+          {SHORTCUTS.map((row) => (
+            <DefinitionRow key={row.name} {...row} />
+          ))}
+        </ul>
+      </section>
 
-/* ------------------------------------------------------------------ */
-
-const SHORTCUTS: { keys: string[]; label: string }[] = [
-  { keys: ['⌘', '1–9'], label: 'switch project' },
-  { keys: ['⌘', 'N'], label: 'new project' },
-  { keys: ['⌘', 'P'], label: 'command palette' },
-  { keys: ['⌘', ','], label: 'settings' },
-]
-
-const SHELLS = ['zsh', 'fish', 'bash', 'starship', 'tmux', 'nvim']
-
-function Details() {
-  return (
-    <section id="details" className="scroll-mt-20">
-      <div className="mx-auto max-w-6xl px-6 py-20 sm:py-28">
-        <SectionLabel>[ how it feels ]</SectionLabel>
-
-        <div className="mt-14 grid overflow-hidden rounded-lg border border-border lg:grid-cols-2">
-          {/* Keyboard-first */}
-          <div className="border-b border-border p-8 lg:border-r lg:border-b-0">
-            <div className="font-mono text-xs tracking-[0.2em] text-brand uppercase">
-              // keyboard-first
-            </div>
-            <h3 className="mt-4 text-xl font-semibold tracking-tight">
-              Hands stay on the keys
-            </h3>
-            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-              Every surface has a shortcut. Move between projects, spawn
-              sessions, and summon the palette without reaching for the trackpad.
-            </p>
-            <div className="mt-6 space-y-2.5">
-              {SHORTCUTS.map((s) => (
-                <div key={s.label} className="flex items-center gap-3">
-                  <div className="flex items-center gap-1">
-                    {s.keys.map((k) => (
-                      <Kbd key={k}>{k}</Kbd>
-                    ))}
-                  </div>
-                  <span className="font-mono text-[13px] text-muted-foreground">
-                    {s.label}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Your shell, unchanged */}
-          <div className="p-8">
-            <div className="font-mono text-xs tracking-[0.2em] text-brand uppercase">
-              // your shell, unchanged
-            </div>
-            <h3 className="mt-4 text-xl font-semibold tracking-tight">
-              It runs your real terminal
-            </h3>
-            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-              Kero hosts the shell you already have. Your prompt, aliases, and
-              dotfiles come along exactly as they are — nothing to reconfigure.
-            </p>
-            <div className="mt-6 flex flex-wrap gap-2">
-              {SHELLS.map((s) => (
+      <section className="flex flex-col gap-3.5">
+        <SectionHeading>FAQ</SectionHeading>
+        <div className="flex flex-col gap-2">
+          {FAQ.map((item) => (
+            <details key={item.q} className="group border-b border-border">
+              <summary className="flex cursor-pointer list-none items-baseline gap-2.5 py-2 text-foreground transition-colors hover:text-brand [&::-webkit-details-marker]:hidden">
                 <span
-                  key={s}
-                  className="rounded-md border border-border bg-card px-2.5 py-1 font-mono text-[13px] text-muted-foreground"
-                >
-                  {s}
-                </span>
-              ))}
-            </div>
-          </div>
+                  aria-hidden
+                  className="flex-none text-muted-foreground before:content-['+'] group-open:before:content-['–']"
+                />
+                {item.q}
+              </summary>
+              <p className="mb-3 ml-5 text-muted-foreground">{item.a}</p>
+            </details>
+          ))}
         </div>
-      </div>
-    </section>
+      </section>
+
+      <footer className="text-[13px] text-muted-foreground">
+        Built by{' '}
+        <a
+          href={X_URL}
+          target="_blank"
+          rel="noreferrer"
+          className="text-foreground transition-colors hover:text-brand"
+        >
+          @localhost_4173
+        </a>{' '}
+        · © 2026
+      </footer>
+    </main>
   )
 }
 
-function Kbd({ children }: { children: ReactNode }) {
+/* ------------------------------------------------------------------ */
+
+function SectionHeading({ children }: { children: ReactNode }) {
   return (
-    <kbd className="inline-flex h-6 min-w-6 items-center justify-center rounded-[5px] border border-border bg-card px-1.5 font-mono text-xs text-foreground">
+    <h2 className="text-[13px] font-normal tracking-[0.04em] text-muted-foreground">
       {children}
-    </kbd>
+    </h2>
   )
 }
 
-/* ------------------------------------------------------------------ */
-
-function FinalCta({ latest }: { latest: Release }) {
+function Pill({ children }: { children: ReactNode }) {
   return (
-    <section id="download" className="scroll-mt-20 border-t border-border/70">
-      <div className="relative mx-auto max-w-6xl overflow-hidden px-6 py-24 text-center sm:py-32">
-        <div className="aurora pointer-events-none absolute inset-x-0 -top-20 -z-10 h-72 opacity-25 blur-[90px]" />
-        <img
-          src="/kero-icon.png"
-          alt=""
-          className="mx-auto size-14 rounded-2xl shadow-lg"
-        />
-        <h2 className="mt-6 text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
-          Ready when you are.
-        </h2>
-        <p className="mx-auto mt-3 max-w-sm text-muted-foreground">
-          Download Kero and give every project a home. It's free.
-        </p>
-        <div className="mt-8 flex justify-center">
-          <Button
-            className="h-11 gap-2 rounded-md px-6 font-mono text-[13px]"
-            render={<a href={latest.dmg} />}
-          >
-            <span className="i-mingcute-apple-fill size-[18px]" />
-            Download for macOS
-          </Button>
-        </div>
-        <p className="mt-5 font-mono text-xs text-muted-foreground/70">
-          v{latest.version} — macOS {latest.minSystem}+ — free
-        </p>
-      </div>
-    </section>
+    <span className="inline-flex items-center rounded-[6px] border border-border px-2 py-[3px]">
+      {children}
+    </span>
   )
 }
 
-/* ------------------------------------------------------------------ */
-
-function SiteFooter({ latest }: { latest: Release }) {
+/** A label/description pair — the page's one repeating unit. */
+function DefinitionRow({ name, detail }: Row) {
   return (
-    <footer className="border-t border-border/70">
-      <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-6 py-8 font-mono text-[13px] sm:flex-row">
-        <div className="flex items-center gap-2.5">
-          <img src="/kero-icon.png" alt="" className="size-5 rounded-[5px]" />
-          <span>kero</span>
-          <span className="text-muted-foreground">
-            — native terminal workspace
-          </span>
-        </div>
-        <div className="flex items-center gap-5 text-muted-foreground">
-          <a href="#features" className="transition-colors hover:text-foreground">
-            features
-          </a>
-          <a href={latest.dmg} className="transition-colors hover:text-foreground">
-            download
-          </a>
-          <a
-            href={X_URL}
-            target="_blank"
-            rel="noreferrer"
-            className="flex items-center gap-1.5 transition-colors hover:text-foreground"
-          >
-            <span className="i-mingcute-social-x-line size-3.5" />
-          </a>
-          <span>© 2026</span>
-        </div>
-      </div>
-    </footer>
+    <li className="group grid grid-cols-[190px_1fr] items-baseline gap-4 max-[560px]:grid-cols-1 max-[560px]:gap-0.5">
+      <span className="text-foreground transition-colors group-hover:text-brand">
+        {name}
+      </span>
+      <span className="text-muted-foreground transition-colors group-hover:text-foreground">
+        {detail}
+      </span>
+    </li>
   )
 }
