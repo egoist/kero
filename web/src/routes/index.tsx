@@ -23,6 +23,7 @@ type Release = { version: string; minSystem: string; dmg: string }
 
 const RELEASES_ORIGIN = 'https://releases.kero.sh'
 const APPCAST_URL = `${RELEASES_ORIGIN}/appcast.xml`
+const X_URL = 'https://x.com/localhost_4173'
 
 // Shown only if the appcast can't be reached; kept current so downloads still work.
 const FALLBACK: Release = {
@@ -450,6 +451,14 @@ function SiteFooter({ latest }: { latest: Release }) {
           </a>
           <a href={latest.dmg} className="transition-colors hover:text-foreground">
             download
+          </a>
+          <a
+            href={X_URL}
+            target="_blank"
+            rel="noreferrer"
+            className="flex items-center gap-1.5 transition-colors hover:text-foreground"
+          >
+            <span className="i-mingcute-social-x-line size-3.5" />
           </a>
           <span>© 2026</span>
         </div>
