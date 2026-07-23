@@ -156,47 +156,6 @@
   }
 }
 
-/* Fine technical grid for the hero, masked to fade out at the edges. */
-.grid-bg {
-  background-image:
-    linear-gradient(
-      to right,
-      color-mix(in oklab, var(--border) 70%, transparent) 1px,
-      transparent 1px
-    ),
-    linear-gradient(
-      to bottom,
-      color-mix(in oklab, var(--border) 70%, transparent) 1px,
-      transparent 1px
-    );
-  background-size: 40px 40px;
-  -webkit-mask-image: radial-gradient(
-    ellipse 80% 60% at 50% 0%,
-    #000 25%,
-    transparent 90%
-  );
-  mask-image: radial-gradient(
-    ellipse 80% 60% at 50% 0%,
-    #000 25%,
-    transparent 90%
-  );
-}
-
-/* Soft aurora glow behind the hero product shot. */
-.aurora {
-  background:
-    radial-gradient(
-      42% 55% at 50% 32%,
-      color-mix(in oklab, #1f6feb 55%, transparent),
-      transparent 70%
-    ),
-    radial-gradient(
-      34% 45% at 68% 20%,
-      color-mix(in oklab, #39c5cf 40%, transparent),
-      transparent 70%
-    );
-}
-
 @keyframes kero-blink {
   0%,
   49% {
