@@ -22,6 +22,8 @@ final class TerminalSession: NSObject, nonisolated ObservableObject, nonisolated
 
     let terminalView: KeroTerminalView
     let overlayScrollbar = OverlayScrollbarView()
+    /// Find-in-terminal state for this session's pane (⌘F).
+    let find: TerminalFind
     var onExited: ((TerminalSession) -> Void)?
 
     private static let persistedHistoryLineLimit = 500
@@ -59,9 +61,11 @@ final class TerminalSession: NSObject, nonisolated ObservableObject, nonisolated
             theme: Self.ghosttyTheme(),
             terminalConfiguration: Self.terminalConfiguration(command: launchCommand)
         )
-        terminalView = KeroTerminalView(
+        let terminalView = KeroTerminalView(
             frame: NSRect(x: 0, y: 0, width: 800, height: 600)
         )
+        self.terminalView = terminalView
+        find = TerminalFind(terminal: terminalView)
         lastHistorySnapshot = restoredHistory
         super.init()
 
@@ -493,6 +497,24 @@ extension TerminalSession: TerminalSurfacePwdDelegate {
         guard !path.isEmpty else { return }
         workingDirectory = path.hasPrefix("/")
             ? URL(fileURLWithPath: path).absoluteString : path
+    }
+}
+
+extension TerminalSession: TerminalSurfaceSearchDelegate {
+    func terminalDidStartSearch(needle: String) {
+        find.started(needle: needle)
+    }
+
+    func terminalDidEndSearch() {
+        find.ended()
+    }
+
+    func terminalDidUpdateSearchTotal(_ total: Int?) {
+        find.update(total: total)
+    }
+
+    func terminalDidUpdateSearchSelected(_ selected: Int?) {
+        find.update(selected: selected)
     }
 }
 

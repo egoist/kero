@@ -107,6 +107,38 @@ private struct KeroCommands: Commands {
         }
 
         CommandGroup(after: .pasteboard) {
+            // SwiftUI's Edit menu ships no Find submenu, so Kero owns these
+            // outright. They act on the focused pane's terminal rather than
+            // the first responder, which keeps them live while the find bar's
+            // text field has keyboard focus. ⇧⌘G is already Toggle Git Panel,
+            // so Find Previous is reachable by ⇧↩ in the bar instead.
+            Menu("Find") {
+                Button("Find…") {
+                    manager?.performFindAction(.show)
+                }
+                .keyboardShortcut("f", modifiers: .command)
+                .disabled(manager?.canFindInActiveTerminal != true)
+
+                Button("Find Next") {
+                    manager?.performFindAction(.next)
+                }
+                .keyboardShortcut("g", modifiers: .command)
+                .disabled(manager?.canFindInActiveTerminal != true)
+
+                Button("Find Previous") {
+                    manager?.performFindAction(.previous)
+                }
+                .disabled(manager?.canFindInActiveTerminal != true)
+
+                Button("Use Selection for Find") {
+                    manager?.performFindAction(.useSelection)
+                }
+                .keyboardShortcut("e", modifiers: .command)
+                .disabled(manager?.canFindInActiveTerminal != true)
+            }
+
+            Divider()
+
             Button("Clear Terminal") {
                 manager?.clearActiveTerminal()
             }

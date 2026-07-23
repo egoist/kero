@@ -233,6 +233,18 @@ final class TerminalManager: nonisolated ObservableObject {
         return false
     }
 
+    /// Routes a Find menu command to the focused pane's terminal. Driven off
+    /// the focused pane rather than the first responder, so ⌘F and ⌘G keep
+    /// working while the find bar's own field holds keyboard focus.
+    func performFindAction(_ action: TerminalFindAction) {
+        if case .session(let session)? = selectedProject?.focusedContent {
+            session.find.perform(action)
+        }
+    }
+
+    /// Whether the Find menu has a terminal on screen to act on right now.
+    var canFindInActiveTerminal: Bool { canClearActiveTerminal }
+
     /// Closes the focused pane (⌘W). When it's the last pane in its tab the
     /// tab closes too — matching the old single-content-tab behavior. Once the
     /// project has no tabs left, ⌘W closes the project itself.

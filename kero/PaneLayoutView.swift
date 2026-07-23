@@ -434,6 +434,9 @@ private struct PaneView: View {
         case .session(let session):
             TerminalHostView(session: session, isFocused: isFocused, onFocused: focus, onSplit: splitFromMenu)
                 .background(Color(nsColor: Theme.background))
+                .overlay(alignment: .topTrailing) {
+                    TerminalFindOverlay(find: session.find)
+                }
         case .file(let file):
             FileViewerView(file: file, isFocused: isFocused, onFocused: focus, onSplit: splitFromMenu)
                 .background(Color(nsColor: Theme.background))
@@ -532,6 +535,19 @@ private struct PaneView: View {
                 key: PaneFramePreferenceKey.self,
                 value: [pane.id: proxy.frame(in: .global)]
             )
+        }
+    }
+}
+
+/// Mounts a session's find bar only while it is open, so a closed bar never
+/// sits over the terminal swallowing clicks. Separate from `PaneView` so that
+/// opening and closing it re-renders nothing but the overlay.
+private struct TerminalFindOverlay: View {
+    @ObservedObject var find: TerminalFind
+
+    var body: some View {
+        if find.isPresented {
+            TerminalFindBar(find: find)
         }
     }
 }
