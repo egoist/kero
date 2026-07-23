@@ -2,14 +2,13 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<!-- This Info.plist is authored by hand (GENERATE_INFOPLIST_FILE = NO).
-	     The generator always forces CFBundleName = $(PRODUCT_NAME), i.e. the
-	     lowercase "kero", and the macOS app menu shows CFBundleName verbatim.
-	     We want the product/bundle/executable to stay lowercase (bundle id
-	     sh.kero, kero.app — the release scripts depend on that name) while the
-	     user-visible name is capitalized, so we own the plist and set the
-	     Bundle* keys ourselves. Dynamic values use build-setting substitution
-	     so they stay in sync with the project. -->
+	<!-- This Info.plist is authored by hand (GENERATE_INFOPLIST_FILE = NO) so we
+	     own the Bundle* keys instead of letting the generator derive them.
+	     PRODUCT_NAME is pinned to "Kero" (not $(TARGET_NAME)), so the bundle and
+	     executable are Kero.app/Kero even though the target, scheme and source
+	     folder are still lowercase "kero". The bundle id stays sh.kero — it's
+	     the app's identity for Sparkle and code signing, so it must not change.
+	     Dynamic values use build-setting substitution to stay in sync. -->
 
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>

@@ -15,7 +15,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		FF3FDD73300B6A7400112486 /* kero.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = kero.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		FF3FDD73300B6A7400112486 /* Kero.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Kero.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -64,7 +64,7 @@
 		FF3FDD74300B6A7400112486 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				FF3FDD73300B6A7400112486 /* kero.app */,
+				FF3FDD73300B6A7400112486 /* Kero.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -94,7 +94,7 @@
 				AA20000000000000000000A1 /* STTextView-Plugin-Neon */,
 			);
 			productName = kero;
-			productReference = FF3FDD73300B6A7400112486 /* kero.app */;
+			productReference = FF3FDD73300B6A7400112486 /* Kero.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -293,7 +293,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 15.6;
 				MARKETING_VERSION = 0.1.10;
 				PRODUCT_BUNDLE_IDENTIFIER = sh.kero.dev;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_NAME = Kero;
 				REGISTER_APP_GROUPS = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -324,7 +324,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 15.6;
 				MARKETING_VERSION = 0.1.10;
 				PRODUCT_BUNDLE_IDENTIFIER = sh.kero;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_NAME = Kero;
 				REGISTER_APP_GROUPS = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;

@@ -75,7 +75,7 @@ await $`xcodebuild -project ${PROJECT} -scheme ${SCHEME} -configuration ${CONFIG
 say("Exporting Developer ID app…");
 await $`xcodebuild -exportArchive -archivePath ${ARCHIVE_PATH} -exportOptionsPlist ${EXPORT_OPTIONS} -exportPath ${EXPORT_DIR}`;
 
-const app = join(EXPORT_DIR, "kero.app");
+const app = join(EXPORT_DIR, "Kero.app");
 if (!existsSync(app)) die(`exported app not found at ${app}`);
 const appPlist = join(app, "Contents/Info.plist");
 
@@ -109,16 +109,16 @@ const dmgStaging = join(BUILD_DIR, "dmg");
 rmSync(dmgStaging, { recursive: true, force: true });
 rmSync(dmgPath, { force: true });
 mkdirSync(dmgStaging, { recursive: true });
-await $`ditto ${app} ${join(dmgStaging, "kero.app")}`;
+await $`ditto ${app} ${join(dmgStaging, "Kero.app")}`;
 // create-dmg can return non-zero from cosmetic Finder-scripting hiccups even
 // when the image is fine, so check for the file instead of the exit code.
 await $`create-dmg \
-  --volname ${`kero ${version}`} \
+  --volname ${`Kero ${version}`} \
   --window-size 540 380 \
   --icon-size 128 \
-  --icon ${"kero.app"} 150 195 \
+  --icon ${"Kero.app"} 150 195 \
   --app-drop-link 390 195 \
-  --hide-extension ${"kero.app"} \
+  --hide-extension ${"Kero.app"} \
   --no-internet-enable \
   ${dmgPath} ${dmgStaging}`.nothrow();
 if (!existsSync(dmgPath)) die("create-dmg did not produce a disk image");

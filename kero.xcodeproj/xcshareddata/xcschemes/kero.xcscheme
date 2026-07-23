@@ -16,7 +16,7 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "FF3FDD72300B6A7400112486"
-               BuildableName = "kero.app"
+               BuildableName = "Kero.app"
                ReferencedContainer = "container:kero.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
@@ -45,7 +45,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "FF3FDD72300B6A7400112486"
-            BuildableName = "kero.app"
+            BuildableName = "Kero.app"
             ReferencedContainer = "container:kero.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
@@ -61,7 +61,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "FF3FDD72300B6A7400112486"
-            BuildableName = "kero.app"
+            BuildableName = "Kero.app"
             ReferencedContainer = "container:kero.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
