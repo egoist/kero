@@ -203,14 +203,14 @@ function Home() {
   const latest = Route.useLoaderData()
   return (
     <main className="mx-auto flex max-w-[680px] flex-col gap-11 px-6 pt-[12vh] pb-[14vh] font-mono text-[14px] leading-[1.6]">
-      <header className="flex flex-col gap-2.5">
-        <h1 className="flex items-center gap-2.5 text-[15px] font-semibold tracking-[0.02em]">
+      <header className="flex flex-col gap-3">
+        <h1 className="flex items-center gap-2.5 text-xl font-bold tracking-[0.02em]">
           <img
             src="/kero-icon.png"
             alt=""
             width={26}
             height={26}
-            className="block size-6.5 rounded-md"
+            className="block size-9 border border-zinc-600 rounded-md"
           />
           kero
         </h1>
@@ -257,7 +257,7 @@ function Home() {
           className="block w-full rounded-lg border border-border bg-card"
         />
         <figcaption className="text-[13px] text-muted-foreground">
-          One project, one session, the git panel open beside it
+          Projects, tabs, the git panel open beside it
         </figcaption>
       </figure>
 
