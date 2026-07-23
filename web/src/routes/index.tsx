@@ -318,7 +318,7 @@ function FeatureCell({
 const SHORTCUTS: { keys: string[]; label: string }[] = [
   { keys: ['⌘', '1–9'], label: 'switch project' },
   { keys: ['⌘', 'N'], label: 'new project' },
-  { keys: ['⌘', 'K'], label: 'command palette' },
+  { keys: ['⌘', 'P'], label: 'command palette' },
   { keys: ['⌘', ','], label: 'settings' },
 ]
 
