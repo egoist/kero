@@ -55,8 +55,12 @@ struct CommandPaletteView: View {
 
     var body: some View {
         ZStack(alignment: .top) {
+            // The palette floats over the terminal surface, whose AppKit cursor
+            // rect would otherwise show through as an I-beam across the whole
+            // backdrop. Each region of the palette states its own pointer.
             Color.black.opacity(0.15)
                 .onTapGesture { dismiss() }
+                .pointerStyle(.default)
 
             panel
                 .padding(.top, 110)
@@ -271,11 +275,16 @@ struct CommandPaletteView: View {
             }
             .padding(.horizontal, 14)
             .frame(height: 44)
+            // The field itself only claims its text-height slice of the row,
+            // so the rest of the 44pt search bar would fall back to the arrow.
+            .contentShape(.rect)
+            .pointerStyle(.horizontalText)
 
             Divider()
                 .opacity(0.5)
 
             results
+                .pointerStyle(.default)
         }
         .frame(width: 560)
         .background(
