@@ -23,13 +23,16 @@ struct SidebarResizeHandle: View {
             .fill(Color.clear)
             .frame(width: 7)
             .contentShape(Rectangle())
-            .onHover { hovering in
-                if hovering {
-                    NSCursor.columnResize.push()
-                } else {
-                    NSCursor.pop()
-                }
-            }
+            // Not `NSCursor.columnResize.push()` from `onHover`, which looks
+            // equivalent but loses: it pushes onto the shared cursor stack from
+            // outside AppKit's own pointer resolution, and AppKit resets the
+            // pointer as it leaves a registered cursor rect — which is what a
+            // neighbouring editor is covered in (STTextView adds an I-beam rect
+            // over its text). Coming off the text onto the handle, that reset
+            // lands after the push and wins, so the handle dragged fine while
+            // showing a plain arrow, giving no sign it was there.
+            // `pointerStyle` registers through the same resolution instead.
+            .pointerStyle(.columnResize)
             .gesture(
                 DragGesture(minimumDistance: 1, coordinateSpace: .global)
                     .onChanged { value in

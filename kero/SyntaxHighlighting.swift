@@ -14,6 +14,7 @@ import TreeSitterResource
 // (see `highlightsData(for:)`).
 import TreeSitterCQueries
 import TreeSitterJavaScriptQueries
+import TreeSitterTypeScriptQueries
 // Injection query files, for languages that embed other languages (see
 // `injectionsData(for:)`). Like the base-query modules above, these are
 // internal plugin targets imported directly for MemberImportVisibility.
@@ -21,6 +22,32 @@ import TreeSitterHTMLQueries
 import TreeSitterMarkdownQueries
 import TreeSitterPHPQueries
 import TreeSitterRustQueries
+// The one grammar kero vendors itself, for `SyntaxLanguage.tsx`.
+import TreeSitterTSX
+
+/// A grammar kero can highlight with: one of the plugin's bundled languages,
+/// or TSX, which kero vendors.
+///
+/// TSX can't just be another `TreeSitterLanguage` case. tree-sitter-typescript
+/// ships JSX as a **separate grammar** — `<tag>` is ambiguous with TypeScript's
+/// `<T>x` type assertion, so no single parser does both — and the plugin builds
+/// only the `typescript` half (its `TreeSitterTSX` target isn't part of any
+/// product, so nothing in the package graph reaches it). Parsing a `.tsx` file
+/// with the `typescript` grammar makes every element a parse error, which is
+/// why the JSX in one used to render as one long unbroken string. See
+/// `Vendor/TreeSitterTSX`.
+enum SyntaxLanguage: Hashable {
+    case bundled(TreeSitterLanguage)
+    case tsx
+
+    /// The tree-sitter grammar, as `TreeSitterLanguage.parser` hands it over.
+    var parser: OpaquePointer {
+        switch self {
+        case .bundled(let language): language.parser
+        case .tsx: tree_sitter_tsx()
+        }
+    }
+}
 
 /// Tree-sitter syntax highlighting for the source editor. `SourceTextEditor`
 /// asks for a plugin per file; unsupported file types get `nil` and render as
@@ -62,18 +89,40 @@ enum SyntaxHighlighting {
     /// doesn't resolve inheritance, so without this TypeScript (inherits
     /// JavaScript) and C++ (inherits C) lose comments, strings and base
     /// keywords — everything defined only in the parent's query.
-    static func highlightsData(for language: TreeSitterLanguage) -> Data {
+    ///
+    /// JSX is the one addition that goes *last* rather than first: its
+    /// `@tag`/`@attribute` captures have to beat the generic `(identifier)`
+    /// rules both parents apply to the same node, so that `<main>` and `<Foo>`
+    /// come out looking alike.
+    static func highlightsData(for language: SyntaxLanguage) -> Data {
         var urls: [URL] = []
         switch language {
-        case .typescript:
-            urls.append(TreeSitterJavaScriptQueries.Query.highlightsFileURL)
-        case .cpp:
-            urls.append(TreeSitterCQueries.Query.highlightsFileURL)
-        default:
-            break
-        }
-        if let own = language.highlightQueryURL {
-            urls.append(own)
+        case .tsx:
+            // TSX inherits *both* parents. It contributes no query of its own:
+            // tree-sitter-typescript's tsx and typescript highlights are the
+            // same file, and only TypeScript's is built into the plugin.
+            urls = [
+                TreeSitterJavaScriptQueries.Query.highlightsFileURL,
+                TreeSitterTypeScriptQueries.Query.highlightsFileURL,
+                TreeSitterJavaScriptQueries.Query.highlightsJSXFileURL,
+            ]
+        case .bundled(let language):
+            switch language {
+            case .typescript:
+                urls.append(TreeSitterJavaScriptQueries.Query.highlightsFileURL)
+            case .cpp:
+                urls.append(TreeSitterCQueries.Query.highlightsFileURL)
+            default:
+                break
+            }
+            if let own = language.highlightQueryURL {
+                urls.append(own)
+            }
+            // The JavaScript grammar parses JSX too (`.jsx`, and `.js` in
+            // practice), but keeps its element captures in a second file.
+            if language == .javascript {
+                urls.append(TreeSitterJavaScriptQueries.Query.highlightsJSXFileURL)
+            }
         }
 
         var data = Data()
@@ -94,14 +143,14 @@ enum SyntaxHighlighting {
     ///
     /// The single `.scm` isn't inheritance-merged (unlike `highlightsData`):
     /// injection queries don't use nvim's `; inherits:` convention.
-    static func injectionsData(for language: TreeSitterLanguage) -> Data? {
+    static func injectionsData(for language: SyntaxLanguage) -> Data? {
         let url: URL
         switch language {
-        case .markdown: url = TreeSitterMarkdownQueries.Query.injectionsFileURL
-        case .html:     url = TreeSitterHTMLQueries.Query.injectionsFileURL
-        case .php:      url = TreeSitterPHPQueries.Query.injectionsFileURL
-        case .rust:     url = TreeSitterRustQueries.Query.injectionsFileURL
-        default:        return nil
+        case .bundled(.markdown): url = TreeSitterMarkdownQueries.Query.injectionsFileURL
+        case .bundled(.html):     url = TreeSitterHTMLQueries.Query.injectionsFileURL
+        case .bundled(.php):      url = TreeSitterPHPQueries.Query.injectionsFileURL
+        case .bundled(.rust):     url = TreeSitterRustQueries.Query.injectionsFileURL
+        default:                  return nil
         }
         return try? Data(contentsOf: url)
     }
@@ -113,17 +162,18 @@ enum SyntaxHighlighting {
     /// info strings are usually just extensions (`sh`, `js`, `py`). Names with
     /// no bundled grammar (`text`, `diff`, `markdown_inline`, …) return `nil`
     /// and that region is left as plain text.
-    static func language(forInjectionName name: String) -> TreeSitterLanguage? {
+    static func language(forInjectionName name: String) -> SyntaxLanguage? {
         let key = name.lowercased()
-        if let language = injectionAliases[key] { return language }
-        return byExtension[key]
+        if key == tsxExtension || key == "typescriptreact" { return .tsx }
+        if let language = injectionAliases[key] { return .bundled(language) }
+        return byExtension[key].map(SyntaxLanguage.bundled)
     }
 
     /// Long-form injection names not already covered by `byExtension` (which
     /// handles `sh`, `js`, `ts`, `py`, `rb`, `rs`, `cpp`, `c++`, `yml`, …).
     private static let injectionAliases: [String: TreeSitterLanguage] = [
         "shell": .bash, "shellscript": .bash, "shell-script": .bash,
-        "javascript": .javascript, "node": .javascript,
+        "javascript": .javascript, "node": .javascript, "javascriptreact": .javascript,
         "typescript": .typescript,
         "python": .python,
         "ruby": .ruby,
@@ -136,18 +186,25 @@ enum SyntaxHighlighting {
 
     /// The tree-sitter language for a file, matched by extension first and
     /// then by a few well-known extensionless names.
-    static func language(for path: String) -> TreeSitterLanguage? {
+    static func language(for path: String) -> SyntaxLanguage? {
         let name = (path as NSString).lastPathComponent.lowercased()
-        if let language = byExtension[(name as NSString).pathExtension] {
-            return language
+        let ext = (name as NSString).pathExtension
+        // Kept out of `byExtension`, which only holds the plugin's grammars.
+        if ext == tsxExtension { return .tsx }
+        if let language = byExtension[ext] {
+            return .bundled(language)
         }
-        return byName[name]
+        return byName[name].map(SyntaxLanguage.bundled)
     }
+
+    /// The one extension that needs the vendored grammar. `.mts`/`.cts` stay on
+    /// plain TypeScript — only `.tsx` may contain JSX.
+    private static let tsxExtension = "tsx"
 
     private static let byExtension: [String: TreeSitterLanguage] = [
         "swift": .swift,
         "js": .javascript, "mjs": .javascript, "cjs": .javascript, "jsx": .javascript,
-        "ts": .typescript, "tsx": .typescript, "mts": .typescript, "cts": .typescript,
+        "ts": .typescript, "mts": .typescript, "cts": .typescript,
         "json": .json, "jsonc": .json, "json5": .json,
         "py": .python, "pyi": .python, "pyw": .python,
         "rb": .ruby, "rake": .ruby, "gemspec": .ruby,

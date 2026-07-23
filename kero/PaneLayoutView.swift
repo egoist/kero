@@ -347,10 +347,10 @@ private struct ResizableDivider: View {
                 maxHeight: orientation == .columns ? .infinity : nil
             )
             .contentShape(Rectangle())
-            .onHover { hovering in
-                guard hovering else { NSCursor.pop(); return }
-                (orientation == .columns ? NSCursor.columnResize : NSCursor.rowResize).push()
-            }
+            // System pointer resolution rather than pushing onto the cursor
+            // stack by hand — see SidebarResizeHandle for why the manual push
+            // never showed up next to a file editor.
+            .pointerStyle(orientation == .columns ? .columnResize : .rowResize)
             // Global coordinate space is essential: the divider itself shifts
             // as the panes resize, so a local-space translation would be
             // measured against a moving reference frame and oscillate (the

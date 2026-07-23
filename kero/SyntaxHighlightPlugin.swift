@@ -12,6 +12,10 @@
 //  leaves comments, strings and base keywords unhighlighted. See
 //  SyntaxHighlighting.highlightsData(for:).
 //
+//  Languages are named by kero's own `SyntaxLanguage`, not the plugin's
+//  `TreeSitterLanguage`, because one grammar (TSX) is vendored rather than
+//  bundled.
+//
 //  Adapted from STTextView-Plugin-Neon's Coordinator / STTextViewSystemInterface.
 //
 
@@ -23,12 +27,11 @@ import STTextKitPlus
 import STTextView
 import SwiftTreeSitter
 import TreeSitterClient
-import TreeSitterResource
 
 /// STTextView plugin that drives Neon's tree-sitter highlighter.
 struct SyntaxHighlightPlugin: STPlugin {
     let theme: STPluginNeonAppKit.Theme
-    let language: TreeSitterLanguage
+    let language: SyntaxLanguage
     /// The combined highlights query (`inherited base + language-specific`),
     /// already concatenated by `SyntaxHighlighting.highlightsData(for:)`.
     let highlightsData: Data
@@ -81,14 +84,14 @@ struct SyntaxHighlightPlugin: STPlugin {
 /// `SyntaxHighlightCoordinator.installTokenProvider`), every later file reuses it.
 @MainActor
 enum HighlightQueryCache {
-    private static var cache: [TreeSitterLanguage: SwiftTreeSitter.Query] = [:]
-    private static var injectionCache: [TreeSitterLanguage: SwiftTreeSitter.Query] = [:]
+    private static var cache: [SyntaxLanguage: SwiftTreeSitter.Query] = [:]
+    private static var injectionCache: [SyntaxLanguage: SwiftTreeSitter.Query] = [:]
 
-    static func cached(_ language: TreeSitterLanguage) -> SwiftTreeSitter.Query? {
+    static func cached(_ language: SyntaxLanguage) -> SwiftTreeSitter.Query? {
         cache[language]
     }
 
-    static func store(_ query: SwiftTreeSitter.Query, for language: TreeSitterLanguage) {
+    static func store(_ query: SwiftTreeSitter.Query, for language: SyntaxLanguage) {
         cache[language] = query
     }
 
@@ -96,11 +99,11 @@ enum HighlightQueryCache {
     /// cache above because it's built from different `.scm` bytes against the
     /// same grammar. A language embedded in another (bash inside markdown)
     /// reuses the highlights cache via `cached(_:)` for its own tokens.
-    static func cachedInjection(_ language: TreeSitterLanguage) -> SwiftTreeSitter.Query? {
+    static func cachedInjection(_ language: SyntaxLanguage) -> SwiftTreeSitter.Query? {
         injectionCache[language]
     }
 
-    static func storeInjection(_ query: SwiftTreeSitter.Query, for language: TreeSitterLanguage) {
+    static func storeInjection(_ query: SwiftTreeSitter.Query, for language: SyntaxLanguage) {
         injectionCache[language] = query
     }
 }
@@ -108,7 +111,7 @@ enum HighlightQueryCache {
 @MainActor
 final class SyntaxHighlightCoordinator {
     private var highlighter: Neon.Highlighter?
-    private let language: TreeSitterLanguage
+    private let language: SyntaxLanguage
     private let tsLanguage: SwiftTreeSitter.Language
     private let tsClient: TreeSitterClient
     private let highlightsData: Data
@@ -117,13 +120,13 @@ final class SyntaxHighlightCoordinator {
     private let injectionsData: Data?
     /// Embedded languages whose highlights query is being compiled off the main
     /// thread right now, so the token provider kicks off each compile only once.
-    private var pendingInjectionCompiles: Set<TreeSitterLanguage> = []
+    private var pendingInjectionCompiles: Set<SyntaxLanguage> = []
     private var prevViewportRange: NSTextRange?
 
     init(
         textView: STTextView,
         theme: STPluginNeonAppKit.Theme,
-        language: TreeSitterLanguage,
+        language: SyntaxLanguage,
         highlightsData: Data,
         injectionsData: Data?
     ) {
@@ -204,11 +207,29 @@ final class SyntaxHighlightCoordinator {
             if let color = theme.color(forToken: TokenName(key)) {
                 return color
             }
+            if let alias = captureAliases[key], let color = theme.color(forToken: TokenName(alias)) {
+                return color
+            }
             guard let dot = key.lastIndex(of: ".") else { break }
             key = String(key[..<dot])
         }
         return theme.color(forToken: "plain")
     }
+
+    /// Capture names the theme's palette has no entry for, redirected onto ones
+    /// it does. The palette is a fixed list that predates markup grammars, so
+    /// `@tag` and `@attribute` — which carry most of the color in a JSX or HTML
+    /// file — would otherwise walk straight to the `plain` fallback and leave
+    /// every element name and prop the same black as the text around it.
+    private static let captureAliases: [String: String] = [
+        // Capitalized JSX components already reach `@constructor` through the
+        // JavaScript query's `^[A-Z]` rule, so lowercase intrinsics match them
+        // and `<main>` looks like `<Sidebar>`.
+        "tag": "constructor",
+        // The theme ships a `property` color but leaves it out of the palette;
+        // `method` is the same value and does make the list.
+        "attribute": "method",
+    ]
 
     /// Install the highlighter's token provider. If the language's query is
     /// already compiled, this is synchronous (instant); otherwise the compile —
@@ -363,7 +384,7 @@ final class SyntaxHighlightCoordinator {
     /// which can be costly for a big grammar dropped into a code fence — runs
     /// off the main thread and `invalidate()` repaints when it lands; the region
     /// stays plain until then. Mirrors `installTokenProvider`'s root compile.
-    private func injectedHighlightsQuery(for language: TreeSitterLanguage) -> SwiftTreeSitter.Query? {
+    private func injectedHighlightsQuery(for language: SyntaxLanguage) -> SwiftTreeSitter.Query? {
         if let query = HighlightQueryCache.cached(language) {
             return query
         }

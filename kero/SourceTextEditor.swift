@@ -304,6 +304,22 @@ private final class RestorableScrollView: NSScrollView {
     private var lastViewportSize: NSSize = .zero
     private var geometryUpdateScheduled = false
 
+    /// Temporary: set KERO_SCROLLER_DEBUG=1 to trace scroller geometry.
+    private func logScroller(_ tag: String) {
+        guard ProcessInfo.processInfo.environment["KERO_SCROLLER_DEBUG"] != nil else { return }
+        guard let scroller = verticalScroller else { print("[scroller] \(tag) none"); return }
+        let scrollerInWindow = scroller.convert(scroller.bounds, to: nil)
+        let selfInWindow = convert(bounds, to: nil)
+        print("""
+        [scroller] \(tag) \
+        sv.w=\(Int(bounds.width)) sv.inWindow.x=\(Int(selfInWindow.minX))..\(Int(selfInWindow.maxX)) \
+        clip.w=\(Int(contentView.bounds.width)) doc.w=\(Int(documentView?.frame.width ?? -1)) \
+        scroller.frame=\(Int(scroller.frame.minX)),w=\(Int(scroller.frame.width)) \
+        scroller.inWindow.x=\(Int(scrollerInWindow.minX)) hidden=\(scroller.isHidden) \
+        super=\(scroller.superview.map { String(describing: type(of: $0)) } ?? "nil")
+        """)
+    }
+
     override func layout() {
         super.layout()
         let viewportSize = contentView.bounds.size
@@ -311,6 +327,7 @@ private final class RestorableScrollView: NSScrollView {
             lastViewportSize = viewportSize
             scheduleEditorGeometryUpdate()
         }
+        logScroller("layout")
         if bounds.width > 0, bounds.height > 0, let restore = restoreOnFirstLayout {
             restoreOnFirstLayout = nil
             restore()
@@ -336,6 +353,13 @@ private final class RestorableScrollView: NSScrollView {
 
             textView.needsLayout = true
             textView.layoutSubtreeIfNeeded()
+
+            // Re-place the scrollers against the new width. An overlay scroller
+            // that was faded out when the viewport changed keeps the frame it
+            // had, so it comes back at the editor's *old* trailing edge — most
+            // visibly after ⇧⌘B closes the right panel, where it reappears
+            // mid-document with text running past it.
+            self.tile()
 
             let clipView = self.contentView
             let constrainedBounds = clipView.constrainBoundsRect(clipView.bounds)
