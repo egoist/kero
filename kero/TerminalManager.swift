@@ -8,8 +8,9 @@ import Combine
 import Foundation
 import SwiftUI
 
-/// Panels available in the right sidebar.
-enum RightPanel {
+/// Panels available in the right sidebar. Raw values are stable names
+/// persisted in `SessionSnapshot`.
+enum RightPanel: String, Codable {
     case files
     case git
     case info
@@ -557,7 +558,10 @@ final class TerminalManager: nonisolated ObservableObject {
                     selectedTabIndex: project.tabs.firstIndex { $0.id == project.selectedTabID }
                 )
             },
-            selectedProjectIndex: projects.firstIndex { $0.id == selectedProjectID }
+            selectedProjectIndex: projects.firstIndex { $0.id == selectedProjectID },
+            isLeftSidebarVisible: isLeftSidebarVisible,
+            isRightPanelVisible: isPanelVisible,
+            rightPanelTab: panelTab
         )
         return (snapshot, histories)
     }
@@ -579,8 +583,12 @@ final class TerminalManager: nonisolated ObservableObject {
     }
 
     /// Rebuilds projects and tabs from a saved window snapshot. Returns
-    /// false when the snapshot holds nothing restorable.
+    /// false when the snapshot holds nothing restorable. Sidebar state is
+    /// applied even then — the window claimed this snapshot's layout.
     private func restore(from snapshot: SessionSnapshot) -> Bool {
+        if let visible = snapshot.isLeftSidebarVisible { isLeftSidebarVisible = visible }
+        if let visible = snapshot.isRightPanelVisible { isPanelVisible = visible }
+        if let tab = snapshot.rightPanelTab { panelTab = tab }
         for saved in snapshot.projects where !saved.tabs.isEmpty {
             let project = makeProject(createInitialSession: false)
             project.customName = saved.customName

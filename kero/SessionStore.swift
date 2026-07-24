@@ -78,6 +78,11 @@ struct SessionSnapshot: Codable {
 
     var projects: [ProjectSnapshot]
     var selectedProjectIndex: Int?
+    /// Sidebar layout. Optional so snapshots written before these were
+    /// captured still decode; nil leaves the window at its defaults.
+    var isLeftSidebarVisible: Bool?
+    var isRightPanelVisible: Bool?
+    var rightPanelTab: RightPanel?
 }
 
 /// Persisted top level: one `SessionSnapshot` per open window, in
