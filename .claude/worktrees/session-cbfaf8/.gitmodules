@@ -1,3 +1,0 @@
-[submodule "Vendor/libghostty-spm"]
-	path = Vendor/libghostty-spm
-	url = https://github.com/egoist-labs/libghostty-spm.git
