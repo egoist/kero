@@ -46,10 +46,61 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
     }
 
     var name: String {
-        if let customName, !customName.isEmpty {
+        if let customName = Self.normalizedCustomName(customName) {
             return customName
         }
-        return selectedSession?.title ?? fallbackName
+        guard let title = selectedSession?.title else { return fallbackName }
+        let titleName = Self.terminalTitleParts(title).name
+        return titleName.isEmpty ? fallbackName : titleName
+    }
+
+    /// Leading Braille activity frame from the selected terminal title
+    /// (for example `⠼` in `⠼ repo`). Rendered separately so the stable
+    /// project name does not reflow as the spinner animates.
+    var activityIndicator: String? {
+        guard let title = selectedSession?.title else { return nil }
+        return Self.terminalTitleParts(title).activity
+    }
+
+    /// Text to seed the inline rename field. Prefer a custom name or the
+    /// current directory label so a live spinner frame is not copied into
+    /// `customName` and frozen.
+    var renameDraftName: String {
+        if let customName = Self.normalizedCustomName(customName) {
+            return customName
+        }
+        return selectedSession?.directoryLabel ?? name
+    }
+
+    /// Trims a user-assigned project name and strips a leading terminal
+    /// spinner frame. Also used while restoring snapshots so names
+    /// accidentally persisted as `⠼ repo` repair on next launch.
+    static func normalizedCustomName(_ name: String?) -> String? {
+        guard let name else { return nil }
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        let normalized = terminalTitleParts(trimmed).name
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return normalized.isEmpty ? nil : normalized
+    }
+
+    /// Splits a terminal title into an optional leading Braille spinner
+    /// frame and the remaining stable label.
+    static func terminalTitleParts(
+        _ title: String
+    ) -> (activity: String?, name: String) {
+        guard let first = title.first,
+              first.unicodeScalars.allSatisfy({
+                  (UInt32(0x2800)...UInt32(0x28FF)).contains($0.value)
+              }),
+              let next = title.index(
+                  title.startIndex, offsetBy: 1, limitedBy: title.endIndex
+              ),
+              next < title.endIndex,
+              title[next].isWhitespace
+        else { return (nil, title) }
+        let name = title[next...].trimmingCharacters(in: .whitespacesAndNewlines)
+        return (String(first), name)
     }
 
     /// Every terminal session across every pane in every tab.

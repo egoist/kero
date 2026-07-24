@@ -257,43 +257,62 @@ private struct SidebarProjectRow: View {
                 .foregroundStyle(isSelected ? Color(nsColor: Theme.accent) : .secondary)
 
             VStack(alignment: .leading, spacing: 1) {
-                if isRenaming {
-                    TextField("", text: $renameDraft)
-                        .textFieldStyle(.plain)
-                        .font(.system(size: 12, weight: .medium))
-                        .focused($renameFocused)
-                        .onSubmit(commitRename)
-                        .onExitCommand { isRenaming = false }
-                        .onChange(of: renameFocused) {
-                            if !renameFocused, isRenaming {
-                                commitRename()
+                // Activity glyph is separate and fixed-width so Braille
+                // spinner frames do not reflow the project name (or shift
+                // neighboring rows) while an agent is working.
+                HStack(spacing: 3) {
+                    if let activity = project.activityIndicator {
+                        Text(activity)
+                            .font(.system(size: 12, design: .monospaced))
+                            .frame(width: 10, alignment: .center)
+                            .foregroundStyle(isSelected ? .primary : .secondary)
+                            .accessibilityHidden(true)
+                    }
+                    if isRenaming {
+                        TextField("", text: $renameDraft)
+                            .textFieldStyle(.plain)
+                            .font(.system(size: 12, weight: .medium))
+                            .focused($renameFocused)
+                            .onSubmit(commitRename)
+                            .onExitCommand { isRenaming = false }
+                            .onChange(of: renameFocused) {
+                                if !renameFocused, isRenaming {
+                                    commitRename()
+                                }
                             }
-                        }
-                } else {
-                    Text(project.name)
-                        .font(.system(size: 12))
-                        .foregroundStyle(isSelected ? .primary : .secondary)
-                        .lineLimit(1)
+                    } else {
+                        Text(project.name)
+                            .font(.system(size: 12))
+                            .foregroundStyle(isSelected ? .primary : .secondary)
+                            .lineLimit(1)
+                    }
                 }
                 subtitle
             }
 
             Spacer(minLength: 0)
 
-            if isHovering, !isRenaming {
-                Button(action: close) {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 16, height: 16)
-                        .contentShape(Rectangle())
+            // Fixed trailing slot: close and the ⌘N hint share the same
+            // width so hover does not reflow the row. Continuous title
+            // updates from a running agent re-render the strip; without a
+            // stable slot that reflow reads as jitter under the pointer.
+            ZStack(alignment: .trailing) {
+                if isHovering, !isRenaming {
+                    Button(action: close) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 16, height: 16)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                } else if index < 9, !isRenaming {
+                    Text("⌘\(index + 1)")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.tertiary)
                 }
-                .buttonStyle(.plain)
-            } else if index < 9, !isRenaming {
-                Text("⌘\(index + 1)")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.tertiary)
             }
+            .frame(width: 24, height: 16, alignment: .trailing)
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 6)
@@ -301,7 +320,7 @@ private struct SidebarProjectRow: View {
     }
 
     private func beginRename() {
-        renameDraft = project.name
+        renameDraft = project.renameDraftName
         isRenaming = true
         DispatchQueue.main.async {
             renameFocused = true
@@ -309,8 +328,7 @@ private struct SidebarProjectRow: View {
     }
 
     private func commitRename() {
-        let trimmed = renameDraft.trimmingCharacters(in: .whitespacesAndNewlines)
-        project.customName = trimmed.isEmpty ? nil : trimmed
+        project.customName = Project.normalizedCustomName(renameDraft)
         isRenaming = false
     }
 

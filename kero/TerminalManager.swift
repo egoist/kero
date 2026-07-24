@@ -676,7 +676,7 @@ final class TerminalManager: nonisolated ObservableObject {
         if let tab = snapshot.rightPanelTab { panelTab = tab }
         for saved in snapshot.projects where !saved.tabs.isEmpty {
             let project = makeProject(createInitialSession: false)
-            project.customName = saved.customName
+            project.customName = Project.normalizedCustomName(saved.customName)
             project.customDirectory = saved.customDirectory
             for tab in saved.tabs {
                 project.restoreTab(from: tab, histories: Self.pendingHistories)
