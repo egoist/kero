@@ -179,6 +179,18 @@ public protocol TerminalSurfaceTextSelectionRequestDelegate: TerminalSurfaceView
     func terminalDidRequestTextSelection(_ request: TerminalTextSelectionRequest)
 }
 
+/// Receives clipboard requests that Ghostty escalates for a user
+/// decision (see ``TerminalClipboardConfirmationRequest``). The host is
+/// expected to present a visible prompt and resolve the request. When
+/// a surface's delegate does not adopt this protocol every escalated
+/// request is denied.
+@MainActor
+public protocol TerminalSurfaceClipboardConfirmationDelegate: TerminalSurfaceViewDelegate {
+    func terminalDidRequestClipboardConfirmation(
+        _ request: TerminalClipboardConfirmationRequest
+    )
+}
+
 /// Notifies a delegate when the underlying ``TerminalSurface`` is created or
 /// torn down. Useful when a consumer needs surface-level APIs (e.g.
 /// ``TerminalSurface/sendText(_:)``) reachable from outside the platform view.

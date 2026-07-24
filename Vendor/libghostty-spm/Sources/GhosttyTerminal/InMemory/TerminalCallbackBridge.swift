@@ -227,6 +227,40 @@ final class TerminalCallbackBridge {
         return false
     }
 
+    /// Routes a clipboard request that Ghostty escalated for a user
+    /// decision to the delegate's prompt. Without a delegate that
+    /// adopts ``TerminalSurfaceClipboardConfirmationDelegate`` the only
+    /// safe answer is no: auto-confirming would hand the system
+    /// clipboard to any program that can write terminal output.
+    func handleClipboardConfirmation(
+        contents: String,
+        kind: TerminalClipboardConfirmationRequest.Kind,
+        state: UnsafeMutableRawPointer
+    ) {
+        let request = TerminalClipboardConfirmationRequest(
+            bridge: self,
+            kind: kind,
+            contents: contents,
+            state: state
+        )
+        guard
+            let delegate = delegate
+                as? any TerminalSurfaceClipboardConfirmationDelegate
+        else {
+            TerminalDebugLog.log(
+                .input,
+                "clipboard confirm denied: no confirmation delegate"
+            )
+            request.deny()
+            return
+        }
+        TerminalDebugLog.log(
+            .input,
+            "clipboard confirm escalated kind=\(kind) bytes=\(contents.utf8.count)"
+        )
+        delegate.terminalDidRequestClipboardConfirmation(request)
+    }
+
     func handleClose(processAlive: Bool) {
         TerminalDebugLog.log(
             .lifecycle,

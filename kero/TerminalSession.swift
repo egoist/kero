@@ -294,9 +294,21 @@ final class TerminalSession: NSObject, nonisolated ObservableObject, nonisolated
             builder.withCustom("scrollback-limit", "4194304")
             builder.withCustom("macos-option-as-alt", "true")
             builder.withCustom("scrollbar", "never")
-            builder.withCustom("clipboard-read", "allow")
+            // Terminal-program clipboard access via OSC 52, matching the
+            // Ghostty app defaults: reads prompt the user per request
+            // (TerminalSession presents the confirmation sheet), writes
+            // are allowed so OSC 52 copy from remote tmux/vim works, and
+            // paste protection warns before pastes that look like they
+            // could execute commands. Never `allow` reads without a
+            // prompt — that lets any program whose output reaches the
+            // terminal, including a remote SSH host, silently exfiltrate
+            // the macOS clipboard through the PTY. Set explicitly so the
+            // wrapper's base config can never drift them. Cmd-C/Cmd-V are
+            // host-initiated and stay prompt-free (unless an unsafe paste
+            // trips protection).
+            builder.withCustom("clipboard-read", "ask")
             builder.withCustom("clipboard-write", "allow")
-            builder.withCustom("clipboard-paste-protection", "false")
+            builder.withCustom("clipboard-paste-protection", "true")
         }
     }
 
@@ -519,6 +531,62 @@ extension TerminalSession: TerminalSurfaceSearchDelegate {
 
     func terminalDidUpdateSearchSelected(_ selected: Int?) {
         find.update(selected: selected)
+    }
+}
+
+extension TerminalSession: TerminalSurfaceClipboardConfirmationDelegate {
+    func terminalDidRequestClipboardConfirmation(
+        _ request: TerminalClipboardConfirmationRequest
+    ) {
+        guard let window = terminalView.window else {
+            request.deny()
+            return
+        }
+
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        switch request.kind {
+        case .unsafePaste:
+            alert.messageText = "Warning: Potentially Unsafe Paste"
+            alert.informativeText =
+                "Pasting this text to the terminal may be dangerous as it looks like some commands may be executed."
+        case .osc52Read:
+            alert.messageText = "Authorize Clipboard Access"
+            alert.informativeText =
+                "A program is attempting to read from the clipboard. The current clipboard contents are shown below."
+        }
+        alert.accessoryView = Self.clipboardPreview(request.contents)
+        alert.addButton(withTitle: request.kind == .unsafePaste ? "Paste" : "Allow")
+        let cancel = alert.addButton(
+            withTitle: request.kind == .unsafePaste ? "Cancel" : "Deny"
+        )
+        cancel.keyEquivalent = "\u{1b}"
+
+        Task { @MainActor in
+            let response = await alert.beginSheetModal(for: window)
+            if response == .alertFirstButtonReturn {
+                request.approve()
+            } else {
+                request.deny()
+            }
+        }
+    }
+
+    /// Bounded, read-only preview of the text under decision, mirroring
+    /// the preview area in Ghostty's own confirmation dialog.
+    private static func clipboardPreview(_ contents: String) -> NSView {
+        let scroll = NSScrollView(frame: NSRect(x: 0, y: 0, width: 400, height: 120))
+        scroll.hasVerticalScroller = true
+        scroll.borderType = .bezelBorder
+        let text = NSTextView(frame: NSRect(origin: .zero, size: scroll.contentSize))
+        text.isEditable = false
+        text.font = .monospacedSystemFont(ofSize: NSFont.smallSystemFontSize, weight: .regular)
+        // A pathological clipboard can be arbitrarily large; the decision
+        // only needs a glimpse.
+        text.string = String(contents.prefix(4096))
+        text.autoresizingMask = [.width]
+        scroll.documentView = text
+        return scroll
     }
 }
 
