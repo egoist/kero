@@ -47,6 +47,7 @@ struct PaletteCommand: Identifiable {
 /// dismisses.
 struct CommandPaletteView: View {
     @ObservedObject var manager: TerminalManager
+    @ObservedObject private var themeChanges = Theme.changes
     @Environment(\.openSettings) private var openSettings
 
     @State private var query = ""
@@ -394,7 +395,7 @@ struct CommandPaletteView: View {
             HStack(spacing: 9) {
                 Image(systemName: command.systemImage)
                     .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(isSelected ? AnyShapeStyle(Color(nsColor: Theme.cursor)) : AnyShapeStyle(.secondary))
+                    .foregroundStyle(isSelected ? AnyShapeStyle(Color(nsColor: Theme.accent)) : AnyShapeStyle(.secondary))
                     .frame(width: 16)
                 Text(command.title)
                     .font(.system(size: 12.5))

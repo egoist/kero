@@ -91,15 +91,22 @@ final class TerminalManager: nonisolated ObservableObject {
         if !restored {
             newProject()
         }
-        // Re-theme live sessions only when font or appearance settings change.
-        // Delivery is scheduled onto the main queue because @Published emits in
-        // willSet — by then `didSet` has pushed the theme onto NSApp, so
-        // `refreshAppearance` reads the new effective appearance.
-        settingsObservation = Publishers.CombineLatest4(
-            AppSettings.shared.$fontFamily.removeDuplicates(),
-            AppSettings.shared.$fontSize.removeDuplicates(),
-            AppSettings.shared.$fontThicken.removeDuplicates(),
-            AppSettings.shared.$theme.removeDuplicates()
+        // Re-theme live sessions only when font, appearance, or terminal
+        // theme settings change. Delivery is scheduled onto the main queue
+        // because @Published emits in willSet — by then `didSet` has pushed
+        // the theme onto NSApp (and the selection into `Theme`), so
+        // `refreshAppearance` reads the new state.
+        settingsObservation = Publishers.CombineLatest(
+            Publishers.CombineLatest4(
+                AppSettings.shared.$fontFamily.removeDuplicates(),
+                AppSettings.shared.$fontSize.removeDuplicates(),
+                AppSettings.shared.$fontThicken.removeDuplicates(),
+                AppSettings.shared.$theme.removeDuplicates()
+            ),
+            Publishers.CombineLatest(
+                AppSettings.shared.$themeDark.removeDuplicates(),
+                AppSettings.shared.$themeLight.removeDuplicates()
+            )
         )
             .dropFirst()
             .receive(on: DispatchQueue.main)

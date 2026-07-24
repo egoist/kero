@@ -40,6 +40,23 @@ final class AppSettings: nonisolated ObservableObject {
         }
     }
 
+    /// Color theme names, one per appearance; the terminal, window chrome,
+    /// and editor all derive from them. `Theme` keeps the resolved
+    /// definitions (kero built-ins plus the ghostty catalog).
+    @Published var themeDark: String {
+        didSet {
+            reloadThemeSelection()
+            save()
+        }
+    }
+
+    @Published var themeLight: String {
+        didSet {
+            reloadThemeSelection()
+            save()
+        }
+    }
+
     /// Terminal font family name; empty string means the bundled default
     /// (JetBrains Mono).
     @Published var fontFamily: String {
@@ -74,6 +91,12 @@ final class AppSettings: nonisolated ObservableObject {
         let existing = TOML.parse(at: Self.configURL)
         let toml = existing ?? Self.legacyDefaults()
         theme = toml["theme"]?.string.flatMap(AppTheme.init(rawValue:)) ?? .system
+        themeDark = Self.knownTheme(
+            toml["theme-dark"]?.string, fallback: Theme.defaultDarkThemeName
+        )
+        themeLight = Self.knownTheme(
+            toml["theme-light"]?.string, fallback: Theme.defaultLightThemeName
+        )
         fontFamily = toml["font-family"]?.string ?? ""
         let size = toml["font-size"]?.double ?? Self.defaultFontSize
         fontSize = Self.fontSizeRange.contains(size) ? size : Self.defaultFontSize
@@ -81,7 +104,24 @@ final class AppSettings: nonisolated ObservableObject {
         wrapLines = toml["editor.wrap-lines"]?.bool ?? false
         restoreTerminalHistory = toml["terminal.restore-history"]?.bool ?? false
         applyAppearance()
+        reloadThemeSelection()
         if existing == nil { save() }
+    }
+
+    /// Pushes the current names into `Theme`, which resolves and caches the
+    /// definitions. Called from `init` because `didSet` doesn't run there.
+    private func reloadThemeSelection() {
+        Theme.reloadSelection(light: themeLight, dark: themeDark)
+    }
+
+    /// A saved theme name, or `fallback` when it's absent or names neither a
+    /// kero built-in nor a catalog theme (so the Settings pickers never show
+    /// an empty selection).
+    private static func knownTheme(_ name: String?, fallback: String) -> String {
+        guard let name, Theme.definition(named: name) != nil else {
+            return fallback
+        }
+        return name
     }
 
     /// Overrides the app-wide appearance so every window — and the terminal
@@ -100,6 +140,8 @@ final class AppSettings: nonisolated ObservableObject {
     func resetToDefaults() {
         resetFont()
         theme = .system
+        themeDark = Theme.defaultDarkThemeName
+        themeLight = Theme.defaultLightThemeName
         wrapLines = false
         restoreTerminalHistory = false
     }
@@ -108,6 +150,14 @@ final class AppSettings: nonisolated ObservableObject {
         var lines: [String] = []
         if theme != .system {
             lines.append("theme = \(TOML.quote(theme.rawValue))")
+        }
+        // Top-level like `theme`: the color theme drives the whole window,
+        // not just the terminal.
+        if themeDark != Theme.defaultDarkThemeName {
+            lines.append("theme-dark = \(TOML.quote(themeDark))")
+        }
+        if themeLight != Theme.defaultLightThemeName {
+            lines.append("theme-light = \(TOML.quote(themeLight))")
         }
         if !fontFamily.isEmpty {
             lines.append("font-family = \(TOML.quote(fontFamily))")

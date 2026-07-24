@@ -9,7 +9,9 @@ import SwiftUI
 /// its sessions show as horizontal tabs in the main header.
 struct SidebarView: View {
     @ObservedObject var manager: TerminalManager
+    @ObservedObject private var themeChanges = Theme.changes
     @Environment(\.openSettings) private var openSettings
+    @Environment(\.colorScheme) private var colorScheme
     @AppStorage("leftSidebarWidth") private var width: Double = 220
     @State private var draggedProjectID: UUID?
     @State private var projectFrames: [UUID: CGRect] = [:]
@@ -77,7 +79,17 @@ struct SidebarView: View {
             }
         }
         .frame(width: width)
-        .background(VisualEffectView(material: .sidebar))
+        .background {
+            // Kero's built-in Default themes keep the native translucent
+            // sidebar material; every other theme — including the GitHub
+            // originals they're based on — paints its flat sidebar shade so
+            // the strip follows the palette.
+            if Theme.isDefault(dark: colorScheme == .dark) {
+                VisualEffectView(material: .sidebar)
+            } else {
+                Color(nsColor: Theme.sidebar)
+            }
+        }
         .overlay(alignment: .trailing) {
             SidebarResizeHandle(
                 edge: .trailing,
@@ -140,6 +152,7 @@ private struct ProjectFramePreferenceKey: PreferenceKey {
 
 private struct SidebarProjectRow: View {
     @ObservedObject var project: Project
+    @ObservedObject private var themeChanges = Theme.changes
     let index: Int
     let isSelected: Bool
     let select: () -> Void
@@ -195,7 +208,7 @@ private struct SidebarProjectRow: View {
         HStack(spacing: 8) {
             Image(systemName: "folder")
                 .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(isSelected ? Color(nsColor: Theme.cursor) : .secondary)
+                .foregroundStyle(isSelected ? Color(nsColor: Theme.accent) : .secondary)
 
             VStack(alignment: .leading, spacing: 1) {
                 if isRenaming {

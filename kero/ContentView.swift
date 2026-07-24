@@ -7,6 +7,7 @@ import SwiftUI
 
 struct ContentView: View {
     @ObservedObject var manager: TerminalManager
+    @ObservedObject private var themeChanges = Theme.changes
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
@@ -135,6 +136,7 @@ struct ContentView: View {
 /// window-drag space.
 private struct MainHeaderView: View {
     @ObservedObject var manager: TerminalManager
+    @ObservedObject private var themeChanges = Theme.changes
 
     /// With the left sidebar hidden the header slides under the window's
     /// traffic-light buttons, so inset its content to clear them.
@@ -167,7 +169,7 @@ private struct MainHeaderView: View {
                     } label: {
                         Image(systemName: "arrow.down.forward.and.arrow.up.backward")
                             .font(.system(size: 12, weight: .medium))
-                            .foregroundStyle(Color(nsColor: Theme.cursor))
+                            .foregroundStyle(Color(nsColor: Theme.accent))
                             .frame(width: 24, height: 24)
                             .contentShape(RoundedRectangle(cornerRadius: 6))
                     }
@@ -182,7 +184,7 @@ private struct MainHeaderView: View {
                     } label: {
                         Image(systemName: "sidebar.right")
                             .font(.system(size: 12, weight: .medium))
-                            .foregroundStyle(manager.isPanelVisible ? Color(nsColor: Theme.cursor) : .secondary)
+                            .foregroundStyle(manager.isPanelVisible ? Color(nsColor: Theme.accent) : .secondary)
                             .frame(width: 24, height: 24)
                             .contentShape(RoundedRectangle(cornerRadius: 6))
                     }
@@ -431,6 +433,7 @@ private struct FileTabLabel: View {
 }
 
 private struct TabItemChrome: View {
+    @ObservedObject private var themeChanges = Theme.changes
     let systemImage: String
     let title: String
     var paneCount: Int = 1
@@ -446,7 +449,7 @@ private struct TabItemChrome: View {
             HStack(spacing: 5) {
                 Image(systemName: systemImage)
                     .font(.system(size: 9, weight: .medium))
-                    .foregroundStyle(isSelected ? AnyShapeStyle(Color(nsColor: Theme.cursor)) : AnyShapeStyle(.tertiary))
+                    .foregroundStyle(isSelected ? AnyShapeStyle(Color(nsColor: Theme.accent)) : AnyShapeStyle(.tertiary))
                 Text(title)
                     .font(.system(size: 11.5))
                     .foregroundStyle(isSelected ? .primary : .secondary)

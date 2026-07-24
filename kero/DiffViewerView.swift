@@ -360,6 +360,7 @@ private struct DiffWebHostView: NSViewRepresentable {
 /// split view with word-level change highlighting.
 struct DiffViewerView: View {
     @ObservedObject var diff: DiffTab
+    @ObservedObject private var themeChanges = Theme.changes
     @ObservedObject private var web: DiffWebModel
     /// The view stays mounted while other tabs are selected (see
     /// ContentView); this flags when it is the frontmost tab so content

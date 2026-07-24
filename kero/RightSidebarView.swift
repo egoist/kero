@@ -11,6 +11,7 @@ import SwiftUI
 /// button or ⇧⌘B. Files/Git switch via tabs along its top, otty-style.
 struct RightSidebarView: View {
     @ObservedObject var manager: TerminalManager
+    @ObservedObject private var themeChanges = Theme.changes
     @StateObject private var fileTree = FileTreeModel()
     @StateObject private var git = GitStatusModel()
     @StateObject private var info = SessionInfoModel()
@@ -210,6 +211,7 @@ private struct FileTreePanel: View {
 
 private struct FileTreeRow: View {
     @ObservedObject var model: FileTreeModel
+    @ObservedObject private var themeChanges = Theme.changes
     let item: FileTreeModel.Item
     let session: TerminalSession?
     let currentFilePath: String?
@@ -399,7 +401,7 @@ private struct FileTreeRow: View {
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 3)
-                    .strokeBorder(Color(nsColor: Theme.cursor).opacity(0.7), lineWidth: 1)
+                    .strokeBorder(Color(nsColor: Theme.accent).opacity(0.7), lineWidth: 1)
             )
     }
 
@@ -423,7 +425,7 @@ private struct FileTreeRow: View {
             }
             Image(systemName: item.isDirectory ? "folder.fill" : "doc.text")
                 .font(.system(size: 10))
-                .foregroundStyle(item.isDirectory ? Color(nsColor: Theme.cursor).opacity(0.8) : Color.secondary)
+                .foregroundStyle(item.isDirectory ? Color(nsColor: Theme.accent).opacity(0.8) : Color.secondary)
                 .frame(width: 14)
         }
     }
@@ -432,6 +434,8 @@ private struct FileTreeRow: View {
 // MARK: - Git panel
 
 private struct GitPanel: View {
+    @ObservedObject private var themeChanges = Theme.changes
+
     private struct FileFingerprint: Equatable {
         let exists: Bool
         let size: UInt64
@@ -558,7 +562,7 @@ private struct GitPanel: View {
             } else {
                 Image(systemName: "arrow.triangle.branch")
                     .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(Color(nsColor: Theme.cursor))
+                    .foregroundStyle(Color(nsColor: Theme.accent))
                 PanelHeader(title: "Git", subtitle: model.rootPath)
             }
             // Only surface progress for user operations and the initial
@@ -618,7 +622,7 @@ private struct GitPanel: View {
             HStack(spacing: 6) {
                 Image(systemName: "arrow.triangle.branch")
                     .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(Color(nsColor: Theme.cursor))
+                    .foregroundStyle(Color(nsColor: Theme.accent))
                 PanelHeader(title: model.branch ?? "Detached HEAD", subtitle: model.rootPath)
             }
             .contentShape(Rectangle())
@@ -841,7 +845,7 @@ private struct GitPanel: View {
 
     private func operationColor(_ operation: GitStatusModel.Operation) -> Color {
         switch operation.state {
-        case .running: return Color(nsColor: Theme.cursor)
+        case .running: return Color(nsColor: Theme.accent)
         case .succeeded: return Color(red: 0.25, green: 0.68, blue: 0.33)
         case .failed: return Color(red: 0.88, green: 0.42, blue: 0.36)
         }
@@ -884,7 +888,7 @@ private struct GitPanel: View {
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 6)
-                    .strokeBorder(Color(nsColor: Theme.cursor).opacity(0.45))
+                    .strokeBorder(Color(nsColor: Theme.accent).opacity(0.45))
             )
             .padding(.horizontal, 10)
             .padding(.bottom, 8)
@@ -990,7 +994,7 @@ private struct GitPanel: View {
             .padding(.vertical, 5)
             .background(
                 RoundedRectangle(cornerRadius: 6)
-                    .fill(Color(nsColor: Theme.cursor).opacity(enabled ? 0.85 : 0.3))
+                    .fill(Color(nsColor: Theme.accent).opacity(enabled ? 0.85 : 0.3))
             )
             .foregroundStyle(.white)
             .contentShape(RoundedRectangle(cornerRadius: 6))
@@ -1378,7 +1382,7 @@ private struct GitPanel: View {
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.small)
-            .tint(Color(nsColor: Theme.cursor))
+            .tint(Color(nsColor: Theme.accent))
             .disabled(model.rootPath.isEmpty || model.isBusy)
             Spacer()
         }
@@ -1537,6 +1541,7 @@ private struct GitSectionHeader: View {
 }
 
 private struct GitCommitRow: View {
+    @ObservedObject private var themeChanges = Theme.changes
     let commit: GitStatusModel.RecentCommit
 
     var body: some View {
@@ -1548,7 +1553,7 @@ private struct GitCommitRow: View {
             HStack(spacing: 4) {
                 Text(commit.shortHash)
                     .font(.system(size: 9.5, design: .monospaced))
-                    .foregroundStyle(Color(nsColor: Theme.cursor).opacity(0.85))
+                    .foregroundStyle(Color(nsColor: Theme.accent).opacity(0.85))
                 Text("·")
                 Text(commit.author)
                 Text("·")
@@ -1751,6 +1756,7 @@ private struct GitEntryRow: View {
 /// processes running under the shell, and ports they are listening on.
 private struct InfoPanel: View {
     @ObservedObject var model: SessionInfoModel
+    @ObservedObject private var themeChanges = Theme.changes
     let session: TerminalSession?
 
     @State private var directoryCollapsed = false
@@ -1781,7 +1787,7 @@ private struct InfoPanel: View {
         HStack(spacing: 6) {
             Image(systemName: "info.circle")
                 .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(Color(nsColor: Theme.cursor))
+                .foregroundStyle(Color(nsColor: Theme.accent))
             PanelHeader(
                 title: model.shellName.isEmpty ? "Session" : model.shellName,
                 subtitle: model.shellPid > 0 ? "pid \(String(model.shellPid))" : nil

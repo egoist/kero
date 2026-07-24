@@ -4,6 +4,7 @@
 //
 
 import AppKit
+import GhosttyTheme
 import SwiftUI
 
 /// The app settings window (Cmd+,).
@@ -29,6 +30,22 @@ struct SettingsView: View {
                     Spacer()
                     ThemePicker(selection: $settings.theme)
                 }
+            }
+
+            Section("Colors") {
+                Picker("Dark theme", selection: $settings.themeDark) {
+                    ForEach(Self.darkThemeNames, id: \.self) { name in
+                        Text(name).tag(name)
+                    }
+                }
+                Picker("Light theme", selection: $settings.themeLight) {
+                    ForEach(Self.lightThemeNames, id: \.self) { name in
+                        Text(name).tag(name)
+                    }
+                }
+                Text("Colors for the whole window, one theme per appearance.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
             }
 
             Section("Font") {
@@ -114,6 +131,8 @@ struct SettingsView: View {
                         && settings.fontSize == AppSettings.defaultFontSize
                         && !settings.fontThicken
                         && settings.theme == .system
+                        && settings.themeDark == Theme.defaultDarkThemeName
+                        && settings.themeLight == Theme.defaultLightThemeName
                         && !settings.wrapLines
                         && !settings.restoreTerminalHistory)
                 }
@@ -126,6 +145,14 @@ struct SettingsView: View {
     private var previewFont: NSFont {
         TerminalFont.resolve(family: settings.fontFamily, size: CGFloat(settings.fontSize))
     }
+
+    /// Kero's built-in Default theme first, then every bundled theme, split
+    /// by background luminance so each picker offers themes that suit its
+    /// appearance slot.
+    private static let darkThemeNames = [Theme.defaultDarkThemeName]
+        + GhosttyThemeCatalog.allThemes.filter(\.isDark).map(\.name)
+    private static let lightThemeNames = [Theme.defaultLightThemeName]
+        + GhosttyThemeCatalog.allThemes.filter { !$0.isDark }.map(\.name)
 }
 
 /// Sizes its sole child to the child's ideal height, capped at `maxHeight`.
@@ -249,8 +276,9 @@ private struct MiniWindow: View {
     let dark: Bool
 
     var body: some View {
-        let colors = Theme.terminal(dark: dark)
-        let text = Color(colors.foreground)
+        let theme = Theme.terminal(dark: dark)
+        let text = Color(nsColor: theme.foregroundNSColor)
+        let cursor = Color(nsColor: theme.cursorNSColor)
 
         HStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 3) {
@@ -267,7 +295,7 @@ private struct MiniWindow: View {
             }
             .padding(5)
             .frame(minWidth: 22, maxWidth: 22, maxHeight: .infinity, alignment: .topLeading)
-            .background(Color(Theme.sidebarFill(dark: dark)))
+            .background(Color(nsColor: Theme.sidebarFill(dark: dark)))
 
             VStack(alignment: .leading, spacing: 3.5) {
                 RoundedRectangle(cornerRadius: 1.5)
@@ -276,19 +304,19 @@ private struct MiniWindow: View {
                     .padding(.bottom, 1)
 
                 HStack(spacing: 2) {
-                    bar(3, Color(colors.cursor))
+                    bar(3, cursor)
                     bar(22, text.opacity(0.8))
                 }
                 bar(30, text.opacity(0.45))
                 bar(16, text.opacity(0.45))
                 HStack(spacing: 2) {
-                    bar(3, Color(colors.cursor))
+                    bar(3, cursor)
                     bar(7, text.opacity(0.8))
                 }
             }
             .padding(5)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .background(Color(colors.background))
+            .background(Color(nsColor: theme.backgroundNSColor))
         }
     }
 

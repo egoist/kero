@@ -8,6 +8,7 @@ import Combine
 import Darwin
 import Foundation
 import GhosttyTerminal
+import GhosttyTheme
 
 /// One login shell rendered by one long-lived libghostty surface. SwiftUI only
 /// reparents the same `KeroTerminalView`, so PTY state, selection, and
@@ -314,22 +315,9 @@ final class TerminalSession: NSObject, nonisolated ObservableObject, nonisolated
 
     private static func ghosttyTheme() -> GhosttyTerminal.TerminalTheme {
         GhosttyTerminal.TerminalTheme(
-            light: ghosttyColors(Theme.terminal(dark: false)),
-            dark: ghosttyColors(Theme.terminal(dark: true))
+            light: Theme.terminal(dark: false).toTerminalConfiguration(),
+            dark: Theme.terminal(dark: true).toTerminalConfiguration()
         )
-    }
-
-    private static func ghosttyColors(
-        _ theme: KeroTerminalTheme
-    ) -> TerminalConfiguration {
-        TerminalConfiguration { builder in
-            builder.withBackground(Theme.hex(theme.background))
-            builder.withForeground(Theme.hex(theme.foreground))
-            builder.withCursorColor(Theme.hex(theme.cursor))
-            for (index, color) in theme.ansi.enumerated() {
-                builder.withPalette(index, color: color)
-            }
-        }
     }
 
     private static func surfaceEnvironment() -> [String: String] {

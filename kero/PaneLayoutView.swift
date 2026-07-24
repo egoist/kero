@@ -12,6 +12,7 @@ import SwiftUI
 /// neighbors. Only the selected tab's layout is ever mounted.
 struct PaneLayoutView: View {
     @ObservedObject var tab: PaneTab
+    @ObservedObject private var themeChanges = Theme.changes
     /// Splits the focused pane on the given edge — from a pane's context menu.
     var onSplit: (PaneDropEdge) -> Void = { _ in }
 
@@ -292,7 +293,7 @@ struct PaneLayoutView: View {
         }
         .overlay(
             RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .strokeBorder(Color(nsColor: Theme.cursor), lineWidth: 1.5)
+                .strokeBorder(Color(nsColor: Theme.accent), lineWidth: 1.5)
         )
         .shadow(color: .black.opacity(0.35), radius: 14, y: 6)
         .opacity(0.9)
@@ -406,6 +407,7 @@ private struct ResizableDivider: View {
 /// it's the drop target.
 private struct PaneView: View {
     @ObservedObject var tab: PaneTab
+    @ObservedObject private var themeChanges = Theme.changes
     let pane: Pane
     let showFocusRing: Bool
     /// Whether the top grab strip is offered at all — false while zoomed,
@@ -490,7 +492,7 @@ private struct PaneView: View {
         RoundedRectangle(cornerRadius: 6, style: .continuous)
             .strokeBorder(
                 isFocused
-                    ? Color(nsColor: Theme.cursor).opacity(0.85)
+                    ? Color(nsColor: Theme.accent).opacity(0.85)
                     : Color.primary.opacity(0.06),
                 lineWidth: isFocused ? 1.5 : 1
             )
@@ -546,10 +548,10 @@ private struct PaneView: View {
             GeometryReader { geo in
                 let rect = highlightRect(for: dropEdge, in: geo.size)
                 RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(Color(nsColor: Theme.cursor).opacity(0.18))
+                    .fill(Color(nsColor: Theme.accent).opacity(0.18))
                     .overlay(
                         RoundedRectangle(cornerRadius: 6, style: .continuous)
-                            .strokeBorder(Color(nsColor: Theme.cursor), lineWidth: 2)
+                            .strokeBorder(Color(nsColor: Theme.accent), lineWidth: 2)
                     )
                     .frame(width: rect.width, height: rect.height)
                     .position(x: rect.midX, y: rect.midY)

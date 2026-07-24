@@ -11,6 +11,7 @@ import SwiftUI
 /// field, the tally, and the navigation controls.
 struct TerminalFindBar: View {
     @ObservedObject var find: TerminalFind
+    @ObservedObject private var themeChanges = Theme.changes
 
     @FocusState private var fieldFocused: Bool
 

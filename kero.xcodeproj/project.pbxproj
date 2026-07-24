@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		AA10000000000000000000B2 /* GhosttyTerminal in Frameworks */ = {isa = PBXBuildFile; productRef = AA10000000000000000000B1 /* GhosttyTerminal */; };
+		AA10000000000000000000B4 /* GhosttyTheme in Frameworks */ = {isa = PBXBuildFile; productRef = AA10000000000000000000B3 /* GhosttyTheme */; };
 		AA10000000000000000000C2 /* STTextView in Frameworks */ = {isa = PBXBuildFile; productRef = AA10000000000000000000C1 /* STTextView */; };
 		AA10000000000000000000E2 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = AA10000000000000000000E1 /* Sparkle */; };
 		AA20000000000000000000A2 /* STTextView-Plugin-Neon in Frameworks */ = {isa = PBXBuildFile; productRef = AA20000000000000000000A1 /* STTextView-Plugin-Neon */; };
@@ -46,6 +47,7 @@
 			files = (
 				FF519F43300BBE2100D8B982 /* PierreDiffsSwift in Frameworks */,
 				AA10000000000000000000B2 /* GhosttyTerminal in Frameworks */,
+				AA10000000000000000000B4 /* GhosttyTheme in Frameworks */,
 				AA10000000000000000000C2 /* STTextView in Frameworks */,
 				AA10000000000000000000E2 /* Sparkle in Frameworks */,
 				AA20000000000000000000A2 /* STTextView-Plugin-Neon in Frameworks */,
@@ -90,6 +92,7 @@
 			name = kero;
 			packageProductDependencies = (
 				AA10000000000000000000B1 /* GhosttyTerminal */,
+				AA10000000000000000000B3 /* GhosttyTheme */,
 				AA10000000000000000000C1 /* STTextView */,
 				AA10000000000000000000D1 /* PierreDiffsSwift */,
 				AA10000000000000000000E1 /* Sparkle */,
@@ -406,6 +409,10 @@
 		AA10000000000000000000B1 /* GhosttyTerminal */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = GhosttyTerminal;
+		};
+		AA10000000000000000000B3 /* GhosttyTheme */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = GhosttyTheme;
 		};
 		AA10000000000000000000C1 /* STTextView */ = {
 			isa = XCSwiftPackageProductDependency;

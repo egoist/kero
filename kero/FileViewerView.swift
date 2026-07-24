@@ -145,7 +145,7 @@ struct FileViewerView: View {
                 SourceTextEditor(
                     file: file,
                     font: TerminalFont.current(),
-                    palette: .github(dark: colorScheme == .dark),
+                    palette: .theme(dark: colorScheme == .dark),
                     wrapLines: settings.wrapLines,
                     isFocused: isFocused,
                     onFocused: onFocused,
