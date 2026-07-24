@@ -95,9 +95,10 @@ final class TerminalManager: nonisolated ObservableObject {
         // Delivery is scheduled onto the main queue because @Published emits in
         // willSet — by then `didSet` has pushed the theme onto NSApp, so
         // `refreshAppearance` reads the new effective appearance.
-        settingsObservation = Publishers.CombineLatest3(
+        settingsObservation = Publishers.CombineLatest4(
             AppSettings.shared.$fontFamily.removeDuplicates(),
             AppSettings.shared.$fontSize.removeDuplicates(),
+            AppSettings.shared.$fontThicken.removeDuplicates(),
             AppSettings.shared.$theme.removeDuplicates()
         )
             .dropFirst()

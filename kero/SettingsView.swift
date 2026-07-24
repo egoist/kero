@@ -59,6 +59,11 @@ struct SettingsView: View {
                     )
                     .labelsHidden()
                 }
+
+                Toggle("Thicken font strokes", isOn: $settings.fontThicken)
+                Text("Renders terminal text with slightly heavier strokes, like classic macOS font smoothing.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
             }
 
             Section("Preview") {
@@ -107,6 +112,7 @@ struct SettingsView: View {
                     }
                     .disabled(settings.fontFamily.isEmpty
                         && settings.fontSize == AppSettings.defaultFontSize
+                        && !settings.fontThicken
                         && settings.theme == .system
                         && !settings.wrapLines
                         && !settings.restoreTerminalHistory)

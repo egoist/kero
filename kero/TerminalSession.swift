@@ -257,6 +257,10 @@ final class TerminalSession: NSObject, nonisolated ObservableObject, nonisolated
             // primary face. Repeated font-family entries form Ghostty's list.
             builder.withCustom("font-family", "Symbols Nerd Font Mono")
             builder.withFontSize(Float(settings.fontSize))
+            // Always set explicitly: the wrapper's ConfigSource.none base
+            // config injects the package default `font-thicken = true`, and
+            // only a later entry in the rendered config overrides it.
+            builder.withFontThicken(settings.fontThicken)
             builder.withCursorStyle(.block)
             builder.withCursorStyleBlink(true)
             // Kero owns the app-level command map. Leaving Ghostty's defaults
