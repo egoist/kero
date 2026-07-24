@@ -13,6 +13,7 @@ type Release = { version: string; minSystem: string; dmg: string }
 const RELEASES_ORIGIN = 'https://releases.kero.sh'
 const APPCAST_URL = `${RELEASES_ORIGIN}/appcast.xml`
 const X_URL = 'https://x.com/localhost_4173'
+const GITHUB_URL = 'https://github.com/egoist/kero'
 
 // Shown only if the appcast can't be reached; kept current so downloads still work.
 const FALLBACK: Release = {
@@ -237,7 +238,7 @@ function Home() {
       </header>
 
       <section className="flex flex-col gap-3.5">
-        <div>
+        <div className="flex flex-wrap items-center gap-2.5">
           <a
             href={latest.dmg}
             download
@@ -246,12 +247,21 @@ function Home() {
             <span className="i-mingcute-apple-fill size-4 shrink-0" />
             Download .dmg
           </a>
+          <a
+            href={GITHUB_URL}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-2 rounded-[9px] border border-border bg-card px-4 py-[7px] text-foreground transition-colors hover:border-brand hover:bg-brand/8 hover:text-brand"
+          >
+            <span className="i-mingcute-github-fill size-4 shrink-0" />
+            GitHub
+          </a>
         </div>
         <div className="flex flex-wrap items-center gap-2 text-[13px] text-muted-foreground">
           <Pill>v{latest.version}</Pill>
           <Pill>macOS {latest.minSystem}+</Pill>
           <Pill>signed &amp; notarized</Pill>
-          <Pill>free</Pill>
+          <Pill>free & open-source</Pill>
         </div>
       </section>
 
@@ -322,6 +332,15 @@ function Home() {
           className="text-foreground transition-colors hover:text-brand"
         >
           @localhost_4173
+        </a>{' '}
+        ·{' '}
+        <a
+          href={GITHUB_URL}
+          target="_blank"
+          rel="noreferrer"
+          className="text-foreground transition-colors hover:text-brand"
+        >
+          GitHub
         </a>{' '}
         · © 2026
       </footer>
