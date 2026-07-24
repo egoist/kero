@@ -37,6 +37,72 @@ enum TerminalHistorySerializer {
         return .captured(normalizedHistory(from: capturedVT, maxLines: maxLines))
     }
 
+    /// Plain visible rows for the Ctrl-Tab thumbnail. This uses Ghostty's
+    /// screen export instead of AppKit bitmap caching because its framebuffer-
+    /// only Metal layer cannot be captured reliably. Only the tail of a large
+    /// export is read, keeping interactive tab switching bounded even when a
+    /// session has megabytes of scrollback.
+    @MainActor
+    static func previewText(
+        from view: KeroTerminalView,
+        maxLines: Int,
+        maxColumns: Int
+    ) -> String? {
+        guard maxLines > 0, maxColumns > 0,
+              let captureFile = exportedFile(
+                  from: view, action: "write_screen_file:open,vt")
+        else { return nil }
+        defer { removeCaptureFile(captureFile) }
+
+        guard let handle = try? FileHandle(forReadingFrom: captureFile.fileURL) else {
+            return nil
+        }
+        defer { try? handle.close() }
+
+        // Enough for many full terminal viewports, while staying cheap if the
+        // exported file contains Kero's full scrollback allowance.
+        let byteLimit: UInt64 = 128 * 1024
+        guard let end = try? handle.seekToEnd() else { return nil }
+        let start = end > byteLimit ? end - byteLimit : 0
+        do {
+            try handle.seek(toOffset: start)
+        } catch {
+            return nil
+        }
+        guard let data = try? handle.read(upToCount: Int(end - start)),
+              !data.isEmpty
+        else { return nil }
+
+        var capture = String(decoding: data, as: UTF8.self)
+        // A tail read can start halfway through a UTF-8 scalar or ANSI run.
+        // Discard its first partial row so no fragment reaches the thumbnail.
+        if start > 0, let newline = capture.firstIndex(of: "\n") {
+            capture.removeSubrange(...newline)
+        }
+        capture = capture
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
+
+        var lines = capture
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .map { visibleText(in: String($0)) }
+
+        while let last = lines.last,
+              last.trimmingCharacters(in: .whitespaces).isEmpty {
+            lines.removeLast()
+        }
+        guard !lines.isEmpty else { return nil }
+
+        return lines.suffix(maxLines).map { line in
+            var cropped = String(line.prefix(maxColumns))
+            while cropped.last == " " || cropped.last == "\t" {
+                cropped.removeLast()
+            }
+            return cropped
+        }
+        .joined(separator: "\n")
+    }
+
     /// A positive-only probe for a primary-buffer scrollback snapshot. Ghostty
     /// does not export scrollback while an alternate buffer is active, but an
     /// empty primary buffer can also produce no file, so false is inconclusive.
