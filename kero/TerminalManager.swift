@@ -549,7 +549,8 @@ final class TerminalManager: nonisolated ObservableObject {
                     }
                     let (col, row) = tab.focusedLocation() ?? (0, 0)
                     return ProjectSnapshot.TabSnapshot(
-                        columns: columns, focusedColumn: col, focusedRow: row
+                        columns: columns, focusedColumn: col, focusedRow: row,
+                        customName: tab.customName
                     )
                 }
                 return ProjectSnapshot(

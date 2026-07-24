@@ -86,6 +86,10 @@ struct PaneColumn: nonisolated Identifiable {
 final class PaneTab: nonisolated ObservableObject, nonisolated Identifiable {
     nonisolated let id = UUID()
 
+    /// User-assigned tab name; when nil the tab title follows the focused
+    /// pane's content (terminal title, file name, diff title) — the same
+    /// override scheme as `Project.customName`.
+    @Published var customName: String?
     @Published var columns: [PaneColumn]
     @Published var focusedPaneID: UUID
     /// Whether the focused pane is zoomed to fill the tab. Presentation-only:
@@ -124,6 +128,13 @@ final class PaneTab: nonisolated ObservableObject, nonisolated Identifiable {
 
     var focusedPane: Pane? { allPanes.first { $0.id == focusedPaneID } }
     var focusedContent: PaneContent? { focusedPane?.content }
+
+    /// Title for the tab strip and Window menu: the user-assigned name when
+    /// set, else the focused pane's own title.
+    var displayTitle: String? {
+        if let customName, !customName.isEmpty { return customName }
+        return focusedContent?.title
+    }
 
     var sessions: [TerminalSession] {
         allContents.compactMap { if case .session(let session) = $0 { return session }; return nil }

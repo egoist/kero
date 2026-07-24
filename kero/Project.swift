@@ -522,7 +522,9 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
         guard !columns.isEmpty else { return }
         let col = min(max(0, snap.focusedColumn), columns.count - 1)
         let row = min(max(0, snap.focusedRow), columns[col].panes.count - 1)
-        append(PaneTab(columns: columns, focusedPaneID: columns[col].panes[row].id))
+        let tab = PaneTab(columns: columns, focusedPaneID: columns[col].panes[row].id)
+        tab.customName = snap.customName
+        append(tab)
     }
 
     private func makeContent(
