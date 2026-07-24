@@ -13,6 +13,12 @@ final class KeroTerminalView: AppTerminalView {
     var onBecomeFirstResponder: (() -> Void)?
     let splitTarget = SplitMenuTarget()
 
+    /// Cell height of the current grid in device pixels, as reported by
+    /// ghostty. The host container reads it to snap the view's height to a
+    /// whole number of rows so no sub-row remainder is left inside the
+    /// surface.
+    private(set) var cellHeightPixels: UInt32?
+
     private let progressBar = KeroTerminalProgressBarView(frame: .zero)
     private var progressReportTimer: Timer?
     private var lastProgressValue: Int?
@@ -36,6 +42,16 @@ final class KeroTerminalView: AppTerminalView {
             x: 0, y: bounds.height - height,
             width: bounds.width, height: height
         )
+    }
+
+    /// Forwarded from the session's grid-resize callback. Relayout is only
+    /// needed when the cell height changes (first report, font change) — plain
+    /// width/height updates are what layout itself produces.
+    func gridMetricsDidChange(_ size: TerminalGridMetrics) {
+        guard size.cellHeightPixels > 0,
+              size.cellHeightPixels != cellHeightPixels else { return }
+        cellHeightPixels = size.cellHeightPixels
+        superview?.needsLayout = true
     }
 
     private func installProgressBar() {

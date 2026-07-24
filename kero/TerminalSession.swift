@@ -264,6 +264,13 @@ final class TerminalSession: NSObject, nonisolated ObservableObject, nonisolated
             builder.withFontThicken(settings.fontThicken)
             builder.withCursorStyle(.block)
             builder.withCursorStyleBlink(true)
+            // Kero draws its own insets around the surface and balances the
+            // sub-row remainder itself (TerminalHostView). Ghostty's internal
+            // padding must be zero for that: it would sit inside the surface,
+            // push the grid down, and break the exact rows-times-cell-height
+            // snap.
+            builder.withWindowPaddingX(0)
+            builder.withWindowPaddingY(0)
             // Kero owns the app-level command map. Leaving Ghostty's defaults
             // installed makes its performKeyEquivalent intercept shortcuts
             // such as Cmd-T, Cmd-N, Cmd-D, Cmd-K, and project/tab navigation
@@ -446,7 +453,9 @@ extension TerminalSession: TerminalSurfaceTitleDelegate {
 }
 
 extension TerminalSession: TerminalSurfaceGridResizeDelegate {
-    func terminalDidResize(_ size: TerminalGridMetrics) {}
+    func terminalDidResize(_ size: TerminalGridMetrics) {
+        terminalView.gridMetricsDidChange(size)
+    }
 }
 
 extension TerminalSession: TerminalSurfaceFocusDelegate {
