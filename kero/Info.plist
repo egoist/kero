@@ -60,6 +60,11 @@
 		</dict>
 	</array>
 
+	<!-- Programs running inside the terminal (e.g. Claude Code voice dictation)
+	     request mic access attributed to Kero as the responsible process. -->
+	<key>NSMicrophoneUsageDescription</key>
+	<string>A program running within Kero would like to use your microphone.</string>
+
 	<!-- Sparkle auto-update configuration.
 	     Appcast feed hosted on Cloudflare R2 (releases.kero.sh); see RELEASING.md. -->
 	<key>SUFeedURL</key>
