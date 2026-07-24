@@ -29,17 +29,22 @@ struct TerminalHostView: NSViewRepresentable {
         terminal.onBecomeFirstResponder = onFocused
         terminal.splitTarget.onSplit = onSplit
         let scrollbar = session.overlayScrollbar
-        // The terminal is framed manually by the container: its height snaps
-        // to whole grid rows and the sub-row remainder is split between the
-        // top and bottom insets, keeping the prompt line near the pane's
-        // bottom edge without the top gap outgrowing the bottom one.
-        terminal.translatesAutoresizingMaskIntoConstraints = true
-        terminal.autoresizingMask = []
+        // Kero's visual insets live inside ghostty as window-padding (see
+        // TerminalSession), so that window-padding-color=extend can flood
+        // them with the content's background and window-padding-balance
+        // keeps the prompt near the pane's bottom edge. The surface keeps a
+        // hairline inset of pane background so a full-screen TUI's fill
+        // stops just short of the pane edges.
+        let frameInset: CGFloat = 2
+        terminal.translatesAutoresizingMaskIntoConstraints = false
         scrollbar.translatesAutoresizingMaskIntoConstraints = false
         container.addSubview(terminal)
         container.addSubview(scrollbar, positioned: .above, relativeTo: terminal)
-        container.needsLayout = true
         NSLayoutConstraint.activate([
+            terminal.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: frameInset),
+            terminal.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -frameInset),
+            terminal.topAnchor.constraint(equalTo: container.topAnchor, constant: frameInset),
+            terminal.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -frameInset),
             scrollbar.trailingAnchor.constraint(equalTo: container.trailingAnchor),
             scrollbar.topAnchor.constraint(equalTo: container.topAnchor),
             scrollbar.bottomAnchor.constraint(equalTo: container.bottomAnchor),
@@ -142,13 +147,7 @@ final class TerminalParkingContainerView: NSView {
 /// and when navigation moves focus here. `TerminalHostView` drives the edge;
 /// this only performs the makeFirstResponder.
 private final class TerminalContainerView: NSView {
-    weak var terminal: KeroTerminalView?
-
-    /// Content insets around the terminal surface. Ghostty's own
-    /// window-padding is zeroed (TerminalSession), so these are the only
-    /// padding the grid gets and the snap math below stays exact.
-    private static let insets = NSEdgeInsets(top: 6, left: 12, bottom: 10, right: 6)
-
+    weak var terminal: NSView?
     var focusOnAppear = true {
         didSet {
             if !focusOnAppear { pendingFocusRequest = false }
@@ -158,55 +157,6 @@ private final class TerminalContainerView: NSView {
 
     deinit {
         NotificationCenter.default.removeObserver(self)
-    }
-
-    override func layout() {
-        super.layout()
-        layoutTerminal()
-    }
-
-    /// The row snap depends on the backing scale; re-derive it when the
-    /// window lands on a display with a different one.
-    override func viewDidChangeBackingProperties() {
-        super.viewDidChangeBackingProperties()
-        needsLayout = true
-    }
-
-    /// Snaps the terminal's height down to a whole number of grid rows and
-    /// splits the sub-row remainder between the top and bottom insets, like
-    /// ghostty's window-padding-balance. Ghostty itself pins the grid to the
-    /// surface's top and leaves the whole remainder at the bottom, which
-    /// strands the prompt up to a full row above the pane's bottom edge;
-    /// dumping it all on the top instead makes the top gap visibly outgrow
-    /// the bottom one. The split keeps both gaps near their base insets, and
-    /// the remainder blends into the pane's matching background.
-    private func layoutTerminal() {
-        guard let terminal else { return }
-        let insets = Self.insets
-        let width = max(bounds.width - insets.left - insets.right, 0)
-        let available = max(bounds.height - insets.top - insets.bottom, 0)
-        var height = available
-        var bottomExtra: CGFloat = 0
-        // Same fallback chain the wrapper's surface coordinator uses, so the
-        // pixel height ghostty receives is exactly rows × cell height.
-        let scale = window?.backingScaleFactor
-            ?? NSScreen.main?.backingScaleFactor ?? 2
-        if let cellPixels = terminal.cellHeightPixels, cellPixels > 0, scale > 0 {
-            let cell = CGFloat(cellPixels)
-            let rows = ((available * scale).rounded(.down) / cell).rounded(.down)
-            if rows >= 1 {
-                height = rows * cell / scale
-                // Pixel-align the bottom share; the top absorbs any sub-pixel
-                // fraction of the container height.
-                bottomExtra = ((available - height) * scale / 2).rounded() / scale
-            }
-        }
-        terminal.frame = NSRect(
-            x: insets.left,
-            y: insets.bottom + bottomExtra,
-            width: width,
-            height: height
-        )
     }
 
     override func viewDidMoveToWindow() {

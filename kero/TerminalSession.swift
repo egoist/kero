@@ -264,13 +264,22 @@ final class TerminalSession: NSObject, nonisolated ObservableObject, nonisolated
             builder.withFontThicken(settings.fontThicken)
             builder.withCursorStyle(.block)
             builder.withCursorStyleBlink(true)
-            // Kero draws its own insets around the surface and balances the
-            // sub-row remainder itself (TerminalHostView). Ghostty's internal
-            // padding must be zero for that: it would sit inside the surface,
-            // push the grid down, and break the exact rows-times-cell-height
-            // snap.
-            builder.withWindowPaddingX(0)
-            builder.withWindowPaddingY(0)
+            // Kero's insets around the grid live inside ghostty as
+            // window-padding so that window-padding-color=extend can flood
+            // them with the nearest cell's background — full-screen TUIs
+            // fill the surface while text keeps its breathing room (the
+            // host adds a 2pt pane-background frame around the surface, so
+            // the fill stops just short of the pane edges; these values plus
+            // that frame put the text at least 12pt from the sides and 10pt
+            // from the top/bottom). balance re-centers the grid, splitting
+            // the sub-cell remainder evenly per axis instead of stranding
+            // the prompt a full row above the pane's bottom edge; it also
+            // makes each side's padding equal to the value here plus half
+            // the remainder, so per-side asymmetry is not expressible.
+            builder.withWindowPaddingX(10)
+            builder.withWindowPaddingY(8)
+            builder.withCustom("window-padding-balance", "true")
+            builder.withCustom("window-padding-color", "extend")
             // Kero owns the app-level command map. Leaving Ghostty's defaults
             // installed makes its performKeyEquivalent intercept shortcuts
             // such as Cmd-T, Cmd-N, Cmd-D, Cmd-K, and project/tab navigation
@@ -453,9 +462,7 @@ extension TerminalSession: TerminalSurfaceTitleDelegate {
 }
 
 extension TerminalSession: TerminalSurfaceGridResizeDelegate {
-    func terminalDidResize(_ size: TerminalGridMetrics) {
-        terminalView.gridMetricsDidChange(size)
-    }
+    func terminalDidResize(_ size: TerminalGridMetrics) {}
 }
 
 extension TerminalSession: TerminalSurfaceFocusDelegate {
