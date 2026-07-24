@@ -116,12 +116,14 @@ extension TerminalController {
         source: ConfigSource
     ) -> Result<PreparedConfig, ConfigurationIssue> {
         let resolvedContents: String
-        let configPath: String
+        let configPath: String?
         let managedConfigURL: URL?
+        let loadsDefaultFiles: Bool
 
         switch source {
         case .none:
             resolvedContents = defaultRenderedConfig
+            loadsDefaultFiles = false
             switch writeManagedConfig(contents: resolvedContents) {
             case let .success(url):
                 managedConfigURL = url
@@ -132,6 +134,7 @@ extension TerminalController {
 
         case let .generated(contents):
             resolvedContents = contents
+            loadsDefaultFiles = false
             switch writeManagedConfig(contents: contents) {
             case let .success(url):
                 managedConfigURL = url
@@ -146,8 +149,25 @@ extension TerminalController {
             } catch {
                 return .failure(ConfigurationIssue("failed to load ghostty config template: \(error)"))
             }
+            loadsDefaultFiles = false
             managedConfigURL = nil
             configPath = path
+
+        case let .defaultFiles(overrides):
+            resolvedContents = overrides
+            loadsDefaultFiles = true
+            guard !overrides.isEmpty else {
+                managedConfigURL = nil
+                configPath = nil
+                break
+            }
+            switch writeManagedConfig(contents: overrides) {
+            case let .success(url):
+                managedConfigURL = url
+                configPath = url.path
+            case let .failure(issue):
+                return .failure(issue)
+            }
         }
 
         guard let rawValue = ghostty_config_new() else {
@@ -157,7 +177,14 @@ extension TerminalController {
             return .failure(ConfigurationIssue("ghostty_config_new returned nil"))
         }
 
-        ghostty_config_load_file(rawValue, configPath)
+        if loadsDefaultFiles {
+            loadDefaultConfigFiles(rawValue)
+            ghostty_config_load_recursive_files(rawValue)
+        }
+        if let configPath {
+            ghostty_config_load_file(rawValue, configPath)
+            ghostty_config_load_recursive_files(rawValue)
+        }
         ghostty_config_finalize(rawValue)
 
         let diagnostics = configDiagnostics(from: rawValue)
@@ -178,6 +205,31 @@ extension TerminalController {
                 renderedContents: resolvedContents
             )
         )
+    }
+
+    private static func loadDefaultConfigFiles(_ config: ghostty_config_t) {
+        let fileManager = FileManager.default
+        let home = fileManager.homeDirectoryForCurrentUser
+        let xdgRoot = ProcessInfo.processInfo.environment["XDG_CONFIG_HOME"]
+            .flatMap { $0.isEmpty ? nil : $0 }
+            .map { URL(fileURLWithPath: $0, isDirectory: true) }
+            ?? home.appendingPathComponent(".config", isDirectory: true)
+        var paths = [
+            xdgRoot.appendingPathComponent("ghostty/config.ghostty"),
+            xdgRoot.appendingPathComponent("ghostty/config"),
+        ]
+        #if os(macOS)
+            let appSupport = home.appendingPathComponent(
+                "Library/Application Support/com.mitchellh.ghostty",
+                isDirectory: true
+            )
+            paths.append(appSupport.appendingPathComponent("config.ghostty"))
+            paths.append(appSupport.appendingPathComponent("config"))
+        #endif
+
+        for path in paths where fileManager.fileExists(atPath: path.path) {
+            ghostty_config_load_file(config, path.path)
+        }
     }
 
     private static func writeManagedConfig(contents: String) -> Result<URL, ConfigurationIssue> {

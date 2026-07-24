@@ -6,7 +6,7 @@
 import AppKit
 import CoreText
 
-/// Terminal font handling, same approach as Otty: bundle JetBrains Mono
+/// Editor font handling, same approach as Otty: bundle JetBrains Mono
 /// with the app so the default looks identical on every machine, and let
 /// the OS cascade cover glyphs the primary font lacks (CJK, symbols).
 enum TerminalFont {
@@ -25,14 +25,14 @@ enum TerminalFont {
         CTFontManagerRegisterFontURLs(urls as CFArray, .process, true, nil)
     }
 
-    /// The terminal font for the current settings (family + size).
+    /// The editor font for the current settings (family + size).
     @MainActor
     static func current() -> NSFont {
         let settings = AppSettings.shared
         return resolve(family: settings.fontFamily, size: CGFloat(settings.fontSize))
     }
 
-    /// Resolves a family name to a terminal-ready font. Empty family means
+    /// Resolves a family name to an editor-ready font. Empty family means
     /// the bundled default; an unknown family falls back to it too.
     ///
     /// The bundled Symbols Nerd Font is attached as a CoreText cascade

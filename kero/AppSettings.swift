@@ -57,20 +57,13 @@ final class AppSettings: nonisolated ObservableObject {
         }
     }
 
-    /// Terminal font family name; empty string means the bundled default
+    /// Editor font family name; empty string means the bundled default
     /// (JetBrains Mono).
     @Published var fontFamily: String {
         didSet { save() }
     }
 
     @Published var fontSize: Double {
-        didSet { save() }
-    }
-
-    /// Ghostty's `font-thicken`: render glyphs with slightly heavier strokes,
-    /// like classic macOS font smoothing. Off by default so kero's text
-    /// matches a stock Ghostty install.
-    @Published var fontThicken: Bool {
         didSet { save() }
     }
 
@@ -100,7 +93,6 @@ final class AppSettings: nonisolated ObservableObject {
         fontFamily = toml["font-family"]?.string ?? ""
         let size = toml["font-size"]?.double ?? Self.defaultFontSize
         fontSize = Self.fontSizeRange.contains(size) ? size : Self.defaultFontSize
-        fontThicken = toml["font-thicken"]?.bool ?? false
         wrapLines = toml["editor.wrap-lines"]?.bool ?? false
         restoreTerminalHistory = toml["terminal.restore-history"]?.bool ?? false
         applyAppearance()
@@ -134,7 +126,6 @@ final class AppSettings: nonisolated ObservableObject {
     func resetFont() {
         fontFamily = ""
         fontSize = Self.defaultFontSize
-        fontThicken = false
     }
 
     func resetToDefaults() {
@@ -163,9 +154,6 @@ final class AppSettings: nonisolated ObservableObject {
             lines.append("font-family = \(TOML.quote(fontFamily))")
         }
         lines.append("font-size = \(TOML.number(fontSize))")
-        if fontThicken {
-            lines.append("font-thicken = true")
-        }
         if wrapLines {
             lines.append("editor.wrap-lines = true")
         }

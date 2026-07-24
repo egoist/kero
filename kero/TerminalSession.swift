@@ -8,7 +8,6 @@ import Combine
 import Darwin
 import Foundation
 import GhosttyTerminal
-import GhosttyTheme
 
 /// One login shell rendered by one long-lived libghostty surface. SwiftUI only
 /// reparents the same `KeroTerminalView`, so PTY state, selection, and
@@ -58,8 +57,8 @@ final class TerminalSession: NSObject, nonisolated ObservableObject, nonisolated
         title = (shellPath as NSString).lastPathComponent
 
         controller = TerminalController(
-            configSource: .none,
-            theme: Self.ghosttyTheme(),
+            configSource: .defaultFiles(),
+            theme: .init(),
             terminalConfiguration: Self.terminalConfiguration(command: launchCommand)
         )
         let terminalView = KeroTerminalView(
@@ -98,14 +97,11 @@ final class TerminalSession: NSObject, nonisolated ObservableObject, nonisolated
         }
     }
 
-    /// Reconfigures libghostty in place when either appearance or terminal
-    /// font settings change. Ghostty also uses these values for OSC 10/11
-    /// queries, so reported defaults always match the visible theme.
+    /// Keeps libghostty's light/dark selection aligned with the app.
     func applyTheme() {
         _ = controller.setTerminalConfiguration(
             Self.terminalConfiguration(command: launchCommand)
         )
-        _ = controller.setTheme(Self.ghosttyTheme())
         let isDark = NSApp.effectiveAppearance.bestMatch(
             from: [.darkAqua, .aqua]
         ) == .darkAqua
@@ -249,36 +245,9 @@ final class TerminalSession: NSObject, nonisolated ObservableObject, nonisolated
     // MARK: - Ghostty configuration
 
     private static func terminalConfiguration(command: String) -> TerminalConfiguration {
-        let settings = AppSettings.shared
-        let family = settings.fontFamily.isEmpty
-            ? TerminalFont.bundledFamily : settings.fontFamily
         return TerminalConfiguration { builder in
-            builder.withFontFamily(family)
-            // Keep Kero's bundled icon font as a fallback after the selected
-            // primary face. Repeated font-family entries form Ghostty's list.
-            builder.withCustom("font-family", "Symbols Nerd Font Mono")
-            builder.withFontSize(Float(settings.fontSize))
-            // Always set explicitly: the wrapper's ConfigSource.none base
-            // config injects the package default `font-thicken = true`, and
-            // only a later entry in the rendered config overrides it.
-            builder.withFontThicken(settings.fontThicken)
-            builder.withCursorStyle(.block)
-            builder.withCursorStyleBlink(true)
-            // Kero's insets around the grid live inside ghostty as
-            // window-padding so that window-padding-color=extend can flood
-            // them with the nearest cell's background — full-screen TUIs
-            // fill the surface while text keeps its breathing room (the
-            // host adds a 2pt pane-background frame around the surface, so
-            // the fill stops just short of the pane edges; these values plus
-            // that frame put the text at least 12pt from the sides and 10pt
-            // from the top/bottom). balance re-centers the grid, splitting
-            // the sub-cell remainder evenly per axis instead of stranding
-            // the prompt a full row above the pane's bottom edge; it also
-            // makes each side's padding equal to the value here plus half
-            // the remainder, so per-side asymmetry is not expressible.
-            builder.withWindowPaddingX(10)
-            builder.withWindowPaddingY(8)
-            builder.withCustom("window-padding-balance", "true")
+            // Font, colors, cursor, padding, and other appearance settings
+            // come directly from Ghostty's standard user config files.
             builder.withCustom("window-padding-color", "extend")
             // Kero owns the app-level command map. Leaving Ghostty's defaults
             // installed makes its performKeyEquivalent intercept shortcuts
@@ -309,7 +278,6 @@ final class TerminalSession: NSObject, nonisolated ObservableObject, nonisolated
             // least that many normally sized rows while keeping synchronous
             // history exports bounded.
             builder.withCustom("scrollback-limit", "4194304")
-            builder.withCustom("macos-option-as-alt", "true")
             builder.withCustom("scrollbar", "never")
             // Terminal-program clipboard access via OSC 52, matching the
             // Ghostty app defaults: reads prompt the user per request
@@ -327,13 +295,6 @@ final class TerminalSession: NSObject, nonisolated ObservableObject, nonisolated
             builder.withCustom("clipboard-write", "allow")
             builder.withCustom("clipboard-paste-protection", "true")
         }
-    }
-
-    private static func ghosttyTheme() -> GhosttyTerminal.TerminalTheme {
-        GhosttyTerminal.TerminalTheme(
-            light: Theme.terminal(dark: false).toTerminalConfiguration(),
-            dark: Theme.terminal(dark: true).toTerminalConfiguration()
-        )
     }
 
     private static func surfaceEnvironment() -> [String: String] {

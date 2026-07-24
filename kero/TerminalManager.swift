@@ -109,16 +109,16 @@ final class TerminalManager: nonisolated ObservableObject {
         for directory in queuedDirectories {
             newProject(directory: directory)
         }
-        // Re-theme live sessions only when font, appearance, or terminal
-        // theme settings change. Delivery is scheduled onto the main queue
-        // because @Published emits in willSet — by then `didSet` has pushed
+        // Repaint Kero views and keep Ghostty's light/dark selection aligned
+        // when editor font or app appearance settings change. Delivery is
+        // scheduled onto the main queue because @Published emits in willSet
+        // — by then `didSet` has pushed
         // the theme onto NSApp (and the selection into `Theme`), so
         // `refreshAppearance` reads the new state.
         settingsObservation = Publishers.CombineLatest(
-            Publishers.CombineLatest4(
+            Publishers.CombineLatest3(
                 AppSettings.shared.$fontFamily.removeDuplicates(),
                 AppSettings.shared.$fontSize.removeDuplicates(),
-                AppSettings.shared.$fontThicken.removeDuplicates(),
                 AppSettings.shared.$theme.removeDuplicates()
             ),
             Publishers.CombineLatest(

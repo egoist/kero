@@ -41,6 +41,10 @@ public final class TerminalController {
         case none
         case file(String)
         case generated(String)
+        /// Loads Ghostty's standard user config files, then applies these
+        /// generated overrides. User `config-file` includes are resolved
+        /// before the overrides so host-required settings stay authoritative.
+        case defaultFiles(overrides: String = "")
     }
 
     public static let shared = TerminalController()
@@ -277,6 +281,9 @@ public final class TerminalController {
             configuration: nextTerminalConfiguration,
             theme: themeConfig
         )
+        if case .defaultFiles = baseConfigSource {
+            return (.defaultFiles(overrides: contents), contents)
+        }
         return (.generated(contents), contents)
     }
 
