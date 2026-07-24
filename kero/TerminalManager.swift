@@ -576,7 +576,7 @@ final class TerminalManager: nonisolated ObservableObject {
     private func restore(from snapshot: SessionSnapshot) -> Bool {
         for saved in snapshot.projects where !saved.tabs.isEmpty {
             let project = makeProject(createInitialSession: false)
-            project.customName = saved.customName
+            project.customName = Project.normalizedCustomName(saved.customName)
             for tab in saved.tabs {
                 project.restoreTab(from: tab, histories: Self.pendingHistories)
             }

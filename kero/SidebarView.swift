@@ -198,23 +198,31 @@ private struct SidebarProjectRow: View {
                 .foregroundStyle(isSelected ? Color(nsColor: Theme.cursor) : .secondary)
 
             VStack(alignment: .leading, spacing: 1) {
-                if isRenaming {
-                    TextField("", text: $renameDraft)
-                        .textFieldStyle(.plain)
-                        .font(.system(size: 12, weight: .medium))
-                        .focused($renameFocused)
-                        .onSubmit(commitRename)
-                        .onExitCommand { isRenaming = false }
-                        .onChange(of: renameFocused) {
-                            if !renameFocused, isRenaming {
-                                commitRename()
+                HStack(spacing: 3) {
+                    if let activity = project.activityIndicator {
+                        Text(activity)
+                            .font(.system(size: 12, design: .monospaced))
+                            .foregroundStyle(isSelected ? .primary : .secondary)
+                            .accessibilityHidden(true)
+                    }
+                    if isRenaming {
+                        TextField("", text: $renameDraft)
+                            .textFieldStyle(.plain)
+                            .font(.system(size: 12, weight: .medium))
+                            .focused($renameFocused)
+                            .onSubmit(commitRename)
+                            .onExitCommand { isRenaming = false }
+                            .onChange(of: renameFocused) {
+                                if !renameFocused, isRenaming {
+                                    commitRename()
+                                }
                             }
-                        }
-                } else {
-                    Text(project.name)
-                        .font(.system(size: 12))
-                        .foregroundStyle(isSelected ? .primary : .secondary)
-                        .lineLimit(1)
+                    } else {
+                        Text(project.name)
+                            .font(.system(size: 12))
+                            .foregroundStyle(isSelected ? .primary : .secondary)
+                            .lineLimit(1)
+                    }
                 }
                 subtitle
             }
@@ -242,7 +250,7 @@ private struct SidebarProjectRow: View {
     }
 
     private func beginRename() {
-        renameDraft = project.name
+        renameDraft = project.renameDraftName
         isRenaming = true
         DispatchQueue.main.async {
             renameFocused = true
@@ -250,8 +258,7 @@ private struct SidebarProjectRow: View {
     }
 
     private func commitRename() {
-        let trimmed = renameDraft.trimmingCharacters(in: .whitespacesAndNewlines)
-        project.customName = trimmed.isEmpty ? nil : trimmed
+        project.customName = Project.normalizedCustomName(renameDraft)
         isRenaming = false
     }
 
