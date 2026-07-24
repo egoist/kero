@@ -97,19 +97,57 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
 
     // MARK: - Project directory
 
+    /// Which rule produced the panel root, so labels can describe it
+    /// truthfully instead of just saying "automatic".
+    enum PanelRootSource: Equatable {
+        /// The directory pinned on the project row.
+        case pinned
+        /// The repository the shell itself sits in.
+        case shell
+        /// The repository the terminal's foreground job sits in — a coding
+        /// agent that moved to another checkout of the same project. Whether
+        /// that checkout is a linked worktree is resolved here, once per
+        /// refresh, so views can label it without touching the disk.
+        case foreground(isWorktree: Bool)
+    }
+
     /// Root for the file tree and git panels: the pinned directory when the
-    /// user set one (and it still exists on disk), else the closest git
-    /// repository containing `cwd`, else `cwd` itself — the
+    /// user set one (and it still exists on disk), else the repository the
+    /// terminal's foreground job moved to (an agent's worktree), else the
+    /// closest git repository containing `cwd`, else `cwd` itself — the
     /// follow-the-terminal behavior used before projects had a directory.
-    /// The automatic repository root is re-derived on every call, so it
-    /// tracks the session in and out of repositories without sticking.
-    /// `isAutomatic` reports which branch produced the root, so labels can
-    /// say "(AUTO)" truthfully even when a vanished pin forced the fallback.
-    func panelRoot(followingSessionAt cwd: String) -> (root: String, isAutomatic: Bool) {
+    /// Everything but the pin is re-derived on every call, so the panels
+    /// track the session in and out of repositories without sticking.
+    func panelRoot(
+        followingSessionAt cwd: String, foregroundAt foregroundCwd: String? = nil
+    ) -> (root: String, source: PanelRootSource) {
         if let pinned = customDirectory, FileManager.default.fileExists(atPath: pinned) {
-            return (pinned, false)
+            return (pinned, .pinned)
         }
-        return (Self.closestGitRepository(containing: cwd) ?? cwd, true)
+        let shellRoot = Self.closestGitRepository(containing: cwd) ?? cwd
+        // Only a *different repository* re-roots the panels. A foreground job
+        // running in a subdirectory of the shell's own checkout resolves to
+        // the same root and is ignored, which keeps the file tree from
+        // collapsing its expanded rows every time a command runs.
+        if let foregroundCwd,
+           let foregroundRoot = Self.closestGitRepository(containing: foregroundCwd),
+           foregroundRoot != shellRoot {
+            return (foregroundRoot, .foreground(isWorktree: Self.isLinkedWorktree(foregroundRoot)))
+        }
+        return (shellRoot, .shell)
+    }
+
+    /// Whether `root` is a linked worktree rather than a normal checkout: its
+    /// `.git` is a file pointing into the main repository's `worktrees`
+    /// directory (a submodule's points into `modules` instead).
+    private static func isLinkedWorktree(_ root: String) -> Bool {
+        let gitPath = (root as NSString).appendingPathComponent(".git")
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: gitPath, isDirectory: &isDirectory),
+              !isDirectory.boolValue,
+              let contents = try? String(contentsOfFile: gitPath, encoding: .utf8)
+        else { return false }
+        return contents.contains("/worktrees/")
     }
 
     /// The directory of the nearest enclosing git repository: walks up from

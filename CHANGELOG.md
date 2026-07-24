@@ -16,6 +16,9 @@ the original feature bullet instead of adding separate entries for them.
 
 ## [unrelease]
 
+- Follow the terminal's foreground job into another checkout: when an agent
+  switches to its own git worktree, Files, Git and Info re-root to it
+
 ## [0.1.32]
 
 - Add native English, Simplified Chinese, and Japanese localization throughout the app, with a language picker in Settings

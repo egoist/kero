@@ -205,6 +205,20 @@ final class TerminalSession: NSObject, nonisolated ObservableObject, nonisolated
         return launchWorkingDirectory
     }
 
+    /// Working directory of the terminal's foreground job, when that job is
+    /// something other than the shell itself. Coding agents change their own
+    /// process directory when they move to another checkout — Claude Code's
+    /// worktree switch is a `chdir` inside the running `claude` process — and
+    /// the shell never moves, so no OSC 7 arrives and `currentDirectoryPath`
+    /// keeps describing the old tree. This is deliberately a separate fact:
+    /// `currentDirectoryPath` must stay true to the shell.
+    var foregroundDirectoryPath: String? {
+        guard let foreground = surface.foregroundPid, foreground > 0,
+              foreground != shellPid
+        else { return nil }
+        return processWorkingDirectory(pid: foreground)
+    }
+
     func sendCommand(_ text: String) {
         surface.sendText(text)
     }

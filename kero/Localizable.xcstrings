@@ -2425,18 +2425,18 @@
         }
       }
     },
-    "Files and Git anchor to this directory. When automatic, it follows the closest Git repository containing the shell’s current directory; a directory set manually from the project’s context menu is always used as-is." : {
+    "Files and Git anchor to this directory. When automatic, it follows the closest Git repository containing the shell’s current directory, or the one the terminal’s foreground job moved to — a coding agent that switched to its own worktree. A directory set manually from the project’s context menu is always used as-is." : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ファイルとGitはこのディレクトリを基準にします。自動の場合、シェルの現在のディレクトリを含む最も近いGitリポジトリを使います。プロジェクトのメニューで手動設定したディレクトリはそのまま使われます。"
+            "value" : "ファイルとGitはこのディレクトリを基準にします。自動の場合、シェルの現在のディレクトリを含む最も近いGitリポジトリ、またはターミナルのフォアグラウンドジョブが移動した先のリポジトリ——自分のワークツリーに切り替えたコーディングエージェントなど——を使います。プロジェクトのメニューで手動設定したディレクトリはそのまま使われます。"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "文件与 Git 以此目录为基准。自动模式下，会跟随包含 Shell 当前目录的最近 Git 仓库；若从项目菜单手动指定了目录，则始终使用该目录。"
+            "value" : "文件与 Git 以此目录为基准。自动模式下，会跟随包含 Shell 当前目录的最近 Git 仓库，或终端前台作业所切换到的仓库——例如切换到自己工作树的编码代理。若从项目菜单手动指定了目录，则始终使用该目录。"
           }
         }
       }
@@ -2757,6 +2757,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "文件夹名称"
+          }
+        }
+      }
+    },
+    "Following the terminal job’s directory" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ターミナルジョブのディレクトリを追従中"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在跟随终端作业的目录"
+          }
+        }
+      }
+    },
+    "Following the terminal job’s worktree" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ターミナルジョブのワークツリーを追従中"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在跟随终端作业的工作树"
           }
         }
       }
@@ -3125,6 +3157,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "无法写入磁盘。"
+          }
+        }
+      }
+    },
+    "job" : {
+      "comment" : "Files header badge: the panels follow a directory the terminal’s foreground job moved to, outside any worktree of the shell’s repository.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ジョブ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "作业"
           }
         }
       }
@@ -4403,6 +4452,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "项目目录（自动）"
+          }
+        }
+      }
+    },
+    "PROJECT DIRECTORY (JOB)" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プロジェクトディレクトリ（ジョブ）"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "项目目录（作业）"
+          }
+        }
+      }
+    },
+    "PROJECT DIRECTORY (WORKTREE)" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プロジェクトディレクトリ（ワークツリー）"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "项目目录（工作树）"
           }
         }
       }
@@ -6884,6 +6965,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "工作区干净，尚有同步待完成"
+          }
+        }
+      }
+    },
+    "worktree" : {
+      "comment" : "Files header badge: the panels follow a Git worktree the terminal’s foreground job moved to.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ワークツリー"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "工作树"
           }
         }
       }

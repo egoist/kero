@@ -16,6 +16,8 @@ struct RightSidebarView: View {
     @StateObject private var git = GitStatusModel()
     @StateObject private var info = SessionInfoModel()
     @State private var applicationIsActive = NSApp.isActive
+    /// Which rule produced the current panel root; drives the Files badge.
+    @State private var rootSource = Project.PanelRootSource.shell
     @AppStorage("rightSidebarWidth") private var width: Double = 240
 
     private var pollsSelectedPanel: Bool {
@@ -58,6 +60,7 @@ struct RightSidebarView: View {
                         FileTreePanel(
                             model: fileTree,
                             session: manager.selectedSession,
+                            rootBadge: rootBadge,
                             currentFilePath: openFilePath,
                             openFile: { manager.openFile($0) },
                             openToSide: { manager.openFileToSide($0) },
@@ -204,19 +207,49 @@ struct RightSidebarView: View {
         else { return }
         let cwd = session.currentDirectoryPath
         // Files and Git anchor to the project directory — pinned when the
-        // user set one, else the cwd's closest git repository — so they
-        // don't re-root as the terminal cds around a repo; Info describes
-        // the shell itself, showing its live cwd next to that root.
-        let (root, isAutoRoot) = project.panelRoot(followingSessionAt: cwd)
+        // user set one, else the repository the session is working in — so
+        // they don't re-root as the terminal cds around a repo; Info
+        // describes the shell itself, showing its live cwd next to that root.
+        // An agent that moves to its own worktree changes only its own
+        // process directory, so the foreground job's cwd is passed in too.
+        let (root, source) = project.panelRoot(
+            followingSessionAt: cwd, foregroundAt: session.foregroundDirectoryPath
+        )
+        if rootSource != source { rootSource = source }
         switch manager.panelTab {
         case .files: fileTree.sync(root: root)
         case .git: git.sync(root: root)
         case .info:
             info.sync(
-                root: cwd, projectRoot: root, projectRootIsAutomatic: isAutoRoot,
+                root: cwd, projectRoot: root, projectRootSource: source,
                 shellName: session.shellName, shellPid: session.shellPid
             )
         }
+    }
+
+    /// Text badge for the Files header while the panels follow the foreground
+    /// job instead of the shell — the agent's worktree in the common case, a
+    /// plain "job" when it moved somewhere that isn't a linked worktree.
+    /// The label and its spoken description travel together so neither is
+    /// assembled from translated fragments.
+    private var rootBadge: (text: String, description: String)? {
+        guard case .foreground(let isWorktree) = rootSource else { return nil }
+        if isWorktree {
+            return (
+                String(
+                    localized: "worktree",
+                    comment: "Files header badge: the panels follow a Git worktree the terminal’s foreground job moved to."
+                ),
+                String(localized: "Following the terminal job’s worktree")
+            )
+        }
+        return (
+            String(
+                localized: "job",
+                comment: "Files header badge: the panels follow a directory the terminal’s foreground job moved to, outside any worktree of the shell’s repository."
+            ),
+            String(localized: "Following the terminal job’s directory")
+        )
     }
 }
 
@@ -248,6 +281,9 @@ private struct PanelHeader: View {
 private struct FileTreePanel: View {
     @ObservedObject var model: FileTreeModel
     let session: TerminalSession?
+    /// Set while the tree follows the terminal's foreground job into another
+    /// checkout, so the header says why the root moved.
+    let rootBadge: (text: String, description: String)?
     let currentFilePath: String?
     let openFile: (String) -> Void
     let openToSide: (String) -> Void
@@ -257,6 +293,18 @@ private struct FileTreePanel: View {
         VStack(spacing: 0) {
             HStack {
                 PanelHeader(title: model.rootName, subtitle: model.rootPath)
+                if let rootBadge {
+                    Text(verbatim: rootBadge.text)
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 2)
+                        .background(
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(Color.primary.opacity(0.09))
+                        )
+                        .accessibilityLabel(rootBadge.description)
+                }
                 Button {
                     NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: model.rootPath)])
                 } label: {
@@ -2028,16 +2076,30 @@ private struct InfoPanel: View {
     private var projectDirectorySection: some View {
         if !model.projectRootPath.isEmpty {
             GitSectionHeader(
-                title: model.projectRootIsAutomatic
-                    ? String(localized: "PROJECT DIRECTORY (AUTO)")
-                    : String(localized: "PROJECT DIRECTORY"),
+                title: projectDirectoryTitle,
                 count: 0,
                 isCollapsed: $projectDirectoryCollapsed, actions: [],
-                helpText: String(localized: "Files and Git anchor to this directory. When automatic, it follows the closest Git repository containing the shell’s current directory; a directory set manually from the project’s context menu is always used as-is.")
+                helpText: String(localized: "Files and Git anchor to this directory. When automatic, it follows the closest Git repository containing the shell’s current directory, or the one the terminal’s foreground job moved to — a coding agent that switched to its own worktree. A directory set manually from the project’s context menu is always used as-is.")
             )
             if !projectDirectoryCollapsed {
                 directoryGroup(path: model.projectRootPath)
             }
+        }
+    }
+
+    /// Names the rule behind the project directory: a root taken from the
+    /// foreground job says so rather than passing itself off as the shell's
+    /// own repository.
+    private var projectDirectoryTitle: String {
+        switch model.projectRootSource {
+        case .pinned:
+            return String(localized: "PROJECT DIRECTORY")
+        case .shell:
+            return String(localized: "PROJECT DIRECTORY (AUTO)")
+        case .foreground(let isWorktree):
+            return isWorktree
+                ? String(localized: "PROJECT DIRECTORY (WORKTREE)")
+                : String(localized: "PROJECT DIRECTORY (JOB)")
         }
     }
 
