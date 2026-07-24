@@ -15,6 +15,7 @@ struct RightSidebarView: View {
     @StateObject private var fileTree = FileTreeModel()
     @StateObject private var git = GitStatusModel()
     @StateObject private var info = SessionInfoModel()
+    @StateObject private var agentUsage = AgentUsageModel()
     @AppStorage("rightSidebarWidth") private var width: Double = 240
 
     private let refreshTimer = Timer.publish(every: 2, on: .main, in: .common).autoconnect()
@@ -64,7 +65,10 @@ struct RightSidebarView: View {
                             }
                         )
                     case .info:
-                        InfoPanel(model: info, session: manager.selectedSession)
+                        InfoPanel(
+                            model: info, usage: agentUsage,
+                            session: manager.selectedSession
+                        )
                     }
                 }
                 .frame(width: width)
@@ -150,6 +154,11 @@ struct RightSidebarView: View {
             info.sync(
                 root: cwd, projectRoot: root, projectRootIsAutomatic: isAutoRoot,
                 shellName: session.shellName, shellPid: session.shellPid
+            )
+            // Reuses the process list `info` just polled, so detecting a
+            // running agent costs no extra `ps`.
+            agentUsage.sync(
+                processNames: info.processes.map(\.name), cwd: cwd
             )
         }
     }
@@ -1794,11 +1803,13 @@ private struct GitEntryRow: View {
 /// processes running under the shell, and ports they are listening on.
 private struct InfoPanel: View {
     @ObservedObject var model: SessionInfoModel
+    @ObservedObject var usage: AgentUsageModel
     @ObservedObject private var themeChanges = Theme.changes
     let session: TerminalSession?
 
     @State private var currentDirectoryCollapsed = false
     @State private var projectDirectoryCollapsed = false
+    @State private var agentUsageCollapsed = false
     @State private var processesCollapsed = false
     @State private var portsCollapsed = false
 
@@ -1812,6 +1823,7 @@ private struct InfoPanel: View {
                 LazyVStack(alignment: .leading, spacing: 1) {
                     currentDirectorySection
                     projectDirectorySection
+                    agentUsageSection
                     processesSection
                     portsSection
                 }
@@ -1834,6 +1846,7 @@ private struct InfoPanel: View {
             )
             Button {
                 model.refresh()
+                usage.refreshNow()
             } label: {
                 Image(systemName: "arrow.clockwise")
                     .font(.system(size: 10, weight: .medium))
@@ -1952,6 +1965,40 @@ private struct InfoPanel: View {
         }
         .buttonStyle(.plain)
         .help(title == "Copy" ? "Copy Path" : "Open in \(title)")
+    }
+
+    // MARK: Agent usage
+
+    /// Plan limits for Claude Code / Codex, shown only while one of them is
+    /// actually running under this session's shell.
+    @ViewBuilder
+    private var agentUsageSection: some View {
+        if !usage.detected.isEmpty {
+            GitSectionHeader(
+                title: "AGENT USAGE",
+                count: usage.detected.count,
+                isCollapsed: $agentUsageCollapsed,
+                actions: [],
+                helpText: "Plan limits for the coding agents running in this "
+                    + "session. Codex numbers come from its local session log. "
+                    + "Claude numbers come from Anthropic's usage API and need "
+                    + "one-time permission to read the token Claude Code "
+                    + "already stored."
+            )
+            if !agentUsageCollapsed {
+                ForEach(usage.detected) { provider in
+                    AgentUsageCard(
+                        provider: provider,
+                        snapshot: usage.snapshots.first { $0.provider == provider },
+                        failure: usage.failures.first { $0.provider == provider },
+                        needsOptIn: provider == .claude && !usage.isClaudeEnabled,
+                        isLoading: provider == .claude && usage.isClaudeLoading,
+                        enable: { usage.isClaudeEnabled = true },
+                        retry: { usage.refreshNow() }
+                    )
+                }
+            }
+        }
     }
 
     // MARK: Processes
@@ -2140,4 +2187,197 @@ private struct InfoPortRow: View {
 
 private func shellQuote(_ path: String) -> String {
     "'" + path.replacingOccurrences(of: "'", with: "'\\''") + "'"
+}
+
+// MARK: - Agent usage
+
+/// One agent's block: its limit windows as meters, or the reason there are
+/// none to show yet.
+private struct AgentUsageCard: View {
+    let provider: AgentUsageProvider
+    let snapshot: AgentUsageSnapshot?
+    let failure: AgentUsageFailure?
+    let needsOptIn: Bool
+    let isLoading: Bool
+    let enable: () -> Void
+    let retry: () -> Void
+
+    /// Countdowns are only correct if something re-renders them.
+    @State private var now = Date()
+    private let tick = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            header
+            if needsOptIn {
+                optInPrompt
+            } else if let snapshot, !snapshot.isEmpty {
+                meters(for: snapshot)
+            } else if let failure {
+                message(failure.message, showsRetry: failure.isRecoverable)
+            } else if isLoading {
+                message("Checking usage…", showsRetry: false)
+            } else {
+                message("Waiting for usage data…", showsRetry: false)
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 7)
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(Color.primary.opacity(0.04))
+        )
+        .padding(.horizontal, 6)
+        .padding(.vertical, 2)
+        .onReceive(tick) { now = $0 }
+    }
+
+    private var header: some View {
+        HStack(spacing: 5) {
+            Text(provider.displayName)
+                .font(.system(size: 11, weight: .semibold))
+            if let plan = snapshot?.planLabel, !plan.isEmpty {
+                Text(plan)
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 1)
+                    .background(
+                        RoundedRectangle(cornerRadius: 3)
+                            .fill(Color(nsColor: Theme.accent).opacity(0.15))
+                    )
+            }
+            Spacer(minLength: 0)
+            if isLoading {
+                ProgressView()
+                    .controlSize(.mini)
+                    .scaleEffect(0.7)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func meters(for snapshot: AgentUsageSnapshot) -> some View {
+        ForEach(snapshot.windows) { window in
+            AgentUsageMeter(
+                label: window.label,
+                percent: window.usedPercent,
+                detail: window.resetLabel(now: now)
+            )
+        }
+        if let contextPercent = snapshot.contextPercent {
+            AgentUsageMeter(
+                label: "Context",
+                percent: contextPercent,
+                detail: snapshot.contextDetail
+            )
+        }
+        if let source = snapshot.sourceLabel {
+            Text(source)
+                .font(.system(size: 9))
+                .foregroundStyle(.tertiary)
+        }
+    }
+
+    private var optInPrompt: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Usage needs one-time permission to read the token Claude "
+                + "Code saved in your keychain. macOS will ask; choose "
+                + "Always Allow to avoid repeat prompts.")
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Button(action: enable) {
+                Text("Show Claude Usage")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(Color(nsColor: Theme.accent))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(
+                        RoundedRectangle(cornerRadius: 5)
+                            .fill(Color(nsColor: Theme.accent).opacity(0.15))
+                    )
+                    .contentShape(RoundedRectangle(cornerRadius: 5))
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private func message(_ text: String, showsRetry: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text(text)
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            if showsRetry {
+                Button(action: retry) {
+                    Text("Retry")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(Color(nsColor: Theme.accent))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+}
+
+/// A labelled progress bar: "5h limit — 12% — resets in 3h 20m".
+private struct AgentUsageMeter: View {
+    let label: String
+    /// 0–100.
+    let percent: Double
+    let detail: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(spacing: 4) {
+                Text(label)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                Spacer(minLength: 4)
+                Text(percentLabel)
+                    .font(.system(size: 10, weight: .medium, design: .monospaced))
+                    .foregroundStyle(fill)
+            }
+            GeometryReader { geometry in
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(Color.primary.opacity(0.08))
+                    Capsule()
+                        .fill(fill)
+                        .frame(
+                            width: max(
+                                geometry.size.width * clamped / 100,
+                                clamped > 0 ? 2 : 0
+                            )
+                        )
+                }
+            }
+            .frame(height: 4)
+            if let detail, !detail.isEmpty {
+                Text(detail)
+                    .font(.system(size: 9))
+                    .foregroundStyle(.tertiary)
+                    .lineLimit(1)
+            }
+        }
+    }
+
+    private var clamped: Double { min(max(percent, 0), 100) }
+
+    private var percentLabel: String {
+        clamped >= 10
+            ? String(format: "%.0f%%", clamped)
+            : String(format: "%.1f%%", clamped)
+    }
+
+    /// Neutral until the window is most of the way gone, then a warning.
+    private var fill: Color {
+        switch clamped {
+        case ..<75: Color(nsColor: Theme.accent)
+        case ..<90: .orange
+        default: .red
+        }
+    }
 }
