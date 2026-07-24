@@ -17,6 +17,7 @@
 //   bun scripts/release.ts --local     # build signed artifacts without publishing
 //   FORCE=1 bun scripts/release.ts    # re-release even if that version exists
 //   NO_HISTORY=1 bun scripts/release.ts   # skip pulling old archives (no deltas)
+//   HISTORY_COUNT=3 bun scripts/release.ts   # use fewer prior archives for deltas
 //
 // Bump MARKETING_VERSION (CFBundleShortVersionString) and CURRENT_PROJECT_VERSION
 // (CFBundleVersion) in the project before running — Sparkle compares the build
@@ -53,6 +54,12 @@ const DOWNLOAD_URL_PREFIX = process.env.DOWNLOAD_URL_PREFIX ?? "https://releases
 const R2_REMOTE = process.env.R2_REMOTE ?? "r2";
 const R2_BUCKET = process.env.R2_BUCKET ?? "kero-releases";
 const R2_DEST = `${R2_REMOTE}:${R2_BUCKET}`;
+// Keep a broader recent window available for delta generation. Override to
+// trade delta coverage for less download/storage.
+const HISTORY_COUNT = Number(process.env.HISTORY_COUNT ?? "15");
+if (!Number.isSafeInteger(HISTORY_COUNT) || HISTORY_COUNT < 0) {
+  die("HISTORY_COUNT must be a non-negative integer.");
+}
 
 // A bucket-scoped R2 API token (Object Read & Write) can't create buckets, and
 // rclone otherwise tries to check/create the bucket before uploading. The
@@ -147,14 +154,48 @@ await $`xcrun stapler staple ${app}`;
 
 // ---- 6. package the Sparkle update (pull history first for deltas) --------
 // The DMG is the download; Sparkle updates from this zip so it can build small
-// binary deltas. Only zips live in UPDATES_DIR, so generate_appcast makes one
-// appcast item per version.
+// binary deltas. UPDATES_DIR is a clean staging directory containing only the
+// current archive and the recent history needed for those deltas.
+rmSync(UPDATES_DIR, { recursive: true, force: true });
 mkdirSync(UPDATES_DIR, { recursive: true });
 if (process.env.NO_HISTORY !== "1") {
-  say("Pulling existing archives from R2 (for deltas)…");
-  // copy is additive — it never deletes local or remote files. Pull the old
-  // appcast too so generate_appcast preserves any hand-added release notes.
-  await $`rclone copy ${R2_DEST} ${UPDATES_DIR} ${RCLONE_FLAGS} --include ${"*.zip"} --include ${"*.delta"} --include ${"*.md"} --include ${"*.html"} --include ${"appcast.xml"}`;
+  say(`Selecting the ${HISTORY_COUNT} most recent archives from R2 (for deltas)…`);
+  type RemoteFile = { Name: string; IsDir: boolean };
+  const remoteFiles = JSON.parse(
+    await $`rclone lsjson ${R2_DEST} ${RCLONE_FLAGS} --files-only --include ${"*.zip"} --include ${"appcast.xml"}`.text(),
+  ) as RemoteFile[];
+  const archiveVersion = (name: string) =>
+    name.slice("kero-".length, -".zip".length);
+  const versionOrder = new Intl.Collator("en", { numeric: true });
+  const recentArchives = remoteFiles
+    .filter(
+      ({ Name, IsDir }) =>
+        !IsDir && /^kero-.+\.zip$/.test(Name) && Name !== zipName,
+    )
+    .sort((a, b) =>
+      versionOrder.compare(archiveVersion(b.Name), archiveVersion(a.Name)),
+    )
+    .slice(0, HISTORY_COUNT)
+    .map(({ Name }) => Name);
+  const historyFiles = [
+    ...(remoteFiles.some(({ Name }) => Name === "appcast.xml")
+      ? ["appcast.xml"]
+      : []),
+    ...recentArchives,
+  ];
+
+  if (historyFiles.length > 0) {
+    const includeFlags = historyFiles.flatMap((name) => [
+      "--include",
+      `/${name}`,
+    ]);
+    await $`rclone copy ${R2_DEST} ${UPDATES_DIR} ${RCLONE_FLAGS} ${includeFlags}`;
+  }
+  say(
+    recentArchives.length > 0
+      ? `Pulled ${recentArchives.join(", ")}`
+      : "No prior archives found",
+  );
 }
 say(`Packaging ${zipName}…`);
 await $`ditto -c -k --keepParent ${app} ${join(UPDATES_DIR, zipName)}`;
@@ -185,7 +226,7 @@ await generateAppcast(UPDATES_DIR, DOWNLOAD_URL_PREFIX);
 say(`Uploading the DMG to ${R2_DEST}…`);
 await $`rclone copyto ${dmgPath} ${`${R2_DEST}/${dmgName}`} ${RCLONE_FLAGS} --header-upload ${"Cache-Control: public, max-age=31536000, immutable"} --progress`;
 say(`Uploading update archives to ${R2_DEST}…`);
-await $`rclone copy ${UPDATES_DIR} ${R2_DEST} ${RCLONE_FLAGS} --exclude ${"appcast.xml"} --header-upload ${"Cache-Control: public, max-age=31536000, immutable"} --progress`;
+await $`rclone copy ${UPDATES_DIR} ${R2_DEST} ${RCLONE_FLAGS} --exclude ${"appcast.xml"} --exclude ${"old_updates/**"} --header-upload ${"Cache-Control: public, max-age=31536000, immutable"} --progress`;
 say("Uploading appcast.xml…");
 await $`rclone copyto ${join(UPDATES_DIR, "appcast.xml")} ${`${R2_DEST}/appcast.xml`} ${RCLONE_FLAGS} --header-upload ${"Cache-Control: public, max-age=300, must-revalidate"}`;
 
