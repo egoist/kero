@@ -54,9 +54,10 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
         return titleName.isEmpty ? fallbackName : titleName
     }
 
-    /// Leading Braille activity frame from the selected terminal title
-    /// (for example `⠼` in `⠼ repo`). Rendered separately so the stable
-    /// project name does not reflow as the spinner animates.
+    /// Transient activity glyph from the selected terminal title (Braille
+    /// spinner frame, or a warning mark when Grok CLI needs approval).
+    /// Rendered separately so the stable project name does not reflow as
+    /// the agent title animates.
     var activityIndicator: String? {
         guard let title = selectedSession?.title else { return nil }
         return Self.terminalTitleParts(title).activity
@@ -72,9 +73,9 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
         return selectedSession?.directoryLabel ?? name
     }
 
-    /// Trims a user-assigned project name and strips a leading terminal
-    /// spinner frame. Also used while restoring snapshots so names
-    /// accidentally persisted as `⠼ repo` repair on next launch.
+    /// Trims a user-assigned project name and strips transient terminal
+    /// activity decoration. Also used while restoring snapshots so names
+    /// accidentally persisted with a spinner frame repair on next launch.
     static func normalizedCustomName(_ name: String?) -> String? {
         guard let name else { return nil }
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -84,15 +85,77 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
         return normalized.isEmpty ? nil : normalized
     }
 
-    /// Splits a terminal title into an optional leading Braille spinner
-    /// frame and the remaining stable label.
+    /// Splits a terminal title into an optional activity glyph and the
+    /// remaining stable label.
+    ///
+    /// Supports:
+    /// - Claude-style `⠼ repo` (leading Braille + whitespace)
+    /// - Grok CLI titles composed as ` - `-joined items that end with the
+    ///   `grok` brand segment, for example
+    ///   `⠋ - Responding - My Session - 3s - tmp - Grok 4.5 - grok`
     static func terminalTitleParts(
         _ title: String
     ) -> (activity: String?, name: String) {
+        if let grok = grokCLITitleParts(title) {
+            return grok
+        }
+        return braillePrefixedTitleParts(title)
+    }
+
+    /// Grok CLI (`[ui.notifications.title]`) joins configured items with
+    /// `" - "` and always appends the `grok` brand when title updates are
+    /// enabled. Transient segments (spinner, action-required, activity
+    /// text, turn timer, model label) are stripped so the sidebar keeps a
+    /// stable project name while the agent works.
+    private static func grokCLITitleParts(
+        _ title: String
+    ) -> (activity: String?, name: String)? {
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed == grokTitleBrand {
+            return (nil, grokTitleBrand)
+        }
+        guard trimmed.hasSuffix(grokTitleSuffix) else { return nil }
+
+        var parts = trimmed.components(separatedBy: grokTitleSeparator)
+        guard parts.count >= 2, parts.last == grokTitleBrand else { return nil }
+        parts.removeLast()
+
+        var activity: String?
+        var sawSpinner = false
+
+        // action-required is optional and may precede the spinner.
+        if let first = parts.first, isGrokActionRequiredSegment(first) {
+            activity = grokActionRequiredGlyph
+            parts.removeFirst()
+        }
+
+        if let first = parts.first, isBrailleSpinnerSegment(first) {
+            activity = first
+            sawSpinner = true
+            parts.removeFirst()
+        }
+
+        // Default item order places free-form activity text immediately
+        // after the spinner. Strip one segment when a spinner was present
+        // so tool descriptions do not become the project name.
+        if sawSpinner, let first = parts.first, !isGrokTurnTimerSegment(first) {
+            parts.removeFirst()
+        }
+
+        parts.removeAll { isGrokTurnTimerSegment($0) || isGrokModelSegment($0) }
+
+        let name = parts
+            .joined(separator: grokTitleSeparator)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return (activity, name.isEmpty ? grokTitleBrand : name)
+    }
+
+    /// Claude Code / agents that prefix a single Braille spinner frame.
+    private static func braillePrefixedTitleParts(
+        _ title: String
+    ) -> (activity: String?, name: String) {
         guard let first = title.first,
-              first.unicodeScalars.allSatisfy({
-                  (UInt32(0x2800)...UInt32(0x28FF)).contains($0.value)
-              }),
+              isBrailleScalar(first),
               let next = title.index(
                   title.startIndex, offsetBy: 1, limitedBy: title.endIndex
               ),
@@ -101,6 +164,48 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
         else { return (nil, title) }
         let name = title[next...].trimmingCharacters(in: .whitespacesAndNewlines)
         return (String(first), name)
+    }
+
+    private static let grokTitleBrand = "grok"
+    private static let grokTitleSeparator = " - "
+    private static let grokTitleSuffix = " - grok"
+    private static let grokActionRequiredGlyph = "⚠"
+
+    private static func isBrailleScalar(_ character: Character) -> Bool {
+        character.unicodeScalars.allSatisfy {
+            (UInt32(0x2800)...UInt32(0x28FF)).contains($0.value)
+        }
+    }
+
+    private static func isBrailleSpinnerSegment(_ segment: String) -> Bool {
+        segment.count == 1 && segment.first.map(isBrailleScalar) == true
+    }
+
+    private static func isGrokActionRequiredSegment(_ segment: String) -> Bool {
+        segment == "⚠ Action Required" || segment.hasPrefix("⚠")
+    }
+
+    /// Turn timers such as `3s`, `12s`, or `1m 05s`.
+    private static func isGrokTurnTimerSegment(_ segment: String) -> Bool {
+        let s = segment.trimmingCharacters(in: .whitespacesAndNewlines)
+        if s.range(of: #"^\d+s$"#, options: .regularExpression) != nil {
+            return true
+        }
+        if s.range(of: #"^\d+m(?:\s*\d+s)?$"#, options: .regularExpression) != nil {
+            return true
+        }
+        if s.range(of: #"^\d+:\d{2}$"#, options: .regularExpression) != nil {
+            return true
+        }
+        return false
+    }
+
+    /// Model label item, for example `Grok 4.5`.
+    private static func isGrokModelSegment(_ segment: String) -> Bool {
+        segment.range(
+            of: #"^Grok \d"#,
+            options: .regularExpression
+        ) != nil
     }
 
     /// Every terminal session across every pane in every tab.

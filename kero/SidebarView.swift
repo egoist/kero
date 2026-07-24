@@ -264,7 +264,9 @@ private struct SidebarProjectRow: View {
                     if let activity = project.activityIndicator {
                         Text(activity)
                             .font(.system(size: 12, design: .monospaced))
-                            .frame(width: 10, alignment: .center)
+                            // Fixed slot fits Braille frames and Grok's ⚠
+                            // action-required glyph without reflowing the name.
+                            .frame(width: 14, alignment: .center)
                             .foregroundStyle(isSelected ? .primary : .secondary)
                             .accessibilityHidden(true)
                     }
