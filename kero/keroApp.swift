@@ -7,6 +7,9 @@ import SwiftUI
 
 @main
 struct keroApp: App {
+    @NSApplicationDelegateAdaptor(KeroApplicationDelegate.self)
+    private var applicationDelegate
+
     // Held here so Sparkle starts at launch and background checks run even if
     // the menu is never opened.
     @StateObject private var updater = Updater.shared

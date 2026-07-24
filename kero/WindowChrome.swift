@@ -14,8 +14,14 @@ struct WindowChromeAccessor: NSViewRepresentable {
     static let buttonLeading: CGFloat = 16
     static let buttonSpacing: CGFloat = 20
 
+    private let onAttach: (NSWindow) -> Void
+
+    init(onAttach: @escaping (NSWindow) -> Void = { _ in }) {
+        self.onAttach = onAttach
+    }
+
     func makeCoordinator() -> Coordinator {
-        Coordinator()
+        Coordinator(onAttach: onAttach)
     }
 
     func makeNSView(context: Context) -> NSView {
@@ -38,10 +44,16 @@ struct WindowChromeAccessor: NSViewRepresentable {
     final class Coordinator {
         private weak var window: NSWindow?
         private var observers: [NSObjectProtocol] = []
+        private let onAttach: (NSWindow) -> Void
+
+        init(onAttach: @escaping (NSWindow) -> Void) {
+            self.onAttach = onAttach
+        }
 
         func attach(_ window: NSWindow) {
             guard self.window !== window else { return }
             self.window = window
+            onAttach(window)
             // Interactive controls occupy the title-bar region. Disable the
             // server-side title-bar drag entirely; WindowDragArea is the only
             // surface that opts into moving the window.

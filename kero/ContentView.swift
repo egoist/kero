@@ -73,7 +73,7 @@ struct ContentView: View {
                 CommandPaletteView(manager: manager)
             }
         }
-        .background(WindowChromeAccessor())
+        .background(WindowChromeAccessor { manager.attach(to: $0) })
         .onChange(of: colorScheme) {
             manager.refreshAppearance()
         }
