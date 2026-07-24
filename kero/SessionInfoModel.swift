@@ -40,6 +40,12 @@ final class SessionInfoModel: nonisolated ObservableObject {
     }
 
     @Published private(set) var rootPath = ""
+    /// The project directory the file tree and git panels anchor to —
+    /// shown alongside the live cwd so both are visible at a glance.
+    @Published private(set) var projectRootPath = ""
+    /// Whether that directory was derived (closest git repository / cwd)
+    /// rather than pinned by the user.
+    @Published private(set) var projectRootIsAutomatic = true
     @Published private(set) var shellName = ""
     @Published private(set) var shellPid: pid_t = 0
     @Published private(set) var processes: [ProcessItem] = []
@@ -47,8 +53,18 @@ final class SessionInfoModel: nonisolated ObservableObject {
 
     private var isRefreshing = false
 
-    func sync(root: String, shellName: String, shellPid: pid_t?) {
+    func sync(
+        root: String,
+        projectRoot: String,
+        projectRootIsAutomatic: Bool,
+        shellName: String,
+        shellPid: pid_t?
+    ) {
         if rootPath != root { rootPath = root }
+        if projectRootPath != projectRoot { projectRootPath = projectRoot }
+        if self.projectRootIsAutomatic != projectRootIsAutomatic {
+            self.projectRootIsAutomatic = projectRootIsAutomatic
+        }
         if self.shellName != shellName { self.shellName = shellName }
         let pid = shellPid ?? 0
         if self.shellPid != pid { self.shellPid = pid }

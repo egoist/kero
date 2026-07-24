@@ -19,6 +19,12 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
     /// User-assigned name; when nil the project title follows the
     /// selected session's terminal title.
     @Published var customName: String?
+    /// User-pinned project directory ("Set Project Directory…" on the
+    /// project row). When set, the file tree and git panels always anchor
+    /// here. Nil means automatic: the closest git repository containing the
+    /// selected session's working directory, re-derived as the session
+    /// moves (see `panelRoot(followingSessionAt:)`).
+    @Published var customDirectory: String?
     @Published var tabs: [PaneTab] = []
     @Published var selectedTabID: UUID?
 
@@ -87,10 +93,45 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
         selectedTab?.canSplit ?? false
     }
 
+    // MARK: - Project directory
+
+    /// Root for the file tree and git panels: the pinned directory when the
+    /// user set one (and it still exists on disk), else the closest git
+    /// repository containing `cwd`, else `cwd` itself — the
+    /// follow-the-terminal behavior used before projects had a directory.
+    /// The automatic repository root is re-derived on every call, so it
+    /// tracks the session in and out of repositories without sticking.
+    /// `isAutomatic` reports which branch produced the root, so labels can
+    /// say "(AUTO)" truthfully even when a vanished pin forced the fallback.
+    func panelRoot(followingSessionAt cwd: String) -> (root: String, isAutomatic: Bool) {
+        if let pinned = customDirectory, FileManager.default.fileExists(atPath: pinned) {
+            return (pinned, false)
+        }
+        return (Self.closestGitRepository(containing: cwd) ?? cwd, true)
+    }
+
+    /// The directory of the nearest enclosing git repository: walks up from
+    /// `path` looking for a `.git` entry — a directory in normal checkouts,
+    /// a file in worktrees and submodules.
+    private static func closestGitRepository(containing path: String) -> String? {
+        var dir = (path as NSString).standardizingPath
+        guard dir.hasPrefix("/") else { return nil }
+        let fm = FileManager.default
+        while true {
+            if fm.fileExists(atPath: (dir as NSString).appendingPathComponent(".git")) {
+                return dir
+            }
+            let parent = (dir as NSString).deletingLastPathComponent
+            if parent == dir { return nil }
+            dir = parent
+        }
+    }
+
     // MARK: - Sessions
 
     /// When no directory is given, the new session starts in the current
-    /// session's working directory (home if the project has none yet).
+    /// session's working directory, then the pinned project directory
+    /// (home when neither is known).
     @discardableResult
     func newSession(directory: String? = nil) -> TerminalSession {
         let session = makeSession(directory: directory)
@@ -107,7 +148,9 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
         directory: String? = nil, restoredHistory: String? = nil
     ) -> TerminalSession {
         let session = TerminalSession(
-            initialDirectory: directory ?? selectedSession?.currentDirectoryPath,
+            initialDirectory: directory
+                ?? selectedSession?.currentDirectoryPath
+                ?? customDirectory,
             restoredHistory: restoredHistory
         )
         session.onExited = { [weak self] session in

@@ -3,6 +3,7 @@
 //  kero
 //
 
+import AppKit
 import SwiftUI
 
 /// Vertical tab strip listing projects, otty-style. Each row is a project;
@@ -210,9 +211,42 @@ private struct SidebarProjectRow: View {
                 }
             }
             Divider()
+            Button("Set Project Directory…") {
+                pickProjectDirectory()
+            }
+            if project.customDirectory != nil {
+                Button("Use Automatic Directory") {
+                    project.customDirectory = nil
+                }
+            }
+            Divider()
             Button("Close Project") {
                 close()
             }
+        }
+    }
+
+    /// Lets the user pin the project's directory — the root the file tree
+    /// and git panels anchor to instead of the automatic closest-git-repo.
+    private func pickProjectDirectory() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.prompt = "Choose"
+        panel.message = "Choose the directory for “\(project.name)”."
+        if let current = project.customDirectory
+            ?? project.selectedSession?.currentDirectoryPath {
+            panel.directoryURL = URL(fileURLWithPath: current, isDirectory: true)
+        }
+        let apply: (NSApplication.ModalResponse) -> Void = { response in
+            guard response == .OK, let url = panel.url else { return }
+            project.customDirectory = url.path
+        }
+        if let window = NSApp.keyWindow ?? NSApp.mainWindow {
+            panel.beginSheetModal(for: window, completionHandler: apply)
+        } else {
+            apply(panel.runModal())
         }
     }
 

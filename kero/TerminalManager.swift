@@ -554,6 +554,7 @@ final class TerminalManager: nonisolated ObservableObject {
                 }
                 return ProjectSnapshot(
                     customName: project.customName,
+                    customDirectory: project.customDirectory,
                     tabs: tabs,
                     selectedTabIndex: project.tabs.firstIndex { $0.id == project.selectedTabID }
                 )
@@ -592,6 +593,7 @@ final class TerminalManager: nonisolated ObservableObject {
         for saved in snapshot.projects where !saved.tabs.isEmpty {
             let project = makeProject(createInitialSession: false)
             project.customName = saved.customName
+            project.customDirectory = saved.customDirectory
             for tab in saved.tabs {
                 project.restoreTab(from: tab, histories: Self.pendingHistories)
             }

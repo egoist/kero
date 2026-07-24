@@ -72,6 +72,10 @@ struct SessionSnapshot: Codable {
         }
 
         var customName: String?
+        /// User-pinned project directory; nil when the directory is
+        /// automatic (the closest git repository, never persisted).
+        /// Optional so older snapshots still decode.
+        var customDirectory: String?
         var tabs: [TabSnapshot]
         var selectedTabIndex: Int?
     }

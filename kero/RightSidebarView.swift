@@ -90,6 +90,9 @@ struct RightSidebarView: View {
         // session.workingDirectory); resync at once instead of waiting for the
         // next refreshTimer tick, which is what made the panel lag the change.
         .onChange(of: manager.selectedSession?.workingDirectory) { syncModels() }
+        // Same for pinning/unpinning the project directory: re-root the
+        // panels the moment it changes rather than on the next tick.
+        .onChange(of: manager.selectedProject?.customDirectory) { syncModels() }
     }
 
     private var tabBar: some View {
@@ -130,13 +133,24 @@ struct RightSidebarView: View {
     }
 
     private func syncModels() {
-        guard let session = manager.selectedSession, manager.isPanelVisible else { return }
-        let root = session.currentDirectoryPath
+        guard manager.isPanelVisible,
+              let project = manager.selectedProject,
+              let session = project.selectedSession
+        else { return }
+        let cwd = session.currentDirectoryPath
+        // Files and Git anchor to the project directory — pinned when the
+        // user set one, else the cwd's closest git repository — so they
+        // don't re-root as the terminal cds around a repo; Info describes
+        // the shell itself, showing its live cwd next to that root.
+        let (root, isAutoRoot) = project.panelRoot(followingSessionAt: cwd)
         switch manager.panelTab {
         case .files: fileTree.sync(root: root)
         case .git: git.sync(root: root)
         case .info:
-            info.sync(root: root, shellName: session.shellName, shellPid: session.shellPid)
+            info.sync(
+                root: cwd, projectRoot: root, projectRootIsAutomatic: isAutoRoot,
+                shellName: session.shellName, shellPid: session.shellPid
+            )
         }
     }
 }
@@ -1473,8 +1487,11 @@ private struct GitSectionHeader: View {
     @Binding var isCollapsed: Bool
     let actions: [Action]
     var actionsDisabled = false
+    /// When set, a small "?" after the title opens this in a popover.
+    var helpText: String?
 
     @State private var isHovering = false
+    @State private var isShowingHelp = false
 
     var body: some View {
         HStack(spacing: 4) {
@@ -1495,6 +1512,27 @@ private struct GitSectionHeader: View {
             .buttonStyle(.plain)
             .accessibilityLabel(title)
             .accessibilityValue(isCollapsed ? "Collapsed" : "Expanded")
+
+            if let helpText {
+                Button {
+                    isShowingHelp.toggle()
+                } label: {
+                    Image(systemName: "questionmark.circle")
+                        .font(.system(size: 9))
+                        .foregroundStyle(.tertiary)
+                        .frame(width: 14, height: 14)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("About \(title)")
+                .popover(isPresented: $isShowingHelp, arrowEdge: .bottom) {
+                    Text(helpText)
+                        .font(.system(size: 11))
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(width: 230, alignment: .leading)
+                        .padding(12)
+                }
+            }
 
             ForEach(actions) { action in
                 Button(action: action.perform) {
@@ -1759,7 +1797,8 @@ private struct InfoPanel: View {
     @ObservedObject private var themeChanges = Theme.changes
     let session: TerminalSession?
 
-    @State private var directoryCollapsed = false
+    @State private var currentDirectoryCollapsed = false
+    @State private var projectDirectoryCollapsed = false
     @State private var processesCollapsed = false
     @State private var portsCollapsed = false
 
@@ -1771,7 +1810,8 @@ private struct InfoPanel: View {
             header
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 1) {
-                    directorySection
+                    currentDirectorySection
+                    projectDirectorySection
                     processesSection
                     portsSection
                 }
@@ -1809,55 +1849,86 @@ private struct InfoPanel: View {
         .padding(.bottom, 8)
     }
 
-    // MARK: Directory
+    // MARK: Directories
 
+    /// Hidden while the shell sits at the project root — it earns its row
+    /// once the cwd diverges from the directory the panels anchor to.
     @ViewBuilder
-    private var directorySection: some View {
-        GitSectionHeader(
-            title: "DIRECTORY", count: 0, isCollapsed: $directoryCollapsed, actions: []
-        )
-        if !directoryCollapsed {
-            VStack(alignment: .leading, spacing: 8) {
-                Text(model.rootPath)
-                    .font(.system(size: 11, design: .monospaced))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
-                    .truncationMode(.head)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .help(model.rootPath)
-                    .contextMenu {
-                        Button("Copy Path") { copyPath() }
-                    }
-
-                HStack(spacing: 4) {
-                    actionButton("Finder", systemImage: "arrow.up.forward.app") {
-                        NSWorkspace.shared.activateFileViewerSelecting(
-                            [URL(fileURLWithPath: model.rootPath)]
-                        )
-                    }
-                    if let vsCode = Self.vsCodeURL {
-                        actionButton("VS Code", systemImage: "chevron.left.forwardslash.chevron.right") {
-                            NSWorkspace.shared.open(
-                                [URL(fileURLWithPath: model.rootPath)],
-                                withApplicationAt: vsCode,
-                                configuration: NSWorkspace.OpenConfiguration()
-                            )
-                        }
-                    }
-                    actionButton("Copy", systemImage: "doc.on.doc") {
-                        copyPath()
-                    }
-                }
+    private var currentDirectorySection: some View {
+        if model.rootPath != model.projectRootPath {
+            GitSectionHeader(
+                title: "CURRENT DIRECTORY", count: 0,
+                isCollapsed: $currentDirectoryCollapsed, actions: []
+            )
+            if !currentDirectoryCollapsed {
+                directoryGroup(path: model.rootPath)
             }
-            .padding(.horizontal, 6)
-            .padding(.top, 2)
-            .padding(.bottom, 4)
         }
     }
 
-    private func copyPath() {
+    @ViewBuilder
+    private var projectDirectorySection: some View {
+        if !model.projectRootPath.isEmpty {
+            GitSectionHeader(
+                title: "PROJECT DIRECTORY"
+                    + (model.projectRootIsAutomatic ? " (AUTO)" : ""),
+                count: 0,
+                isCollapsed: $projectDirectoryCollapsed, actions: [],
+                helpText: "Files and Git anchor to this directory. When "
+                    + "automatic, it follows the closest Git repository "
+                    + "containing the shell's current directory; a directory "
+                    + "set manually from the project's context menu is always "
+                    + "used as-is."
+            )
+            if !projectDirectoryCollapsed {
+                directoryGroup(path: model.projectRootPath)
+            }
+        }
+    }
+
+    /// Path line plus Finder / VS Code / Copy actions, shared by both
+    /// directory sections.
+    private func directoryGroup(path: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(path)
+                .font(.system(size: 11, design: .monospaced))
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+                .truncationMode(.head)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .help(path)
+                .contextMenu {
+                    Button("Copy Path") { copyPath(path) }
+                }
+
+            HStack(spacing: 4) {
+                actionButton("Finder", systemImage: "arrow.up.forward.app") {
+                    NSWorkspace.shared.activateFileViewerSelecting(
+                        [URL(fileURLWithPath: path)]
+                    )
+                }
+                if let vsCode = Self.vsCodeURL {
+                    actionButton("VS Code", systemImage: "chevron.left.forwardslash.chevron.right") {
+                        NSWorkspace.shared.open(
+                            [URL(fileURLWithPath: path)],
+                            withApplicationAt: vsCode,
+                            configuration: NSWorkspace.OpenConfiguration()
+                        )
+                    }
+                }
+                actionButton("Copy", systemImage: "doc.on.doc") {
+                    copyPath(path)
+                }
+            }
+        }
+        .padding(.horizontal, 6)
+        .padding(.top, 2)
+        .padding(.bottom, 4)
+    }
+
+    private func copyPath(_ path: String) {
         NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(model.rootPath, forType: .string)
+        NSPasteboard.general.setString(path, forType: .string)
     }
 
     private func actionButton(
