@@ -17,7 +17,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		FF3FDD73300B6A7400112486 /* Kero.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Kero.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		FF3FDD73300B6A7400112486 /* Kero Debug.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Kero Debug.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -68,7 +68,7 @@
 		FF3FDD74300B6A7400112486 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				FF3FDD73300B6A7400112486 /* Kero.app */,
+				FF3FDD73300B6A7400112486 /* Kero Debug.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -100,7 +100,7 @@
 				AA30000000000000000000A1 /* TreeSitterTSX */,
 			);
 			productName = kero;
-			productReference = FF3FDD73300B6A7400112486 /* Kero.app */;
+			productReference = FF3FDD73300B6A7400112486 /* Kero Debug.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -298,7 +298,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.6;
-				MARKETING_VERSION = 0.1.21;
+				MARKETING_VERSION = 0.1.22;
 				PRODUCT_BUNDLE_IDENTIFIER = sh.kero.dev;
 				PRODUCT_NAME = "Kero Debug";
 				REGISTER_APP_GROUPS = YES;
@@ -329,7 +329,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.6;
-				MARKETING_VERSION = 0.1.21;
+				MARKETING_VERSION = 0.1.22;
 				PRODUCT_BUNDLE_IDENTIFIER = sh.kero;
 				PRODUCT_NAME = Kero;
 				REGISTER_APP_GROUPS = YES;
