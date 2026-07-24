@@ -103,7 +103,8 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
     }
 
     /// Grok CLI (`[ui.notifications.title]`) joins configured items with
-    /// `" - "` and appends the `grok` brand when title updates are enabled.
+    /// `" - "` and includes a `grok` brand segment when title updates are
+    /// enabled.
     ///
     /// Item order is user-configurable, so segments are classified by shape
     /// rather than by position. Transient items (spinner, action-required,
@@ -116,14 +117,36 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
         if trimmed == grokTitleBrand {
             return (nil, grokTitleBrand)
         }
-        guard trimmed.hasSuffix(grokTitleSuffix) else { return nil }
 
         var parts = trimmed
             .components(separatedBy: grokTitleSeparator)
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
-        guard parts.count >= 2, parts.last == grokTitleBrand else { return nil }
-        parts.removeLast()
+
+        // Brand may be last (default) or reordered via title.items.
+        guard parts.contains(grokTitleBrand) else { return nil }
+        parts.removeAll { $0 == grokTitleBrand }
+        if parts.isEmpty {
+            return (nil, grokTitleBrand)
+        }
+
+        // Avoid treating arbitrary "foo - grok" shell titles as Grok CLI
+        // compositions unless at least one agent-title signal is present.
+        let looksLikeAgentTitle = parts.contains {
+            isBrailleSpinnerSegment($0)
+                || isGrokActionRequiredSegment($0)
+                || isGrokTurnTimerSegment($0)
+                || isGrokModelSegment($0)
+                || isGrokKnownActivitySegment($0)
+                || isGrokFreeformActivitySegment($0)
+        }
+        // Idle Grok titles are often just `session - grok` or `cwd - model - grok`
+        // with no spinner. Accept those when every remaining segment is a
+        // plausible stable label (session/cwd) or a known model token.
+        let idleStableOnly = parts.allSatisfy {
+            isGrokModelSegment($0) || isGrokPlausibleStableSegment($0)
+        }
+        guard looksLikeAgentTitle || idleStableOnly else { return nil }
 
         var activity: String?
         var sawSpinner = false
@@ -150,12 +173,16 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
             stable.append(part)
         }
 
-        // Free-form activity (tool descriptions) is not a closed set. When a
-        // spinner is present it sits among the remaining segments; drop only
-        // segments that still look like activity so a custom
-        // `spinner + session-name` order does not lose the session title.
-        if sawSpinner {
-            stable = stable.filter { !isGrokFreeformActivitySegment($0) }
+        // Free-form activity (tool descriptions) is not a closed set. Drop
+        // ellipsis / long blurbs always; they are never useful project names.
+        stable.removeAll { isGrokFreeformActivitySegment($0) }
+
+        // Default order places activity before session/cwd. When a spinner is
+        // present and a short unmarked blurb remains ahead of another stable
+        // label, drop it once — but never when it is the only remaining label
+        // (custom `spinner + session-name` must keep the session).
+        if sawSpinner, stable.count >= 2, isGrokAmbiguousLeadingActivity(stable[0]) {
+            stable.removeFirst()
         }
 
         let name = stable
@@ -182,18 +209,36 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
 
     private static let grokTitleBrand = "grok"
     private static let grokTitleSeparator = " - "
-    private static let grokTitleSuffix = " - grok"
     private static let grokActionRequiredGlyph = "⚠"
 
-    /// Built-in Grok activity labels (exact match).
+    /// Built-in Grok activity labels (exact match), from the CLI turn tracker.
     private static let grokKnownActivityExact: Set<String> = [
         "Responding",
         "Thinking",
         "Compacting",
+        "Compacting…",
+        "Compacting...",
         "Running tool",
+        "Executing",
+        "Verifying",
+        "Sleeping",
+        "Sleeping…",
+        "Sleeping...",
         "Waiting for response…",
         "Waiting for response...",
         "Waiting for response",
+        "Waiting on subagent…",
+        "Waiting on subagent...",
+        "Waiting on subagent",
+        "Waiting on task output…",
+        "Waiting on task output...",
+        "Waiting on task output",
+        "Waiting on tasks…",
+        "Waiting on tasks...",
+        "Waiting on tasks",
+        "Starting session…",
+        "Starting session...",
+        "Starting session",
     ]
 
     private static func isBrailleScalar(_ character: Character) -> Bool {
@@ -218,13 +263,20 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
         if grokKnownActivityExact.contains(segment) {
             return true
         }
-        // "Running: cargo test", "Retrying (2/3)", …
+        // "Running: cargo test", "Retrying (2/3)", "Waiting on …", "Verifying (…)"
         let prefixes = [
             "Running: ",
             "Running:",
             "Retrying (",
             "Retrying ",
             "Waiting for response",
+            "Waiting on ",
+            "Waiting on",
+            "Verifying (",
+            "Verifying ",
+            "Starting session",
+            "Sleeping",
+            "Compacting",
         ]
         return prefixes.contains { segment.hasPrefix($0) }
     }
@@ -241,6 +293,54 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
             return true
         }
         return false
+    }
+
+    /// Short unmarked leading blurbs used only when another stable label
+    /// follows (so `spinner + session` alone is never discarded).
+    private static func isGrokAmbiguousLeadingActivity(_ segment: String) -> Bool {
+        if isGrokFreeformActivitySegment(segment) || isGrokKnownActivitySegment(segment) {
+            return true
+        }
+        if isGrokPathLikeSegment(segment) {
+            return false
+        }
+        // Single-token present-participle statuses ("Indexing", "Planning").
+        if segment.range(of: #"^[A-Z][a-z]+ing$"#, options: .regularExpression) != nil {
+            return true
+        }
+        return false
+    }
+
+    /// Session titles and directory labels that should survive stripping.
+    private static func isGrokPlausibleStableSegment(_ segment: String) -> Bool {
+        if isBrailleSpinnerSegment(segment)
+            || isGrokActionRequiredSegment(segment)
+            || isGrokTurnTimerSegment(segment)
+            || isGrokKnownActivitySegment(segment)
+            || isGrokFreeformActivitySegment(segment)
+        {
+            return false
+        }
+        return true
+    }
+
+    private static func isGrokPathLikeSegment(_ segment: String) -> Bool {
+        if segment.hasPrefix("/")
+            || segment.hasPrefix("~/")
+            || segment.hasPrefix("./")
+            || segment == "~"
+        {
+            return true
+        }
+        // Bare cwd basenames (tmp, kero). Exclude Titlecase "...ing" statuses
+        // so "Indexing" is not treated as a directory label.
+        guard segment.range(of: #"^[\w.-]+$"#, options: .regularExpression) != nil,
+              !segment.contains(" ")
+        else { return false }
+        if segment.range(of: #"^[A-Z][a-z]+ing$"#, options: .regularExpression) != nil {
+            return false
+        }
+        return true
     }
 
     /// Turn timers such as `3s`, `12s`, `1m 05s`, `1h 2m`, or `1:23`.
