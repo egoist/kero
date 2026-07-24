@@ -68,6 +68,10 @@ private struct KeroCommands: Commands {
     @Environment(\.openWindow) private var openWindow
 
     var body: some Commands {
+        let _ = TerminalManager.registerWindowOpener {
+            openWindow(id: "main")
+        }
+
         CommandGroup(replacing: .newItem) {
             Button("New Project") {
                 manager?.newProject()

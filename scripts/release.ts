@@ -14,6 +14,7 @@
 //
 // Usage:
 //   bun scripts/release.ts            # release the version currently in the project
+//   bun scripts/release.ts --local     # build signed artifacts without publishing
 //   FORCE=1 bun scripts/release.ts    # re-release even if that version exists
 //   NO_HISTORY=1 bun scripts/release.ts   # skip pulling old archives (no deltas)
 //
@@ -29,6 +30,11 @@ import { extractReleaseNotes } from "./changelog";
 
 // Run from the repo root regardless of where we were invoked.
 process.chdir(join(import.meta.dir, ".."));
+
+const args = process.argv.slice(2).filter((arg) => arg !== "--");
+const unknownArg = args.find((arg) => arg !== "--local");
+if (unknownArg) die(`unknown option: ${unknownArg}`);
+const localBuild = args.includes("--local");
 
 // ---- config (override via env) -------------------------------------------
 const PROJECT = "kero.xcodeproj";
@@ -57,9 +63,9 @@ process.env.DEVELOPER_DIR ??= "/Applications/Xcode-beta.app/Contents/Developer";
 
 need("xcodebuild");
 need("ditto");
-need("xcrun");
+if (!localBuild) need("xcrun");
 need("plutil");
-need("rclone");
+if (!localBuild) need("rclone");
 need("create-dmg"); // brew install create-dmg
 if (!existsSync(EXPORT_OPTIONS)) {
   die(`export options not found: ${EXPORT_OPTIONS} (see RELEASING.md)`);
@@ -88,7 +94,7 @@ const dmgName = `kero-${version}.dmg`; // notarized download
 say(`Releasing kero ${version} (build ${build})`);
 
 // Don't clobber an already-published version unless forced.
-if (process.env.FORCE !== "1") {
+if (!localBuild && process.env.FORCE !== "1") {
   let existing = "";
   try {
     existing = await $`rclone lsf ${R2_DEST} ${RCLONE_FLAGS}`.text();
@@ -123,6 +129,12 @@ await $`create-dmg \
   ${dmgPath} ${dmgStaging}`.nothrow();
 if (!existsSync(dmgPath)) die("create-dmg did not produce a disk image");
 await $`codesign --force --sign ${SIGN_IDENTITY} ${dmgPath}`;
+if (localBuild) {
+  say(`Done. Built and signed kero ${version} locally; nothing was notarized or published:`);
+  console.log(`     app      : ${app}`);
+  console.log(`     download : ${dmgPath}`);
+  process.exit(0);
+}
 
 // ---- 5. notarize + staple ------------------------------------------------
 // Notarizing the DMG also notarizes the app's code hash, so we can staple both

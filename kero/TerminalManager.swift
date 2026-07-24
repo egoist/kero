@@ -71,6 +71,10 @@ final class TerminalManager: nonisolated ObservableObject {
     /// Captured from SwiftUI's openWindow environment so a Finder request can
     /// reopen Kero after the user has closed its last window.
     private static var windowOpener: (() -> Void)?
+    /// Coalesces launch-time service requests while SwiftUI is still deciding
+    /// whether it will create the initial WindowGroup window itself.
+    private static var windowRequestScheduled = false
+    private static var isOpeningWindow = false
     /// Window snapshots loaded from disk that no window has claimed yet.
     /// Each new manager claims the next; extras beyond the saved count
     /// start fresh.
@@ -201,9 +205,7 @@ final class TerminalManager: nonisolated ObservableObject {
             ?? registry.last { $0.window != nil }
         guard let manager else {
             pendingDirectories.append(contentsOf: directories)
-            if registry.isEmpty {
-                windowOpener?()
-            }
+            requestWindowForPendingDirectories()
             return
         }
 
@@ -217,6 +219,7 @@ final class TerminalManager: nonisolated ObservableObject {
     /// launch-time Finder request may have been queued before that happened.
     func attach(to window: NSWindow) {
         self.window = window
+        Self.isOpeningWindow = false
         let directories = Self.takePendingDirectories()
         if !directories.isEmpty, let startupProjectID,
            let startupProject = projects.first(where: { $0.id == startupProjectID }) {
@@ -236,6 +239,43 @@ final class TerminalManager: nonisolated ObservableObject {
         let directories = pendingDirectories
         pendingDirectories = []
         return directories
+    }
+
+    /// Installs SwiftUI's WindowGroup opener before any window needs to appear.
+    /// Commands are constructed during app launch even when macOS starts Kero
+    /// solely to handle a service request.
+    static func registerWindowOpener(_ open: @escaping () -> Void) {
+        windowOpener = open
+        requestWindowForPendingDirectories()
+    }
+
+    private static func requestWindowForPendingDirectories() {
+        guard !pendingDirectories.isEmpty,
+              !registry.contains(where: { $0.window != nil }),
+              !windowRequestScheduled,
+              !isOpeningWindow
+        else { return }
+
+        windowRequestScheduled = true
+        // Give SwiftUI's normal cold-launch window one turn to attach first.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            windowRequestScheduled = false
+            guard !pendingDirectories.isEmpty,
+                  !registry.contains(where: { $0.window != nil }),
+                  !isOpeningWindow
+            else { return }
+
+            isOpeningWindow = true
+            if let window = NSApp.windows.first(where: {
+                $0.identifier?.rawValue.hasPrefix("main") == true
+            }) {
+                window.makeKeyAndOrderFront(nil)
+            } else if let windowOpener {
+                windowOpener()
+            } else {
+                isOpeningWindow = false
+            }
+        }
     }
 
     private func makeProject(createInitialSession: Bool = true) -> Project {
@@ -544,7 +584,7 @@ final class TerminalManager: nonisolated ObservableObject {
     /// Deferred a runloop tick so windows the system itself restores can
     /// claim theirs first.
     static func openRestoredWindows(_ open: @escaping () -> Void) {
-        windowOpener = open
+        registerWindowOpener(open)
         guard !didReopenWindows else { return }
         didReopenWindows = true
         DispatchQueue.main.async {
