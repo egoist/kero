@@ -96,8 +96,7 @@ enum Theme {
     /// Whether the selected theme for one appearance is a kero built-in
     /// Default theme, which keeps the sidebar's translucent material.
     nonisolated static func isDefault(dark: Bool) -> Bool {
-        terminal(dark: dark).name
-            == (dark ? defaultDarkThemeName : defaultLightThemeName)
+        terminal(dark: dark).isKeroDefault
     }
 
     /// A copy of a catalog theme under a kero-owned name.
@@ -120,6 +119,19 @@ enum Theme {
     static var background: NSColor { dynamic { $0.backgroundNSColor } }
     static var sidebar: NSColor { dynamic { $0.sidebarNSColor } }
     static var accent: NSColor { dynamic { $0.accentNSColor } }
+
+    /// Hairline separators, derived from the theme's own palette so they
+    /// stay visible even when a slot holds a theme that fights the
+    /// appearance (say, a light background forced into the dark slot). The
+    /// built-in Defaults keep the translucent label hairline the app shipped
+    /// with — it reads correctly over their material sidebar.
+    static var divider: NSColor {
+        dynamic { theme in
+            theme.isKeroDefault
+                ? NSColor.labelColor.withAlphaComponent(0.06)
+                : theme.surfaceNSColor(elevation: 0.08)
+        }
+    }
 
     /// Sidebar fill resolved for one appearance. The Settings theme previews
     /// draw light and dark side by side, so they can't use the dynamic
@@ -154,6 +166,12 @@ enum Theme {
 /// terminal colors as hex strings; window chrome derives its palette here.
 /// Nonisolated so the dynamic color providers can resolve on any thread.
 nonisolated extension GhosttyThemeDefinition {
+    /// Whether this is one of kero's built-in Default themes, which keep the
+    /// pre-theme chrome (material sidebar, label-based hairlines).
+    var isKeroDefault: Bool {
+        name == Theme.defaultDarkThemeName || name == Theme.defaultLightThemeName
+    }
+
     var backgroundNSColor: NSColor { Self.nsColor(background) }
     var foregroundNSColor: NSColor { Self.nsColor(foreground) }
 
@@ -168,13 +186,15 @@ nonisolated extension GhosttyThemeDefinition {
         (palette[4] ?? cursorColor).map(Self.nsColor) ?? foregroundNSColor
     }
 
-    /// Sidebar shade derived from the background: markedly darker for dark
-    /// themes, a subtle gray tint for light ones (matching the GitHub
-    /// canvas-inset look the app shipped with).
+    /// Sidebar fill: kero's built-in Default themes keep the GitHub
+    /// canvas-inset shades the app shipped with; every other theme uses its
+    /// own background so the sidebars blend with the rest of the window —
+    /// a derived darker shade reads as broken for themes whose background
+    /// isn't already near-black.
     var sidebarNSColor: NSColor {
-        let background = backgroundNSColor
-        let fraction = isDark ? 0.75 : 0.035
-        return background.blended(withFraction: fraction, of: .black) ?? background
+        if name == Theme.defaultDarkThemeName { return Self.nsColor("010409") }
+        if name == Theme.defaultLightThemeName { return Self.nsColor("f6f8fa") }
+        return backgroundNSColor
     }
 
     /// `background` blended toward `foreground`; used for the editor's line

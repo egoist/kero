@@ -32,7 +32,7 @@ struct RightSidebarView: View {
         HStack(spacing: 0) {
             if manager.isPanelVisible {
                 Rectangle()
-                    .fill(Color.primary.opacity(0.06))
+                    .fill(Color(nsColor: Theme.divider))
                     .frame(width: 1)
 
                 VStack(spacing: 0) {

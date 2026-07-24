@@ -74,7 +74,7 @@ struct SidebarView: View {
             .padding(.vertical, 6)
             .overlay(alignment: .top) {
                 Rectangle()
-                    .fill(Color.primary.opacity(0.06))
+                    .fill(Color(nsColor: Theme.divider))
                     .frame(height: 1)
             }
         }
@@ -88,6 +88,18 @@ struct SidebarView: View {
                 VisualEffectView(material: .sidebar)
             } else {
                 Color(nsColor: Theme.sidebar)
+            }
+        }
+        // Hairline between sidebar and content: themes fill both with the
+        // same background, so the boundary needs its own line. The built-in
+        // Defaults keep their material fill, whose contrast already draws
+        // the edge.
+        .overlay(alignment: .trailing) {
+            if !Theme.isDefault(dark: colorScheme == .dark) {
+                Rectangle()
+                    .fill(Color(nsColor: Theme.divider))
+                    .frame(width: 1)
+                    .allowsHitTesting(false)
             }
         }
         .overlay(alignment: .trailing) {

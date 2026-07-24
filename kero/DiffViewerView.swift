@@ -458,7 +458,7 @@ struct DiffViewerView: View {
         .padding(.vertical, 6)
         .overlay(alignment: .bottom) {
             Rectangle()
-                .fill(Color.primary.opacity(0.06))
+                .fill(Color(nsColor: Theme.divider))
                 .frame(height: 1)
         }
     }

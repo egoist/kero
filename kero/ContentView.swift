@@ -199,7 +199,7 @@ private struct MainHeaderView: View {
         .frame(height: 38)
         .overlay(alignment: .bottom) {
             Rectangle()
-                .fill(Color.primary.opacity(0.06))
+                .fill(Color(nsColor: Theme.divider))
                 .frame(height: 1)
         }
     }
