@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>GhosttyKit · ShellCraftKit</title>
+<link rel="stylesheet" href="../styles.css">
+<link rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.10.0/styles/github.min.css"
+      integrity="sha384-eFTL69TLRZTkNfYZOLM+G04821K1qZao/4QLJbet1pP4tcF+fdXq/9CdqAbWRl/L"
+      crossorigin="anonymous"
+      media="(prefers-color-scheme: light)">
+<link rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.10.0/styles/github-dark.min.css"
+      integrity="sha384-wH75j6z1lH97ZOpMOInqhgKzFkAInZPPSPlZpYKYTOqsaizPvhQZmAtLcPKXpLyH"
+      crossorigin="anonymous"
+      media="(prefers-color-scheme: dark)">
+</head>
+<body>
+<nav class="topbar" aria-label="Primary">
+  <a class="home" href="../index.html">GhosttyKit</a>
+  <a href="../index.html">Overview</a>
+  <a href="index.html" aria-current="page">Guide</a>
+  <a href="../api/index.html">API</a>
+  <a href="../architecture.html">Architecture</a>
+  <a href="../build.html">Build</a>
+</nav>
+
+<main>
+<h1>ShellCraftKit</h1>
+<nav class="on-this-page" aria-label="On this page">
+  <strong>On this page:</strong>
+  <a href="#shell">Shell</a>
+  <a href="#commands">Commands</a>
+  <a href="#attach">Attach</a>
+</nav>
+
+<p><code>ShellCraftKit</code> is a small command engine for demos and sandboxed tools. It feeds a Ghostty terminal through <code>InMemoryTerminalSession</code> and executes Swift closures for commands.</p>
+
+<h2 id="shell">Define a shell</h2>
+<pre><code class="language-swift">import ShellCraftKit
+
+let shell = ShellDefinition(
+    prompt: "demo$ ",
+    welcomeMessage: "\r\nGhosttyKit demo\r\n\r\n"
+) {
+    ShellCommand("date", summary: "Print the current date") { _ in
+        .output(Date().description + "\r\n")
+    }
+
+    ShellCommand("clear", summary: "Clear the screen") { _ in
+        .clear
+    }
+}
+</code></pre>
+
+<h2 id="commands">Command result</h2>
+<p>A command returns one of three results: output, clear, or exit. <code>CommandContext</code> gives the parsed command name, arguments, username, and current terminal size.</p>
+<pre><code class="language-swift">ShellCommand("size", summary: "Print terminal size") { context in
+    .output("\(context.terminalSize.columns)x\(context.terminalSize.rows)\r\n")
+}
+</code></pre>
+
+<h2 id="attach">Attach to Ghostty</h2>
+<pre><code class="language-swift">let shellSession = ShellSession(shell: shell)
+shellSession.start()
+
+terminal.configuration = TerminalSurfaceOptions(
+    backend: .inMemory(shellSession.terminalSession)
+)
+</code></pre>
+
+<nav class="pager" aria-label="Sibling pages">
+  <a class="prev" href="text-selection.html">Text selection</a>
+  <a class="parent" href="index.html">↑ Guide</a>
+  <a class="next" href="../api/index.html">API</a>
+</nav>
+
+<footer>
+GhosttyKit · <a href="https://github.com/Lakr233/libghostty-spm">github.com/Lakr233/libghostty-spm</a>
+</footer>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.10.0/highlight.min.js"
+        integrity="sha384-GdEWAbCjn+ghjX0gLx7/N1hyTVmPAjdC2OvoAA0RyNcAOhqwtT8qnbCxWle2+uJX"
+        crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.10.0/languages/swift.min.js"
+        integrity="sha384-TfALNLT6HJzZieazgsVvFM0DzFWQsgl0d7mdwPLyg1yg7XE4QwLY4jqmJRNnI1S4"
+        crossorigin="anonymous"></script>
+<script>hljs.highlightAll();</script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+# Release artifacts produced by scripts/release.ts
+/build/
+
+# Bun / node deps
+/node_modules/
+
+# macOS
+.DS_Store

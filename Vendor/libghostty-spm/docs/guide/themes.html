@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>GhosttyKit · Themes</title>
+<link rel="stylesheet" href="../styles.css">
+<link rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.10.0/styles/github.min.css"
+      integrity="sha384-eFTL69TLRZTkNfYZOLM+G04821K1qZao/4QLJbet1pP4tcF+fdXq/9CdqAbWRl/L"
+      crossorigin="anonymous"
+      media="(prefers-color-scheme: light)">
+<link rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.10.0/styles/github-dark.min.css"
+      integrity="sha384-wH75j6z1lH97ZOpMOInqhgKzFkAInZPPSPlZpYKYTOqsaizPvhQZmAtLcPKXpLyH"
+      crossorigin="anonymous"
+      media="(prefers-color-scheme: dark)">
+</head>
+<body>
+<nav class="topbar" aria-label="Primary">
+  <a class="home" href="../index.html">GhosttyKit</a>
+  <a href="../index.html">Overview</a>
+  <a href="index.html" aria-current="page">Guide</a>
+  <a href="../api/index.html">API</a>
+  <a href="../architecture.html">Architecture</a>
+  <a href="../build.html">Build</a>
+</nav>
+
+<main>
+<h1>Themes</h1>
+<nav class="on-this-page" aria-label="On this page">
+  <strong>On this page:</strong>
+  <a href="#catalog">Catalog</a>
+  <a href="#apply">Apply</a>
+  <a href="#custom">Custom</a>
+</nav>
+
+<p><code>GhosttyTheme</code> ships 485 terminal color themes from iTerm2-Color-Schemes. Each theme can render directly into <code>TerminalConfiguration</code> and participate in light/dark switching.</p>
+
+<h2 id="catalog">Catalog lookup</h2>
+<pre><code class="language-swift">import GhosttyTheme
+
+let theme = GhosttyThemeCatalog.theme(named: "Dracula")
+let matches = GhosttyThemeCatalog.search("solarized")
+let all = GhosttyThemeCatalog.allThemes
+</code></pre>
+
+<h2 id="apply">Apply to a terminal</h2>
+<p>Wrap one or two definitions in <code>TerminalTheme</code>, then assign it to the controller or state container.</p>
+<pre><code class="language-swift">import GhosttyTerminal
+import GhosttyTheme
+
+let dark = GhosttyThemeCatalog.theme(named: "Dracula")!
+let light = GhosttyThemeCatalog.theme(named: "Solarized Light")!
+
+let theme = TerminalTheme(
+    light: light.toTerminalConfiguration(),
+    dark: dark.toTerminalConfiguration()
+)
+
+terminal.setTheme(theme)
+</code></pre>
+
+<p><code>TerminalSurfaceView</code> follows the SwiftUI color scheme and asks <code>TerminalController</code> to resolve the effective config for the active appearance.</p>
+
+<h2 id="custom">Custom colors</h2>
+<pre><code class="language-swift">let config = TerminalConfiguration.default
+    .background("#101010")
+    .foreground("#f0f0f0")
+    .cursorColor("#ffd866")
+    .selectionBackground("#334455")
+    .palette(0, color: "#1b1d23")
+    .palette(1, color: "#ef6155")
+
+terminal.setTerminalConfiguration(config)
+</code></pre>
+
+<nav class="pager" aria-label="Sibling pages">
+  <a class="prev" href="in-memory.html">Host-managed I/O</a>
+  <a class="parent" href="index.html">↑ Guide</a>
+  <a class="next" href="text-selection.html">Text selection</a>
+</nav>
+
+<footer>
+GhosttyKit · <a href="https://github.com/Lakr233/libghostty-spm">github.com/Lakr233/libghostty-spm</a>
+</footer>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.10.0/highlight.min.js"
+        integrity="sha384-GdEWAbCjn+ghjX0gLx7/N1hyTVmPAjdC2OvoAA0RyNcAOhqwtT8qnbCxWle2+uJX"
+        crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.10.0/languages/swift.min.js"
+        integrity="sha384-TfALNLT6HJzZieazgsVvFM0DzFWQsgl0d7mdwPLyg1yg7XE4QwLY4jqmJRNnI1S4"
+        crossorigin="anonymous"></script>
+<script>hljs.highlightAll();</script>
+</body>
+</html>

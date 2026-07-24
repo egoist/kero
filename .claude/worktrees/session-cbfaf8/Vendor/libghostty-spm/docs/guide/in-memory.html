@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>GhosttyKit · Host-managed I/O</title>
+<link rel="stylesheet" href="../styles.css">
+<link rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.10.0/styles/github.min.css"
+      integrity="sha384-eFTL69TLRZTkNfYZOLM+G04821K1qZao/4QLJbet1pP4tcF+fdXq/9CdqAbWRl/L"
+      crossorigin="anonymous"
+      media="(prefers-color-scheme: light)">
+<link rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.10.0/styles/github-dark.min.css"
+      integrity="sha384-wH75j6z1lH97ZOpMOInqhgKzFkAInZPPSPlZpYKYTOqsaizPvhQZmAtLcPKXpLyH"
+      crossorigin="anonymous"
+      media="(prefers-color-scheme: dark)">
+</head>
+<body>
+<nav class="topbar" aria-label="Primary">
+  <a class="home" href="../index.html">GhosttyKit</a>
+  <a href="../index.html">Overview</a>
+  <a href="index.html" aria-current="page">Guide</a>
+  <a href="../api/index.html">API</a>
+  <a href="../architecture.html">Architecture</a>
+  <a href="../build.html">Build</a>
+</nav>
+
+<main>
+<h1>Host-managed I/O</h1>
+<nav class="on-this-page" aria-label="On this page">
+  <strong>On this page:</strong>
+  <a href="#session">Session</a>
+  <a href="#output">Output</a>
+  <a href="#viewport">Viewport</a>
+  <a href="#exit">Exit</a>
+</nav>
+
+<p><code>InMemoryTerminalSession</code> connects Ghostty&rsquo;s host-managed backend to your own process, emulator, or command engine. The host supplies output with <code>receive</code>, and Ghostty sends user input through the <code>write</code> closure.</p>
+
+<h2 id="session">Create a session</h2>
+<pre><code class="language-swift">let session = InMemoryTerminalSession(
+    write: { data in
+        backend.handleInput(data)
+    },
+    resize: { viewport in
+        backend.resize(columns: viewport.columns, rows: viewport.rows)
+    }
+)
+
+terminal.configuration = TerminalSurfaceOptions(
+    backend: .inMemory(session)
+)
+</code></pre>
+
+<h2 id="output">Send host output</h2>
+<p>Use UTF-8 strings for simple demos and <code>Data</code> for exact byte streams.</p>
+<pre><code class="language-swift">session.receive("hello from host\r\n")
+session.receive(Data([0x1B, 0x5B, 0x32, 0x4A])) // ESC [ 2 J
+</code></pre>
+
+<h2 id="viewport">Read viewport text</h2>
+<p><code>readViewportText()</code> returns the visible grid as a UTF-8 string. It reads viewport rows and separates them with <code>\n</code>.</p>
+<pre><code class="language-swift">if let text = session.readViewportText() {
+    print(text)
+}
+</code></pre>
+
+<h2 id="exit">Finish a process</h2>
+<p>Tell Ghostty that the host-managed process has exited so lifecycle delegates and shell integration receive the close event.</p>
+<pre><code class="language-swift">session.finish(exitCode: 0, runtimeMilliseconds: 1234)
+</code></pre>
+
+<nav class="pager" aria-label="Sibling pages">
+  <a class="prev" href="uikit-appkit.html">UIKit &amp; AppKit</a>
+  <a class="parent" href="index.html">↑ Guide</a>
+  <a class="next" href="themes.html">Themes</a>
+</nav>
+
+<footer>
+GhosttyKit · <a href="https://github.com/Lakr233/libghostty-spm">github.com/Lakr233/libghostty-spm</a>
+</footer>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.10.0/highlight.min.js"
+        integrity="sha384-GdEWAbCjn+ghjX0gLx7/N1hyTVmPAjdC2OvoAA0RyNcAOhqwtT8qnbCxWle2+uJX"
+        crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.10.0/languages/swift.min.js"
+        integrity="sha384-TfALNLT6HJzZieazgsVvFM0DzFWQsgl0d7mdwPLyg1yg7XE4QwLY4jqmJRNnI1S4"
+        crossorigin="anonymous"></script>
+<script>hljs.highlightAll();</script>
+</body>
+</html>

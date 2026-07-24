@@ -1,0 +1,221 @@
+:root {
+  --bg: #ffffff;
+  --fg: #1d1d1f;
+  --muted: #6e6e73;
+  --link: #0a66c2;
+  --border: #e5e5e7;
+  --code-bg: #f6f6f7;
+  --table-stripe: #fafafa;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0e0e10;
+    --fg: #e8e8ea;
+    --muted: #9a9aa1;
+    --link: #7aa2f7;
+    --border: #25252a;
+    --code-bg: #161618;
+    --table-stripe: #131316;
+  }
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font: 15px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+nav.topbar {
+  border-bottom: 1px solid var(--border);
+  padding: 14px 24px;
+  font-size: 14px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  align-items: baseline;
+}
+
+nav.topbar a {
+  color: var(--fg);
+  text-decoration: none;
+}
+
+nav.topbar a.home {
+  font-weight: 600;
+  margin-right: 8px;
+}
+
+nav.topbar a:hover,
+nav.topbar a[aria-current="page"] {
+  color: var(--link);
+}
+
+main {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 32px 24px 96px;
+}
+
+h1, h2, h3, h4 {
+  line-height: 1.25;
+  font-weight: 600;
+}
+
+h1 { font-size: 26px; margin: 0 0 8px; }
+h2 {
+  font-size: 19px;
+  margin: 40px 0 12px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border);
+}
+h3 { font-size: 16px; margin: 28px 0 8px; }
+h4 { font-size: 14px; margin: 20px 0 6px; }
+
+p, ul, ol { margin: 0 0 12px; }
+ul, ol { padding-left: 20px; }
+li { margin-bottom: 4px; }
+
+a { color: var(--link); }
+a:hover { text-decoration: underline; }
+
+code {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 12.5px;
+  background: var(--code-bg);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+
+pre {
+  background: var(--code-bg);
+  padding: 14px 16px;
+  border-radius: 6px;
+  overflow-x: auto;
+  font-size: 12.5px;
+  line-height: 1.5;
+  margin: 0 0 14px;
+}
+
+pre code {
+  background: transparent;
+  padding: 0;
+  font-size: inherit;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0 0 14px;
+  font-size: 14px;
+}
+
+th, td {
+  text-align: left;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+th { font-weight: 600; }
+tbody tr:nth-child(even) { background: var(--table-stripe); }
+
+hr {
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin: 32px 0;
+}
+
+.muted { color: var(--muted); }
+.lede { font-size: 16px; color: var(--muted); margin-bottom: 24px; }
+
+.anchor-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 24px;
+  column-count: 2;
+  column-gap: 24px;
+}
+
+.anchor-list li {
+  break-inside: avoid;
+  margin-bottom: 4px;
+}
+
+footer {
+  margin-top: 64px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 13px;
+}
+
+nav.pager {
+  margin-top: 48px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  font-size: 14px;
+}
+
+nav.pager .prev::before { content: "← "; }
+nav.pager .next::after { content: " →"; }
+nav.pager .parent { color: var(--muted); }
+nav.pager a { text-decoration: none; }
+nav.pager a:hover { text-decoration: underline; }
+
+nav.on-this-page {
+  font-size: 13px;
+  color: var(--muted);
+  margin: 0 0 24px;
+  padding: 8px 0 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+nav.on-this-page strong {
+  color: var(--fg);
+  font-weight: 600;
+  margin-right: 6px;
+}
+
+nav.on-this-page a { margin-right: 12px; }
+
+ul.hub-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 24px;
+}
+
+ul.hub-list li {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+ul.hub-list li a {
+  font-weight: 600;
+  font-size: 15px;
+  text-decoration: none;
+}
+
+ul.hub-list li a:hover { text-decoration: underline; }
+
+ul.hub-list .summary {
+  display: block;
+  color: var(--muted);
+  font-weight: 400;
+  margin-top: 2px;
+  font-size: 14px;
+}
+
+@media (max-width: 560px) {
+  .anchor-list { column-count: 1; }
+  nav.topbar { gap: 12px; }
+  main { padding: 24px 18px 64px; }
+}

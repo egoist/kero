@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- This Info.plist is authored by hand (GENERATE_INFOPLIST_FILE = NO) so we
+	     own the Bundle* keys instead of letting the generator derive them.
+	     PRODUCT_NAME is pinned to "Kero" (not $(TARGET_NAME)), so the bundle and
+	     executable are Kero.app/Kero even though the target, scheme and source
+	     folder are still lowercase "kero". The bundle id stays sh.kero — it's
+	     the app's identity for Sparkle and code signing, so it must not change.
+	     Dynamic values use build-setting substitution to stay in sync. -->
+
+	<key>CFBundleDevelopmentRegion</key>
+	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+
+	<!-- User-visible name. CFBundleName drives the app menu (bold menu next to
+	     the Apple menu); CFBundleDisplayName is what Finder/Dock show. -->
+	<key>CFBundleName</key>
+	<string>Kero</string>
+	<key>CFBundleDisplayName</key>
+	<string>Kero</string>
+
+	<key>CFBundleShortVersionString</key>
+	<string>$(MARKETING_VERSION)</string>
+	<key>CFBundleVersion</key>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>$(MACOSX_DEPLOYMENT_TARGET)</string>
+
+	<!-- Sparkle auto-update configuration.
+	     Appcast feed hosted on Cloudflare R2 (releases.kero.sh); see RELEASING.md. -->
+	<key>SUFeedURL</key>
+	<string>https://releases.kero.sh/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>gv9GLMPjH5yMQkZMFXnoNfHOyL8/7KGzl/jzAqlzZZY=</string>
+</dict>
+</plist>

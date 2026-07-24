@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>GhosttyKit · Overview</title>
+<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.10.0/styles/github.min.css"
+      integrity="sha384-eFTL69TLRZTkNfYZOLM+G04821K1qZao/4QLJbet1pP4tcF+fdXq/9CdqAbWRl/L"
+      crossorigin="anonymous"
+      media="(prefers-color-scheme: light)">
+<link rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.10.0/styles/github-dark.min.css"
+      integrity="sha384-wH75j6z1lH97ZOpMOInqhgKzFkAInZPPSPlZpYKYTOqsaizPvhQZmAtLcPKXpLyH"
+      crossorigin="anonymous"
+      media="(prefers-color-scheme: dark)">
+</head>
+<body>
+<nav class="topbar" aria-label="Primary">
+  <a class="home" href="index.html">GhosttyKit</a>
+  <a href="index.html" aria-current="page">Overview</a>
+  <a href="guide/index.html">Guide</a>
+  <a href="api/index.html">API</a>
+  <a href="architecture.html">Architecture</a>
+  <a href="build.html">Build</a>
+</nav>
+
+<main>
+<h1>GhosttyKit</h1>
+<p class="lede">Swift package for embedding Ghostty&rsquo;s terminal emulator library in Apple apps. Native SwiftUI, UIKit, and AppKit views wrap a pre-built <code>libghostty</code> XCFramework.</p>
+
+<h2 id="capabilities">Capabilities</h2>
+<ul>
+<li>Terminal rendering: Ghostty&rsquo;s VT parser, grid, CoreText font backend, and Metal renderer.</li>
+<li>SwiftUI: <code>TerminalSurfaceView</code> with an <code>ObservableObject</code> <code>TerminalViewState</code>.</li>
+<li>UIKit and AppKit: platform terminal views through the shared <code>TerminalView</code> typealias.</li>
+<li>Input: hardware keyboard, software keyboard, IME, mouse, touch scrolling, iOS accessory keys, sticky modifiers.</li>
+<li>Host-managed I/O: sandbox-friendly byte transport through <code>InMemoryTerminalSession</code>.</li>
+<li>Themes: 485 bundled iTerm2 color schemes exposed through <code>GhosttyThemeCatalog</code>.</li>
+<li>ShellCraftKit: a sandboxed shell emulation framework for demos and embedded command surfaces.</li>
+</ul>
+
+<h2 id="install">Install</h2>
+<p>Add the package to <code>Package.swift</code>:</p>
+<pre><code class="language-swift">dependencies: [
+    .package(url: "https://github.com/Lakr233/libghostty-spm.git", from: "1.2.0"),
+],
+targets: [
+    .target(name: "App", dependencies: [
+        .product(name: "GhosttyTerminal", package: "libghostty-spm"),
+    ]),
+]
+</code></pre>
+
+<p>Choose the product that matches the integration layer you need.</p>
+<table>
+<thead><tr><th>Product</th><th>Use</th></tr></thead>
+<tbody>
+<tr><td><code>GhosttyKit</code></td><td>Direct access to the <code>ghostty.h</code> C API.</td></tr>
+<tr><td><code>GhosttyTerminal</code></td><td>Swift wrapper, native views, configuration, input, display link, host-managed I/O.</td></tr>
+<tr><td><code>GhosttyTheme</code></td><td>Bundled terminal color schemes and bridges to <code>TerminalConfiguration</code>.</td></tr>
+<tr><td><code>ShellCraftKit</code></td><td>Sandboxed shell emulation on top of <code>GhosttyTerminal</code>.</td></tr>
+</tbody>
+</table>
+
+<h2 id="platforms">Platforms</h2>
+<table>
+<thead><tr><th>Platform</th><th>Floor</th></tr></thead>
+<tbody>
+<tr><td>iOS</td><td>15.0</td></tr>
+<tr><td>macOS</td><td>13.0</td></tr>
+<tr><td>Mac Catalyst</td><td>15.0</td></tr>
+</tbody>
+</table>
+
+<h2 id="quick-start">Quick start</h2>
+<pre><code class="language-swift">import SwiftUI
+import GhosttyTerminal
+
+struct ContentView: View {
+    @StateObject private var terminal = TerminalViewState()
+
+    private let session = InMemoryTerminalSession(
+        write: { data in
+            // Bytes from Ghostty to your host process or emulator.
+        },
+        resize: { viewport in
+            // Keep your backend grid in sync with Ghostty.
+        }
+    )
+
+    var body: some View {
+        TerminalSurfaceView(context: terminal)
+            .navigationTitle(terminal.title)
+            .onAppear {
+                terminal.configuration = TerminalSurfaceOptions(
+                    backend: .inMemory(session)
+                )
+            }
+    }
+}
+</code></pre>
+
+<p><code>InMemoryTerminalSession.receive(_:)</code> writes host output into the terminal. The <code>write</code> closure receives terminal input bytes for your backend.</p>
+
+<h2 id="examples">Examples</h2>
+<ul>
+<li><code>Example/GhosttyTerminalApp</code> is the macOS AppKit demo with delegate callbacks.</li>
+<li><code>Example/MobileGhosttyApp</code> is the iOS UIKit demo with keyboard, safe area, themes, and text selection.</li>
+</ul>
+
+<footer>
+GhosttyKit · <a href="https://github.com/Lakr233/libghostty-spm">github.com/Lakr233/libghostty-spm</a>
+</footer>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.10.0/highlight.min.js"
+        integrity="sha384-GdEWAbCjn+ghjX0gLx7/N1hyTVmPAjdC2OvoAA0RyNcAOhqwtT8qnbCxWle2+uJX"
+        crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.10.0/languages/swift.min.js"
+        integrity="sha384-TfALNLT6HJzZieazgsVvFM0DzFWQsgl0d7mdwPLyg1yg7XE4QwLY4jqmJRNnI1S4"
+        crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.10.0/languages/bash.min.js"
+        integrity="sha384-83HvQQdGTWqnRLmgm19NjCb1+/awKJGytUX9sm3HJb2ddZ9Fs1Bst2bZogFjt9rr"
+        crossorigin="anonymous"></script>
+<script>hljs.highlightAll();</script>
+</body>
+</html>

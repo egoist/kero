@@ -1,0 +1,55 @@
+# Build
+.build/
+build/
+*.a
+*.xcframework
+*.xcframework.zip
+binpack*
+BinaryTarget/
+
+# Xcode
+*.xcodeproj
+xcuserdata/
+*.xcuserstate
+.swiftpm/
+
+# Swift Package Manager
+Package.resolved
+
+# Obj-C / Swift
+*.hmap
+
+# App Packaging
+*.ipa
+*.dSYM
+*.dSYM.zip
+
+# Playgrounds
+timeline.xctimeline
+playground.xcworkspace
+
+# macOS
+.DS_Store
+__MACOSX/
+._*
+.AppleDouble
+.LSOverride
+Icon[]
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+# Project
+/temp
+/Packages
+/References
+/references

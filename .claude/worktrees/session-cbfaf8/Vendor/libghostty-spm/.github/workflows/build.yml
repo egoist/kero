@@ -1,0 +1,306 @@
+name: Build GhosttyKit
+
+on:
+  workflow_dispatch:
+    inputs:
+      package_version:
+        description: "GhosttyKit package version to publish, for example 1.3.1."
+        required: true
+        type: string
+  schedule:
+    - cron: "23 6 * * 1"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-${{ github.ref_name || 'scheduled' }}
+  cancel-in-progress: true
+
+jobs:
+  prepare:
+    runs-on: macos-15
+    outputs:
+      build_needed: ${{ steps.release.outputs.build_needed }}
+      ghostty_ref: ${{ steps.release.outputs.ghostty_ref }}
+      resolved_sha: ${{ steps.release.outputs.resolved_sha }}
+      package_version: ${{ steps.release.outputs.package_version }}
+      storage_tag: ${{ steps.release.outputs.storage_tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Resolve Release
+        id: release
+        run: |
+          EVENT="${{ github.event_name }}"
+          INPUT_PACKAGE_VERSION="${{ github.event.inputs.package_version }}"
+          GHOSTTY_REF=$(tr -d '[:space:]' < Ghostty.ref)
+
+          if ! echo "$GHOSTTY_REF" | grep -Eq '^[0-9a-f]{40}$'; then
+            echo "[!] Ghostty.ref must contain one full lowercase commit sha"
+            exit 1
+          fi
+
+          git fetch --tags origin
+          LATEST_PACKAGE_VERSION=$(
+            git tag --list |
+              python3 -c 'import re, sys; versions = [tuple(int(part) for part in tag.split(".")) for tag in (line.strip() for line in sys.stdin) if re.fullmatch(r"\d+\.\d+\.\d+", tag)]; print(".".join(map(str, max(versions))), end="") if versions else None'
+          )
+
+          case "$EVENT" in
+            workflow_dispatch)
+              PACKAGE_VERSION="$INPUT_PACKAGE_VERSION"
+              ;;
+            schedule)
+              PACKAGE_VERSION=$(
+                python3 -c 'import sys; version = sys.argv[1]; major, minor, patch = map(int, version.split(".")) if version else (1, 0, -1); print(f"{major}.{minor}.{patch + 1}", end="")' "$LATEST_PACKAGE_VERSION"
+              )
+              ;;
+            *)
+              echo "[!] unsupported event: $EVENT"
+              exit 1
+              ;;
+          esac
+
+          if ! echo "$PACKAGE_VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "[!] package_version must be semantic, for example 1.3.1: $PACKAGE_VERSION"
+            exit 1
+          fi
+
+          if [ -n "$LATEST_PACKAGE_VERSION" ] && ! python3 -c 'import sys; latest = tuple(map(int, sys.argv[1].split("."))); requested = tuple(map(int, sys.argv[2].split("."))); raise SystemExit(0 if requested > latest else 1)' "$LATEST_PACKAGE_VERSION" "$PACKAGE_VERSION"; then
+            echo "[!] package_version must be newer than $LATEST_PACKAGE_VERSION: $PACKAGE_VERSION"
+            exit 1
+          fi
+
+          STORAGE_TAG="storage.$PACKAGE_VERSION"
+          if git rev-parse "refs/tags/$PACKAGE_VERSION" >/dev/null 2>&1; then
+            echo "[!] package tag already exists: $PACKAGE_VERSION"
+            exit 1
+          fi
+          if git rev-parse "refs/tags/$STORAGE_TAG" >/dev/null 2>&1; then
+            echo "[!] storage tag already exists: $STORAGE_TAG"
+            exit 1
+          fi
+
+          if [ "$EVENT" = "schedule" ] && [ -n "$LATEST_PACKAGE_VERSION" ] && [ "$(git rev-list -n 1 "$LATEST_PACKAGE_VERSION")" = "$(git rev-parse HEAD)" ]; then
+            echo "[*] main matches package tag $LATEST_PACKAGE_VERSION, skipping scheduled release"
+            echo "build_needed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          RESOLVED_SHA=$(gh api "repos/ghostty-org/ghostty/commits/$GHOSTTY_REF" --jq '.sha')
+          if [ "$RESOLVED_SHA" != "$GHOSTTY_REF" ]; then
+            echo "[!] pinned Ghostty commit did not resolve exactly: $GHOSTTY_REF"
+            exit 1
+          fi
+
+          echo "[*] package_version=$PACKAGE_VERSION ghostty_ref=$GHOSTTY_REF"
+          echo "build_needed=true" >> "$GITHUB_OUTPUT"
+          echo "ghostty_ref=$GHOSTTY_REF" >> "$GITHUB_OUTPUT"
+          echo "resolved_sha=$RESOLVED_SHA" >> "$GITHUB_OUTPUT"
+          echo "package_version=$PACKAGE_VERSION" >> "$GITHUB_OUTPUT"
+          echo "storage_tag=$STORAGE_TAG" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-target:
+    needs: prepare
+    if: needs.prepare.outputs.build_needed == 'true'
+    runs-on: macos-15
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: aarch64-macos
+            variant: macosx
+          - target: arm64e-macos
+            variant: macosx
+            cpu: apple_a12
+          - target: x86_64-macos
+            variant: macosx
+          - target: aarch64-ios
+            variant: iphoneos
+          - target: arm64e-ios
+            variant: iphoneos
+            cpu: apple_a12
+          - target: aarch64-ios-simulator
+            variant: iphonesimulator
+            cpu: apple_a17
+          - target: x86_64-ios-simulator
+            variant: iphonesimulator
+          - target: aarch64-ios-macabi
+            variant: maccatalyst
+            cpu: apple_a17
+          - target: arm64e-ios-macabi
+            variant: maccatalyst
+            cpu: apple_a17
+          - target: x86_64-ios-macabi
+            variant: maccatalyst
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Zig
+        uses: mlugg/setup-zig@v2
+        with:
+          version: 0.15.2
+
+      - name: Clone Ghostty
+        run: |
+          git clone https://github.com/ghostty-org/ghostty ./References/ghostty-upstream
+          git -C ./References/ghostty-upstream checkout "${{ needs.prepare.outputs.ghostty_ref }}"
+
+      - name: Build Target
+        run: |
+          export ZIG_CPU="${{ matrix.cpu }}"
+          ./Script/build-ghostty.sh \
+            "$PWD/References/ghostty-upstream" \
+            "${{ matrix.target }}" \
+            "$PWD/build/out"
+
+      - name: Pack Artifact
+        run: tar -czf "target--${{ matrix.variant }}--${{ matrix.target }}.tar.gz" -C ./build/out .
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: target--${{ matrix.variant }}--${{ matrix.target }}
+          path: target--${{ matrix.variant }}--${{ matrix.target }}.tar.gz
+          compression-level: 0
+          retention-days: 1
+
+  merge-test-release:
+    needs: [prepare, build-target]
+    if: needs.prepare.outputs.build_needed == 'true'
+    runs-on: macos-26
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Xcode
+        run: sudo xcode-select -s /Applications/Xcode.app
+
+      - name: Download All Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: target-*
+          path: ./build/tarballs
+          merge-multiple: true
+
+      - name: Assemble Variants
+        run: |
+          mkdir -p ./build/targets ./build/dest
+
+          for tarball in ./build/tarballs/target--*.tar.gz; do
+            BASENAME=$(basename "$tarball" .tar.gz)
+            VARIANT=$(echo "$BASENAME" | awk -F'--' '{print $2}')
+            TARGET=$(echo "$BASENAME" | awk -F'--' '{print $3}')
+            echo "[*] unpacking $BASENAME → variant=$VARIANT target=$TARGET"
+            mkdir -p "./build/targets/$VARIANT/$TARGET"
+            tar -xzf "$tarball" -C "./build/targets/$VARIANT/$TARGET"
+          done
+
+          for variant_dir in ./build/targets/*/; do
+            VARIANT=$(basename "$variant_dir")
+            mkdir -p "./build/dest/$VARIANT/lib" "./build/dest/$VARIANT/include"
+
+            LIBS=()
+            FIRST_HEADERS=
+            for target_dir in "$variant_dir"*/; do
+              LIBS+=("$target_dir/lib/libghostty.a")
+              if [ -z "$FIRST_HEADERS" ]; then
+                FIRST_HEADERS="$target_dir/include"
+              fi
+            done
+
+            cp -R "$FIRST_HEADERS/." "./build/dest/$VARIANT/include/"
+
+            if [ "${#LIBS[@]}" -eq 1 ]; then
+              cp "${LIBS[0]}" "./build/dest/$VARIANT/lib/libghostty.a"
+              echo "[*] $VARIANT: single arch"
+            else
+              lipo -create "${LIBS[@]}" -output "./build/dest/$VARIANT/lib/libghostty.a"
+              echo "[*] $VARIANT: lipo ${#LIBS[@]} archs"
+            fi
+          done
+
+      - name: Merge XCFramework
+        run: |
+          ./Script/merge-xcframework.sh \
+            "$PWD/build/dest" \
+            "$PWD/BinaryTarget/GhosttyKit.xcframework" \
+            "$PWD/build/GhosttyKit.xcframework.zip"
+
+      - name: Test XCFramework Consumer
+        run: ./Script/test-xcframework-consumer.sh "$PWD/BinaryTarget/GhosttyKit.xcframework"
+
+      - name: Use Local Binary Target
+        run: cp Package.local.swift Package.swift
+
+      - name: Build Package Matrix
+        run: ./Script/test.sh
+
+      - name: Run Swift Tests
+        run: swift test
+
+      - name: Prepare Release
+        run: |
+          STORAGE_TAG="${{ needs.prepare.outputs.storage_tag }}"
+          DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/download/$STORAGE_TAG/GhosttyKit.xcframework.zip"
+          echo "[*] predicted download url: $DOWNLOAD_URL"
+
+          mv ./build/GhosttyKit.xcframework.zip /tmp/GhosttyKit.xcframework.zip
+          git clean -fdx -f
+          git reset --hard
+          mv /tmp/GhosttyKit.xcframework.zip ./GhosttyKit.xcframework.zip
+          ./Script/build-manifest.sh GhosttyKit.xcframework.zip "$DOWNLOAD_URL"
+
+      - name: Commit & Push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "chore: autopublish $(date -u +%Y-%m-%dT%H:%M:%SZ)" || echo "No changes to commit"
+          git push
+
+      - name: Create Storage Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.prepare.outputs.storage_tag }}
+          target_commitish: ${{ github.ref_name }}
+          body: |
+            GhosttyKit XCFramework
+
+            Package version: ${{ needs.prepare.outputs.package_version }}
+            Ghostty commit: ${{ needs.prepare.outputs.resolved_sha }}
+          draft: false
+          prerelease: false
+          files: |
+            GhosttyKit.xcframework.zip
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.prepare.outputs.package_version }}
+          target_commitish: ${{ github.ref_name }}
+          body: |
+            GhosttyKit ${{ needs.prepare.outputs.package_version }}
+
+            Package version: ${{ needs.prepare.outputs.package_version }}
+            Ghostty commit: ${{ needs.prepare.outputs.resolved_sha }}
+          draft: false
+          prerelease: false
+
+      - name: Verify Release Consistency
+        run: ./Script/verify-release.sh "${{ needs.prepare.outputs.package_version }}" "${{ needs.prepare.outputs.storage_tag }}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

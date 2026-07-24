@@ -1,0 +1,168 @@
+//  Created by Marcin Krzyzanowski
+//  https://github.com/krzyzanowskim/STTextView/blob/main/LICENSE.md
+
+import AppKit
+import STObjCLandShim
+
+final class STTextLayoutFragment: NSTextLayoutFragment {
+    var showsInvisibleCharacters = false
+
+    private let defaultParagraphStyle: NSParagraphStyle
+
+    /// Mapped to the `extraLineFragmentAttributes` ObjC selector so that
+    /// the internal typesetter picks up the correct font metrics (FB15131180).
+    @objc(extraLineFragmentAttributes)
+    dynamic var stExtraLineFragmentAttributes: NSDictionary?
+
+    init(textElement: NSTextElement, range rangeInElement: NSTextRange?, defaultTypingAttributes: [NSAttributedString.Key: Any]) {
+        self.defaultParagraphStyle = defaultTypingAttributes[.paragraphStyle] as? NSParagraphStyle ?? .default
+        super.init(textElement: textElement, range: rangeInElement)
+        self.stExtraLineFragmentAttributes = defaultTypingAttributes as NSDictionary
+    }
+
+    required init?(coder: NSCoder) {
+        self.defaultParagraphStyle = .default
+        self.showsInvisibleCharacters = false
+        super.init(coder: coder)
+    }
+
+    // Provide default line height based on the typingattributed. By default return (0, 0, 10, 14)
+    //
+    // override var layoutFragmentFrame: CGRect {
+    //    super.layoutFragmentFrame
+    // }
+
+    override func draw(at point: CGPoint, in context: CGContext) {
+        // Layout fragment draw text at the bottom (after apply baselineOffset) but ignore the paragraph line height
+        // This is a workaround/patch to position text nicely in the line
+        //
+        // Center vertically after applying lineHeightMultiple value
+        // super.draw(at: point.moved(dx: 0, dy: offset), in: context)
+
+        if state.rawValue < NSTextLayoutFragment.State.layoutAvailable.rawValue {
+            /// Calling private `NSTextLayoutFragment.layout` just like UIFoundation does in draw(at:in:)
+            /// It is necessary for not layed out elements at this point, and no public API gives that
+            /// possibility.
+            perform(Selector(("l" + "oya".reversed() + "ut")))
+        }
+
+        context.saveGState()
+
+        #if USE_FONT_SMOOTHING_STYLE
+            // This seems to be available at least on 10.8 and later. The only reference to it is in
+            // WebKit. This causes text to render just a little lighter, which looks nicer.
+            let useThinStrokes = true // shouldSmooth
+            var savedFontSmoothingStyle: Int32 = 0
+
+            if useThinStrokes {
+                context.setShouldSmoothFonts(true)
+                savedFontSmoothingStyle = STContextGetFontSmoothingStyle(context)
+                STContextSetFontSmoothingStyle(context, 16)
+            }
+        #endif
+
+        for lineFragment in textLineFragments {
+            // Determine paragraph style. Either from the fragment string or default for the text view
+            let paragraphStyle: NSParagraphStyle = if !lineFragment.characterRange.isEmpty, let lineParagraphStyle = lineFragment.attributedString.attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle {
+                lineParagraphStyle
+            } else {
+                self.defaultParagraphStyle
+            }
+
+
+            let offset = -(lineFragment.typographicBounds.height * (paragraphStyle.stLineHeightMultiple - 1.0) / 2)
+            lineFragment.draw(at: point.moved(dx: lineFragment.typographicBounds.origin.x, dy: lineFragment.typographicBounds.origin.y + offset), in: context)
+        }
+
+        #if USE_FONT_SMOOTHING_STYLE
+            if (useThinStrokes) {
+                STContextSetFontSmoothingStyle(context, savedFontSmoothingStyle)
+            }
+        #endif
+
+        if showsInvisibleCharacters {
+            drawInvisibles(at: point, in: context)
+        }
+
+        context.restoreGState()
+    }
+
+    private func drawInvisibles(at point: CGPoint, in context: CGContext) {
+        guard let textLayoutManager else {
+            return
+        }
+
+        let characterSet = NSCharacterSet.whitespacesAndNewlines
+
+        context.saveGState()
+
+        for lineFragment in textLineFragments where !lineFragment.isExtraLineFragment {
+            guard let lineFragmentTextRange = lineFragment.textRange(in: self) else {
+                continue
+            }
+
+            let substring = lineFragment.attributedString.attributedSubstring(from: lineFragment.characterRange).string as NSString
+            for offset in 0 ..< substring.length {
+                let character = substring.character(at: offset)
+                if let scalar = Unicode.Scalar(character), !characterSet.contains(scalar) {
+                    continue
+                }
+
+                guard let segmentLocation = textLayoutManager.location(lineFragmentTextRange.location, offsetBy: offset), // O(n)
+                      let segmentRange = NSTextRange(location: segmentLocation, end: segmentLocation),
+                      let segmentFrame = textLayoutManager.textSegmentFrame(in: segmentRange, type: .standard),
+                      let font = lineFragment.attributedString.attribute(.font, at: offset, effectiveRange: nil) as? NSFont
+                else {
+                    continue
+                }
+
+                let symbol: Character = switch character {
+                case 0x0020: "\u{00B7}" // • Space
+                case 0x0009: "\u{00BB}" // » Tab
+                case 0x000A: "\u{00AC}" // ¬ Line Feed
+                case 0x000D: "\u{21A9}" // ↩ Carriage Return
+                case 0x00A0: "\u{235F}" // ⎵ Non-Breaking Space
+                case 0x200B: "\u{205F}" // ⸱ Zero Width Space
+                case 0x200C: "\u{200C}" // ‌ Zero Width Non-Joiner
+                case 0x200D: "\u{200D}" // ‍ Zero Width Joiner
+                case 0x2060: "\u{205F}" //   Word Joiner
+                case 0x2028: "\u{23CE}" // ⏎ Line Separator
+                case 0x2029: "\u{00B6}" // ¶ Paragraph Separator
+                default: "\u{00B7}" // • Default symbol for unspecified whitespace
+                }
+
+                let symbolString = String(symbol)
+                let attributes: [NSAttributedString.Key: Any] = [
+                    .font: font,
+                    .foregroundColor: NSColor.placeholderTextColor
+                ]
+
+                let charSize = symbolString.size(withAttributes: attributes)
+                let writingDirection = textLayoutManager.baseWritingDirection(at: lineFragmentTextRange.location)
+
+                let frameRect = CGRect(
+                    origin: CGPoint(
+                        x: segmentFrame.origin.x - layoutFragmentFrame.origin.x,
+                        y: segmentFrame.origin.y - layoutFragmentFrame.origin.y
+                    ),
+                    size: segmentFrame.size
+                )
+
+                let point = CGPoint(
+                    x: frameRect.origin.x - (writingDirection == .leftToRight ? 0 : charSize.width),
+                    y: frameRect.origin.y
+                )
+
+                symbolString.draw(at: point, withAttributes: attributes)
+
+                if ProcessInfo().environment["ST_LAYOUT_DEBUG"] == "YES" {
+                    context.setStrokeColor(NSColor.systemRed.cgColor)
+                    context.setLineWidth(1.0)
+                    context.stroke(CGRect(origin: frameRect.origin, size: CGSize(width: charSize.width, height: charSize.height)))
+                }
+            }
+        }
+
+        context.restoreGState()
+    }
+}

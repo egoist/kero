@@ -1,0 +1,64 @@
+diff --git a/src/block.zig b/src/block.zig
+index bd4b17d..4d43262 100644
+--- a/src/block.zig
++++ b/src/block.zig
+@@ -4,6 +4,7 @@ const assert = std.debug.assert;
+ const Allocator = std.mem.Allocator;
+ const objc = @import("main.zig");
+ 
++extern "c" fn ghostty_arm64e_prepare_block(*anyopaque) void;
+ // We have to use the raw C allocator for all heap allocation in here
+ // because the objc runtime expects `malloc` to be used. If you don't use
+ // malloc you'll get segfaults because the objc runtime will try to free
+@@ -42,7 +43,7 @@ pub fn Block(
+         const Self = @This();
+         const captures_info = @typeInfo(Captures).@"struct";
+         const InvokeFn = FnType(anyopaque);
+-        const descriptor: Descriptor = .{
++        var descriptor: Descriptor = .{
+             .reserved = 0,
+             .size = @sizeOf(Context),
+             .copy_helper = &descCopyHelper,
+@@ -90,6 +91,7 @@ pub fn Block(
+                 @field(ctx, field.name) = @field(captures, field.name);
+             }
+ 
++            ghostty_arm64e_prepare_block(@ptrCast(&ctx));
+             return ctx;
+         }
+ 
+diff --git a/src/class.zig b/src/class.zig
+index e0c989c..697fe31 100644
+--- a/src/class.zig
++++ b/src/class.zig
+@@ -7,5 +7,7 @@ const objc = @import("main.zig");
+ const MsgSend = @import("msg_send.zig").MsgSend;
+ 
++extern "c" fn ghostty_arm64e_sign_function(*const anyopaque) *const anyopaque;
++
+ pub const Class = struct {
+     value: c.Class,
+ 
+@@ -65,7 +67,12 @@ pub const Class = struct {
+         assert(fn_info.params.len >= 2);
+         assert(fn_info.params[0].type == c.id);
+         assert(fn_info.params[1].type == c.SEL);
+-        _ = c.class_replaceMethod(self.value, objc.sel(name).value, @ptrCast(&imp), null);
++        _ = c.class_replaceMethod(
++            self.value,
++            objc.sel(name).value,
++            @ptrCast(@alignCast(ghostty_arm64e_sign_function(@ptrCast(&imp)))),
++            null,
++        );
+     }
+ 
+     // allows adding new methods; returns true on success.
+@@ -81,7 +88,7 @@ pub const Class = struct {
+         return boolResult(c.class_addMethod(
+             self.value,
+             objc.sel(name).value,
+-            @ptrCast(&imp),
++            @ptrCast(@alignCast(ghostty_arm64e_sign_function(@ptrCast(&imp)))),
+             &encoding,
+         ));
+     }

@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>GhosttyKit · Guide</title>
+<link rel="stylesheet" href="../styles.css">
+<link rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.10.0/styles/github.min.css"
+      integrity="sha384-eFTL69TLRZTkNfYZOLM+G04821K1qZao/4QLJbet1pP4tcF+fdXq/9CdqAbWRl/L"
+      crossorigin="anonymous"
+      media="(prefers-color-scheme: light)">
+<link rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.10.0/styles/github-dark.min.css"
+      integrity="sha384-wH75j6z1lH97ZOpMOInqhgKzFkAInZPPSPlZpYKYTOqsaizPvhQZmAtLcPKXpLyH"
+      crossorigin="anonymous"
+      media="(prefers-color-scheme: dark)">
+</head>
+<body>
+<nav class="topbar" aria-label="Primary">
+  <a class="home" href="../index.html">GhosttyKit</a>
+  <a href="../index.html">Overview</a>
+  <a href="index.html" aria-current="page">Guide</a>
+  <a href="../api/index.html">API</a>
+  <a href="../architecture.html">Architecture</a>
+  <a href="../build.html">Build</a>
+</nav>
+
+<main>
+<h1>Guide</h1>
+<p class="lede">Task-oriented integration notes for embedding GhosttyKit in Apple apps. Each page maps directly to a product or workflow.</p>
+
+<ul class="hub-list">
+<li>
+  <a href="swiftui.html">SwiftUI</a>
+  <span class="summary"><code>TerminalViewState</code>, <code>TerminalSurfaceView</code>, lifecycle state, and sending input.</span>
+</li>
+<li>
+  <a href="uikit-appkit.html">UIKit &amp; AppKit</a>
+  <span class="summary">Create <code>TerminalView</code>, assign a controller, attach delegates, and configure native input.</span>
+</li>
+<li>
+  <a href="in-memory.html">Host-managed I/O</a>
+  <span class="summary"><code>InMemoryTerminalSession</code> bridges terminal bytes to a sandbox-safe host backend.</span>
+</li>
+<li>
+  <a href="themes.html">Themes</a>
+  <span class="summary">Use <code>GhosttyThemeCatalog</code>, convert themes to terminal config, and switch light/dark variants.</span>
+</li>
+<li>
+  <a href="text-selection.html">Text selection</a>
+  <span class="summary">Long-press requests, viewport snapshots, UTF-16 ranges, and host presentation.</span>
+</li>
+<li>
+  <a href="shellcraft.html">ShellCraftKit</a>
+  <span class="summary">Build a sandboxed command surface backed by <code>ShellDefinition</code> and <code>ShellSession</code>.</span>
+</li>
+</ul>
+
+<footer>
+GhosttyKit · <a href="https://github.com/Lakr233/libghostty-spm">github.com/Lakr233/libghostty-spm</a>
+</footer>
+</main>
+</body>
+</html>

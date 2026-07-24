@@ -1,0 +1,186 @@
+name: UI Tests
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: ui-tests-${{ github.event.pull_request.number || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  ios-iphone:
+    name: iPhone Simulator UI Tests
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Set up Xcode
+        run: xcodebuild -version
+
+      - name: Run iPhone UI Tests
+        run: |
+          set -euo pipefail
+          rm -rf "$RUNNER_TEMP/libghostty-ui-ios.xcresult"
+          RUNTIME=$(xcrun simctl list runtimes available | awk '/^iOS .*com\.apple\.CoreSimulator\.SimRuntime\.iOS/ { runtime=$NF } END { print runtime }')
+          [ -n "$RUNTIME" ] || { echo "no available iOS simulator runtime"; exit 1; }
+          DEVICE=$(xcrun simctl list devicetypes | sed -n '/iPhone Air/s/.*(\(com\.apple\.CoreSimulator\.SimDeviceType\.[^)]*\)).*/\1/p' | head -1)
+          if [ -z "$DEVICE" ]; then
+            DEVICE=$(xcrun simctl list devicetypes | sed -n '/iPhone 16/s/.*(\(com\.apple\.CoreSimulator\.SimDeviceType\.[^)]*\)).*/\1/p' | head -1)
+          fi
+          if [ -z "$DEVICE" ]; then
+            DEVICE=$(xcrun simctl list devicetypes | sed -n '/iPhone/s/.*(\(com\.apple\.CoreSimulator\.SimDeviceType\.[^)]*\)).*/\1/p' | head -1)
+          fi
+          [ -n "$DEVICE" ] || { echo "no available iPhone simulator device type"; exit 1; }
+          UDID=$(xcrun simctl create "libghostty-ui-iPhone-${GITHUB_RUN_ID}" "$DEVICE" "$RUNTIME")
+          trap 'xcrun simctl shutdown "$UDID" >/dev/null 2>&1 || true; xcrun simctl delete "$UDID" >/dev/null 2>&1 || true' EXIT
+          # Hosted runner cleanup: avoid stale simulator windows stealing UI automation focus.
+          xcrun simctl shutdown all >/dev/null 2>&1 || true
+          xcrun simctl boot "$UDID"
+          xcrun simctl bootstatus "$UDID" -b
+          xcodebuild test \
+            -project Example/MobileGhosttyApp.xcodeproj \
+            -scheme MobileGhosttyApp \
+            -destination "id=$UDID" \
+            -resultBundlePath "$RUNNER_TEMP/libghostty-ui-ios.xcresult" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY=""
+
+      - name: Upload iPhone Result Bundle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: libghostty-ui-ios-xcresult
+          path: ${{ runner.temp }}/libghostty-ui-ios.xcresult
+          retention-days: 7
+
+  ios-ipad:
+    name: iPad Simulator UI Tests
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Set up Xcode
+        run: xcodebuild -version
+
+      - name: Run iPad UI Tests
+        run: |
+          set -euo pipefail
+          rm -rf "$RUNNER_TEMP/libghostty-ui-ipad.xcresult"
+          RUNTIME=$(xcrun simctl list runtimes available | awk '/^iOS .*com\.apple\.CoreSimulator\.SimRuntime\.iOS/ { runtime=$NF } END { print runtime }')
+          [ -n "$RUNTIME" ] || { echo "no available iOS simulator runtime"; exit 1; }
+          DEVICE=$(xcrun simctl list devicetypes | sed -n '/iPad Air 13-inch (M3)/s/.*(\(com\.apple\.CoreSimulator\.SimDeviceType\.[^)]*\)).*/\1/p' | head -1)
+          if [ -z "$DEVICE" ]; then
+            DEVICE=$(xcrun simctl list devicetypes | sed -n '/iPad Air 13-inch/s/.*(\(com\.apple\.CoreSimulator\.SimDeviceType\.[^)]*\)).*/\1/p' | head -1)
+          fi
+          if [ -z "$DEVICE" ]; then
+            DEVICE=$(xcrun simctl list devicetypes | sed -n '/iPad Pro 13-inch/s/.*(\(com\.apple\.CoreSimulator\.SimDeviceType\.[^)]*\)).*/\1/p' | head -1)
+          fi
+          if [ -z "$DEVICE" ]; then
+            DEVICE=$(xcrun simctl list devicetypes | sed -n '/iPad/s/.*(\(com\.apple\.CoreSimulator\.SimDeviceType\.[^)]*\)).*/\1/p' | head -1)
+          fi
+          [ -n "$DEVICE" ] || { echo "no available iPad simulator device type"; exit 1; }
+          UDID=$(xcrun simctl create "libghostty-ui-iPad-${GITHUB_RUN_ID}" "$DEVICE" "$RUNTIME")
+          trap 'xcrun simctl shutdown "$UDID" >/dev/null 2>&1 || true; xcrun simctl delete "$UDID" >/dev/null 2>&1 || true' EXIT
+          # Hosted runner cleanup: avoid stale simulator windows stealing UI automation focus.
+          xcrun simctl shutdown all >/dev/null 2>&1 || true
+          xcrun simctl boot "$UDID"
+          xcrun simctl bootstatus "$UDID" -b
+          xcodebuild test \
+            -project Example/MobileGhosttyApp.xcodeproj \
+            -scheme MobileGhosttyApp \
+            -destination "id=$UDID" \
+            -resultBundlePath "$RUNNER_TEMP/libghostty-ui-ipad.xcresult" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY=""
+
+      - name: Upload iPad Result Bundle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: libghostty-ui-ipad-xcresult
+          path: ${{ runner.temp }}/libghostty-ui-ipad.xcresult
+          retention-days: 7
+
+  mac-catalyst:
+    name: Mac Catalyst UI Tests
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Set up Xcode
+        run: xcodebuild -version
+
+      - name: Run Mac Catalyst UI Tests
+        run: |
+          set -euo pipefail
+          rm -rf "$RUNNER_TEMP/libghostty-ui-maccatalyst.xcresult"
+          xcodebuild test \
+            -project Example/MobileGhosttyApp.xcodeproj \
+            -scheme MobileGhosttyApp \
+            -destination 'platform=macOS,variant=Mac Catalyst' \
+            -resultBundlePath "$RUNNER_TEMP/libghostty-ui-maccatalyst.xcresult" \
+            MACOSX_DEPLOYMENT_TARGET=15.0 \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY=""
+
+      - name: Upload Mac Catalyst Result Bundle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: libghostty-ui-maccatalyst-xcresult
+          path: ${{ runner.temp }}/libghostty-ui-maccatalyst.xcresult
+          retention-days: 7
+
+  macos-appkit:
+    name: macOS AppKit UI Tests
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Set up Xcode
+        run: xcodebuild -version
+
+      - name: Run macOS AppKit UI Tests
+        run: |
+          set -euo pipefail
+          rm -rf "$RUNNER_TEMP/libghostty-ui-macos.xcresult"
+          xcodebuild test \
+            -project Example/GhosttyTerminalApp.xcodeproj \
+            -scheme GhosttyTerminalApp \
+            -destination 'platform=macOS' \
+            -resultBundlePath "$RUNNER_TEMP/libghostty-ui-macos.xcresult" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY=""
+
+      - name: Upload macOS AppKit Result Bundle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: libghostty-ui-macos-xcresult
+          path: ${{ runner.temp }}/libghostty-ui-macos.xcresult
+          retention-days: 7

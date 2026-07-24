@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>GhosttyKit · Architecture</title>
+<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.10.0/styles/github.min.css"
+      integrity="sha384-eFTL69TLRZTkNfYZOLM+G04821K1qZao/4QLJbet1pP4tcF+fdXq/9CdqAbWRl/L"
+      crossorigin="anonymous"
+      media="(prefers-color-scheme: light)">
+<link rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.10.0/styles/github-dark.min.css"
+      integrity="sha384-wH75j6z1lH97ZOpMOInqhgKzFkAInZPPSPlZpYKYTOqsaizPvhQZmAtLcPKXpLyH"
+      crossorigin="anonymous"
+      media="(prefers-color-scheme: dark)">
+</head>
+<body>
+<nav class="topbar" aria-label="Primary">
+  <a class="home" href="index.html">GhosttyKit</a>
+  <a href="index.html">Overview</a>
+  <a href="guide/index.html">Guide</a>
+  <a href="api/index.html">API</a>
+  <a href="architecture.html" aria-current="page">Architecture</a>
+  <a href="build.html">Build</a>
+</nav>
+
+<main>
+<h1>Architecture</h1>
+<p class="lede">How the package wraps Ghostty, owns terminal state, bridges native input, and keeps sandboxed apps in control of I/O.</p>
+
+<h2 id="layers">Layers</h2>
+<pre><code>libghostty      Zig/C       Static library inside GhosttyKit.xcframework.
+   |
+GhosttyKit      Swift      Re-export of ghostty.h for direct C API access.
+   |
+GhosttyTerminal Swift      Controller, configuration, native views, input, surface lifecycle.
+   |
+GhosttyTheme    Swift      Theme catalog and TerminalConfiguration conversion helpers.
+   |
+ShellCraftKit   Swift      Sandboxed command engine backed by InMemoryTerminalSession.</code></pre>
+
+<h2 id="controller">Controller and surface</h2>
+<p><code>TerminalController</code> is the source of truth for Ghostty app lifecycle and resolved configuration. It composes the base config source, per-session <code>TerminalConfiguration</code>, active <code>TerminalTheme</code>, and current color scheme into one rendered Ghostty config.</p>
+<p>A platform view asks the controller to create a <code>TerminalSurface</code>. The surface owns the bridge to Ghostty&rsquo;s renderer, callback table, display link, and host-managed I/O hooks.</p>
+
+<h2 id="platforms">Platform views</h2>
+<table>
+<thead><tr><th>Platform</th><th>Type</th><th>Input model</th></tr></thead>
+<tbody>
+<tr><td>iOS / Catalyst</td><td><code>UITerminalView</code></td><td><code>UITextInput</code>, hardware presses, touch scrolling, input accessory bar.</td></tr>
+<tr><td>macOS</td><td><code>AppTerminalView</code></td><td><code>NSTextInputClient</code>, key events, mouse and scroll events.</td></tr>
+<tr><td>SwiftUI</td><td><code>TerminalSurfaceView</code></td><td>Wraps the platform view and syncs SwiftUI color scheme.</td></tr>
+</tbody>
+</table>
+
+<h2 id="io">Host-managed I/O</h2>
+<p>Example apps use <code>GHOSTTY_SURFACE_IO_BACKEND_HOST_MANAGED</code>. Ghostty produces user input bytes through callbacks, and the host feeds output bytes back through <code>ghostty_surface_write_buffer</code>. <code>InMemoryTerminalSession</code> owns this bridge for Swift callers.</p>
+
+<h2 id="ios-input">iOS input chain</h2>
+<ol>
+<li>Hardware keys arrive through <code>pressesBegan</code> and are translated into <code>ghostty_input_key_s</code>.</li>
+<li>Software keyboard text arrives through <code>insertText(_:)</code> and deletion through <code>deleteBackward()</code>.</li>
+<li>Marked text flows through <code>TerminalTextInputHandler</code> and calls Ghostty preedit APIs.</li>
+<li>The accessory bar dispatches terminal keys and sticky Ctrl/Alt/Cmd modifiers.</li>
+<li>Long-press selection requests are delegated to the host with a viewport snapshot.</li>
+</ol>
+
+<h2 id="trimmed-build">Trimmed build</h2>
+<table>
+<thead><tr><th>Component</th><th>Bundled state</th><th>Reason</th></tr></thead>
+<tbody>
+<tr><td>Terminal core</td><td>Included</td><td>VT parser, state machine, grid.</td></tr>
+<tr><td>Metal renderer</td><td>Included</td><td>CAMetalLayer / IOSurface rendering.</td></tr>
+<tr><td>CoreText font backend</td><td>Included</td><td>Apple text shaping and rasterization.</td></tr>
+<tr><td>Custom shaders</td><td>Disabled</td><td>Embedded apps get a smaller dependency graph.</td></tr>
+<tr><td>Inspector UI</td><td>Disabled</td><td>Host apps own diagnostics UI.</td></tr>
+<tr><td>Native app runtime</td><td>Disabled</td><td>UIKit/AppKit/SwiftUI hosts provide the runtime.</td></tr>
+<tr><td>Host-managed I/O backend</td><td>Added</td><td>Sandbox-friendly terminal transport.</td></tr>
+<tr><td>iOS platform fixes</td><td>Added</td><td>Metal row alignment, simulator fixes, deployment-target adjustments.</td></tr>
+</tbody>
+</table>
+
+<h2 id="rules">Architecture rules</h2>
+<ul>
+<li><code>TerminalController</code> owns the Ghostty app object and config resolution.</li>
+<li>Platform views own native input and layer sizing.</li>
+<li><code>TerminalSurface</code> owns Ghostty surface lifetime and display-link ticks.</li>
+<li>Host apps own process execution and byte transport for sandboxed demos.</li>
+<li>Catalyst follows the UIKit branch in platform conditionals.</li>
+</ul>
+
+<footer>
+GhosttyKit · <a href="https://github.com/Lakr233/libghostty-spm">github.com/Lakr233/libghostty-spm</a>
+</footer>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.10.0/highlight.min.js"
+        integrity="sha384-GdEWAbCjn+ghjX0gLx7/N1hyTVmPAjdC2OvoAA0RyNcAOhqwtT8qnbCxWle2+uJX"
+        crossorigin="anonymous"></script>
+<script>hljs.highlightAll();</script>
+</body>
+</html>

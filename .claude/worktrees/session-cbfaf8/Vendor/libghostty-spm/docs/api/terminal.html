@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>GhosttyKit · API · Terminal surface</title>
+<link rel="stylesheet" href="../styles.css">
+<link rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.10.0/styles/github.min.css"
+      integrity="sha384-eFTL69TLRZTkNfYZOLM+G04821K1qZao/4QLJbet1pP4tcF+fdXq/9CdqAbWRl/L"
+      crossorigin="anonymous"
+      media="(prefers-color-scheme: light)">
+<link rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.10.0/styles/github-dark.min.css"
+      integrity="sha384-wH75j6z1lH97ZOpMOInqhgKzFkAInZPPSPlZpYKYTOqsaizPvhQZmAtLcPKXpLyH"
+      crossorigin="anonymous"
+      media="(prefers-color-scheme: dark)">
+</head>
+<body>
+<nav class="topbar" aria-label="Primary">
+  <a class="home" href="../index.html">GhosttyKit</a>
+  <a href="../index.html">Overview</a>
+  <a href="../guide/index.html">Guide</a>
+  <a href="index.html" aria-current="page">API</a>
+  <a href="../architecture.html">Architecture</a>
+  <a href="../build.html">Build</a>
+</nav>
+
+<main>
+<h1>Terminal surface</h1>
+<nav class="on-this-page" aria-label="On this page">
+  <strong>On this page:</strong>
+  <a href="#TerminalViewState">TerminalViewState</a>
+  <a href="#TerminalSurfaceView">TerminalSurfaceView</a>
+  <a href="#TerminalView">TerminalView</a>
+  <a href="#TerminalController">TerminalController</a>
+  <a href="#InMemoryTerminalSession">InMemoryTerminalSession</a>
+  <a href="#Delegates">Delegates</a>
+</nav>
+
+<h2 id="TerminalViewState">TerminalViewState</h2>
+<p>Main SwiftUI state container. Available on iOS 15, macOS 13, and Mac Catalyst 15.</p>
+<pre><code class="language-swift">@MainActor
+public final class TerminalViewState: ObservableObject {
+    @Published public internal(set) var title: String { get }
+    @Published public internal(set) var surfaceSize: TerminalGridMetrics? { get }
+    @Published public internal(set) var isFocused: Bool { get }
+    @Published public internal(set) var bellCount: Int { get }
+    @Published public internal(set) var lastBellAt: Date? { get }
+    @Published public internal(set) var lastDesktopNotificationTitle: String? { get }
+    @Published public internal(set) var lastDesktopNotificationBody: String? { get }
+    @Published public internal(set) var lastDesktopNotificationAt: Date? { get }
+    @Published public internal(set) var workingDirectory: String? { get }
+    @Published public internal(set) var lastCommandExitCode: Int? { get }
+    @Published public internal(set) var lastCommandDurationNanos: UInt64? { get }
+    public internal(set) weak var surface: TerminalSurface? { get }
+
+    @Published public var configuration: TerminalSurfaceOptions
+    public var onClose: ((Bool) -&gt; Void)?
+    @Published public internal(set) var controller: TerminalController { get }
+
+    public var renderedConfig: String { get }
+    public var effectiveColorScheme: TerminalColorScheme { get }
+    public var theme: TerminalTheme { get }
+    public var terminalConfiguration: TerminalConfiguration { get }
+
+    public func send(_ text: String) -&gt; Bool
+    public func adopt(colorScheme: ColorScheme)
+    public func adopt(terminalColorScheme colorScheme: TerminalColorScheme)
+    public func setTheme(_ theme: TerminalTheme) -&gt; Bool
+    public func setTerminalConfiguration(_ configuration: TerminalConfiguration) -&gt; Bool
+}
+</code></pre>
+<p class="muted"><code>controller</code> exposes a projected publisher for source compatibility, but controller-owned configuration changes are observable through <code>TerminalViewState</code> mutation methods. SwiftUI integrations should mutate through the view state rather than the controller directly.</p>
+
+<h2 id="TerminalSurfaceView">TerminalSurfaceView</h2>
+<pre><code class="language-swift">public struct TerminalSurfaceView: View {
+    public init(context: TerminalViewState)
+}
+</code></pre>
+
+<h2 id="TerminalView">TerminalView</h2>
+<pre><code class="language-swift">#if canImport(UIKit)
+public typealias TerminalView = UITerminalView
+#elseif canImport(AppKit)
+public typealias TerminalView = AppTerminalView
+#endif
+</code></pre>
+
+<h2 id="TerminalController">TerminalController</h2>
+<pre><code class="language-swift">@MainActor
+public final class TerminalController {
+    public enum ConfigSource: Sendable, Hashable {
+        case none
+        case file(String)
+        case generated(String)
+    }
+
+    public var currentConfigSource: ConfigSource { get }
+    public var renderedConfig: String { get }
+    public private(set) var terminalConfiguration: TerminalConfiguration { get }
+    public private(set) var theme: TerminalTheme { get }
+    public private(set) var effectiveColorScheme: TerminalColorScheme { get }
+    public internal(set) var lastConfigurationIssue: String? { get }
+
+    public init(
+        configSource: ConfigSource = .none,
+        theme: TerminalTheme = .default,
+        terminalConfiguration: TerminalConfiguration = .init()
+    )
+
+    public func setColorScheme(_ scheme: TerminalColorScheme)
+    public func setTheme(_ theme: TerminalTheme) -&gt; Bool
+    public func setTerminalConfiguration(_ configuration: TerminalConfiguration) -&gt; Bool
+    public func tick()
+}
+</code></pre>
+
+<h2 id="InMemoryTerminalSession">InMemoryTerminalSession</h2>
+<pre><code class="language-swift">public final class InMemoryTerminalSession: @unchecked Sendable {
+    public init(
+        write: @escaping @Sendable (Data) -&gt; Void,
+        resize: @escaping @Sendable (InMemoryTerminalViewport) -&gt; Void
+    )
+
+    public func readViewportText() -&gt; String?
+    public func receive(_ data: Data)
+    public func receive(_ string: String)
+    public func sendInput(_ data: Data)
+    public func finish(exitCode: UInt32, runtimeMilliseconds: UInt64)
+}
+</code></pre>
+
+<h2 id="Delegates">Delegates</h2>
+<pre><code class="language-swift">@MainActor public protocol TerminalSurfaceTitleDelegate {
+    func terminalDidChangeTitle(_ title: String)
+}
+
+@MainActor public protocol TerminalSurfaceGridResizeDelegate {
+    func terminalDidResize(_ size: TerminalGridMetrics)
+}
+
+@MainActor public protocol TerminalSurfaceBellDelegate {
+    func terminalDidRingBell()
+}
+
+@MainActor public protocol TerminalSurfaceCloseDelegate {
+    func terminalDidClose(processAlive: Bool)
+}
+
+@MainActor public protocol TerminalSurfaceTextSelectionRequestDelegate {
+    func terminalDidRequestTextSelection(_ request: TerminalTextSelectionRequest)
+}
+
+@MainActor public protocol TerminalSurfaceLifecycleDelegate {
+    func terminalDidAttachSurface(_ surface: TerminalSurface)
+    func terminalDidDetachSurface()
+}
+</code></pre>
+
+<nav class="pager" aria-label="Sibling pages">
+  <a class="prev" href="index.html">API hub</a>
+  <a class="parent" href="index.html">↑ API</a>
+  <a class="next" href="configuration.html">Configuration</a>
+</nav>
+
+<footer>
+GhosttyKit · <a href="https://github.com/Lakr233/libghostty-spm">github.com/Lakr233/libghostty-spm</a>
+</footer>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.10.0/highlight.min.js"
+        integrity="sha384-GdEWAbCjn+ghjX0gLx7/N1hyTVmPAjdC2OvoAA0RyNcAOhqwtT8qnbCxWle2+uJX"
+        crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.10.0/languages/swift.min.js"
+        integrity="sha384-TfALNLT6HJzZieazgsVvFM0DzFWQsgl0d7mdwPLyg1yg7XE4QwLY4jqmJRNnI1S4"
+        crossorigin="anonymous"></script>
+<script>hljs.highlightAll();</script>
+</body>
+</html>

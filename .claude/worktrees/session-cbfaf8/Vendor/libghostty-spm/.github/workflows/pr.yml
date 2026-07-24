@@ -1,0 +1,38 @@
+name: PR Build & Test
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+
+# Zero-scope GITHUB_TOKEN: PR runs untrusted contributor code, so the
+# token gets no permissions at all. Public repo, so checkout works
+# without auth. No secrets referenced anywhere in this workflow.
+permissions: {}
+
+concurrency:
+  group: pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  build-test:
+    name: Build & Test
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Set up Xcode
+        run: sudo xcode-select -s /Applications/Xcode.app
+
+      - name: Swift Version
+        run: swift --version
+
+      - name: Build Package Matrix
+        run: ./Script/test.sh
+
+      - name: Swift Test
+        run: swift test

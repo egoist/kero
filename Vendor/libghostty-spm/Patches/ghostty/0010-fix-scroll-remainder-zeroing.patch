@@ -1,0 +1,22 @@
+diff --git a/src/Surface.zig b/src/Surface.zig
+index 4d66622..c0fe19e 100644
+--- a/src/Surface.zig
++++ b/src/Surface.zig
+@@ -3430,7 +3430,7 @@ pub fn scrollCallback(
+         }
+ 
+         // We scroll by the number of rows in the offset and save the remainder
+-        const amount = poff / cell_size;
++        const amount = @trunc(poff / cell_size);
+         assert(@abs(amount) >= 1);
+         self.mouse.pending_scroll_y = poff - (amount * cell_size);
+ 
+@@ -3455,7 +3455,7 @@ pub fn scrollCallback(
+             break :x .{};
+         }
+ 
+-        const amount = poff / cell_size;
++        const amount = @trunc(poff / cell_size);
+         assert(@abs(amount) >= 1);
+         self.mouse.pending_scroll_x = poff - (amount * cell_size);
+         const delta: isize = @intFromFloat(@trunc(amount));
