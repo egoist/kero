@@ -103,10 +103,12 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
     }
 
     /// Grok CLI (`[ui.notifications.title]`) joins configured items with
-    /// `" - "` and always appends the `grok` brand when title updates are
-    /// enabled. Transient segments (spinner, action-required, activity
-    /// text, turn timer, model label) are stripped so the sidebar keeps a
-    /// stable project name while the agent works.
+    /// `" - "` and appends the `grok` brand when title updates are enabled.
+    ///
+    /// Item order is user-configurable, so segments are classified by shape
+    /// rather than by position. Transient items (spinner, action-required,
+    /// activity text, turn timer, model) are dropped; `session-name` and
+    /// `cwd` remain as the stable project label.
     private static func grokCLITitleParts(
         _ title: String
     ) -> (activity: String?, name: String)? {
@@ -116,35 +118,47 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
         }
         guard trimmed.hasSuffix(grokTitleSuffix) else { return nil }
 
-        var parts = trimmed.components(separatedBy: grokTitleSeparator)
+        var parts = trimmed
+            .components(separatedBy: grokTitleSeparator)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
         guard parts.count >= 2, parts.last == grokTitleBrand else { return nil }
         parts.removeLast()
 
         var activity: String?
         var sawSpinner = false
+        var stable: [String] = []
 
-        // action-required is optional and may precede the spinner.
-        if let first = parts.first, isGrokActionRequiredSegment(first) {
-            activity = grokActionRequiredGlyph
-            parts.removeFirst()
+        for part in parts {
+            if isBrailleSpinnerSegment(part) {
+                activity = part
+                sawSpinner = true
+                continue
+            }
+            if isGrokActionRequiredSegment(part) {
+                if activity == nil {
+                    activity = grokActionRequiredGlyph
+                }
+                continue
+            }
+            if isGrokTurnTimerSegment(part) || isGrokModelSegment(part) {
+                continue
+            }
+            if isGrokKnownActivitySegment(part) {
+                continue
+            }
+            stable.append(part)
         }
 
-        if let first = parts.first, isBrailleSpinnerSegment(first) {
-            activity = first
-            sawSpinner = true
-            parts.removeFirst()
+        // Free-form activity (tool descriptions) is not a closed set. When a
+        // spinner is present it sits among the remaining segments; drop only
+        // segments that still look like activity so a custom
+        // `spinner + session-name` order does not lose the session title.
+        if sawSpinner {
+            stable = stable.filter { !isGrokFreeformActivitySegment($0) }
         }
 
-        // Default item order places free-form activity text immediately
-        // after the spinner. Strip one segment when a spinner was present
-        // so tool descriptions do not become the project name.
-        if sawSpinner, let first = parts.first, !isGrokTurnTimerSegment(first) {
-            parts.removeFirst()
-        }
-
-        parts.removeAll { isGrokTurnTimerSegment($0) || isGrokModelSegment($0) }
-
-        let name = parts
+        let name = stable
             .joined(separator: grokTitleSeparator)
             .trimmingCharacters(in: .whitespacesAndNewlines)
         return (activity, name.isEmpty ? grokTitleBrand : name)
@@ -171,6 +185,17 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
     private static let grokTitleSuffix = " - grok"
     private static let grokActionRequiredGlyph = "⚠"
 
+    /// Built-in Grok activity labels (exact match).
+    private static let grokKnownActivityExact: Set<String> = [
+        "Responding",
+        "Thinking",
+        "Compacting",
+        "Running tool",
+        "Waiting for response…",
+        "Waiting for response...",
+        "Waiting for response",
+    ]
+
     private static func isBrailleScalar(_ character: Character) -> Bool {
         character.unicodeScalars.allSatisfy {
             (UInt32(0x2800)...UInt32(0x28FF)).contains($0.value)
@@ -182,25 +207,55 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
     }
 
     private static func isGrokActionRequiredSegment(_ segment: String) -> Bool {
-        segment == "⚠ Action Required" || segment.hasPrefix("⚠")
+        segment == "⚠ Action Required"
+            || segment.hasPrefix("⚠ Action Required")
+            || segment == grokActionRequiredGlyph
+            || (segment.hasPrefix("⚠") && segment.localizedCaseInsensitiveContains("action required"))
     }
 
-    /// Turn timers such as `3s`, `12s`, or `1m 05s`.
-    private static func isGrokTurnTimerSegment(_ segment: String) -> Bool {
-        let s = segment.trimmingCharacters(in: .whitespacesAndNewlines)
-        if s.range(of: #"^\d+s$"#, options: .regularExpression) != nil {
+    /// Fixed and prefixed activity phrases emitted by Grok's turn tracker.
+    private static func isGrokKnownActivitySegment(_ segment: String) -> Bool {
+        if grokKnownActivityExact.contains(segment) {
             return true
         }
-        if s.range(of: #"^\d+m(?:\s*\d+s)?$"#, options: .regularExpression) != nil {
+        // "Running: cargo test", "Retrying (2/3)", …
+        let prefixes = [
+            "Running: ",
+            "Running:",
+            "Retrying (",
+            "Retrying ",
+            "Waiting for response",
+        ]
+        return prefixes.contains { segment.hasPrefix($0) }
+    }
+
+    /// Tool / status blurbs that change while a turn runs. Prefer markers
+    /// (ellipsis, length) over dropping the first unknown segment so a
+    /// session name right after the spinner is preserved.
+    private static func isGrokFreeformActivitySegment(_ segment: String) -> Bool {
+        if segment.hasSuffix("…") || segment.hasSuffix("...") {
             return true
         }
-        if s.range(of: #"^\d+:\d{2}$"#, options: .regularExpression) != nil {
+        // Long single-segment tool blurbs sometimes omit the ellipsis.
+        if segment.count >= 48 {
             return true
         }
         return false
     }
 
-    /// Model label item, for example `Grok 4.5`.
+    /// Turn timers such as `3s`, `12s`, `1m 05s`, `1h 2m`, or `1:23`.
+    private static func isGrokTurnTimerSegment(_ segment: String) -> Bool {
+        let s = segment.trimmingCharacters(in: .whitespacesAndNewlines)
+        let patterns = [
+            #"^\d+s$"#,
+            #"^\d+m(?:\s*\d+s)?$"#,
+            #"^\d+h(?:\s*\d+m)?(?:\s*\d+s)?$"#,
+            #"^\d+:\d{2}(?::\d{2})?$"#,
+        ]
+        return patterns.contains { s.range(of: $0, options: .regularExpression) != nil }
+    }
+
+    /// Model label item, for example `Grok 4.5` or `Grok 4`.
     private static func isGrokModelSegment(_ segment: String) -> Bool {
         segment.range(
             of: #"^Grok \d"#,
