@@ -21,7 +21,7 @@ enum TerminalClipboardIO {
         #if canImport(UIKit)
             UIPasteboard.general.string
         #elseif canImport(AppKit)
-            NSPasteboard.general.string(forType: .string)
+            TerminalPasteboard.string(from: .general)
         #endif
     }
 

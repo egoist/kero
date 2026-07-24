@@ -110,13 +110,53 @@
         }
 
         @IBAction func paste(_: Any?) {
-            if let text = NSPasteboard.general.string(forType: .string) {
+            let pasteboard = NSPasteboard.general
+            let text = TerminalPasteboard.string(from: pasteboard)
+            if let text {
                 TerminalDebugLog.log(
                     .input,
                     "paste binding bytes=\(text.utf8.count) lines=\(TerminalInputText.lineCount(in: text))"
                 )
             }
+
+            // Image-aware TUIs such as Grok, Claude Code, and OpenCode read
+            // the native pasteboard themselves when they receive Ctrl-V.
+            // Ghostty supports this naturally when the user presses Ctrl-V;
+            // make the standard macOS Paste action take the same path for an
+            // image-only pasteboard instead of silently doing nothing.
+            if text == nil, TerminalPasteboard.containsImage(pasteboard) {
+                forwardImagePasteShortcut()
+                return
+            }
+
             _ = surface?.performBindingAction("paste_from_clipboard")
+        }
+
+        private func forwardImagePasteShortcut() {
+            let timestamp = ProcessInfo.processInfo.systemUptime
+            for (type, offset) in [
+                (NSEvent.EventType.keyDown, 0.0),
+                (.keyUp, 0.001),
+            ] {
+                guard let event = NSEvent.keyEvent(
+                    with: type,
+                    location: .zero,
+                    modifierFlags: .control,
+                    timestamp: timestamp + offset,
+                    windowNumber: window?.windowNumber ?? 0,
+                    context: nil,
+                    characters: "\u{16}",
+                    charactersIgnoringModifiers: "v",
+                    isARepeat: false,
+                    keyCode: 0x09
+                ) else { continue }
+
+                if type == .keyDown {
+                    keyDown(with: event)
+                } else {
+                    keyUp(with: event)
+                }
+            }
         }
 
         @IBAction override open func selectAll(_: Any?) {
