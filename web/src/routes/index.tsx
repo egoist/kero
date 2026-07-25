@@ -175,13 +175,22 @@ const FEATURES: { group: string; rows: Row[] }[] = [
 const SHORTCUTS: Row[] = [
   { name: 'Cmd+N', detail: 'new project' },
   { name: 'Cmd+T', detail: 'new session' },
+  { name: 'Cmd+W', detail: 'close the focused pane' },
   { name: 'Cmd+1–9', detail: 'switch project' },
   { name: 'Ctrl+Shift+1–9', detail: 'switch tab' },
+  {
+    name: 'Ctrl+Tab',
+    detail: "hold to page through a project's tabs with a live preview of each, release to commit",
+  },
   { name: 'Cmd+P', detail: 'command palette' },
   { name: 'Cmd+D / Cmd+Shift+D', detail: 'split right / split down' },
   { name: 'Opt+Cmd+arrows', detail: 'focus the pane in that direction' },
+  { name: 'Cmd+[ / Cmd+]', detail: 'cycle focus through the panes in order' },
+  { name: 'Cmd+Shift+Return', detail: 'zoom the focused pane to fill the tab, and back' },
+  { name: 'Ctrl+Cmd+arrows', detail: 'resize the split — Ctrl+Cmd+= evens the panes out again' },
   { name: 'Cmd+B / Cmd+Shift+B', detail: 'toggle the left / right sidebar' },
   { name: 'Cmd+Shift+G / E / I', detail: 'git / files / info panel' },
+  { name: 'Cmd+F / Cmd+G', detail: 'find in the focused terminal or editor, then next match' },
   { name: 'Cmd+K', detail: 'clear the terminal' },
   { name: 'Cmd+S', detail: 'save the open file' },
 ]
