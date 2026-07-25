@@ -664,7 +664,8 @@ final class TerminalManager: nonisolated ObservableObject {
                                 return ProjectSnapshot.PaneSnapshot(
                                     content: Self.contentSnapshot(pane.content),
                                     weight: Double(pane.weight),
-                                    historyKey: historyKey
+                                    historyKey: historyKey,
+                                    customName: pane.customName
                                 )
                             },
                             weight: Double(column.weight)

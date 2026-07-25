@@ -29,6 +29,9 @@ struct SessionSnapshot: Codable {
             /// nil for files, diffs, or when history restore is off. Optional so
             /// snapshots written before this feature still decode.
             var historyKey: String?
+            /// User-assigned pane name shown in its header strip; nil when the
+            /// title is automatic. Optional so older snapshots still decode.
+            var customName: String?
         }
 
         struct ColumnSnapshot: Codable {

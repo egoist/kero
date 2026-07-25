@@ -68,6 +68,18 @@ struct Pane: nonisolated Identifiable {
     /// Relative vertical share within its column. Ratios are what matter — the
     /// layout normalises against the column's total.
     var weight: CGFloat = 1
+    /// User-assigned pane name, shown in the pane's header strip; when nil the
+    /// header follows the content's own title — the same override scheme as
+    /// `PaneTab.customName` and `Project.customName`. A named pane keeps its
+    /// name when it is dragged elsewhere, and hands it to the tab it becomes
+    /// when dragged out to the strip.
+    var customName: String?
+
+    /// Header title: the assigned name when set, else the content's own.
+    @MainActor var displayTitle: String {
+        if let customName, !customName.isEmpty { return customName }
+        return content.title
+    }
 }
 
 /// A vertical stack of panes; columns tile left-to-right across the tab.
@@ -109,10 +121,21 @@ final class PaneTab: nonisolated ObservableObject, nonisolated Identifiable {
     weak var contextSession: TerminalSession?
 
     /// A fresh single-pane tab wrapping one piece of content.
-    init(content: PaneContent) {
-        let pane = Pane(content: content)
+    convenience init(content: PaneContent) {
+        self.init(pane: Pane(content: content))
+    }
+
+    /// A single-pane tab around an existing pane — how a pane dragged out of a
+    /// split layout becomes a tab of its own. The pane keeps its identity and
+    /// name; its weight resets since it now fills the tab alone.
+    init(pane: Pane) {
+        var pane = pane
+        pane.weight = 1
         columns = [PaneColumn(panes: [pane])]
         focusedPaneID = pane.id
+        // A named pane carries its name onto the tab, so the strip shows what
+        // the pane was called instead of reverting to the shell's title.
+        customName = pane.customName
     }
 
     /// Restores a saved layout.
@@ -133,7 +156,7 @@ final class PaneTab: nonisolated ObservableObject, nonisolated Identifiable {
     /// set, else the focused pane's own title.
     var displayTitle: String? {
         if let customName, !customName.isEmpty { return customName }
-        return focusedContent?.title
+        return focusedPane?.displayTitle
     }
 
     var sessions: [TerminalSession] {
@@ -277,6 +300,78 @@ final class PaneTab: nonisolated ObservableObject, nonisolated Identifiable {
             columns.insert(column, at: edge == .left ? to.col : to.col + 1)
         }
         focusedPaneID = moved.id
+    }
+
+    /// Renames a pane, or clears the name back to automatic when `name` is nil
+    /// or blank.
+    func renamePane(_ id: UUID, to name: String?) {
+        guard let (col, row) = location(of: id) else { return }
+        let trimmed = name?.trimmingCharacters(in: .whitespacesAndNewlines)
+        columns[col].panes[row].customName = (trimmed?.isEmpty ?? true) ? nil : trimmed
+    }
+
+    /// Lifts a pane out of this layout and hands it back to the caller, which
+    /// re-homes it (today: into a tab of its own). Nil when the tab holds only
+    /// that pane — there is nothing to extract it *from*, and dropping the last
+    /// pane would leave an empty tab behind.
+    func extractPane(_ id: UUID) -> Pane? {
+        guard hasMultiplePanes, let (col, row) = location(of: id) else { return nil }
+        let pane = columns[col].panes[row]
+        removePane(id)
+        return pane
+    }
+
+    /// Drops a whole layout — another tab's columns — next to `target` on the
+    /// given edge, the tab-onto-pane gesture. Left/right keeps the incoming
+    /// layout's own column structure, inserted beside the target's column;
+    /// top/bottom flattens it into the target's column, since a column is a
+    /// plain stack. Either way the arrivals share the half the target gives up,
+    /// in their original proportions. Focus lands on the first arrival.
+    func insert(_ incoming: [PaneColumn], _ edge: PaneDropEdge, of target: UUID) {
+        unzoom()
+        let panes = incoming.flatMap(\.panes)
+        guard !panes.isEmpty else { return }
+        guard let to = location(of: target) else {
+            columns.append(contentsOf: incoming)
+            focusedPaneID = panes[0].id
+            return
+        }
+
+        switch edge {
+        case .left, .right:
+            let share = columns[to.col].weight / 2
+            columns[to.col].weight = share
+            let scaled = scaled(incoming.map(\.weight), toTotal: share)
+            let arrivals = zip(incoming, scaled).map { column, weight -> PaneColumn in
+                var column = column
+                column.weight = weight
+                return column
+            }
+            columns.insert(contentsOf: arrivals, at: edge == .left ? to.col : to.col + 1)
+        case .top, .bottom:
+            let share = columns[to.col].panes[to.row].weight / 2
+            columns[to.col].panes[to.row].weight = share
+            let scaled = scaled(panes.map(\.weight), toTotal: share)
+            let arrivals = zip(panes, scaled).map { pane, weight -> Pane in
+                var pane = pane
+                pane.weight = weight
+                return pane
+            }
+            columns[to.col].panes.insert(
+                contentsOf: arrivals, at: edge == .top ? to.row : to.row + 1
+            )
+        }
+        focusedPaneID = panes[0].id
+    }
+
+    /// Rescales `weights` so they sum to `total`, keeping their proportions.
+    /// Falls back to equal shares when the input carries no usable total.
+    private func scaled(_ weights: [CGFloat], toTotal total: CGFloat) -> [CGFloat] {
+        let sum = weights.reduce(0, +)
+        guard sum > 0 else {
+            return weights.map { _ in total / CGFloat(max(weights.count, 1)) }
+        }
+        return weights.map { $0 / sum * total }
     }
 
     /// Removes the pane with `id`, dropping its column when it empties and

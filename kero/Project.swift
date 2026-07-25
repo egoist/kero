@@ -206,6 +206,54 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
     /// Whether the selected tab is showing a zoomed pane.
     var isPaneZoomed: Bool { selectedTab?.isZoomed ?? false }
 
+    // MARK: - Moving panes between tabs
+
+    /// Pulls a pane out of `tab` into a tab of its own — the drag-a-pane-onto-
+    /// the-strip gesture — inserted at `index` in the strip (appended after the
+    /// source tab when nil) and selected. The pane keeps its content, so a
+    /// running shell is carried across rather than restarted. A no-op when the
+    /// pane is the tab's only one: it already *is* the whole tab.
+    func extractPane(_ paneID: UUID, from tab: PaneTab, at index: Int? = nil) {
+        guard let pane = tab.extractPane(paneID) else { return }
+        let newTab = register(PaneTab(pane: pane))
+        let fallback = tabs.firstIndex { $0.id == tab.id }.map { $0 + 1 } ?? tabs.count
+        tabs.insert(newTab, at: min(max(0, index ?? fallback), tabs.count))
+        selectedTabID = newTab.id
+    }
+
+    /// Whether a tab may be dropped into another tab's layout. Diffs keep their
+    /// own single-pane tab (their web view fills the tab), so neither side may
+    /// hold one.
+    func canMerge(_ tab: PaneTab, into target: PaneTab) -> Bool {
+        tab.id != target.id && tab.diffs.isEmpty && target.diffs.isEmpty
+    }
+
+    /// Moves every pane of the dragged tab into the tab holding `targetPaneID`,
+    /// splitting that pane on `edge`, then drops the emptied tab from the strip
+    /// — the drag-a-tab-onto-a-pane gesture. Nothing is torn down: the panes,
+    /// and the shells inside them, move across intact.
+    func mergeTab(_ draggedID: UUID, into targetPaneID: UUID, edge: PaneDropEdge) {
+        guard let dragged = tabs.first(where: { $0.id == draggedID }),
+              let target = tabs.first(where: { tab in
+                  tab.allPanes.contains { $0.id == targetPaneID }
+              }),
+              canMerge(dragged, into: target)
+        else { return }
+
+        var columns = dragged.columns
+        // A named single-pane tab hands its name down to the pane, so the label
+        // the user gave it survives as the pane's header title.
+        if let name = dragged.customName, columns.count == 1, columns[0].panes.count == 1,
+           columns[0].panes[0].customName == nil {
+            columns[0].panes[0].customName = name
+        }
+        // Detach before inserting: the panes are about to have a new home, so
+        // their sessions' observations must stay wired.
+        remove(tabID: dragged.id, keepingSessionObservations: true)
+        target.insert(columns, edge, of: targetPaneID)
+        selectedTabID = target.id
+    }
+
     // MARK: - Files
 
     /// Opens `path` as a new file tab, reusing an existing tab/pane for the
@@ -513,7 +561,8 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
                 let restoredHistory = paneSnap.historyKey.flatMap { histories[$0] }
                 panes.append(Pane(
                     content: makeContent(from: paneSnap.content, restoredHistory: restoredHistory),
-                    weight: CGFloat(paneSnap.weight)
+                    weight: CGFloat(paneSnap.weight),
+                    customName: paneSnap.customName
                 ))
             }
             guard !panes.isEmpty else { continue }
@@ -581,11 +630,16 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
         }
     }
 
-    private func remove(tabID: UUID) {
+    /// Drops a tab from the strip. `keepingSessionObservations` is set when the
+    /// tab's panes are being re-homed rather than closed (a merge), so their
+    /// sessions keep re-publishing through the project.
+    private func remove(tabID: UUID, keepingSessionObservations: Bool = false) {
         guard let index = tabs.firstIndex(where: { $0.id == tabID }) else { return }
         let tab = tabs[index]
-        for session in tab.sessions {
-            sessionObservations[session.id] = nil
+        if !keepingSessionObservations {
+            for session in tab.sessions {
+                sessionObservations[session.id] = nil
+            }
         }
         tabObservations[tabID] = nil
         tabs.remove(at: index)
