@@ -1,0 +1,20 @@
+{
+  "title": "Docs",
+  "pages": [
+    "---Getting started---",
+    "index",
+    "installation",
+    "quick-start",
+    "---Using Kero---",
+    "projects",
+    "panes",
+    "terminal",
+    "git",
+    "files",
+    "session-info",
+    "---Reference---",
+    "shortcuts",
+    "settings",
+    "faq"
+  ]
+}

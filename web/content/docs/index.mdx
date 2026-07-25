@@ -1,0 +1,41 @@
+---
+title: What Kero is
+description: A native macOS terminal workspace — projects, persistent sessions, files, and git in one window.
+---
+
+Kero is a terminal. The rest of the window exists so you don't have to leave it.
+
+Each repository you work on becomes a **project** in the sidebar. A project holds
+as many terminal **sessions** as you need, each one a tab with its own directory
+and scrollback, and each tab can be **split** into panes. Beside all of that sit
+three panels you can open and close with a keystroke: a git panel for reviewing
+and committing, a file tree with an editor, and a live view of the processes and
+ports your session is running.
+
+The terminal underneath is [libghostty](https://ghostty.org) — the same core as
+Ghostty — hosted natively by Kero. Your shell, prompt, aliases, and dotfiles are
+untouched.
+
+![Kero showing a project's terminal session with the git panel open](/kero-screenshot.png)
+
+## What it is not
+
+Kero is not an IDE, and it's not trying to become one. The git and files panels
+exist so you can read a diff or fix a typo without switching apps — not so you
+can live in them. Nothing runs behind your back: every git action maps to a
+command you could have typed, and the output is shown to you.
+
+## Where to go next
+
+<Cards>
+  <Card title="Install Kero" href="/docs/installation" description="Download, Homebrew, updates, and uninstalling." />
+  <Card title="Quick start" href="/docs/quick-start" description="From an empty window to a working project in five minutes." />
+  <Card title="Keyboard shortcuts" href="/docs/shortcuts" description="The full list, grouped by what it does." />
+  <Card title="Settings" href="/docs/settings" description="Themes, fonts, and the config file." />
+</Cards>
+
+## Free, and quiet about it
+
+Kero is free and open source (GPLv3), with no account and no subscription. It
+sends no telemetry and collects no analytics. The only network request it makes
+on its own is the update check against `releases.kero.sh`.

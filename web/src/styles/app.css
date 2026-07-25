@@ -4,6 +4,12 @@
 @import '@fontsource-variable/geist';
 @import '@fontsource-variable/geist-mono';
 
+/* Fumadocs (the /docs section). `shadcn.css` maps its `--color-fd-*` variables
+   onto the palette below, so the docs inherit kero's colors rather than
+   shipping a second theme. */
+@import 'fumadocs-ui/css/shadcn.css';
+@import 'fumadocs-ui/css/preset.css';
+
 /* Iconify collections as `i-{set}-{name}` utilities (mingcute installed for the
    accurate Apple logo). Auto-detects any installed @iconify-json/* package. */
 @plugin '@egoist/tailwindcss-icons';

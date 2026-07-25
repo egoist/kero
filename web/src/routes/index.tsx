@@ -1,4 +1,4 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, Link } from '@tanstack/react-router'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { SiteLayout } from '@/components/site-layout'
 import { cn } from '@/lib/utils'
@@ -250,6 +250,14 @@ function Home() {
             <span className="i-mingcute-apple-fill size-4 shrink-0" />
             Download .dmg
           </a>
+          <Link
+            to="/docs/$"
+            params={{ _splat: '' }}
+            className="inline-flex items-center gap-2 rounded-[9px] border border-border bg-card px-4 py-[7px] text-foreground transition-colors hover:border-brand hover:bg-brand/8 hover:text-brand"
+          >
+            <span className="i-mingcute-book-2-fill size-4 shrink-0" />
+            Docs
+          </Link>
           <a
             href={GITHUB_URL}
             target="_blank"

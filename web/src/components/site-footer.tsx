@@ -26,6 +26,14 @@ export function SiteFooter() {
       </a>{' '}
       ·{' '}
       <Link
+        to="/docs/$"
+        params={{ _splat: '' }}
+        className="text-foreground transition-colors hover:text-brand"
+      >
+        Docs
+      </Link>{' '}
+      ·{' '}
+      <Link
         to="/changelog"
         className="text-foreground transition-colors hover:text-brand"
       >

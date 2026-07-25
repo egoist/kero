@@ -1,0 +1,67 @@
+---
+title: Installation
+description: Download Kero, install it with Homebrew, keep it updated, and remove it cleanly.
+---
+
+Kero requires **macOS 15.6 or later**. Every build is signed and notarized by
+Apple, so it opens without a Gatekeeper warning.
+
+## Download
+
+Grab the `.dmg` from [kero.sh](https://kero.sh), open it, and drag **Kero** into
+your Applications folder.
+
+## Homebrew
+
+```bash
+brew install egoist/tap/kero
+```
+
+The cask lives in `egoist/homebrew-tap`, which is why the tap is named in full.
+Upgrade the same way you upgrade anything else:
+
+```bash
+brew upgrade --cask kero
+```
+
+## Updates
+
+Kero updates itself with [Sparkle](https://sparkle-project.org). It checks in the
+background, downloads the new version quietly, and installs it the next time you
+quit — you'll see the release notes before anything is applied.
+
+To change this, open **Settings → Updates** (<kbd>Cmd</kbd>+<kbd>,</kbd>):
+
+- **Automatically check for updates** — turn background checks off entirely.
+- **Check for Updates…** — ask right now.
+
+<Callout title="Installed with Homebrew?">
+Both update paths work. If you'd rather let Homebrew own the version, turn off
+automatic checks and run `brew upgrade --cask kero` on your own schedule.
+</Callout>
+
+## Open a folder from Finder
+
+Kero registers a macOS service called **New Kero Project Here**. Select one or
+more folders in Finder, right-click, and pick it from the **Services** submenu —
+each folder opens as a project with its terminal already started there.
+
+If it's missing from the menu, turn it on under **System Settings → Keyboard →
+Keyboard Shortcuts → Services → Files and Folders**. macOS only lists a new
+service after the app has been launched once.
+
+## Uninstalling
+
+Delete `Kero.app` from Applications, then remove its settings if you want a
+clean slate:
+
+```bash
+rm -rf ~/.config/kero
+```
+
+Window layout, sidebar widths, and the session snapshot live in macOS's own
+preference store:
+
+```bash
+defaults delete sh.kero
+```

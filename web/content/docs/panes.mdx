@@ -1,0 +1,57 @@
+---
+title: Splits and panes
+description: Divide a tab into panes, move between them, resize them, and zoom one to full size.
+---
+
+Any tab can be split into panes. A pane usually holds a terminal, but it can
+also hold a file you opened from the tree or a diff you opened from the git
+panel — which is the point: the diff sits next to the shell that produced it.
+
+## Splitting
+
+| Action | Shortcut |
+| --- | --- |
+| Split right | <kbd>Cmd</kbd>+<kbd>D</kbd> |
+| Split down | <kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>D</kbd> |
+| Split left | — |
+| Split up | — |
+
+Splitting left and up have no default shortcut; run them from the **Tabs** menu,
+the command palette (<kbd>Cmd</kbd>+<kbd>P</kbd>), or the pane's own context
+menu. The new pane inherits the focused pane's working directory.
+
+Already-open panes can be rearranged: grab the thin strip along the top of a
+pane and drag it onto the edge of another one. The target pane shows which half
+it will land on before you let go.
+
+## Moving between panes
+
+| Action | Shortcut |
+| --- | --- |
+| Focus the pane left / right / up / down | <kbd>Opt</kbd>+<kbd>Cmd</kbd>+arrows |
+| Cycle focus backward / forward | <kbd>Cmd</kbd>+<kbd>[</kbd> / <kbd>Cmd</kbd>+<kbd>]</kbd> |
+
+## Zoom and resize
+
+<kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>Return</kbd> zooms the focused pane to fill
+the tab and again to restore it. The tab header shows a button while a pane is
+zoomed, so you always have a way out that isn't a shortcut.
+
+| Action | Shortcut |
+| --- | --- |
+| Toggle pane zoom | <kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>Return</kbd> |
+| Grow the pane in a direction | <kbd>Ctrl</kbd>+<kbd>Cmd</kbd>+arrows |
+| Equalize all panes | <kbd>Ctrl</kbd>+<kbd>Cmd</kbd>+<kbd>=</kbd> |
+
+Dividers between panes are draggable too.
+
+## Closing
+
+<kbd>Cmd</kbd>+<kbd>W</kbd> closes the focused pane. Closing the last pane in a
+tab closes the tab as well.
+
+<Callout type="warn">
+Closing a terminal pane terminates the shell running in it, along with anything
+it started. Kero doesn't ask first — it's the same as closing a terminal
+anywhere else.
+</Callout>

@@ -1,0 +1,84 @@
+---
+title: The terminal
+description: What Kero changes about your shell (almost nothing) and what it adds around it.
+---
+
+Kero embeds [libghostty](https://ghostty.org), the terminal core behind Ghostty,
+and hosts it natively in each pane. Rendering, escape-sequence handling, and
+Unicode all behave the way Ghostty does.
+
+## Your shell, unchanged
+
+Each session runs your login shell — `exec $SHELL -l` — so your prompt, aliases,
+functions, and dotfiles load exactly as they do anywhere else. Kero sets two
+environment variables on top of that:
+
+| Variable | Value |
+| --- | --- |
+| `TERM_PROGRAM` | `ghostty` |
+| `TERM_PROGRAM_VERSION` | the embedded libghostty version |
+
+It advertises Ghostty because tools use `TERM_PROGRAM` as a capability hint —
+image-rendering CLIs, for one, use it to pick the Kitty graphics protocol.
+
+<Callout type="info">
+Kero does **not** read `~/.config/ghostty`. Appearance is configured in Kero's
+own settings and [config file](/docs/settings); everything else uses Ghostty's
+defaults.
+</Callout>
+
+## Search
+
+| Action | Shortcut |
+| --- | --- |
+| Find | <kbd>Cmd</kbd>+<kbd>F</kbd> |
+| Find next | <kbd>Cmd</kbd>+<kbd>G</kbd> |
+| Find previous | <kbd>Shift</kbd>+<kbd>Return</kbd> in the find bar |
+| Use selection for find | <kbd>Cmd</kbd>+<kbd>E</kbd> |
+| Clear the terminal | <kbd>Cmd</kbd>+<kbd>K</kbd> |
+
+Find works on the focused pane, terminal or editor, and stays live while the
+find field has keyboard focus.
+
+## Notifications
+
+Kero forwards two things to Notification Center:
+
+- a **bell** from a session that isn't focused
+- a **notification escape sequence** (`OSC 9`) from a program that wants to tell
+  you something — a long build finishing, a test run failing
+
+macOS only asks for notification permission the first time a terminal actually
+tries to notify you, not at launch.
+
+## Progress reports
+
+Programs that emit `OSC 9;4` progress get a slim bar above the terminal, with
+distinct error and paused states. Nothing to enable — if the tool reports
+progress, you see it.
+
+## Clipboard and paste safety
+
+Two protections, both matching Ghostty's defaults:
+
+- **Clipboard reads are confirmed.** A program can ask to read your clipboard
+  with an `OSC 52` escape — including one running on a remote host over SSH.
+  Kero asks you first instead of handing it over silently.
+- **Risky pastes are flagged.** Pasting text that looks like it could execute a
+  command on arrival shows a warning before it goes through.
+
+Images on the clipboard, and files copied in Finder, paste as shell-safe
+absolute paths — which is what image-aware TUIs expect to receive.
+
+## Microphone
+
+Programs running inside a session can request microphone access — voice input in
+an AI coding agent, for example. macOS attributes the request to Kero, so you'll
+see one prompt naming Kero rather than the program.
+
+## Fonts
+
+Kero ships **JetBrains Mono** plus Nerd Font symbols, so powerline prompts and
+icon glyphs render without installing anything. Any installed monospace family
+can replace it in **Settings → Font**, along with size and an optional
+stroke-thickening toggle. See [Settings](/docs/settings).

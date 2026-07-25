@@ -1,0 +1,101 @@
+---
+title: Quick start
+description: From an empty window to a working project — the five things worth learning first.
+---
+
+<Steps>
+
+<Step>
+
+### Start a project
+
+Press <kbd>Cmd</kbd>+<kbd>N</kbd>. You get a new project in the sidebar with one
+terminal in it — then `cd` to the repository you want, exactly as you would in
+any terminal. The file tree and git panel follow you there and settle on the
+repository root.
+
+Prefer to start from the folder? Right-click it in Finder and choose
+**Services → New Kero Project Here**.
+
+Have several repos? Add them all. <kbd>Cmd</kbd>+<kbd>1</kbd> through
+<kbd>Cmd</kbd>+<kbd>9</kbd> jumps straight to one, and each project keeps its own
+tabs and layout.
+
+</Step>
+
+<Step>
+
+### Add sessions
+
+<kbd>Cmd</kbd>+<kbd>T</kbd> opens another terminal in the same project — a new
+tab with its own working directory and scrollback. One for the dev server, one
+for tests, one to actually type in.
+
+<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>1</kbd>–<kbd>9</kbd> switches tabs directly;
+<kbd>Ctrl</kbd>+<kbd>Tab</kbd> opens a switcher ordered by how recently you used
+them.
+
+</Step>
+
+<Step>
+
+### Split a tab
+
+<kbd>Cmd</kbd>+<kbd>D</kbd> splits the current pane to the right,
+<kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>D</kbd> splits it downward. Move between
+panes with <kbd>Opt</kbd>+<kbd>Cmd</kbd>+arrows, and press
+<kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>Return</kbd> to blow one pane up to fill the
+tab while you read something long.
+
+</Step>
+
+<Step>
+
+### Open the side panels
+
+The right sidebar holds three panels, one keystroke each:
+
+| Panel | Shortcut | What it's for |
+| --- | --- | --- |
+| Git | <kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>G</kbd> | Stage, review diffs, commit, push |
+| Files | <kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>E</kbd> | Browse the tree, open and edit files |
+| Info | <kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>I</kbd> | Processes and listening ports |
+
+<kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>B</kbd> hides the whole sidebar again;
+<kbd>Cmd</kbd>+<kbd>B</kbd> hides the project sidebar on the left.
+
+</Step>
+
+<Step>
+
+### Learn one shortcut: <kbd>Cmd</kbd>+<kbd>P</kbd>
+
+The command palette searches every project, every open session, and every
+command Kero has. If you forget the rest of this page, this is the one to keep —
+each command lists its own shortcut next to it.
+
+</Step>
+
+</Steps>
+
+## What comes back after you quit
+
+Quit and reopen, and your projects, tabs, and pane layout are where you left
+them. Each terminal starts a **fresh shell** in its old directory — nothing is
+secretly kept running in the background.
+
+Scrollback is opt-in. Turn on **Settings → Terminal → Restore session history on
+relaunch** and reopened terminals show their previous output above a
+`Session Contents Restored` divider, with the new shell running below it.
+
+<Callout type="info">
+The restored text is exactly that — text. It's the record of what happened, not
+a live session, so scrolling back through it won't re-run anything.
+</Callout>
+
+## Next
+
+<Cards>
+  <Card title="Projects and sessions" href="/docs/projects" description="Naming, pinning a directory, and what a project actually tracks." />
+  <Card title="The git panel" href="/docs/git" description="Staging, diffs, commits, branches." />
+</Cards>

@@ -1,0 +1,47 @@
+---
+title: Processes and ports
+description: See what a session is actually running, and which ports it opened.
+---
+
+Press <kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>I</kbd>. The Info panel describes the
+**focused session** — not the project — and refreshes as things start and stop.
+
+## Directory
+
+Two lines, because they aren't always the same thing:
+
+- **Current Directory** — the shell's live working directory, shown when it
+  differs from the one below.
+- **Project Directory** — the folder the files and git panels are anchored to,
+  marked `(AUTO)` while Kero is deriving it. The `?` popover explains both.
+
+Beside them are shortcuts to reveal the folder in **Finder**, open it in **VS
+Code** when it's installed, and **Copy** the path.
+
+## Processes
+
+Everything running under the session's shell, with its PID, CPU percentage, and
+resident memory. Right-click a process to:
+
+- **Terminate** — a polite `SIGTERM`
+- **Force Kill** — `SIGKILL`, for something that won't take the hint
+- **Copy PID** / **Copy Executable Path**
+
+Exited children still waiting to be reaped (`<defunct>`) are left out — there's
+nothing to see or kill there.
+
+## Ports
+
+Any TCP port those processes are listening on, with the process that owns it.
+Useful for the everyday questions: *which port did the dev server pick this
+time*, and *what is still holding 3000*.
+
+- Click a port to open `http://localhost:<port>/` in your browser
+- **Copy URL**
+- **Kill Process** — when the answer to "what's still holding it" is "something
+  I forgot about"
+
+<Callout type="info">
+The list comes from `ps` and `lsof`, polled while the panel is open. It's a
+read of what's really running, not Kero's idea of what should be.
+</Callout>

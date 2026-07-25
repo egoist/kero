@@ -1,0 +1,88 @@
+---
+title: 项目与会话
+description: Kero 怎么组织你的工作——侧边栏里的项目、作为标签页的会话，以及重启后还剩下什么。
+---
+
+## 项目
+
+一个项目就是一件正在做的事——实际用起来通常就是一个仓库——有自己的终端、标签页和面板状态。
+
+<kbd>Cmd</kbd>+<kbd>N</kbd> 新建一个，里面带一个终端。这个终端从当前会话的目录启动，没有的话
+就是你的用户主目录，所以接下来通常是 `cd` 到你要去的地方。剩下的 Kero 接手：文件树和 git
+面板会锚定到包含那个目录的仓库上。
+
+想省掉这次 `cd`，在 Finder 里右键一个文件夹，选 **服务 → New Kero Project Here**——它会作为
+一个项目打开，终端已经在里面启动好了。
+
+项目是 Kero 切换的基本单位：
+
+| 操作 | 快捷键 |
+| --- | --- |
+| 新建项目 | <kbd>Cmd</kbd>+<kbd>N</kbd> |
+| 跳到第 1–9 个项目 | <kbd>Cmd</kbd>+<kbd>1</kbd>–<kbd>9</kbd> |
+| 下一个 / 上一个项目 | <kbd>Opt</kbd>+<kbd>Cmd</kbd>+<kbd>]</kbd> / <kbd>[</kbd> |
+| 收起项目侧边栏 | <kbd>Cmd</kbd>+<kbd>B</kbd> |
+
+项目的名字来自它当前选中的会话——也就是说，它跟着终端走，和标签页标题一样。右键侧边栏里的
+项目，可以 **Rename…**（**Use Automatic Title** 撤销）、**Set Project Directory…** 和
+**Close Project**。关闭项目会结束它的会话，但不会动磁盘上的任何东西。
+
+### 项目目录
+
+有两个面板需要知道自己在显示哪个文件夹：文件树和 git 面板。默认情况下 Kero 自己判断——
+它从终端的当前目录出发，往上找到**最近的那个包含它的 git 仓库**。
+
+所以在仓库里 `cd` 来 `cd` 去，文件树不会跟着跳：仓库根目录始终是根目录。不在仓库里时，
+这两个面板就单纯跟着终端走。
+
+想固定住，右键项目选 **Set Project Directory…**。固定的目录会跨重启记住，**Use Automatic
+Directory** 则交还自动判断。
+
+<Callout type="info">
+信息面板（<kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>I</kbd>）两个都显示：shell 实时的
+**Current Directory**（与下面不同时才出现），以及面板锚定的 **Project Directory**，自动
+推导时标着 `(AUTO)`。
+</Callout>
+
+## 会话
+
+每个项目可以有任意多个会话，显示为顶部的标签页。一个会话就是一个真正的登录 shell——
+`zsh`、`fish`、`bash`，你账户设成什么就是什么——各有自己的工作目录和滚动缓冲区。
+
+| 操作 | 快捷键 |
+| --- | --- |
+| 新建会话 | <kbd>Cmd</kbd>+<kbd>T</kbd> |
+| 切到第 1–9 个标签页 | <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>1</kbd>–<kbd>9</kbd> |
+| 标签页切换器（按最近使用） | <kbd>Ctrl</kbd>+<kbd>Tab</kbd> |
+| 下一个 / 上一个标签页 | <kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>]</kbd> / <kbd>[</kbd> |
+| 关闭当前窗格 | <kbd>Cmd</kbd>+<kbd>W</kbd> |
+
+新会话从当前会话的目录启动，没有的话退回到项目目录。
+
+### 标签页标题
+
+标签页标题来自终端自己报告的内容——你 shell 提示符里的转义序列，或者当前正在跑的程序。
+右键标签页可以 **Rename…** 手动改名，**Use Automatic Title** 则回到跟随终端。
+
+标签页菜单里其余的是常规那一套：**Close**、**Close Others**、**Close Tabs to the Right**、
+**Close All**，外加针对会话目录的 **Reveal in Finder** 和 **Copy Absolute Path**。
+
+## 窗口
+
+<kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>N</kbd> 新开一个窗口。窗口之间互相独立——各自的项目、
+各自的侧边栏状态——恢复时也是分开恢复的。
+
+## 重启后还剩下什么
+
+Kero 会随着你的操作持续快照布局，所以退出再打开会拿回：
+
+- 每个项目，顺序不变
+- 每个标签页，包括自定义名称和固定的目录
+- 每个标签页里的窗格布局
+- 哪些侧边栏是打开的、右侧选中的是哪个面板
+
+终端会在原目录里以**全新的 shell** 回来。Kero 不会在后台留着进程——退出时如果有构建在跑，
+它就在退出时停了。
+
+之前的滚动缓冲区只有你主动要求才会恢复，开关在 **设置 → Terminal → Restore session
+history on relaunch**。它默认关着，因为打开意味着 Kero 会把捕获到的终端输出写到磁盘上。

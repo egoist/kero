@@ -4,8 +4,10 @@ import {
   createRootRoute,
   HeadContent,
   Scripts,
+  useParams,
 } from "@tanstack/react-router";
 import appCss from "@/styles/app.css?url";
+import { DEFAULT_LANGUAGE, isLanguage } from "@/lib/i18n";
 
 export const Route = createRootRoute({
   head: () => ({
@@ -45,8 +47,13 @@ function RootComponent() {
 }
 
 function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
+  // Only the translated docs sit under a `/$lang` prefix; everything else is
+  // English. `strict: false` so this still works on routes without the param.
+  const { lang } = useParams({ strict: false });
+  const language = isLanguage(lang) ? lang : DEFAULT_LANGUAGE;
+
   return (
-    <html lang="en" className="dark">
+    <html lang={language} className="dark">
       <head>
         <HeadContent />
       </head>

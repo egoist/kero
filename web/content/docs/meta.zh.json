@@ -1,0 +1,20 @@
+{
+  "title": "文档",
+  "pages": [
+    "---开始使用---",
+    "index",
+    "installation",
+    "quick-start",
+    "---使用 Kero---",
+    "projects",
+    "panes",
+    "terminal",
+    "git",
+    "files",
+    "session-info",
+    "---参考---",
+    "shortcuts",
+    "settings",
+    "faq"
+  ]
+}
