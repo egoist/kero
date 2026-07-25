@@ -16,7 +16,8 @@ const APPCAST_URL = `${RELEASES_ORIGIN}/appcast.xml`
 const X_URL = 'https://x.com/localhost_4173'
 const GITHUB_URL = 'https://github.com/egoist/kero'
 // Cask lives in egoist/homebrew-tap, so the tap has to be named explicitly.
-const BREW_COMMAND = 'brew install --cask egoist/tap/kero'
+// `--cask` is optional — brew falls back to casks, and the tap has no `kero` formula.
+const BREW_COMMAND = 'brew install egoist/tap/kero'
 
 // Shown only if the appcast can't be reached; kept current so downloads still work.
 const FALLBACK: Release = {
