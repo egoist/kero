@@ -98,8 +98,10 @@ final class AppSettings: nonisolated ObservableObject {
         didSet { save() }
     }
 
-    /// Opacity of the focused pane's accent ring (unfocused hairlines stay
-    /// faint). Only used while `showPaneFocusRing` is on.
+    /// Opacity of the focused pane's accent ring. Unfocused hairlines stay
+    /// faint whether the accent ring is on or off — they're the pane delimiter
+    /// when a TUI background fills the gap. Only used while
+    /// `showPaneFocusRing` is on.
     @Published var paneFocusRingOpacity: Double {
         didSet { save() }
     }

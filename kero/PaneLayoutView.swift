@@ -492,21 +492,19 @@ private struct PaneView: View {
         }
     }
 
-    @ViewBuilder
     private var focusRing: some View {
-        // Settings can hide the ring or dial its opacity; move handle and drop
-        // highlight still work so split chrome stays usable without a loud
-        // accent outline.
-        if settings.showPaneFocusRing {
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .strokeBorder(
-                    isFocused
-                        ? Color(nsColor: Theme.accent)
-                            .opacity(settings.paneFocusRingOpacity)
-                        : Color.primary.opacity(0.06),
-                    lineWidth: isFocused ? 1.5 : 1
-                )
-        }
+        // Settings can hide the accent ring or dial its opacity; the faint
+        // unfocused hairline stays either way — it's the only thing delimiting
+        // adjacent panes once a TUI's background bleeds into the gap.
+        let ringed = isFocused && settings.showPaneFocusRing
+        return RoundedRectangle(cornerRadius: 6, style: .continuous)
+            .strokeBorder(
+                ringed
+                    ? Color(nsColor: Theme.accent)
+                        .opacity(settings.paneFocusRingOpacity)
+                    : Color.primary.opacity(0.06),
+                lineWidth: ringed ? 1.5 : 1
+            )
     }
 
     /// Thin strip pinned to the pane's top edge — an absolutely-positioned grab
