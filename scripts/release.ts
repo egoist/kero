@@ -11,11 +11,13 @@
 //   • Developer ID cert + notary profile    — `xcrun notarytool store-credentials`
 //   • rclone remote for R2                   — `rclone config`  (S3-compatible)
 //   • Fill in scripts/ExportOptions.plist (teamID)
+//   • Push access to the Homebrew tap over SSH (for the cask bump)
 //
 // Usage:
 //   bun scripts/release.ts            # release the version currently in the project
 //   bun scripts/release.ts --local     # build signed artifacts without publishing
 //   FORCE=1 bun scripts/release.ts    # re-release even if that version exists
+//   NO_TAP=1 bun scripts/release.ts   # skip bumping the Homebrew cask
 //   NO_HISTORY=1 bun scripts/release.ts   # skip pulling old archives (no deltas)
 //   HISTORY_COUNT=3 bun scripts/release.ts   # use fewer prior archives for deltas
 //
@@ -28,6 +30,7 @@ import { join } from "node:path";
 import { die, need, say } from "./lib";
 import { generateAppcast } from "./generate-appcast";
 import { extractReleaseNotes } from "./changelog";
+import { bumpCask, checkMinimumSystemVersion } from "./bump-cask";
 
 // Run from the repo root regardless of where we were invoked.
 process.chdir(join(import.meta.dir, ".."));
@@ -73,6 +76,9 @@ need("ditto");
 if (!localBuild) need("xcrun");
 need("plutil");
 if (!localBuild) need("rclone");
+// Checked up front: the cask bump runs after publishing, too late to be useful
+// as a prerequisite failure.
+if (!localBuild && process.env.NO_TAP !== "1") need("git");
 need("create-dmg"); // brew install create-dmg
 if (!existsSync(EXPORT_OPTIONS)) {
   die(`export options not found: ${EXPORT_OPTIONS} (see RELEASING.md)`);
@@ -229,6 +235,23 @@ say(`Uploading update archives to ${R2_DEST}…`);
 await $`rclone copy ${UPDATES_DIR} ${R2_DEST} ${RCLONE_FLAGS} --exclude ${"appcast.xml"} --exclude ${"old_updates/**"} --header-upload ${"Cache-Control: public, max-age=31536000, immutable"} --progress`;
 say("Uploading appcast.xml…");
 await $`rclone copyto ${join(UPDATES_DIR, "appcast.xml")} ${`${R2_DEST}/appcast.xml`} ${RCLONE_FLAGS} --header-upload ${"Cache-Control: public, max-age=300, must-revalidate"}`;
+
+// ---- 9. bump the Homebrew cask -------------------------------------------
+// Last, because the cask's sha256 covers a DMG that must already be fetchable.
+// The release is live at this point, so a failure here is a warning with a
+// retry command, not a failed release.
+if (process.env.NO_TAP !== "1") {
+  say("Bumping the Homebrew cask…");
+  try {
+    await bumpCask(version, dmgPath);
+    await checkMinimumSystemVersion(appPlist);
+  } catch (error) {
+    console.warn(
+      `\x1b[1;33mwarning:\x1b[0m could not bump the cask: ${error instanceof Error ? error.message : error}\n` +
+        `         retry with: bun scripts/bump-cask.ts ${version}`,
+    );
+  }
+}
 
 say(`Done. kero ${version} is live:`);
 console.log(`     download : ${DOWNLOAD_URL_PREFIX}${dmgName}`);

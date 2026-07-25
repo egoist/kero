@@ -1,5 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
-import type { ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { cn } from '@/lib/utils'
 
 export const Route = createFileRoute('/')({
   component: Home,
@@ -14,6 +15,8 @@ const RELEASES_ORIGIN = 'https://releases.kero.sh'
 const APPCAST_URL = `${RELEASES_ORIGIN}/appcast.xml`
 const X_URL = 'https://x.com/localhost_4173'
 const GITHUB_URL = 'https://github.com/egoist/kero'
+// Cask lives in egoist/homebrew-tap, so the tap has to be named explicitly.
+const BREW_COMMAND = 'brew install --cask egoist/tap/kero'
 
 // Shown only if the appcast can't be reached; kept current so downloads still work.
 const FALLBACK: Release = {
@@ -257,6 +260,7 @@ function Home() {
             GitHub
           </a>
         </div>
+        <CopyCommand command={BREW_COMMAND} />
         <div className="flex flex-wrap items-center gap-2 text-[13px] text-muted-foreground">
           <Pill>v{latest.version}</Pill>
           <Pill>macOS {latest.minSystem}+</Pill>
@@ -355,6 +359,67 @@ function SectionHeading({ children }: { children: ReactNode }) {
     <h2 className="text-[13px] font-normal tracking-[0.04em] text-muted-foreground">
       {children}
     </h2>
+  )
+}
+
+/**
+ * The Homebrew one-liner with a copy button, sharing the download button's
+ * chrome. The command stays selectable so it's still usable if the Clipboard
+ * API isn't available (insecure context, denied permission).
+ */
+function CopyCommand({ command }: { command: string }) {
+  const [copied, setCopied] = useState(false)
+  const commandRef = useRef<HTMLSpanElement>(null)
+
+  useEffect(() => {
+    if (!copied) return
+    const timer = setTimeout(() => setCopied(false), 2000)
+    return () => clearTimeout(timer)
+  }, [copied])
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(command)
+      setCopied(true)
+    } catch {
+      // Clipboard denied (insecure context, permissions policy). Select the
+      // command so ⌘C still works — a button that does nothing reads as broken.
+      const node = commandRef.current
+      if (!node) return
+      const range = document.createRange()
+      range.selectNodeContents(node)
+      const selection = window.getSelection()
+      selection?.removeAllRanges()
+      selection?.addRange(range)
+    }
+  }
+
+  return (
+    <div className="flex max-w-full items-stretch self-start overflow-hidden rounded-[9px] border border-border bg-card">
+      <code className="flex min-w-0 items-center gap-2 overflow-x-auto px-4 py-[7px] whitespace-pre">
+        <span aria-hidden className="shrink-0 text-muted-foreground select-none">
+          $
+        </span>
+        <span ref={commandRef}>{command}</span>
+      </code>
+      <button
+        type="button"
+        onClick={copy}
+        aria-label={`Copy "${command}" to the clipboard`}
+        className="inline-flex shrink-0 items-center gap-2 border-l border-border px-3.5 text-muted-foreground transition-colors hover:bg-brand/8 hover:text-brand"
+      >
+        <span
+          aria-hidden
+          className={cn(
+            'size-4 shrink-0',
+            copied ? 'i-mingcute-check-line' : 'i-mingcute-copy-2-line',
+          )}
+        />
+        <span aria-live="polite" className="max-[420px]:sr-only">
+          {copied ? 'Copied' : 'Copy'}
+        </span>
+      </button>
+    </div>
   )
 }
 
