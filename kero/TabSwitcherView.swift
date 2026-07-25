@@ -21,10 +21,18 @@ final class TabSwitcherController: ObservableObject {
     private var previewTask: Task<Void, Never>?
     private var isConsumingTabKey = false
     private var isConsumingEscapeKey = false
+    private var acceptsPointerHighlight = false
 
     /// Returns nil for an event consumed by the switcher.
     func handle(_ event: NSEvent, manager: TerminalManager) -> NSEvent? {
         switch event.type {
+        case .mouseMoved:
+            // AppKit sends mouseEntered when a tracking area is created under
+            // a stationary pointer. Wait for actual pointer movement before
+            // allowing hover to replace the keyboard-selected card.
+            acceptsPointerHighlight = isPresented
+            return event
+
         case .flagsChanged:
             guard isPresented, !event.modifierFlags.contains(.control) else {
                 return event
@@ -98,6 +106,7 @@ final class TabSwitcherController: ObservableObject {
         highlightedTabID = nil
         originalTabID = nil
         activeProject = nil
+        acceptsPointerHighlight = false
     }
 
     func select(_ tabID: UUID, in project: Project) {
@@ -107,8 +116,10 @@ final class TabSwitcherController: ObservableObject {
     }
 
     func highlight(_ tabID: UUID, in project: Project) {
-        guard isPresented,
+        guard acceptsPointerHighlight,
+              isPresented,
               activeProject === project,
+              highlightedTabID != tabID,
               project.tabs.contains(where: { $0.id == tabID })
         else { return }
         highlightedTabID = tabID
@@ -125,6 +136,7 @@ final class TabSwitcherController: ObservableObject {
             activeProject = project
             originalTabID = selectedID
             highlightedTabID = selectedID
+            acceptsPointerHighlight = false
             let validContentIDs = Set(project.tabs.flatMap(\.allContents).map(\.id))
             terminalPreviews = terminalPreviews.filter {
                 validContentIDs.contains($0.key)
@@ -219,7 +231,7 @@ final class TabSwitcherMonitorView: NSView {
         guard let window else { return }
 
         eventMonitor = NSEvent.addLocalMonitorForEvents(
-            matching: [.keyDown, .keyUp, .flagsChanged]
+            matching: [.keyDown, .keyUp, .flagsChanged, .mouseMoved]
         ) { [weak self, weak window] event in
             // AppKit invokes local monitors synchronously on the event thread
             // (the main thread). Wrap the non-Sendable NSEvent only across
@@ -570,6 +582,7 @@ private final class TabSwitcherInteractionNSView: NSView {
             rect: .zero,
             options: [
                 .mouseEnteredAndExited,
+                .mouseMoved,
                 .activeInKeyWindow,
                 .inVisibleRect,
                 .enabledDuringMouseDrag,
@@ -579,6 +592,10 @@ private final class TabSwitcherInteractionNSView: NSView {
     }
 
     override func mouseEntered(with event: NSEvent) {
+        onEnter?()
+    }
+
+    override func mouseMoved(with event: NSEvent) {
         onEnter?()
     }
 
