@@ -305,17 +305,28 @@ final class DiffTab: nonisolated ObservableObject, nonisolated Identifiable {
     }
 }
 
-/// Root of the tab-owned hosting view: keeps the PierreDiffView (and its
+/// Root of the tab-owned hosting view: keeps the diff web view (and its
 /// WKWebView) alive for the tab's lifetime, re-rendering when the model's
 /// inputs change.
+///
+/// A tab still shows exactly one file. It goes through the multi-file surface
+/// holding that single file because that is the virtualized path: rows are
+/// rendered only while on screen and syntax highlighting runs in a worker, so
+/// opening or scrolling a large diff never stalls the main thread. The
+/// single-file view renders every row up front and highlights them inline.
 private struct DiffWebRoot: View {
     @ObservedObject var model: DiffWebModel
 
     var body: some View {
-        PierreDiffView(
-            oldContent: model.oldContent,
-            newContent: model.newContent,
-            fileName: model.fileName,
+        PierreMultiDiffView(
+            files: [
+                PierreDiffFile(
+                    id: model.fileName,
+                    name: model.fileName,
+                    oldContents: model.oldContent,
+                    newContents: model.newContent
+                )
+            ],
             diffStyle: $model.diffStyle,
             overflowMode: $model.overflowMode,
             onReady: {
