@@ -27,7 +27,6 @@ export function SiteFooter() {
       ·{' '}
       <Link
         to="/changelog"
-        reloadDocument
         className="text-foreground transition-colors hover:text-brand"
       >
         Changelog
