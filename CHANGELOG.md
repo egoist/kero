@@ -16,6 +16,7 @@ set in the Xcode project.
 - The Processes list no longer shows `<defunct>` entries: those are exited children waiting to be reaped, not something you can see output from or kill
 - Opening a large diff no longer freezes the window: diffs render only the rows on screen and highlight them off the main thread
 - The font setting now applies to the diff viewer too, so diffs match the terminal and the editor
+- Background panes no longer hold on to their GPU memory: a window with a dozen sessions used to keep a full-size render buffer for every one of them, whether or not it was on screen. Those buffers are now released when a pane is parked and rebuilt when you switch back to it — sessions keep running, and titles, bells, and exits still land while a pane is hidden
 
 ## [0.1.25]
 

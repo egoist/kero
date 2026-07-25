@@ -4,6 +4,7 @@
 //
 
 import AppKit
+import GhosttyTerminal
 import SwiftUI
 
 /// Hosts a session's long-lived Ghostty terminal view in SwiftUI,
@@ -26,6 +27,8 @@ struct TerminalHostView: NSViewRepresentable {
         container.terminal = session.terminalView
         container.focusOnAppear = isFocused
         let terminal = session.terminalView
+        // Coming out of parking: let the renderer draw again.
+        terminal.setSurfaceVisible(true)
         terminal.onBecomeFirstResponder = onFocused
         terminal.splitTarget.onSplit = onSplit
         let scrollbar = session.overlayScrollbar
@@ -55,6 +58,7 @@ struct TerminalHostView: NSViewRepresentable {
     }
 
     func updateNSView(_ view: NSView, context: Context) {
+        session.terminalView.setSurfaceVisible(true)
         session.terminalView.onBecomeFirstResponder = onFocused
         session.terminalView.splitTarget.onSplit = onSplit
         let container = view as? TerminalContainerView
@@ -118,6 +122,12 @@ final class TerminalParkingContainerView: NSView {
 
         for session in sessions {
             let terminal = session.terminalView
+            // Parked panes stay attached at full size so the grid survives
+            // unparking, but nothing composites them. Marking them occluded
+            // lets libghostty drop the renderer's pane-sized IOSurfaces
+            // (~20 MB each) while `shouldProcessWakeup` — gated on attachment,
+            // not visibility — keeps title/bell/exit events draining.
+            terminal.setSurfaceVisible(false)
             guard terminal.superview !== self else { continue }
             let parkedSize = terminal.frame.size
             if terminal.window?.firstResponder === terminal {
