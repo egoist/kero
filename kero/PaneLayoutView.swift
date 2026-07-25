@@ -65,12 +65,13 @@ struct PaneLayoutView: View {
             if tab.isZoomed, tab.hasMultiplePanes, let pane = tab.focusedPane {
                 // Zoom: the focused pane alone, filling the tab. The grid — and
                 // with it the dividers and the other panes — unmounts, exactly
-                // like an unselected tab's layout; the focus ring stays as the
-                // hint that a split layout is hiding underneath.
+                // like an unselected tab's layout; the focus ring (when enabled
+                // in Settings) stays as the hint that a split layout is hiding
+                // underneath. The header zoom control remains either way.
                 PaneView(
                     tab: tab,
                     pane: pane,
-                    showFocusRing: true,
+                    showSplitChrome: true,
                     allowsMove: false,
                     isMoveSource: false,
                     dropEdge: nil,
@@ -157,7 +158,7 @@ struct PaneLayoutView: View {
                 PaneView(
                     tab: tab,
                     pane: pane,
-                    showFocusRing: tab.hasMultiplePanes,
+                    showSplitChrome: tab.hasMultiplePanes,
                     allowsMove: true,
                     isMoveSource: paneDrag?.sourceID == pane.id,
                     dropEdge: paneDrag?.targetID == pane.id ? paneDrag?.edge : nil,
@@ -402,14 +403,17 @@ private struct ResizableDivider: View {
 }
 
 /// One tile: hosts its content and, when the tab holds more than one pane,
-/// draws a focus ring (accent for the focused pane, faint otherwise), a thin
-/// top strip you can grab to move the pane onto another, and a highlight while
-/// it's the drop target.
+/// draws optional focus chrome (accent for the focused pane, faint otherwise),
+/// a thin top strip you can grab to move the pane onto another, and a
+/// highlight while it's the drop target.
 private struct PaneView: View {
     @ObservedObject var tab: PaneTab
     @ObservedObject private var themeChanges = Theme.changes
+    @ObservedObject private var settings = AppSettings.shared
     let pane: Pane
-    let showFocusRing: Bool
+    /// Multi-pane chrome (move handle, drop target, optional focus ring).
+    /// Single-pane tabs leave this off so they stay full-bleed.
+    let showSplitChrome: Bool
     /// Whether the top grab strip is offered at all — false while zoomed,
     /// where there is no other pane on screen to drop onto.
     let allowsMove: Bool
@@ -444,7 +448,7 @@ private struct PaneView: View {
     var body: some View {
         // Single-pane tabs render exactly as before splits existed — no ring,
         // no handle — so nothing about the common case changes.
-        if showFocusRing {
+        if showSplitChrome {
             content
                 // Deliberately no clip: masking an AppKit view forces an
                 // offscreen recomposite that flickers on live resize. The
@@ -488,14 +492,21 @@ private struct PaneView: View {
         }
     }
 
+    @ViewBuilder
     private var focusRing: some View {
-        RoundedRectangle(cornerRadius: 6, style: .continuous)
-            .strokeBorder(
-                isFocused
-                    ? Color(nsColor: Theme.accent).opacity(0.85)
-                    : Color.primary.opacity(0.06),
-                lineWidth: isFocused ? 1.5 : 1
-            )
+        // Settings can hide the ring or dial its opacity; move handle and drop
+        // highlight still work so split chrome stays usable without a loud
+        // accent outline.
+        if settings.showPaneFocusRing {
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .strokeBorder(
+                    isFocused
+                        ? Color(nsColor: Theme.accent)
+                            .opacity(settings.paneFocusRingOpacity)
+                        : Color.primary.opacity(0.06),
+                    lineWidth: isFocused ? 1.5 : 1
+                )
+        }
     }
 
     /// Thin strip pinned to the pane's top edge — an absolutely-positioned grab

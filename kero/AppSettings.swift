@@ -32,6 +32,10 @@ final class AppSettings: nonisolated ObservableObject {
     static let defaultFontSize: Double = 13
     static let fontSizeRange: ClosedRange<Double> = 8...32
 
+    /// Default matches the pre-setting focus ring (accent @ 85% opacity).
+    static let defaultPaneFocusRingOpacity: Double = 0.85
+    static let paneFocusRingOpacityRange: ClosedRange<Double> = 0.05...1
+
     /// Light/dark appearance override; `system` follows macOS.
     @Published var theme: AppTheme {
         didSet {
@@ -87,6 +91,19 @@ final class AppSettings: nonisolated ObservableObject {
         didSet { save() }
     }
 
+    /// Draw an accent focus ring around the active pane in a split layout.
+    /// On by default so multi-pane focus stays obvious; turn off for a
+    /// quieter look when the caret/cursor is enough.
+    @Published var showPaneFocusRing: Bool {
+        didSet { save() }
+    }
+
+    /// Opacity of the focused pane's accent ring (unfocused hairlines stay
+    /// faint). Only used while `showPaneFocusRing` is on.
+    @Published var paneFocusRingOpacity: Double {
+        didSet { save() }
+    }
+
     private init() {
         let existing = TOML.parse(at: Self.configURL)
         let toml = existing ?? Self.legacyDefaults()
@@ -103,9 +120,22 @@ final class AppSettings: nonisolated ObservableObject {
         fontThicken = toml["font-thicken"]?.bool ?? false
         wrapLines = toml["editor.wrap-lines"]?.bool ?? false
         restoreTerminalHistory = toml["terminal.restore-history"]?.bool ?? false
+        showPaneFocusRing = toml["panes.show-focus-ring"]?.bool ?? true
+        let opacity = toml["panes.focus-ring-opacity"]?.double
+            ?? Self.defaultPaneFocusRingOpacity
+        paneFocusRingOpacity = Self.paneFocusRingOpacityRange.contains(opacity)
+            ? opacity
+            : Self.defaultPaneFocusRingOpacity
         applyAppearance()
         reloadThemeSelection()
         if existing == nil { save() }
+    }
+
+    /// Slider steps are not always bit-exact with the default; compare as
+    /// whole-percent so Reset / sparse save treat 85% as the default.
+    static func paneFocusRingOpacityMatchesDefault(_ value: Double) -> Bool {
+        Int((value * 100).rounded())
+            == Int((defaultPaneFocusRingOpacity * 100).rounded())
     }
 
     /// Pushes the current names into `Theme`, which resolves and caches the
@@ -144,6 +174,8 @@ final class AppSettings: nonisolated ObservableObject {
         themeLight = Theme.defaultLightThemeName
         wrapLines = false
         restoreTerminalHistory = false
+        showPaneFocusRing = true
+        paneFocusRingOpacity = Self.defaultPaneFocusRingOpacity
     }
 
     private func save() {
@@ -171,6 +203,15 @@ final class AppSettings: nonisolated ObservableObject {
         }
         if restoreTerminalHistory {
             lines.append("terminal.restore-history = true")
+        }
+        // Default is on; only persist the opt-out.
+        if !showPaneFocusRing {
+            lines.append("panes.show-focus-ring = false")
+        }
+        if !Self.paneFocusRingOpacityMatchesDefault(paneFocusRingOpacity) {
+            lines.append(
+                "panes.focus-ring-opacity = \(TOML.number(paneFocusRingOpacity))"
+            )
         }
         let dir = Self.configURL.deletingLastPathComponent()
         do {

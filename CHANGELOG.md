@@ -12,6 +12,7 @@ set in the Xcode project.
 
 ## [unrelease]
 
+- Add Settings → Panes controls for the split-pane focus ring: toggle it off, or dial opacity (`panes.show-focus-ring`, `panes.focus-ring-opacity` in config.toml)
 - The Processes list no longer shows `<defunct>` entries: those are exited children waiting to be reaped, not something you can see output from or kill
 - Opening a large diff no longer freezes the window: diffs render only the rows on screen and highlight them off the main thread
 - The font setting now applies to the diff viewer too, so diffs match the terminal and the editor
