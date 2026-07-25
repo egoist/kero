@@ -16,7 +16,7 @@ set in the Xcode project.
 - The Processes list no longer shows `<defunct>` entries: those are exited children waiting to be reaped, not something you can see output from or kill
 - Opening a large diff no longer freezes the window: diffs render only the rows on screen and highlight them off the main thread
 - The font setting now applies to the diff viewer too, so diffs match the terminal and the editor
-- Kero no longer draws sessions you are not looking at. Reopening a window full of sessions used to render every one of them straight away, holding a full-size GPU buffer for each whether or not you ever opened it — now only the panes you actually view take one, and each takes one buffer less than before. Hidden sessions keep running, and their titles, bells, and exits still arrive
+- Sessions you never open no longer cost any GPU memory. Reopening a window used to draw every restored session straight away, holding a full-size buffer for each whether you looked at it or not; now a pane claims one only when you first view it, and claims one buffer less than before. A pane you have already viewed keeps its buffer until you close it — switching away stops it drawing, but does not hand the memory back. Either way a hidden session keeps running, and its titles, bells, and exits still arrive
 
 ## [0.1.25]
 
