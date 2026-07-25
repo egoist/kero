@@ -110,23 +110,29 @@ final class SessionInfoModel: nonisolated ObservableObject {
     ) -> ([ProcessItem], [PortItem]) {
         // `comm` is the executable path with no arguments, so the only
         // free-form field is the last one and column parsing stays safe.
-        let psOut = run("/bin/ps", ["-axo", "pid=,ppid=,pcpu=,rss=,comm="])
+        let psOut = run("/bin/ps", ["-axo", "pid=,ppid=,stat=,pcpu=,rss=,comm="])
         var itemsByPid: [pid_t: ProcessItem] = [:]
         var childPids: [pid_t: [pid_t]] = [:]
         for line in psOut.split(separator: "\n") {
-            let fields = line.split(separator: " ", maxSplits: 4, omittingEmptySubsequences: true)
-            guard fields.count == 5,
+            let fields = line.split(separator: " ", maxSplits: 5, omittingEmptySubsequences: true)
+            guard fields.count == 6,
                   let pid = pid_t(fields[0]),
                   let ppid = pid_t(fields[1]) else { continue }
-            let executable = String(fields[4])
+            // Recorded before the zombie check so the descendant walk below
+            // still traverses the tree through anything we skip.
+            childPids[ppid, default: []].append(pid)
+            // Zombies are children that already exited and are waiting to be
+            // reaped: `ps` names them "<defunct>", they hold no CPU or memory,
+            // and no signal can touch them. Nothing to show or act on.
+            guard !fields[2].hasPrefix("Z") else { continue }
+            let executable = String(fields[5])
             itemsByPid[pid] = ProcessItem(
                 pid: pid,
                 name: (executable as NSString).lastPathComponent,
                 executable: executable,
-                cpu: Double(fields[2]) ?? 0,
-                memoryKB: Int(fields[3]) ?? 0
+                cpu: Double(fields[3]) ?? 0,
+                memoryKB: Int(fields[4]) ?? 0
             )
-            childPids[ppid, default: []].append(pid)
         }
 
         // Descendants breadth-first: the commands the user ran come before
