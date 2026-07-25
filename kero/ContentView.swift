@@ -54,7 +54,11 @@ struct ContentView: View {
                                     project.extractPane(paneID, from: tab, at: index)
                                 },
                                 onCloseContent: { project.closeContent($0) },
-                                tabOrder: project.tabs.map(\.id)
+                                onMovePaneToProject: { paneID, projectID in
+                                    manager.movePane(paneID, toProject: projectID)
+                                },
+                                tabOrder: project.tabs.map(\.id),
+                                currentProjectID: project.id
                             )
                         } else {
                             emptyState
@@ -177,6 +181,9 @@ private struct MainHeaderView: View {
                     // and the exit-zoom button (24 + 8 spacing) while shown.
                     SessionTabsView(
                         project: project,
+                        moveTabToProject: { tabID, projectID in
+                            manager.moveTab(tabID, toProject: projectID)
+                        },
                         maxStripWidth: max(0, geo.size.width - leadingInset - 74 - (manager.isPaneZoomed ? 32 : 0))
                     )
                 }
@@ -233,6 +240,8 @@ private struct MainHeaderView: View {
 private struct SessionTabsView: View {
     @ObservedObject var project: Project
     @EnvironmentObject private var dragging: PaneDragCoordinator
+    /// Moves a tab into another project, dropped on its sidebar row.
+    var moveTabToProject: (UUID, UUID) -> Void = { _, _ in }
     let maxStripWidth: CGFloat
     @State private var overflow = StripOverflow()
     @State private var draggedTabID: UUID?
@@ -395,6 +404,16 @@ private struct SessionTabsView: View {
         draggedTabID = source
         NSCursor.closedHand.set()
 
+        // A sidebar row wins over everything else: it sits outside both the
+        // strip and the layout, and the strip's drop region deliberately
+        // reaches past the window's edges.
+        if let target = dragging.project(at: location, excluding: project.id) {
+            dragging.tabDrag = PaneDragCoordinator.TabDrag(
+                tabID: source, location: location, targetProjectID: target
+            )
+            return
+        }
+
         if dragging.stripFrame.contains(location) {
             dragging.tabDrag = nil
             guard let target = tabFrames.first(where: {
@@ -423,9 +442,12 @@ private struct SessionTabsView: View {
     }
 
     private func endTabDrag(source: UUID) {
-        if let drag = dragging.tabDrag, drag.tabID == source,
-           let target = drag.targetPaneID, let edge = drag.edge {
-            project.mergeTab(source, into: target, edge: edge)
+        if let drag = dragging.tabDrag, drag.tabID == source {
+            if let destination = drag.targetProjectID {
+                moveTabToProject(source, destination)
+            } else if let target = drag.targetPaneID, let edge = drag.edge {
+                project.mergeTab(source, into: target, edge: edge)
+            }
         }
         dragging.tabDrag = nil
         draggedTabID = nil

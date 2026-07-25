@@ -21,9 +21,14 @@ struct PaneLayoutView: View {
     var onExtractPane: (UUID, Int?) -> Void = { _, _ in }
     /// Closes one pane's content, with the project's save prompts.
     var onCloseContent: (PaneContent) -> Void = { _ in }
+    /// Moves a pane into another project, dropped on its sidebar row.
+    var onMovePaneToProject: (UUID, UUID) -> Void = { _, _ in }
     /// The order tabs appear in the strip, so a pane dropped there can be given
     /// an insertion index.
     var tabOrder: [UUID] = []
+    /// The project this layout belongs to, so its own sidebar row isn't
+    /// offered as a destination for a pane already in it.
+    var currentProjectID: UUID?
 
     /// Gap between tiles, which doubles as the divider hit area. The same
     /// value insets the whole grid from the parent, so the spacing around the
@@ -142,7 +147,7 @@ struct PaneLayoutView: View {
                     let origin = geo.frame(in: .global).origin
                     let size = thumbnailFrame(for: paneDrag.paneID)
                     dragThumbnailView(
-                        for: paneDrag.paneID, size: size, isOverStrip: paneDrag.isOverStrip
+                        for: paneDrag.paneID, size: size, isOverStrip: paneDrag.previewsTab
                     )
                     // Centered on the pointer, both axes.
                     .offset(
@@ -261,8 +266,12 @@ struct PaneLayoutView: View {
         }
         var move = PaneDragCoordinator.PaneDrag(paneID: source, location: location)
         // Extracting needs a pane to leave behind; a lone pane is already its
-        // own tab, so the strip isn't offered as a target for it.
+        // own tab, so neither the strip nor the sidebar is offered for it.
         if tab.hasMultiplePanes,
+           let project = dragging.project(at: location, excluding: currentProjectID) {
+            move.targetProjectID = project
+            NSCursor.closedHand.set()
+        } else if tab.hasMultiplePanes,
            let index = dragging.tabInsertionIndex(at: location, in: tabOrder) {
             move.tabDropIndex = index
             NSCursor.closedHand.set()
@@ -280,7 +289,9 @@ struct PaneLayoutView: View {
     /// onto the chosen edge of another pane in this layout.
     private func commitPaneMove() {
         if let move = dragging.paneDrag {
-            if let index = move.tabDropIndex {
+            if let project = move.targetProjectID {
+                onMovePaneToProject(move.paneID, project)
+            } else if let index = move.tabDropIndex {
                 onExtractPane(move.paneID, index)
             } else if let target = move.targetPaneID, let edge = move.edge {
                 tab.movePane(move.paneID, edge, of: target)

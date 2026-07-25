@@ -157,6 +157,15 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
                 ?? customDirectory,
             restoredHistory: restoredHistory
         )
+        observe(session)
+        return session
+    }
+
+    /// Wires a session to this project: its exit closure and its change
+    /// re-publishing both point at whichever project currently holds it. Called
+    /// again on adoption, so a session that moves between projects reports its
+    /// exit to its new owner rather than the one that started it.
+    private func observe(_ session: TerminalSession) {
         session.onExited = { [weak self] session in
             // Already dead — just drop its pane, no second terminate.
             self?.closeContent(.session(session), terminate: false)
@@ -164,7 +173,6 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
         sessionObservations[session.id] = session.objectWillChange.sink { [weak self] _ in
             self?.objectWillChange.send()
         }
-        return session
     }
 
     func terminateAll() {
@@ -271,12 +279,36 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
     /// source tab when nil) and selected. The pane keeps its content, so a
     /// running shell is carried across rather than restarted. A no-op when the
     /// pane is the tab's only one: it already *is* the whole tab.
-    func extractPane(_ paneID: UUID, from tab: PaneTab, at index: Int? = nil) {
-        guard let pane = tab.extractPane(paneID) else { return }
+    @discardableResult
+    func extractPane(_ paneID: UUID, from tab: PaneTab, at index: Int? = nil) -> PaneTab? {
+        guard let pane = tab.extractPane(paneID) else { return nil }
         let newTab = register(PaneTab(pane: pane))
         let fallback = tabs.firstIndex { $0.id == tab.id }.map { $0 + 1 } ?? tabs.count
         tabs.insert(newTab, at: min(max(0, index ?? fallback), tabs.count))
         selectedTabID = newTab.id
+        return newTab
+    }
+
+    /// Hands a tab off to another project: drops it from the strip and clears
+    /// the bookkeeping it holds here, terminating nothing. The tab object — and
+    /// every shell inside it — lives on for `adopt(_:)` to take up.
+    func release(tabID: UUID) -> PaneTab? {
+        guard let tab = tabs.first(where: { $0.id == tabID }) else { return nil }
+        remove(tabID: tabID)
+        return tab
+    }
+
+    /// Takes in a tab released by another project. Re-wiring is the whole job:
+    /// each session's exit closure and change observation still point at the
+    /// project that made it, so without this a moved shell would report its
+    /// exit to the project it left.
+    func adopt(_ tab: PaneTab) {
+        for session in tab.sessions {
+            observe(session)
+        }
+        register(tab)
+        insertNextToSelected(tab)
+        selectedTabID = tab.id
     }
 
     /// Whether a tab may be dropped into another tab's layout. Diffs keep their

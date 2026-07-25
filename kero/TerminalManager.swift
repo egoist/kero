@@ -324,6 +324,33 @@ final class TerminalManager: nonisolated ObservableObject {
         projects = reorderedProjects
     }
 
+    /// Moves a tab into another project — the drag onto a sidebar row. The tab
+    /// object itself makes the trip: the same panes, the same
+    /// `TerminalSession`s, the same shells and pids and scrollback, released by
+    /// one project and adopted by the other. Selection follows it, so the drop
+    /// shows its own result.
+    func moveTab(_ tabID: UUID, toProject projectID: UUID) {
+        guard let source = projects.first(where: { project in
+                  project.tabs.contains { $0.id == tabID }
+              }),
+              let destination = projects.first(where: { $0.id == projectID }),
+              source !== destination,
+              let tab = source.release(tabID: tabID)
+        else { return }
+        destination.adopt(tab)
+        selectedProjectID = destination.id
+    }
+
+    /// Moves a single pane into another project, by making it a tab of its own
+    /// first — the same extraction the tab strip performs — and handing that
+    /// tab over. A no-op for a pane that is already its whole tab; there the
+    /// tab itself is what you drag.
+    func movePane(_ paneID: UUID, toProject projectID: UUID) {
+        guard let project = selectedProject, let tab = project.selectedTab,
+              let extracted = project.extractPane(paneID, from: tab) else { return }
+        moveTab(extracted.id, toProject: projectID)
+    }
+
     func selectProject(index: Int) {
         guard projects.indices.contains(index) else { return }
         selectedProjectID = projects[index].id

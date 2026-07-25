@@ -33,8 +33,14 @@ final class PaneDragCoordinator: ObservableObject {
         /// Where it would land in the tab strip, when the cursor is up there
         /// instead — the index the extracted tab is inserted at.
         var tabDropIndex: Int?
+        /// The sidebar project it would move to, when the cursor is over a
+        /// project row.
+        var targetProjectID: UUID?
 
         var isOverStrip: Bool { tabDropIndex != nil }
+        /// Over the strip or a project row, the pane becomes a tab either way,
+        /// so the thumbnail previews a tab rather than the pane.
+        var previewsTab: Bool { tabDropIndex != nil || targetProjectID != nil }
     }
 
     /// A tab being carried out of the strip and over the pane layout.
@@ -43,6 +49,9 @@ final class PaneDragCoordinator: ObservableObject {
         var location: CGPoint
         var targetPaneID: UUID?
         var edge: PaneDropEdge?
+        /// The sidebar project it would move to, when the cursor is over a
+        /// project row.
+        var targetProjectID: UUID?
     }
 
     @Published var paneDrag: PaneDrag?
@@ -55,6 +64,8 @@ final class PaneDragCoordinator: ObservableObject {
     /// header row counts, so the gesture doesn't demand pixel accuracy.
     var tabFrames: [UUID: CGRect] = [:]
     var stripFrame: CGRect = .zero
+    /// Global-space frame of every sidebar project row, from `SidebarView`.
+    var projectFrames: [UUID: CGRect] = [:]
 
     /// The pane under `location`, if any — excluding `excluding`, which is the
     /// pane being carried.
@@ -62,6 +73,21 @@ final class PaneDragCoordinator: ObservableObject {
         paneFrames
             .first { $0.key != excluding && $0.value.contains(location) }
             .map { (id: $0.key, frame: $0.value) }
+    }
+
+    /// The sidebar project row under `location`, if any — excluding
+    /// `excluding`, the project the dragged tab already belongs to, so its own
+    /// row never lights up as a destination.
+    func project(at location: CGPoint, excluding: UUID? = nil) -> UUID? {
+        projectFrames
+            .first { $0.key != excluding && $0.value.contains(location) }?
+            .key
+    }
+
+    /// The project row being previewed as a drop target right now, from
+    /// whichever drag is in flight.
+    func isDropTarget(project projectID: UUID) -> Bool {
+        paneDrag?.targetProjectID == projectID || tabDrag?.targetProjectID == projectID
     }
 
     /// Where a pane dropped at `location` would be inserted in the strip: the
