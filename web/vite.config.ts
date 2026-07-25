@@ -10,7 +10,15 @@ export default defineConfig({
   plugins: [
     cloudflare({ viteEnvironment: { name: 'ssr' } }),
     tailwindcss(),
-    tanstackStart(),
+    tanstackStart({
+      prerender: {
+        enabled: true,
+        autoStaticPathsDiscovery: false,
+        crawlLinks: false,
+      },
+      pages: [{ path: '/changelog', prerender: { enabled: true } }],
+      sitemap: { enabled: false },
+    }),
     viteReact(),
   ],
 })

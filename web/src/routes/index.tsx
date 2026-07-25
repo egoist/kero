@@ -1,5 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { SiteLayout } from '@/components/site-layout'
 import { cn } from '@/lib/utils'
 
 export const Route = createFileRoute('/')({
@@ -13,7 +14,6 @@ type Release = { version: string; minSystem: string; dmg: string }
 
 const RELEASES_ORIGIN = 'https://releases.kero.sh'
 const APPCAST_URL = `${RELEASES_ORIGIN}/appcast.xml`
-const X_URL = 'https://x.com/localhost_4173'
 const GITHUB_URL = 'https://github.com/egoist/kero'
 // Cask lives in egoist/homebrew-tap, so the tap has to be named explicitly.
 // `--cask` is optional — brew falls back to casks, and the tap has no `kero` formula.
@@ -214,33 +214,26 @@ const FAQ: { q: string; a: ReactNode }[] = [
 function Home() {
   const latest = Route.useLoaderData()
   return (
-    <main className="mx-auto flex max-w-[680px] flex-col gap-11 px-6 pt-[12vh] pb-[14vh] font-mono text-[14px] leading-[1.6]">
-      <header className="flex flex-col gap-3">
-        <h1 className="flex items-center gap-2.5 text-2xl font-bold tracking-[0.02em]">
-          <img
-            src="/kero-icon.png"
-            alt=""
-            width={100}
-            height={100}
-            className="block size-12 border border-zinc-600 rounded-md"
-          />
-          kero
-        </h1>
-        <p className="text-foreground/70">
-          Your terminal, with the <span className="text-brand">whole project</span> around it.
-          <span
-            aria-hidden
-            className="ml-[5px] inline-block h-[1.05em] w-[7px] animate-caret rounded-[1px] bg-brand align-[-0.15em] motion-reduce:animate-none"
-          />
-        </p>
-        <p className="mt-3.5 text-muted-foreground">
-          A native macOS workspace built around the terminal — projects, persistent
-          sessions, files, and git in one window.
-          <br />
-          Free, no telemetry, no subscription.
-        </p>
-      </header>
-
+    <SiteLayout
+      headerContent={
+        <>
+          <p className="text-foreground/70">
+            Your terminal, with the{' '}
+            <span className="text-brand">whole project</span> around it.
+            <span
+              aria-hidden
+              className="ml-[5px] inline-block h-[1.05em] w-[7px] animate-caret rounded-[1px] bg-brand align-[-0.15em] motion-reduce:animate-none"
+            />
+          </p>
+          <p className="mt-3.5 text-muted-foreground">
+            A native macOS workspace built around the terminal — projects, persistent
+            sessions, files, and git in one window.
+            <br />
+            Free, no telemetry, no subscription.
+          </p>
+        </>
+      }
+    >
       <section className="flex flex-col gap-3.5">
         <div className="flex flex-wrap items-center gap-2.5">
           <a
@@ -327,29 +320,7 @@ function Home() {
           ))}
         </div>
       </section>
-
-      <footer className="text-[13px] text-muted-foreground">
-        Built by{' '}
-        <a
-          href={X_URL}
-          target="_blank"
-          rel="noreferrer"
-          className="text-foreground transition-colors hover:text-brand"
-        >
-          @localhost_4173
-        </a>{' '}
-        ·{' '}
-        <a
-          href={GITHUB_URL}
-          target="_blank"
-          rel="noreferrer"
-          className="text-foreground transition-colors hover:text-brand"
-        >
-          GitHub
-        </a>{' '}
-        · © 2026
-      </footer>
-    </main>
+    </SiteLayout>
   )
 }
 
