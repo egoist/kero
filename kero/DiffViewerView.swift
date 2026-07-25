@@ -305,19 +305,77 @@ final class DiffTab: nonisolated ObservableObject, nonisolated Identifiable {
     }
 }
 
-/// Root of the tab-owned hosting view: keeps the PierreDiffView (and its
+/// Font handling for the diff web view, so a diff reads at the same family and
+/// size as the terminal and the editor.
+///
+/// A family the user picked in Settings is installed system-wide and the web
+/// view resolves it by name. kero's bundled JetBrains Mono is different:
+/// `TerminalFont.registerBundledFonts` registers it for this process only, and
+/// the diff renders in a separate WebKit content process that cannot see it —
+/// so its faces travel to the web view as embedded font data. Reading and
+/// encoding them happens once for the whole app.
+private enum DiffFont {
+    static func renderOptions(family: String, size: Double) -> PierreDiffRenderOptions {
+        let usesBundled = family.isEmpty || family == TerminalFont.bundledFamily
+        return PierreDiffRenderOptions(
+            font: .bundled(
+                familyName: usesBundled ? TerminalFont.bundledFamily : family,
+                faces: usesBundled ? bundledFaces : [],
+                sizePoints: size
+            )
+        )
+    }
+
+    /// All four faces travel, rather than letting the browser synthesize bold
+    /// and italic: synthetic faces in a monospace grid do not stay aligned
+    /// with the real one.
+    private static let bundledFaces: [PierreDiffFontFace] = {
+        let variants = [
+            ("JetBrainsMono-Regular", "400", "normal"),
+            ("JetBrainsMono-Bold", "700", "normal"),
+            ("JetBrainsMono-Italic", "400", "italic"),
+            ("JetBrainsMono-BoldItalic", "700", "italic"),
+        ]
+        return variants.compactMap { resource, weight, style in
+            PierreDiffFontFace.load(
+                family: TerminalFont.bundledFamily,
+                resource: resource,
+                extension: "ttf",
+                weight: weight,
+                style: style
+            )
+        }
+    }()
+}
+
+/// Root of the tab-owned hosting view: keeps the diff web view (and its
 /// WKWebView) alive for the tab's lifetime, re-rendering when the model's
 /// inputs change.
+///
+/// A tab still shows exactly one file. It goes through the multi-file surface
+/// holding that single file because that is the virtualized path: rows are
+/// rendered only while on screen and syntax highlighting runs in a worker, so
+/// opening or scrolling a large diff never stalls the main thread. The
+/// single-file view renders every row up front and highlights them inline.
 private struct DiffWebRoot: View {
     @ObservedObject var model: DiffWebModel
+    @ObservedObject private var settings = AppSettings.shared
 
     var body: some View {
-        PierreDiffView(
-            oldContent: model.oldContent,
-            newContent: model.newContent,
-            fileName: model.fileName,
+        PierreMultiDiffView(
+            files: [
+                PierreDiffFile(
+                    id: model.fileName,
+                    name: model.fileName,
+                    oldContents: model.oldContent,
+                    newContents: model.newContent
+                )
+            ],
             diffStyle: $model.diffStyle,
             overflowMode: $model.overflowMode,
+            renderOptions: DiffFont.renderOptions(
+                family: settings.fontFamily, size: settings.fontSize
+            ),
             onReady: {
                 withAnimation(.easeInOut(duration: 0.2)) {
                     model.isReady = true

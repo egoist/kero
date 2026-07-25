@@ -33,8 +33,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/egoist-labs/PierreDiffsSwift",
       "state" : {
-        "revision" : "865f93f45e3d1c5d1ab98b201206e67d9dcd169f",
-        "version" : "1.3.1"
+        "revision" : "4455eaf4683558c019ade29bb8403fb1d81f9f23",
+        "version" : "1.4.1"
       }
     },
     {

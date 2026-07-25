@@ -23,6 +23,10 @@ Or with Homebrew:
 brew install egoist/tap/kero
 ```
 
+## Contributing
+
+[CONTRIBUTING.md](CONTRIBUTING.md)
+
 ## License
 
 GPLv3
