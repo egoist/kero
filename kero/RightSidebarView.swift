@@ -64,7 +64,13 @@ struct RightSidebarView: View {
                             }
                         )
                     case .info:
-                        InfoPanel(model: info, session: manager.selectedSession)
+                        InfoPanel(
+                            model: info,
+                            session: manager.selectedSession,
+                            paneName: manager.focusedPaneName,
+                            paneAutomaticTitle: manager.focusedPaneAutomaticTitle,
+                            renamePane: { manager.renameFocusedPane(to: $0) }
+                        )
                     }
                 }
                 .frame(width: width)
@@ -1796,7 +1802,14 @@ private struct InfoPanel: View {
     @ObservedObject var model: SessionInfoModel
     @ObservedObject private var themeChanges = Theme.changes
     let session: TerminalSession?
+    /// The focused pane's assigned name, nil while its title is automatic.
+    var paneName: String?
+    /// The title that name overrides — shown as the field's placeholder, so
+    /// clearing the field visibly returns the pane to it.
+    var paneAutomaticTitle: String?
+    var renamePane: (String?) -> Void = { _ in }
 
+    @State private var nameCollapsed = false
     @State private var currentDirectoryCollapsed = false
     @State private var projectDirectoryCollapsed = false
     @State private var processesCollapsed = false
@@ -1810,6 +1823,7 @@ private struct InfoPanel: View {
             header
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 1) {
+                    nameSection
                     currentDirectorySection
                     projectDirectorySection
                     processesSection
@@ -1847,6 +1861,36 @@ private struct InfoPanel: View {
         .padding(.horizontal, 12)
         .padding(.top, 8)
         .padding(.bottom, 8)
+    }
+
+    // MARK: Name
+
+    /// The focused pane's name, editable in place. The same field the pane's
+    /// header and the tab strip offer, reachable without a right-click:
+    /// committing writes the name, emptying it returns the pane to its
+    /// automatic title (which stands in as the placeholder).
+    @ViewBuilder
+    private var nameSection: some View {
+        if let automatic = paneAutomaticTitle {
+            GitSectionHeader(
+                title: "NAME" + (paneName == nil ? " (AUTO)" : ""),
+                count: 0,
+                isCollapsed: $nameCollapsed, actions: [],
+                helpText: "The focused pane's name, shown in its header strip "
+                    + "and its tab. Leave it empty to follow the terminal's "
+                    + "own title instead."
+            )
+            if !nameCollapsed {
+                InfoNameField(
+                    name: paneName,
+                    placeholder: automatic,
+                    commit: renamePane
+                )
+                .padding(.horizontal, 9)
+                .padding(.top, 2)
+                .padding(.bottom, 10)
+            }
+        }
     }
 
     // MARK: Directories
@@ -2006,6 +2050,51 @@ private struct InfoPanel: View {
             .foregroundStyle(.tertiary)
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
+    }
+}
+
+/// Text field for the focused pane's name. The draft is local while the field
+/// is being edited and re-synced from the model otherwise, so a name changed
+/// elsewhere (the pane header, the tab strip) shows here immediately without
+/// yanking text out from under someone mid-edit.
+private struct InfoNameField: View {
+    @ObservedObject private var themeChanges = Theme.changes
+    let name: String?
+    let placeholder: String
+    let commit: (String?) -> Void
+
+    @State private var draft = ""
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        TextField(placeholder, text: $draft)
+            .textFieldStyle(.plain)
+            .font(.system(size: 11))
+            .lineLimit(1)
+            .focused($focused)
+            .padding(.horizontal, 7)
+            .padding(.vertical, 4)
+            .background(
+                RoundedRectangle(cornerRadius: 5)
+                    .fill(Color.primary.opacity(0.06))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 5)
+                    .strokeBorder(
+                        focused
+                            ? Color(nsColor: Theme.accent).opacity(0.7)
+                            : Color.primary.opacity(0.08)
+                    )
+            )
+            .onSubmit { commit(draft) }
+            .onChange(of: focused) {
+                // Commit on the way out too, matching the header and strip
+                // fields — nothing is lost by clicking away.
+                if !focused { commit(draft) } else { draft = name ?? "" }
+            }
+            .onAppear { draft = name ?? "" }
+            .onChange(of: name) { if !focused { draft = name ?? "" } }
+            .onChange(of: placeholder) { if !focused { draft = name ?? "" } }
     }
 }
 

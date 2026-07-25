@@ -339,6 +339,14 @@ private struct SessionTabsView: View {
             .buttonStyle(.plain)
             .tooltip("New Session (⌘T)", edge: .below)
         }
+        // A rename asked for from outside the strip (palette, Info panel) opens
+        // the same inline field the tab's context menu does — this is where a
+        // single-pane tab's rename lands, since it has no pane header.
+        .onChange(of: project.pendingRenameTabID) { _, requested in
+            guard let requested else { return }
+            renamingTabID = requested
+            DispatchQueue.main.async { project.pendingRenameTabID = nil }
+        }
         .onPreferenceChange(TabFramePreferenceKey.self) { frames in
             tabFrames = frames
             dragging.tabFrames = frames

@@ -27,6 +27,10 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
     @Published var customDirectory: String?
     @Published var tabs: [PaneTab] = []
     @Published var selectedTabID: UUID?
+    /// A tab whose strip item should open its inline rename field, requested
+    /// from outside the strip (the command palette, the Info panel). The strip
+    /// consumes and clears it. The pane-level counterpart lives on `PaneTab`.
+    @Published var pendingRenameTabID: UUID?
 
     private let fallbackName: String
     /// Sessions publish their own changes (title, directory); re-publish them
@@ -205,6 +209,60 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
 
     /// Whether the selected tab is showing a zoomed pane.
     var isPaneZoomed: Bool { selectedTab?.isZoomed ?? false }
+
+    // MARK: - Naming the focused pane
+
+    /// Every terminal in the project paired with the name its pane shows, for
+    /// listings that identify a shell by where it lives rather than by its
+    /// title alone. A pane in a split carries its own name; a pane that is its
+    /// whole tab is named by the tab, which is what the strip renames.
+    var namedSessions: [(session: TerminalSession, name: String?)] {
+        tabs.flatMap { tab in
+            tab.allPanes.compactMap { pane in
+                guard case .session(let session) = pane.content else { return nil }
+                return (session, tab.hasMultiplePanes ? pane.customName : tab.customName)
+            }
+        }
+    }
+
+    /// The name shown for the focused pane — and the place a rename of it
+    /// lands: the pane's own name inside a split, the tab's when the tab holds
+    /// a single pane. Keeping those the same field is what makes renaming from
+    /// the palette or the Info panel agree with renaming by hand, where a lone
+    /// pane is renamed through the tab strip and a split pane through its
+    /// header.
+    var focusedPaneName: String? {
+        guard let tab = selectedTab else { return nil }
+        return tab.hasMultiplePanes ? tab.focusedPane?.customName : tab.customName
+    }
+
+    /// The title the focused pane falls back to when it has no name.
+    var focusedPaneAutomaticTitle: String? {
+        selectedTab?.focusedContent?.title
+    }
+
+    /// Renames the focused pane, or clears the name back to automatic when
+    /// `name` is nil or blank.
+    func renameFocusedPane(to name: String?) {
+        guard let tab = selectedTab else { return }
+        if tab.hasMultiplePanes, let paneID = tab.focusedPane?.id {
+            tab.renamePane(paneID, to: name)
+        } else {
+            let trimmed = name?.trimmingCharacters(in: .whitespacesAndNewlines)
+            tab.customName = (trimmed?.isEmpty ?? true) ? nil : trimmed
+        }
+    }
+
+    /// Opens the inline rename field on the focused pane — its header strip in
+    /// a split, its tab in the strip when it is the tab's only pane.
+    func beginRenamingFocusedPane() {
+        guard let tab = selectedTab else { return }
+        if tab.hasMultiplePanes {
+            tab.pendingRenamePaneID = tab.focusedPaneID
+        } else {
+            pendingRenameTabID = tab.id
+        }
+    }
 
     // MARK: - Moving panes between tabs
 

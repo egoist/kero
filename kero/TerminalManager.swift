@@ -438,6 +438,27 @@ final class TerminalManager: nonisolated ObservableObject {
     func focusNextPane() { selectedProject?.focusNextPane() }
     func focusPreviousPane() { selectedProject?.focusPreviousPane() }
 
+    /// The focused pane's name, the title it falls back to without one, and
+    /// the two ways to change it — read by the Info panel.
+    var focusedPaneName: String? { selectedProject?.focusedPaneName }
+    var focusedPaneAutomaticTitle: String? { selectedProject?.focusedPaneAutomaticTitle }
+    func renameFocusedPane(to name: String?) { selectedProject?.renameFocusedPane(to: name) }
+
+    /// Opens the inline rename field on the focused pane, wherever it lives —
+    /// the pane's header strip, or its tab in the strip when the tab holds a
+    /// single pane. Same field, same commit rules as renaming by hand.
+    func beginRenamingFocusedPane() {
+        // The palette is dismissed around this, and its focus restoration would
+        // put the terminal back as first responder a tick later — right on top
+        // of the rename field. Forget the displaced responder so it doesn't.
+        commandPalettePreviousResponder = nil
+        commandPaletteWindow = nil
+        selectedProject?.beginRenamingFocusedPane()
+    }
+
+    /// Whether there is a pane on screen to rename.
+    var canRenameFocusedPane: Bool { selectedProject?.selectedTab != nil }
+
     func togglePaneZoom() { selectedProject?.togglePaneZoom() }
     func equalizePanes() { selectedProject?.equalizePanes() }
     func resizePaneUp() { selectedProject?.resizePaneUp() }

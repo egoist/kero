@@ -513,6 +513,15 @@ private struct PaneView: View {
         // Reported even without chrome: a single-pane tab is still a legitimate
         // target for a tab dragged onto it.
         .background(frameReporter)
+        // A rename asked for from outside the pane (palette, Info panel) opens
+        // the very same field the header's own menu does. Cleared on the next
+        // tick so the flag never lingers to re-fire, and so the model isn't
+        // mutated from inside this update pass.
+        .onChange(of: tab.pendingRenamePaneID) { _, requested in
+            guard requested == pane.id else { return }
+            isRenaming = true
+            DispatchQueue.main.async { tab.pendingRenamePaneID = nil }
+        }
     }
 
     /// Focuses this pane, then acts — the context menu acts on the pane it was

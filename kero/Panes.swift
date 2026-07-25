@@ -112,6 +112,14 @@ final class PaneTab: nonisolated ObservableObject, nonisolated Identifiable {
     /// Deliberately not persisted.
     @Published var isZoomed = false
 
+    /// Set when something outside the pane — the command palette, the Info
+    /// panel — asks for the same inline rename the header's context menu
+    /// offers. The pane's header consumes and clears it, so a rename started
+    /// from anywhere lands in the same field with the same commit rules.
+    /// A single-pane tab has no header; its request goes to the strip instead
+    /// (see `Project.pendingRenameTabID`).
+    @Published var pendingRenamePaneID: UUID?
+
     /// The terminal whose directory this tab is oriented around when it holds
     /// no terminal of its own — captured from the focused session when a file
     /// or diff is opened into a fresh tab. Lets the file-tree / git / info
