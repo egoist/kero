@@ -105,6 +105,31 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
+            Section("Panes") {
+                Toggle(
+                    "Show focus ring on active pane",
+                    isOn: $settings.showPaneFocusRing
+                )
+                Text("Draws an accent outline around the focused pane when a tab is split.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+
+                HStack {
+                    Text("Focus ring opacity")
+                    Slider(
+                        value: $settings.paneFocusRingOpacity,
+                        in: AppSettings.paneFocusRingOpacityRange,
+                        step: 0.05
+                    )
+                    .disabled(!settings.showPaneFocusRing)
+                    Text("\(Int((settings.paneFocusRingOpacity * 100).rounded()))%")
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                        .frame(width: 40, alignment: .trailing)
+                }
+                .foregroundStyle(settings.showPaneFocusRing ? .primary : .secondary)
+            }
+
             Section("Text Editing") {
                 Toggle("Wrap lines to editor width", isOn: $settings.wrapLines)
             }
@@ -134,7 +159,11 @@ struct SettingsView: View {
                         && settings.themeDark == Theme.defaultDarkThemeName
                         && settings.themeLight == Theme.defaultLightThemeName
                         && !settings.wrapLines
-                        && !settings.restoreTerminalHistory)
+                        && !settings.restoreTerminalHistory
+                        && settings.showPaneFocusRing
+                        && AppSettings.paneFocusRingOpacityMatchesDefault(
+                            settings.paneFocusRingOpacity
+                        ))
                 }
             }
         }
