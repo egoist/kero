@@ -2213,6 +2213,12 @@ private struct AgentUsageCard: View {
                 optInPrompt
             } else if let snapshot, !snapshot.isEmpty {
                 meters(for: snapshot)
+                // Numbers we already have outrank a fresh failure, so the
+                // failure demotes to a warning under them rather than
+                // replacing readings that are still roughly true.
+                if let failure {
+                    staleWarning(failure)
+                }
             } else if let failure {
                 message(failure.message, showsRetry: failure.isRecoverable)
             } else if isLoading {
@@ -2300,6 +2306,22 @@ private struct AgentUsageCard: View {
                     .contentShape(RoundedRectangle(cornerRadius: 5))
             }
             .buttonStyle(.plain)
+        }
+    }
+
+    /// Shown under readings that are still on screen but could not be
+    /// refreshed — the numbers are real, just possibly out of date.
+    private func staleWarning(_ failure: AgentUsageFailure) -> some View {
+        HStack(alignment: .top, spacing: 4) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 8))
+                .foregroundStyle(.orange)
+                .padding(.top, 1)
+            Text(failure.message)
+                .font(.system(size: 9))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
         }
     }
 

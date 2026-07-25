@@ -30,7 +30,9 @@ nonisolated enum ClaudeUsageReader {
         case keychainAccessDenied
         case tokenExpired
         case unauthorized
-        case rateLimited
+        /// Carries Anthropic's own `Retry-After` when it sends one, so the
+        /// backoff matches what the server asked for instead of guessing.
+        case rateLimited(retryAfter: Date?)
         case server(Int)
         case network(String)
         case malformedResponse
@@ -45,8 +47,13 @@ nonisolated enum ClaudeUsageReader {
                 "Claude login expired. Run `claude` to refresh it."
             case .unauthorized:
                 "Claude rejected the stored token. Run `claude` to sign in again."
-            case .rateLimited:
-                "Anthropic is rate limiting usage checks. Try again in a few minutes."
+            case let .rateLimited(retryAfter):
+                if let retryAfter, retryAfter > Date() {
+                    "Anthropic is rate limiting usage checks. Try again in "
+                        + AgentUsage.durationLabel(retryAfter.timeIntervalSinceNow) + "."
+                } else {
+                    "Anthropic is rate limiting usage checks. Try again in a few minutes."
+                }
             case let .server(code):
                 "Anthropic returned HTTP \(code)."
             case let .network(message):
@@ -102,7 +109,7 @@ nonisolated enum ClaudeUsageReader {
         case 401, 403:
             throw ReaderError.unauthorized
         case 429:
-            throw ReaderError.rateLimited
+            throw ReaderError.rateLimited(retryAfter: retryAfterDate(from: http))
         default:
             throw ReaderError.server(http.statusCode)
         }
@@ -166,6 +173,22 @@ nonisolated enum ClaudeUsageReader {
             usedPercent: utilization,
             resetsAt: parseDate(raw["resets_at"] as? String)
         )
+    }
+
+    /// `Retry-After` is either a delay in seconds or an HTTP date.
+    private static func retryAfterDate(from response: HTTPURLResponse, now: Date = Date()) -> Date? {
+        guard let raw = response.value(forHTTPHeaderField: "Retry-After")?
+            .trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty
+        else { return nil }
+
+        if let seconds = TimeInterval(raw), seconds >= 0 {
+            return now.addingTimeInterval(seconds)
+        }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "EEE',' dd MMM yyyy HH':'mm':'ss zzz"
+        return formatter.date(from: raw)
     }
 
     private static func parseDate(_ string: String?) -> Date? {

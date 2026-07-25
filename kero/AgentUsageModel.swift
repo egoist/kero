@@ -18,7 +18,11 @@ final class AgentUsageModel: nonisolated ObservableObject {
     /// rather than something kero does on every launch.
     private static let claudeEnabledKey = "agentUsage.claudeEnabled"
 
-    private static let codexInterval: TimeInterval = 3
+    /// Both providers poll on the same relaxed clock. Plan limits move slowly,
+    /// so a tighter loop just re-reads unchanged rollout files (and, for
+    /// Claude, spends requests against a rate-limited endpoint). Opening the
+    /// panel, switching directory, and the refresh button all bypass this.
+    private static let codexInterval: TimeInterval = 120
     private static let claudeInterval: TimeInterval = 120
     /// Backoff after a failed Claude fetch, so a bad token or a 429 doesn't
     /// turn into a retry loop against Anthropic.
@@ -48,6 +52,8 @@ final class AgentUsageModel: nonisolated ObservableObject {
     private var codexLastRefresh = Date.distantPast
     private var isCodexRefreshing = false
     private var claudeNextAllowedRefresh = Date.distantPast
+    /// Set only by a 429, and respected even by an explicit user refresh.
+    private var claudeRateLimitedUntil: Date?
 
     init() {
         isClaudeEnabled = UserDefaults.standard.bool(forKey: Self.claudeEnabledKey)
@@ -68,21 +74,28 @@ final class AgentUsageModel: nonisolated ObservableObject {
         let detected = AgentUsageProvider.allCases.filter { provider in
             !provider.executableNames.isDisjoint(with: names)
         }
-        if self.detected != detected {
-            self.detected = detected
-            // Clear anything for agents that are no longer running.
-            snapshots.removeAll { !detected.contains($0.provider) }
-            failures.removeAll { !detected.contains($0.provider) }
-        }
+        // Deliberately keeps snapshots for agents that just left `detected`.
+        // The process list is polled a tick behind and momentarily reads empty
+        // on tab switches, so clearing here blanked the card on every flap —
+        // and the refresh throttle then held it blank. The section only renders
+        // while an agent is detected, so stale entries stay invisible until the
+        // agent returns, at which point last-known numbers beat an empty card.
+        if self.detected != detected { self.detected = detected }
 
         if detected.contains(.codex) { refreshCodex() }
         if detected.contains(.claude), isClaudeEnabled { refreshClaude() }
     }
 
-    /// Explicit user refresh — bypasses both throttles.
+    /// Explicit user refresh — bypasses the polling throttles, but never an
+    /// active rate limit: hammering a 429 only extends it.
     func refreshNow() {
         codexLastRefresh = .distantPast
-        claudeNextAllowedRefresh = .distantPast
+        if let claudeRateLimitedUntil, claudeRateLimitedUntil > Date() {
+            claudeNextAllowedRefresh = claudeRateLimitedUntil
+        } else {
+            claudeRateLimitedUntil = nil
+            claudeNextAllowedRefresh = .distantPast
+        }
         if detected.contains(.codex) { refreshCodex() }
         if detected.contains(.claude), isClaudeEnabled { refreshClaude() }
     }
@@ -131,6 +144,7 @@ final class AgentUsageModel: nonisolated ObservableObject {
                 let snapshot = try await ClaudeUsageReader.fetchSnapshot()
                 guard let self else { return }
                 self.isClaudeLoading = false
+                self.claudeRateLimitedUntil = nil
                 self.claudeNextAllowedRefresh = Date().addingTimeInterval(Self.claudeInterval)
                 guard self.detected.contains(.claude) else { return }
                 self.store(snapshot)
@@ -138,10 +152,21 @@ final class AgentUsageModel: nonisolated ObservableObject {
             } catch {
                 guard let self else { return }
                 self.isClaudeLoading = false
-                self.claudeNextAllowedRefresh = Date()
-                    .addingTimeInterval(Self.claudeFailureBackoff)
                 let readerError = error as? ClaudeUsageReader.ReaderError
-                self.snapshots.removeAll { $0.provider == .claude }
+                // Honour Anthropic's own Retry-After when it sends one; a
+                // fixed guess otherwise.
+                if case let .rateLimited(retryAfter) = readerError {
+                    let until = retryAfter
+                        ?? Date().addingTimeInterval(Self.claudeFailureBackoff)
+                    self.claudeRateLimitedUntil = until
+                    self.claudeNextAllowedRefresh = until
+                } else {
+                    self.claudeNextAllowedRefresh = Date()
+                        .addingTimeInterval(Self.claudeFailureBackoff)
+                }
+                // The previous reading stays on screen: a transient network
+                // blip shouldn't throw away numbers that are still roughly
+                // true. The failure shows as a warning beneath them.
                 self.store(
                     AgentUsageFailure(
                         provider: .claude,
