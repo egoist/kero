@@ -4,7 +4,7 @@ import {
   createRootRoute,
   HeadContent,
   Scripts,
-  useParams,
+  useRouterState,
 } from "@tanstack/react-router";
 import appCss from "@/styles/app.css?url";
 import { DEFAULT_LANGUAGE, isLanguage } from "@/lib/i18n";
@@ -47,10 +47,12 @@ function RootComponent() {
 }
 
 function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
-  // Only the translated docs sit under a `/$lang` prefix; everything else is
-  // English. `strict: false` so this still works on routes without the param.
-  const { lang } = useParams({ strict: false });
-  const language = isLanguage(lang) ? lang : DEFAULT_LANGUAGE;
+  // Read from the path rather than a route param: translated pages are a mix
+  // of `/$lang/docs/…` and spelled-out routes like `/zh`, and only the URL is
+  // common to both. English is unprefixed, so anything else is English.
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const prefix = pathname.split("/")[1];
+  const language = isLanguage(prefix) ? prefix : DEFAULT_LANGUAGE;
 
   return (
     <html lang={language} className="dark">

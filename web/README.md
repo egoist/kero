@@ -35,21 +35,36 @@ Config lives in [`wrangler.jsonc`](wrangler.jsonc) (worker name, compatibility
 flags). To serve from `kero.sh`, uncomment the `routes` entry there once the zone
 is on Cloudflare. Run `bun run cf-typegen` after adding any bindings.
 
-## Docs
+## Languages
 
-Pages are MDX under [`content/docs`](content/docs), served by Fumadocs.
+English is the default and stays unprefixed (`/`, `/docs/git`); every other
+language sits under its own prefix (`/zh`, `/zh/docs/git`). The supported list
+is [`src/lib/i18n.ts`](src/lib/i18n.ts).
 
-English is the default language and stays unprefixed (`/docs/git`); every other
-language gets a prefix (`/zh/docs/git`). A translation is the same filename with
-the language inserted — `git.mdx` → `git.zh.mdx` — and a page with no
-translation falls back to English instead of 404ing. Sidebar order and section
-headings come from `meta.json` (`meta.zh.json` for the translated labels).
+**Landing page.** One [`HomePage`](src/components/home-page.tsx) rendered from
+per-language strings in [`src/lib/home-copy.ts`](src/lib/home-copy.ts), with a
+route per language: [`routes/index.tsx`](src/routes/index.tsx) and
+[`routes/zh/index.tsx`](src/routes/zh/index.tsx). Spelling the routes out is
+deliberate — a landing page under `/$lang` shares a chunk with `/$lang/docs`,
+and once it also shares `HomePage` with `/`, the bundler folds the ~190 kB
+Fumadocs bundle into the entry chunk that every page loads. Adding a language
+means a route file plus an entry in `home-copy.ts` and in `HOME_ROUTES`
+([`src/components/site-links.tsx`](src/components/site-links.tsx)).
 
-Adding a language means adding it to [`src/lib/i18n.ts`](src/lib/i18n.ts), a
-tokenizer entry in [`src/routes/api/search.ts`](src/routes/api/search.ts), and a
-UI language pack in [`src/components/docs-shell.tsx`](src/components/docs-shell.tsx).
-Every docs URL is prerendered; [`vite.config.ts`](vite.config.ts) derives the
-list from the filenames, so a new page needs no config change.
+**Docs.** MDX under [`content/docs`](content/docs), served by Fumadocs from a
+single `/$lang/docs` route. A translation is the same filename with the
+language inserted — `git.mdx` → `git.zh.mdx` — and a page with no translation
+falls back to English instead of 404ing. Sidebar order and section headings
+come from `meta.json` (`meta.zh.json` for the translated labels). A new
+language also needs a tokenizer entry in
+[`src/routes/api/search.ts`](src/routes/api/search.ts) and a UI language pack in
+[`src/components/docs-shell.tsx`](src/components/docs-shell.tsx).
+
+Docs pages are written for people using the app; see
+[CONTRIBUTING.md](../CONTRIBUTING.md). Every docs URL is prerendered —
+[`vite.config.ts`](vite.config.ts) derives the list from the filenames, so a new
+page needs no config change. The landing pages are rendered per request instead,
+since they read the current version from the appcast.
 
 ## Notes
 
