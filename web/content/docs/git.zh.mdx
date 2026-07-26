@@ -1,0 +1,80 @@
+---
+title: Git 面板
+description: 在产生这些改动的 shell 旁边暂存、审阅、提交和推送。
+---
+
+按 <kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>G</kbd>。面板会打开在项目所锚定的那个仓库上——
+Kero 怎么选这个目录，见[项目目录](/zh/docs/projects#项目目录)。
+
+这里的每一个操作都是 Kero 代你执行的 git 命令；只要结果不止「完成了」这么简单，输出就会
+展示给你。除非你明确要求，否则不会有改写历史、squash 或强推。
+
+## 变更的文件
+
+文件按冲突、已暂存和未暂存分组。把鼠标移到某一行会出现按钮，右键菜单里也有：
+
+| 按钮 | 作用 |
+| --- | --- |
+| **+** | 暂存该文件 |
+| **−** | 取消暂存 |
+| **↺** | 丢弃它的改动 |
+
+**Discard All Changes** 在面板头部，并且会先要求确认——它是这里唯一一个没法用另一条 git
+命令撤回的操作。
+
+冲突文件显示的是 **Mark Resolved (Stage)** 而不是普通的暂存按钮，让「标记为已解决」成为
+一个明确的动作，而不是顺手的副作用。
+
+头部的漏斗按钮按文件名过滤列表，改动很多时这是最快的走法。
+
+## 看 diff
+
+点任意一个变更文件，它的 diff 会在一个窗格里打开，是在终端**旁边**而不是盖在上面。右键
+菜单里还可以 **Open File**（文件本身，可编辑）或 **Open File to the Side**。
+
+大 diff 也不会卡。上千个文件的改动集，打开速度和一行的一样，滚动也不掉帧。
+
+## 提交
+
+写好信息用提交按钮，或者从它的菜单里挑：
+
+- **Commit Staged**——只提交你暂存了的
+- **Stage All & Commit**——先暂存所有已跟踪文件，再提交
+- **Amend Last Commit**——把暂存的改动折进上一个提交
+- **Stage All & Amend**
+
+下方列着最近的提交，右键有 **Copy Commit Hash** 和 **Copy Commit Message**。
+
+## 分支
+
+头部的分支名是一个菜单：选另一个分支就切过去，或者选 **Create New Branch…** 从当前位置
+开一个新分支。
+
+## 远端
+
+**⋯** 菜单里是所有和远端打交道的操作：
+
+| 操作 | 作用 |
+| --- | --- |
+| **Fetch** | 更新远程跟踪引用 |
+| **Pull (Fast-forward Only)** | 拉取，拒绝产生合并提交 |
+| **Push** | 推送当前分支 |
+| **Publish Branch** | 推送还没有 upstream 的分支；远端不止一个时让你选 |
+| **Sync Changes** | 先 fast-forward 拉取，再推送 |
+| **Stash All Changes** | 把所有改动（含未跟踪文件）存进 stash |
+| **Pop Stash** | 恢复最近一次 stash |
+
+分支旁边的徽章显示你比 upstream **↓ 落后**和 **↑ 领先**多少。
+
+同一个菜单里还有 **Copy Changed Paths**、**Copy Repository Path** 和 **Reveal Repository
+in Finder**。
+
+<Callout type="info">
+拉取只做 fast-forward 是有意的。如果真需要 merge 或 rebase，git 会说出来，由你在终端里
+决定——面板不会替你挑策略。
+</Callout>
+
+## 还不是一个仓库
+
+如果项目目录里没有仓库，面板会提供 **Initialize Repository**，它在那个文件夹里执行
+`git init`。在那之前它不会碍事。

@@ -1,0 +1,91 @@
+---
+title: The git panel
+description: Stage, review, commit, and push beside the shell that made the changes.
+---
+
+Press <kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>G</kbd>. The panel opens on the
+repository your project is anchored to — see
+[the project directory](/docs/projects#the-project-directory) for how Kero picks
+it.
+
+Every action here is a git command Kero runs on your behalf, and the output is
+shown to you when something has more to say than "done". Nothing is rewritten,
+squashed, or force-pushed unless you asked for it.
+
+## Changed files
+
+Files are grouped into conflicts, staged changes, and unstaged changes. Hover a
+row for its buttons, or use the context menu:
+
+| Button | What it does |
+| --- | --- |
+| **+** | Stage the file |
+| **−** | Unstage it |
+| **↺** | Discard its changes |
+
+**Discard All Changes** sits in the panel header and asks for confirmation
+first — it's the one action here you can't undo with another git command.
+
+Conflicted files show **Mark Resolved (Stage)** instead of a plain stage button,
+so resolving is a deliberate step rather than a side effect.
+
+The funnel button in the header filters the list by filename, which is the
+fastest way through a large change.
+
+## Reading diffs
+
+Click any changed file to open its diff in a pane, beside the terminal rather
+than on top of it. From the context menu you can also **Open File** (the file
+itself, editable) or **Open File to the Side**.
+
+Large diffs stay responsive. A changeset with a thousand files in it opens as
+fast as a one-line one, and scrolls without stutter.
+
+## Committing
+
+Type a message and use the commit button, or pick from its menu:
+
+- **Commit Staged** — commit exactly what you staged
+- **Stage All & Commit** — stage everything tracked, then commit
+- **Amend Last Commit** — fold the staged changes into the previous commit
+- **Stage All & Amend**
+
+Recent commits are listed below, with **Copy Commit Hash** and **Copy Commit
+Message** in their context menus.
+
+## Branches
+
+The branch name in the header is a menu: pick another branch to switch to it, or
+choose **Create New Branch…** to start one from where you are.
+
+## Remotes
+
+The **⋯** menu holds everything that talks to a remote:
+
+| Action | What it does |
+| --- | --- |
+| **Fetch** | Update remote-tracking refs |
+| **Pull (Fast-forward Only)** | Pull, refusing to create a merge commit |
+| **Push** | Push the current branch |
+| **Publish Branch** | Push a branch that has no upstream yet, picking the remote when there's more than one |
+| **Sync Changes** | Fast-forward pull, then push |
+| **Stash All Changes** | Stash everything, untracked files included |
+| **Pop Stash** | Restore the most recent stash |
+
+Badges beside the branch show how far **↓ behind** and **↑ ahead** of the
+upstream you are.
+
+The same menu has **Copy Changed Paths**, **Copy Repository Path**, and **Reveal
+Repository in Finder**.
+
+<Callout type="info">
+Pull is fast-forward only on purpose. If a real merge or rebase is needed, git
+says so and you decide in the terminal — the panel won't pick a strategy for
+you.
+</Callout>
+
+## Not a repository yet
+
+If the project directory has no repository, the panel offers **Initialize
+Repository**, which runs `git init` in that folder. Until then it stays out of
+the way.

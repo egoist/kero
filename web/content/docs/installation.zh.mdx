@@ -1,0 +1,61 @@
+---
+title: 安装
+description: 下载 Kero、用 Homebrew 安装、保持更新，以及干净地卸载。
+---
+
+每个构建都经过 Apple 签名与公证，所以打开时不会弹出 Gatekeeper 警告。当前版本需要的最低
+macOS 版本，标在 [kero.sh](https://kero.sh) 的下载按钮旁边。
+
+## 下载
+
+从 [kero.sh](https://kero.sh) 下载 `.dmg`，打开后把 **Kero** 拖进「应用程序」文件夹。
+
+## Homebrew
+
+```bash
+brew install egoist/tap/kero
+```
+
+cask 放在 `egoist/homebrew-tap`，所以要写完整的 tap 名。升级方式和别的软件一样：
+
+```bash
+brew upgrade --cask kero
+```
+
+## 更新
+
+Kero 通过 [Sparkle](https://sparkle-project.org) 自动更新：后台检查、静默下载，等你下次
+退出时安装——真正应用之前，你会先看到更新说明。
+
+想改这个行为，用 <kbd>Cmd</kbd>+<kbd>,</kbd> 打开 **设置 → Updates**：
+
+- **Automatically check for updates**——彻底关掉后台检查。
+- **Check for Updates…**——立刻检查一次。
+
+<Callout title="用 Homebrew 装的？">
+两条更新路径都能用。如果你更希望由 Homebrew 管理版本，就关掉自动检查，自己按节奏跑
+`brew upgrade --cask kero`。
+</Callout>
+
+## 从 Finder 打开文件夹
+
+Kero 注册了一个名为 **New Kero Project Here** 的 macOS 服务。在 Finder 里选中一个或多个
+文件夹，右键，从 **服务** 子菜单里选它——每个文件夹都会作为一个项目打开，终端已经在对应
+目录里启动好了。
+
+如果菜单里没有它，去 **系统设置 → 键盘 → 键盘快捷键 → 服务 → 文件和文件夹** 打开。macOS
+只会在应用至少启动过一次之后才列出新服务。
+
+## 卸载
+
+从「应用程序」里删掉 `Kero.app`，如果想彻底清干净，再删掉它的配置：
+
+```bash
+rm -rf ~/.config/kero
+```
+
+窗口布局、侧边栏宽度和会话快照存在 macOS 自己的偏好设置里：
+
+```bash
+defaults delete sh.kero
+```

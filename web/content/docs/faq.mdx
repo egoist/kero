@@ -1,0 +1,82 @@
+---
+title: FAQ
+description: Common questions about cost, privacy, and how Kero relates to your shell.
+---
+
+<Accordions>
+
+<Accordion title="Is Kero free?">
+
+Yes. Free to download, open source under GPLv3, no account and no subscription.
+
+</Accordion>
+
+<Accordion title="Does it replace my shell?">
+
+No. Kero hosts the shell you already run — it starts `$SHELL -l` and leaves your
+prompt, aliases, functions, and dotfiles alone. The terminal underneath is
+libghostty, the same core as Ghostty.
+
+</Accordion>
+
+<Accordion title="Does it collect any data?">
+
+No telemetry and no analytics. The only network request Kero makes on its own is
+the update check against `releases.kero.sh`, which you can turn off in
+**Settings → Updates**.
+
+</Accordion>
+
+<Accordion title="Does it read my Ghostty config?">
+
+No. `~/.config/ghostty` is ignored. Fonts and colors come from Kero's own
+[settings](/docs/configuration); everything else uses Ghostty's defaults.
+
+</Accordion>
+
+<Accordion title="What happens to my sessions when I quit?">
+
+Projects, tabs, and pane layout come back on relaunch, and each terminal reopens
+as a fresh shell in its old directory. Nothing keeps running in the background
+after you quit.
+
+Previous scrollback comes back too if you enable
+[`terminal.restore-history`](/docs/configuration#terminalrestore-history) — it
+appears above a `Session Contents Restored` divider as static text.
+
+</Accordion>
+
+<Accordion title="Is this an IDE?">
+
+No, and it isn't heading that way. The terminal stays the center of gravity. The
+git and files panels exist so you can review and ship what happens in the
+terminal without switching apps — not to become a place you work in.
+
+</Accordion>
+
+<Accordion title="Why did a dialog ask before a program could read my clipboard?">
+
+Because a program asked. The `OSC 52` escape sequence lets a terminal program
+read the system clipboard, including one running on a remote host over SSH. Kero
+confirms with you first instead of handing it over silently — the same default
+Ghostty uses.
+
+</Accordion>
+
+<Accordion title="Can I use it with an AI coding agent?">
+
+That's much of what it's built for. Run the agent in one session, watch the diff
+it produced in the [git panel](/docs/git), read the changed file in a pane
+beside it, and stage what you actually want. Programs in a session can also
+request microphone access for voice input — macOS attributes the prompt to Kero.
+
+</Accordion>
+
+<Accordion title="Where do I report a bug?">
+
+Open an issue on [GitHub](https://github.com/egoist/kero/issues). The macOS
+version and what you were doing when it happened are usually enough to go on.
+
+</Accordion>
+
+</Accordions>

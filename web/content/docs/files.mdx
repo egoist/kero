@@ -1,0 +1,54 @@
+---
+title: Files and the editor
+description: Browse the working tree, open a file in a pane, edit it, and save.
+---
+
+Press <kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>E</kbd> for the file tree. Like the
+git panel it's rooted at
+[the project directory](/docs/projects#the-project-directory), so it doesn't
+re-root every time you `cd`.
+
+## The tree
+
+Click a file to open it in the focused pane. Right-click for the rest:
+
+| Item | What it does |
+| --- | --- |
+| **Open** / **Open to the Side** | In this pane, or in a new split |
+| **Open in Default App** | Hand it to whatever macOS opens it with |
+| **Reveal in Finder** | |
+| **Copy Path** | The absolute path |
+| **cd Here** | Run `cd <folder>` in the focused terminal |
+| **New File…** / **New Folder…** | Create inside the selected folder |
+| **Rename** | |
+| **Move to Trash** | To the Trash, not deleted outright |
+
+## The editor
+
+Opening a file gives you a real editor in a pane, with tree-sitter syntax
+highlighting.
+
+| Action | Shortcut |
+| --- | --- |
+| Save | <kbd>Cmd</kbd>+<kbd>S</kbd> |
+| Find | <kbd>Cmd</kbd>+<kbd>F</kbd> |
+| Find and replace | <kbd>Opt</kbd>+<kbd>Cmd</kbd>+<kbd>F</kbd> |
+| Find next | <kbd>Cmd</kbd>+<kbd>G</kbd> |
+
+Long lines scroll horizontally by default. To wrap them to the pane width
+instead, set [`editor.wrap-lines`](/docs/configuration#editorwrap-lines).
+
+Renaming a file in the tree updates any pane that has it open, including files
+underneath a renamed folder.
+
+<Callout type="info">
+This is an editor for the change you're already looking at — fix a typo, adjust
+a constant, read a file the diff referenced. There's no language server, no
+completion, and no project-wide refactoring. That's deliberate.
+</Callout>
+
+## Diffs
+
+A diff opened from [the git panel](/docs/git) is just another pane, so a diff, a
+file, and a terminal can sit side by side in one tab. It uses your terminal
+font, and a thousand-file changeset opens as fast as a one-line one.

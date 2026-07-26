@@ -1,0 +1,91 @@
+---
+title: 快速上手
+description: 从空窗口到能干活的项目——最值得先学的那些事。
+---
+
+<Steps>
+
+<Step>
+
+### 起一个项目
+
+按 <kbd>Cmd</kbd>+<kbd>N</kbd>。侧边栏里会多出一个项目，里面有一个终端——然后像在任何终端里
+一样 `cd` 到你要的仓库。文件树和 git 面板会跟过去，并停在仓库根目录上。
+
+想直接从文件夹起步？在 Finder 里右键它，选 **服务 → New Kero Project Here**。
+
+有好几个仓库？全部加进来。<kbd>Cmd</kbd>+<kbd>1</kbd> 到 <kbd>Cmd</kbd>+<kbd>9</kbd> 可以直接
+跳到某一个，每个项目各自保留自己的标签页和布局。
+
+</Step>
+
+<Step>
+
+### 加会话
+
+<kbd>Cmd</kbd>+<kbd>T</kbd> 在同一个项目里再开一个终端——新标签页，有自己的工作目录和滚动
+历史。一个跑开发服务器，一个跑测试，还有一个留给真正敲命令。
+
+<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>1</kbd>–<kbd>9</kbd> 直接切标签页；
+<kbd>Ctrl</kbd>+<kbd>Tab</kbd> 打开一个按最近使用排序的切换器。
+
+</Step>
+
+<Step>
+
+### 把标签页分屏
+
+<kbd>Cmd</kbd>+<kbd>D</kbd> 向右分屏，<kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>D</kbd> 向下分屏。
+用 <kbd>Opt</kbd>+<kbd>Cmd</kbd>+方向键在窗格之间移动；要读一段很长的输出时，按
+<kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>Return</kbd> 把当前窗格放大到铺满整个标签页。
+
+</Step>
+
+<Step>
+
+### 打开侧边面板
+
+右侧边栏放着这些，各自一个快捷键：
+
+| 面板 | 快捷键 | 用来做什么 |
+| --- | --- | --- |
+| Git | <kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>G</kbd> | 暂存、看 diff、提交、推送 |
+| 文件 | <kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>E</kbd> | 浏览文件树、打开和编辑文件 |
+| 信息 | <kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>I</kbd> | 进程和正在监听的端口 |
+
+<kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>B</kbd> 收起整个右侧边栏；<kbd>Cmd</kbd>+<kbd>B</kbd>
+收起左边的项目侧边栏。
+
+</Step>
+
+<Step>
+
+### 只记一个快捷键：<kbd>Cmd</kbd>+<kbd>P</kbd>
+
+命令面板会搜索所有项目、所有已打开的会话，以及 Kero 的每一条命令。这一页别的都忘了没关系，
+记住这个就行——每条命令旁边都标着它自己的快捷键。
+
+</Step>
+
+</Steps>
+
+## 退出之后还剩下什么
+
+退出再打开，项目、标签页和窗格布局都还在原处。每个终端会在原来的目录里启动一个
+**全新的 shell**——不会有东西被偷偷留在后台继续跑。
+
+滚动历史默认不恢复。打开
+[`terminal.restore-history`](/zh/docs/configuration#terminalrestore-history) 之后，重开的
+终端会在 `Session Contents Restored` 分隔线上方显示之前的输出，新 shell 在下方运行。
+
+<Callout type="info">
+恢复出来的就是文本本身。它是「当时发生过什么」的记录，不是一个还活着的会话，往回翻不会重新
+执行任何东西。
+</Callout>
+
+## 下一步
+
+<Cards>
+  <Card title="项目与会话" href="/zh/docs/projects" description="命名、固定目录，以及项目到底记住了什么。" />
+  <Card title="Git 面板" href="/zh/docs/git" description="暂存、diff、提交、分支。" />
+</Cards>

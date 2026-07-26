@@ -1,0 +1,48 @@
+---
+title: 文件与编辑器
+description: 浏览工作区、在窗格里打开文件、编辑并保存。
+---
+
+按 <kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>E</kbd> 打开文件树。和 git 面板一样，它以
+[项目目录](/zh/docs/projects#项目目录)为根，所以不会每次 `cd` 都换根。
+
+## 文件树
+
+点文件在当前窗格里打开。右键是其余的操作：
+
+| 菜单项 | 作用 |
+| --- | --- |
+| **Open** / **Open to the Side** | 在当前窗格打开，或新开一个分屏 |
+| **Open in Default App** | 交给 macOS 的默认应用 |
+| **Reveal in Finder** | |
+| **Copy Path** | 绝对路径 |
+| **cd Here** | 在当前终端里执行 `cd <folder>` |
+| **New File…** / **New Folder…** | 在选中的文件夹里新建 |
+| **Rename** | |
+| **Move to Trash** | 移到废纸篓，不是直接删除 |
+
+## 编辑器
+
+打开文件后，窗格里是一个真正的编辑器，带 tree-sitter 语法高亮。
+
+| 操作 | 快捷键 |
+| --- | --- |
+| 保存 | <kbd>Cmd</kbd>+<kbd>S</kbd> |
+| 查找 | <kbd>Cmd</kbd>+<kbd>F</kbd> |
+| 查找并替换 | <kbd>Opt</kbd>+<kbd>Cmd</kbd>+<kbd>F</kbd> |
+| 查找下一个 | <kbd>Cmd</kbd>+<kbd>G</kbd> |
+
+长行默认横向滚动。想让它按窗格宽度折行，设置
+[`editor.wrap-lines`](/zh/docs/configuration#editorwrap-lines)。
+
+在文件树里重命名文件，所有打开了它的窗格都会跟着更新，包括被重命名文件夹底下的文件。
+
+<Callout type="info">
+这是一个用来改你眼前这处改动的编辑器——修个错字、调个常量、读一眼 diff 里提到的文件。
+没有语言服务器，没有补全，也没有跨项目重构。这是有意为之。
+</Callout>
+
+## Diff
+
+从 [git 面板](/zh/docs/git)打开的 diff 也只是一个窗格，所以 diff、文件和终端可以在一个
+标签页里并排。它使用你的终端字体，上千个文件的改动集，打开速度和一行的一样。

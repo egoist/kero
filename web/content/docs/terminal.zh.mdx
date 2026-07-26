@@ -1,0 +1,75 @@
+---
+title: 终端本身
+description: Kero 对你的 shell 改了什么（几乎没有），以及它在周围加了什么。
+---
+
+Kero 内嵌了 [libghostty](https://ghostty.org)——Ghostty 背后的终端内核——并在每个窗格里原生
+承载它。渲染、转义序列处理和 Unicode 的表现都和 Ghostty 一致。
+
+## 你的 shell，原封不动
+
+每个会话运行你的登录 shell——`exec $SHELL -l`——所以提示符、别名、函数和 dotfiles 的加载
+方式和在别处完全一样。在此之上 Kero 设置了这些环境变量：
+
+| 变量 | 值 |
+| --- | --- |
+| `TERM_PROGRAM` | `ghostty` |
+| `TERM_PROGRAM_VERSION` | 内嵌的 libghostty 版本 |
+
+之所以对外声称是 Ghostty，是因为工具会拿 `TERM_PROGRAM` 当能力提示——比如渲染图片的 CLI
+就靠它来选择 Kitty 图形协议。
+
+<Callout type="info">
+Kero **不会**读取 `~/.config/ghostty`。外观在 Kero 自己的设置和[配置文件](/zh/docs/configuration)里
+配置，其余一切都用 Ghostty 的默认值。
+</Callout>
+
+## 搜索
+
+| 操作 | 快捷键 |
+| --- | --- |
+| 查找 | <kbd>Cmd</kbd>+<kbd>F</kbd> |
+| 查找下一个 | <kbd>Cmd</kbd>+<kbd>G</kbd> |
+| 查找上一个 | 在查找栏里按 <kbd>Shift</kbd>+<kbd>Return</kbd> |
+| 用选中内容查找 | <kbd>Cmd</kbd>+<kbd>E</kbd> |
+| 清空终端 | <kbd>Cmd</kbd>+<kbd>K</kbd> |
+
+查找作用于当前窗格，终端和编辑器都适用，并且在查找输入框有键盘焦点时仍然生效。
+
+## 通知
+
+Kero 会把这些转给「通知中心」：
+
+- 未聚焦会话里响的**铃声**
+- 程序主动发出的**通知转义序列**（`OSC 9`）——比如一次很长的构建结束了，或者测试跑挂了
+
+macOS 只会在某个终端第一次真的要发通知时才申请通知权限，而不是在应用启动时。
+
+## 进度显示
+
+发出 `OSC 9;4` 进度的程序，会在终端上方得到一条细进度条，错误和暂停状态各有区分。不需要
+开启任何东西——只要工具报告了进度，你就看得到。
+
+## 剪贴板与粘贴安全
+
+这些保护都和 Ghostty 的默认行为一致：
+
+- **读剪贴板要确认。** 程序可以用 `OSC 52` 转义序列读取你的剪贴板——包括通过 SSH 跑在远程
+  主机上的程序。Kero 会先问你，而不是悄悄交出去。
+- **有风险的粘贴会提示。** 粘贴的文本如果看起来可能一到达就执行命令，会先弹出警告。
+
+剪贴板里的图片，以及在 Finder 里复制的文件，会以 shell 安全的绝对路径粘贴进去——这正是
+支持图片的 TUI 期待收到的形式。
+
+## 麦克风
+
+会话里运行的程序可以申请麦克风权限——比如 AI 编码工具的语音输入。macOS 会把这个请求归到
+Kero 名下，所以你看到的是一个写着 Kero 的提示，而不是那个程序。
+
+## 字体
+
+Kero 内置 **JetBrains Mono** 和 Nerd Font 符号，所以 powerline 提示符和图标字形不用装任何
+东西就能正常显示。换成任何已安装的等宽字体见
+[`font-family`](/zh/docs/configuration#font-family)，字号见
+[`font-size`](/zh/docs/configuration#font-size)，还有一个可选的加粗笔画开关
+[`font-thicken`](/zh/docs/configuration#font-thicken)。

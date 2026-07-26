@@ -4,8 +4,10 @@ import {
   createRootRoute,
   HeadContent,
   Scripts,
+  useRouterState,
 } from "@tanstack/react-router";
 import appCss from "@/styles/app.css?url";
+import { DEFAULT_LANGUAGE, isLanguage } from "@/lib/i18n";
 
 export const Route = createRootRoute({
   head: () => ({
@@ -45,8 +47,15 @@ function RootComponent() {
 }
 
 function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
+  // Read from the path rather than a route param: translated pages are a mix
+  // of `/$lang/docs/…` and spelled-out routes like `/zh`, and only the URL is
+  // common to both. English is unprefixed, so anything else is English.
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const prefix = pathname.split("/")[1];
+  const language = isLanguage(prefix) ? prefix : DEFAULT_LANGUAGE;
+
   return (
-    <html lang="en" className="dark">
+    <html lang={language} className="dark">
       <head>
         <HeadContent />
       </head>

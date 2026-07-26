@@ -1,0 +1,36 @@
+---
+title: Kero 是什么
+description: 原生 macOS 终端工作区——项目、可恢复的会话、文件与 git，都在同一个窗口里。
+---
+
+Kero 是一个终端。窗口里其余的部分，是为了让你不必离开它。
+
+你手上的每个仓库，都会成为侧边栏里的一个**项目**。一个项目可以开任意多个终端**会话**，
+每个会话是一个标签页，有自己的工作目录和滚动历史；每个标签页还可以**分屏**成多个窗格。
+在这一切旁边是侧边面板，各自只需一个快捷键：用来审阅和提交的 git 面板、带编辑器的
+文件树，以及当前会话正在跑哪些进程、开了哪些端口的实时视图。
+
+底层终端是 [libghostty](https://ghostty.org)——与 Ghostty 同一内核——由 Kero 原生承载。
+你的 shell、提示符、别名和 dotfiles 一律原封不动。
+
+![Kero 中打开了 git 面板的终端会话](/kero-screenshot.png)
+
+## 它不是什么
+
+Kero 不是 IDE，也不打算变成 IDE。git 和文件面板的存在，是为了让你不切换应用就能读一段
+diff、改一个错字——而不是让你整天泡在里面。它也不会背着你做事：每一个 git 操作都对应一条
+你本可以自己敲的命令，输出会原样展示给你。
+
+## 接下来看什么
+
+<Cards>
+  <Card title="安装 Kero" href="/zh/docs/installation" description="下载、Homebrew、更新与卸载。" />
+  <Card title="快速上手" href="/zh/docs/quick-start" description="五分钟从空窗口到能干活的项目。" />
+  <Card title="键盘快捷键" href="/zh/docs/shortcuts" description="按用途分组的完整列表。" />
+  <Card title="配置" href="/zh/docs/configuration" description="全部选项，以及存放它们的配置文件。" />
+</Cards>
+
+## 免费，而且很低调
+
+Kero 免费且开源（GPLv3），不需要账号，也没有订阅。它不发送任何遥测数据，不做分析统计。
+它自己发起的唯一网络请求，是向 `releases.kero.sh` 检查更新。

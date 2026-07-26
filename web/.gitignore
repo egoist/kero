@@ -11,6 +11,9 @@ dist
 # generated route tree
 src/routeTree.gen.ts
 
+# fumadocs-mdx collections
+.source
+
 # cloudflare / wrangler
 .wrangler
 worker-configuration.d.ts
