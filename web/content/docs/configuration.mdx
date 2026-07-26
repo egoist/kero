@@ -9,9 +9,9 @@ Everything you can change about Kero lives in one file:
 ~/.config/kero/config.toml
 ```
 
-There are eight options. The Settings window (<kbd>Cmd</kbd>+<kbd>,</kbd>)
-writes this same file, so use whichever you prefer — the file isn't a
-second-class escape hatch, it's where the settings actually are.
+The Settings window (<kbd>Cmd</kbd>+<kbd>,</kbd>) writes this same file, so use
+whichever you prefer — the file isn't a second-class escape hatch, it's where
+the settings actually are. Every option Kero has is listed below.
 
 ## How the file behaves
 
@@ -25,7 +25,7 @@ Worth knowing before you hand-edit:
   next time you touch a control in Settings. Pick one or the other, or keep the
   authoritative copy in your dotfiles and let it overwrite.
 - **Only non-default values are written.** A config with nothing unusual in it
-  is one line long. Deleting a key restores its default; deleting the file
+  is nearly empty. Deleting a key restores its default; deleting the file
   restores all of them.
 - **The parser is small.** Flat keys (`font-size = 14`), dotted keys
   (`editor.wrap-lines = true`), `[table]` headers (flattened to the dotted
@@ -66,7 +66,7 @@ together, live. Valid names are:
 - `"Default Dark"` and `"Default Light"` — Kero's own, a GitHub-derived palette.
   These two are the only ones that keep the translucent sidebar; every other
   theme paints it opaque to match itself.
-- Any of the **485 bundled Ghostty themes**, by exact display name:
+- Any theme in the **bundled Ghostty catalog**, by exact display name:
   `"Catppuccin Mocha"`, `"Gruvbox Dark Hard"`, `"Tokyo Night"`, `"Nord"`,
   `"Solarized Dark"`, and so on. Matching is exact and case-sensitive.
 
@@ -89,9 +89,9 @@ theme-light = "Catppuccin Latte"
 
 string — default `""`, meaning the bundled JetBrains Mono
 
-The font for the terminal, the editor, and the diff viewer — one setting for
-all three, so a diff never renders in something different from the shell that
-produced it.
+The font everywhere text is shown: the terminal, the editor, and the diff
+viewer all read this one key, so a diff never renders in something different
+from the shell that produced it.
 
 Kero bundles **JetBrains Mono** and registers it for its own process only;
 nothing is installed system-wide. It also attaches **Symbols Nerd Font** as a
@@ -174,6 +174,6 @@ list, Kero doesn't let you configure it.
   open, the snapshot used to restore your projects. All under `sh.kero` in
   macOS's own preferences, and not meant to be hand-edited.
 - **Ghostty's config.** Kero does not read `~/.config/ghostty`. The terminal
-  core is libghostty, but its settings are the eight keys above; everything
-  else uses Ghostty's defaults.
+  core is libghostty, but the keys above are the whole of what Kero exposes;
+  everything else uses Ghostty's defaults.
 - **Keybindings.** The [shortcuts](/docs/shortcuts) are fixed for now.

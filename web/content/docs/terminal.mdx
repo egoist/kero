@@ -10,8 +10,8 @@ Unicode all behave the way Ghostty does.
 ## Your shell, unchanged
 
 Each session runs your login shell — `exec $SHELL -l` — so your prompt, aliases,
-functions, and dotfiles load exactly as they do anywhere else. Kero sets two
-environment variables on top of that:
+functions, and dotfiles load exactly as they do anywhere else. On top of that
+Kero sets:
 
 | Variable | Value |
 | --- | --- |
@@ -42,7 +42,7 @@ find field has keyboard focus.
 
 ## Notifications
 
-Kero forwards two things to Notification Center:
+Kero forwards these to Notification Center:
 
 - a **bell** from a session that isn't focused
 - a **notification escape sequence** (`OSC 9`) from a program that wants to tell
@@ -59,7 +59,7 @@ progress, you see it.
 
 ## Clipboard and paste safety
 
-Two protections, both matching Ghostty's defaults:
+Both of these match Ghostty's defaults:
 
 - **Clipboard reads are confirmed.** A program can ask to read your clipboard
   with an `OSC 52` escape — including one running on a remote host over SSH.
