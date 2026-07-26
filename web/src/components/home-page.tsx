@@ -58,7 +58,6 @@ export function HomePage({ lang, release }: { lang: string; release: Release }) 
         <div className="flex flex-wrap items-center gap-2 text-[13px] text-muted-foreground">
           <Pill>v{release.version}</Pill>
           <Pill>macOS {release.minSystem}+</Pill>
-          <Pill>{copy.pillNotarized}</Pill>
           <Pill>{copy.pillFree}</Pill>
         </div>
       </section>
