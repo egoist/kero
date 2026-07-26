@@ -154,6 +154,10 @@ bool kero_alacritty_has_scrollback(KeroTerminal *handle);
 
 void kero_alacritty_clear(KeroTerminal *handle);
 
+/// Whether the grid changed since the last call, resetting damage as it goes.
+/// A wakeup only means bytes arrived — ask this before paying for a snapshot.
+bool kero_alacritty_take_damage(KeroTerminal *handle);
+
 /// Fills `out` with the visible grid.
 void kero_alacritty_snapshot(KeroTerminal *handle, KeroSnapshot *out);
 

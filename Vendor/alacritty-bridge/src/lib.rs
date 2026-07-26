@@ -28,7 +28,7 @@ use alacritty_terminal::term::cell::Flags;
 use alacritty_terminal::index::Direction;
 use alacritty_terminal::term::color::Colors;
 use alacritty_terminal::term::search::{RegexIter, RegexSearch};
-use alacritty_terminal::term::{Config, Osc52, Term, TermMode};
+use alacritty_terminal::term::{Config, Osc52, Term, TermDamage, TermMode};
 use alacritty_terminal::tty;
 use alacritty_terminal::vte::ansi::{Color, CursorShape, NamedColor, Rgb};
 
@@ -804,6 +804,35 @@ pub unsafe extern "C" fn kero_alacritty_clear(handle: *mut KeroTerminal) {
     let mut term = (*handle).term.lock();
     term.grid_mut().clear_viewport();
     term.grid_mut().clear_history();
+}
+
+/// Whether anything has changed since the last call, resetting the emulator's
+/// damage as it goes.
+///
+/// A wakeup only means bytes arrived, not that the grid moved: a heartbeat, a
+/// cursor-position query, or output that overwrites a cell with the same
+/// contents all wake the host for nothing. Snapshotting and rebuilding every
+/// instance for those is pure waste, so the renderer asks this first.
+///
+/// Deliberately coarse — a bool, not the spans. The GPU path clears and redraws
+/// the whole drawable anyway, so the win is skipping the frame entirely, and a
+/// span list the renderer cannot act on would just be more FFI surface.
+///
+/// # Safety
+/// `handle` must be live.
+#[no_mangle]
+pub unsafe extern "C" fn kero_alacritty_take_damage(handle: *mut KeroTerminal) -> bool {
+    if handle.is_null() {
+        return false;
+    }
+    let terminal = &mut *handle;
+    let mut term = terminal.term.lock();
+    let damaged = match term.damage() {
+        TermDamage::Full => true,
+        TermDamage::Partial(mut iter) => iter.next().is_some(),
+    };
+    term.reset_damage();
+    damaged
 }
 
 /// Fills `out` with the visible grid.
