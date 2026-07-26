@@ -96,6 +96,24 @@ struct SettingsView: View {
             }
 
             Section("Terminal") {
+                // Only worth a control once there is a choice to make. A
+                // Picker cannot disable individual options — SwiftUI ignores
+                // `.disabled` on them — so listing a backend Kero has no
+                // surface for would offer a selection that silently does
+                // nothing. The enum, the `terminal.backend` config key, and
+                // `TerminalBackendSurface` are all in place, so this row
+                // appears on its own the moment a second backend ships.
+                if TerminalBackend.selectable.count > 1 {
+                    Picker("Backend", selection: $settings.terminalBackend) {
+                        ForEach(TerminalBackend.selectable) { backend in
+                            Text(backend.displayName).tag(backend)
+                        }
+                    }
+                    Text(settings.terminalBackend.summary)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+
                 Toggle(
                     "Restore session history on relaunch",
                     isOn: $settings.restoreTerminalHistory
@@ -134,7 +152,8 @@ struct SettingsView: View {
                         && settings.themeDark == Theme.defaultDarkThemeName
                         && settings.themeLight == Theme.defaultLightThemeName
                         && !settings.wrapLines
-                        && !settings.restoreTerminalHistory)
+                        && !settings.restoreTerminalHistory
+                        && settings.terminalBackend == .fallback)
                 }
             }
         }

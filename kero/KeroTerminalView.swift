@@ -6,12 +6,29 @@
 import AppKit
 import GhosttyTerminal
 
-/// Ghostty's Metal-backed terminal surface with Kero's pane focus, context
-/// menu, effective application focus, and Finder/file-tree drop behavior.
-final class KeroTerminalView: AppTerminalView {
+/// Kero's libghostty backend: Ghostty's Metal-backed terminal surface plus
+/// Kero's pane focus, context menu, effective application focus, and
+/// Finder/file-tree drop behavior.
+///
+/// This is the only type in Kero that knows libghostty exists. It owns the
+/// `TerminalController`, renders Kero's settings into Ghostty's config, and
+/// translates Ghostty's delegate callbacks into ``TerminalBackendEvents`` —
+/// see `KeroTerminalView+Ghostty.swift`.
+final class KeroTerminalView: AppTerminalView, TerminalBackendSurface {
+    /// The session listening to this surface. Weak: the session owns the view.
+    weak var events: (any TerminalBackendEvents)?
+
     /// Fired whenever direct interaction makes this pane the active one.
     var onBecomeFirstResponder: (() -> Void)?
     let splitTarget = SplitMenuTarget()
+
+    /// Held strongly for the surface's lifetime; ``detach()`` drops it.
+    var ghosttyController: TerminalController?
+    /// The `/bin/sh -c …` line this surface launched, kept so a live
+    /// re-configure can restate it rather than start a second shell.
+    var launchCommand = ""
+    /// Latest scroll report, so a scrollbar drag can be mapped back onto a row.
+    var lastScroll: TerminalScrollPosition?
 
     private let progressBar = KeroTerminalProgressBarView(frame: .zero)
     private var progressReportTimer: Timer?
@@ -25,8 +42,45 @@ final class KeroTerminalView: AppTerminalView {
         registerForDraggedTypes([.fileURL])
     }
 
+    /// Entry point for `TerminalBackend.makeSurface(launch:)`. Starts the
+    /// emulator immediately; libghostty only spawns the shell once the view is
+    /// attached to a window, which `TerminalHostView` guarantees.
+    convenience init(launch: TerminalLaunch) {
+        self.init(frame: NSRect(x: 0, y: 0, width: 800, height: 600))
+        start(launch: launch)
+    }
+
     deinit {
         progressReportTimer?.invalidate()
+    }
+
+    // MARK: - TerminalBackendSurface
+
+    func clearScreen() {
+        performBindingAction("clear_screen")
+        // Ask the foreground shell to repaint its prompt at the top.
+        performBindingAction("text:\\x0c")
+    }
+
+    func scroll(toFraction fraction: Double) {
+        guard let lastScroll else { return }
+        scrollToRow(UInt(clamping: lastScroll.row(atDragFraction: fraction)))
+    }
+
+    func beginFind(_ needle: String) { search(needle) }
+
+    func endFind() { endSearch() }
+
+    func stepFind(forward: Bool) { navigateSearch(forward: forward) }
+
+    func findSelection() { searchSelection() }
+
+    func exportScreenFile() -> String? {
+        captureHistoryExportPath(action: "write_screen_file:open,vt")
+    }
+
+    func exportScrollbackFile() -> String? {
+        captureHistoryExportPath(action: "write_scrollback_file:open,vt")
     }
 
     override func layout() {
@@ -97,7 +151,7 @@ final class KeroTerminalView: AppTerminalView {
 
     /// Uses Ghostty's `open` export action as a synchronous host callback. The
     /// delegate consumes that one URL into this slot instead of opening it.
-    func captureHistoryExportPath(action: String) -> String? {
+    private func captureHistoryExportPath(action: String) -> String? {
         guard !isCapturingHistoryExport else { return nil }
         isCapturingHistoryExport = true
         capturedHistoryExportPath = nil

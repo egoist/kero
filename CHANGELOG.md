@@ -12,6 +12,8 @@ set in the Xcode project.
 
 ## [unrelease]
 
+- Choose which terminal emulator drives your panes: Settings → Terminal → Backend now offers Ghostty (the default, unchanged) or Alacritty. The choice applies to terminals you open from then on, so existing panes keep running. Alacritty panes render the same colors, fonts and themes, and support selection, scrollback and find — but not image protocols, and restoring their history on relaunch brings back the text without its colors
+
 ## [0.1.26]
 
 - Opening the Ctrl-Tab switcher no longer highlights whichever tab happens to be under the stationary pointer

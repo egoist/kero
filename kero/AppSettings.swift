@@ -87,6 +87,14 @@ final class AppSettings: nonisolated ObservableObject {
         didSet { save() }
     }
 
+    /// Which emulator drives terminal panes. Only ever holds a backend this
+    /// build ships a surface for — see `TerminalBackend` — and a session binds
+    /// its backend at creation, so a change here reaches terminals opened
+    /// afterwards rather than live ones.
+    @Published var terminalBackend: TerminalBackend {
+        didSet { save() }
+    }
+
     private init() {
         let existing = TOML.parse(at: Self.configURL)
         let toml = existing ?? Self.legacyDefaults()
@@ -103,6 +111,7 @@ final class AppSettings: nonisolated ObservableObject {
         fontThicken = toml["font-thicken"]?.bool ?? false
         wrapLines = toml["editor.wrap-lines"]?.bool ?? false
         restoreTerminalHistory = toml["terminal.restore-history"]?.bool ?? false
+        terminalBackend = TerminalBackend(persisted: toml["terminal.backend"]?.string)
         applyAppearance()
         reloadThemeSelection()
         if existing == nil { save() }
@@ -144,6 +153,7 @@ final class AppSettings: nonisolated ObservableObject {
         themeLight = Theme.defaultLightThemeName
         wrapLines = false
         restoreTerminalHistory = false
+        terminalBackend = .fallback
     }
 
     private func save() {
@@ -171,6 +181,9 @@ final class AppSettings: nonisolated ObservableObject {
         }
         if restoreTerminalHistory {
             lines.append("terminal.restore-history = true")
+        }
+        if terminalBackend != .fallback {
+            lines.append("terminal.backend = \(TOML.quote(terminalBackend.rawValue))")
         }
         let dir = Self.configURL.deletingLastPathComponent()
         do {
