@@ -20,3 +20,14 @@ xcodebuild -project kero.xcodeproj -scheme kero -configuration Debug -destinatio
 ```
 
 Add `DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer` for if you only have XCode beta.
+
+A Debug build is `sh.kero.dev` and keeps its own state, so it can run beside an
+installed Kero without clobbering it: settings go to
+`~/.config/kero-dev/config.toml`, and the session snapshot, sidebar widths, and
+Sparkle preferences live under the separate bundle id.
+
+## Website and docs
+
+The site is in [`web/`](web/README.md); user documentation is MDX under
+`web/content/docs`. It is written for people using the app — anything that only
+matters when you are building it belongs here instead.
