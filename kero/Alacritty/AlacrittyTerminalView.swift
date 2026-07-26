@@ -6,6 +6,8 @@
 import AppKit
 import Darwin
 import GhosttyTheme
+import Metal
+import QuartzCore
 
 /// Kero's Alacritty backend: a `TerminalBackendSurface` drawn with CoreText on
 /// top of the `alacritty_terminal` crate.
@@ -44,6 +46,19 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
     private var directoryTimer: Timer?
     private var lastReportedDirectory: String?
 
+    /// Shared across every pane: one device and one shader library is enough,
+    /// and a per-pane device would duplicate the glyph atlas too.
+    private static let sharedDevice = MTLCreateSystemDefaultDevice()
+    private let metalDevice = AlacrittyTerminalView.sharedDevice
+    private var renderScheduled = false
+    private lazy var metalRenderer: TerminalMetalRenderer? = {
+        guard let metalDevice else {
+            NSLog("kero: no Metal device; the Alacritty backend cannot draw")
+            return nil
+        }
+        return TerminalMetalRenderer(device: metalDevice)
+    }()
+
     override init(frame frameRect: NSRect) {
         metrics = AlacrittyMetrics(
             family: AppSettings.shared.fontFamily,
@@ -51,8 +66,6 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
         )
         super.init(frame: frameRect)
         wantsLayer = true
-        // Every frame repaints the whole grid, so AppKit must not hand back a
-        // partial dirty rect and keep the rest of the old layer contents.
         layerContentsRedrawPolicy = .onSetNeedsDisplay
         registerForDraggedTypes([.fileURL])
         AlacrittyRegistry.shared.register(self, for: token)
@@ -155,7 +168,7 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
         }
         // A new cell size means a different column count.
         synchronizeGridSize()
-        needsDisplay = true
+        scheduleRender()
     }
 
     var foregroundPid: pid_t? {
@@ -193,7 +206,7 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
             UInt16(size.columns), UInt16(size.rows),
             UInt16(metrics.cellWidth.rounded()), UInt16(metrics.cellHeight.rounded())
         )
-        needsDisplay = true
+        scheduleRender()
     }
 
     override var isFlipped: Bool { false }
@@ -202,14 +215,72 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
 
     // MARK: - Drawing
 
-    override func draw(_ dirtyRect: NSRect) {
-        guard let handle, let context = NSGraphicsContext.current?.cgContext else { return }
+    /// Metal draws into a `CAMetalLayer` rather than the view's context, so
+    /// this view has no `draw(_:)`. `needsDisplay` still drives redraws —
+    /// AppKit coalesces it per run-loop turn, which is exactly the batching a
+    /// burst of PTY output wants.
+    override func makeBackingLayer() -> CALayer {
+        let layer = CAMetalLayer()
+        layer.device = metalDevice
+        layer.pixelFormat = .bgra8Unorm
+        layer.framebufferOnly = true
+        layer.isOpaque = true
+        // Resize should not stretch the previous frame while the grid catches
+        // up; redraw against the new size instead.
+        layer.autoresizingMask = [.layerWidthSizable, .layerHeightSizable]
+        layer.needsDisplayOnBoundsChange = true
+        return layer
+    }
+
+    /// Coalesces a burst of PTY wakeups into one frame per run-loop turn.
+    ///
+    /// AppKit's layer-display cycle is not used: it expects to draw into the
+    /// layer's backing store, which a `CAMetalLayer` does not have, so a
+    /// Metal view drives its own redraws. This is what `needsDisplay` did on
+    /// the CoreText path.
+    private func scheduleRender() {
+        guard !renderScheduled, isSurfaceVisible else { return }
+        renderScheduled = true
+        RunLoop.main.perform(inModes: [.common]) { [weak self] in
+            guard let self else { return }
+            renderScheduled = false
+            renderFrame()
+        }
+    }
+
+    override func viewDidChangeBackingProperties() {
+        super.viewDidChangeBackingProperties()
+        // A move between displays changes the backing scale, which invalidates
+        // every rasterized glyph.
+        guard let scale = window?.backingScaleFactor else { return }
+        (self.layer as? CAMetalLayer)?.contentsScale = scale
+        scheduleRender()
+    }
+
+    private func renderFrame() {
+        guard let handle,
+              let metalLayer = layer as? CAMetalLayer,
+              let renderer = metalRenderer
+        else { return }
+
+        let scale = window?.backingScaleFactor ?? 2
+        metalLayer.contentsScale = scale
+        let size = bounds.size
+        guard size.width > 0, size.height > 0 else { return }
+        metalLayer.drawableSize = CGSize(
+            width: size.width * scale, height: size.height * scale
+        )
+        guard let drawable = metalLayer.nextDrawable() else { return }
+
         var snapshot = KeroSnapshot()
         kero_alacritty_snapshot(handle, &snapshot)
-
-        let renderer = AlacrittyRenderer(metrics: metrics, origin: Self.padding)
-        renderer.draw(
-            snapshot: snapshot, markedText: markedText, in: context, bounds: bounds
+        renderer.render(
+            snapshot: snapshot,
+            metrics: metrics,
+            padding: Self.padding,
+            scale: scale,
+            in: drawable,
+            viewportSize: size
         )
     }
 
@@ -243,7 +314,7 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
         switch kind {
         case KERO_EVENT_WAKEUP:
             guard isSurfaceVisible else { return }
-            needsDisplay = true
+            scheduleRender()
             reportScroll()
         case KERO_EVENT_TITLE:
             let title = String(decoding: payload, as: UTF8.self)
@@ -276,7 +347,7 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
         kero_alacritty_clear(handle)
         // Ask the foreground shell to repaint its prompt at the top.
         write([0x0c])
-        needsDisplay = true
+        scheduleRender()
     }
 
     func scroll(toFraction fraction: Double) {
@@ -288,7 +359,7 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
         // The scrollbar runs oldest-to-newest; display offset runs the other way.
         let fromTop = Int((Double(history) * fraction).rounded())
         kero_alacritty_scroll_to_offset(handle, history - min(fromTop, history))
-        needsDisplay = true
+        scheduleRender()
     }
 
     var hasSelection: Bool {
@@ -304,17 +375,17 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
 
     func beginFind(_ needle: String) {
         findState.begin(needle: needle, handle: handle, events: events)
-        needsDisplay = true
+        scheduleRender()
     }
 
     func endFind() {
         findState.end(handle: handle)
-        needsDisplay = true
+        scheduleRender()
     }
 
     func stepFind(forward: Bool) {
         findState.step(forward: forward, handle: handle, events: events)
-        needsDisplay = true
+        scheduleRender()
     }
 
     func findSelection() {
@@ -392,13 +463,13 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
         let accepted = super.becomeFirstResponder()
         if accepted {
             onBecomeFirstResponder?()
-            needsDisplay = true
+            scheduleRender()
         }
         return accepted
     }
 
     override func resignFirstResponder() -> Bool {
-        needsDisplay = true
+        scheduleRender()
         return super.resignFirstResponder()
     }
 
@@ -425,7 +496,7 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
         kero_alacritty_selection_start(
             handle, Int32(point.line), point.column, kind, point.rightHalf
         )
-        needsDisplay = true
+        scheduleRender()
     }
 
     override func mouseDragged(with event: NSEvent) {
@@ -434,7 +505,7 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
         kero_alacritty_selection_update(
             handle, Int32(point.line), point.column, point.rightHalf
         )
-        needsDisplay = true
+        scheduleRender()
     }
 
     override func mouseUp(with event: NSEvent) {
@@ -453,7 +524,7 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
         guard lines != 0 else { return }
         scrollAccumulator -= CGFloat(lines)
         kero_alacritty_scroll(handle, Int32(lines))
-        needsDisplay = true
+        scheduleRender()
         reportScroll()
     }
 
@@ -501,7 +572,7 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
     override func selectAll(_ sender: Any?) {
         guard let handle else { return }
         kero_alacritty_select_all(handle)
-        needsDisplay = true
+        scheduleRender()
     }
 
     func validateUserInterfaceItem(_ item: any NSValidatedUserInterfaceItem) -> Bool {
@@ -587,17 +658,17 @@ extension AlacrittyTerminalView: NSTextInputClient {
         let text = (string as? NSAttributedString)?.string ?? (string as? String) ?? ""
         guard !text.isEmpty else { return }
         write(Array(text.utf8))
-        needsDisplay = true
+        scheduleRender()
     }
 
     func setMarkedText(_ string: Any, selectedRange: NSRange, replacementRange: NSRange) {
         markedText = (string as? NSAttributedString)?.string ?? (string as? String) ?? ""
-        needsDisplay = true
+        scheduleRender()
     }
 
     func unmarkText() {
         markedText = ""
-        needsDisplay = true
+        scheduleRender()
     }
 
     func selectedRange() -> NSRange {
