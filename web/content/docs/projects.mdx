@@ -99,6 +99,7 @@ Terminals come back as **fresh shells** in their old directories. Kero doesn't
 keep processes alive in the background — if a build was running when you quit, it
 stopped when you quit.
 
-Previous scrollback is restored only if you ask for it, under **Settings →
-Terminal → Restore session history on relaunch**. It's off by default because
-turning it on means Kero writes captured terminal output to disk.
+Previous scrollback is restored only if you ask for it, with
+[`terminal.restore-history`](/docs/configuration#terminalrestore-history). It's
+off by default because turning it on means Kero writes captured terminal output
+to disk.

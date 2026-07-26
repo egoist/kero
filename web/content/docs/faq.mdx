@@ -30,7 +30,7 @@ the update check against `releases.kero.sh`, which you can turn off in
 <Accordion title="Does it read my Ghostty config?">
 
 No. `~/.config/ghostty` is ignored. Fonts and colors come from Kero's own
-[settings](/docs/settings); everything else uses Ghostty's defaults.
+[settings](/docs/configuration); everything else uses Ghostty's defaults.
 
 </Accordion>
 
@@ -40,9 +40,9 @@ Projects, tabs, and pane layout come back on relaunch, and each terminal reopens
 as a fresh shell in its old directory. Nothing keeps running in the background
 after you quit.
 
-Previous scrollback comes back too if you enable **Settings → Terminal → Restore
-session history on relaunch** — it appears above a `Session Contents Restored`
-divider as static text.
+Previous scrollback comes back too if you enable
+[`terminal.restore-history`](/docs/configuration#terminalrestore-history) — it
+appears above a `Session Contents Restored` divider as static text.
 
 </Accordion>
 

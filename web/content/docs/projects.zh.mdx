@@ -84,5 +84,6 @@ Kero 会随着你的操作持续快照布局，所以退出再打开会拿回：
 终端会在原目录里以**全新的 shell** 回来。Kero 不会在后台留着进程——退出时如果有构建在跑，
 它就在退出时停了。
 
-之前的滚动缓冲区只有你主动要求才会恢复，开关在 **设置 → Terminal → Restore session
-history on relaunch**。它默认关着，因为打开意味着 Kero 会把捕获到的终端输出写到磁盘上。
+之前的滚动缓冲区只有你主动要求才会恢复，开关是
+[`terminal.restore-history`](/zh/docs/configuration#terminalrestore-history)。它默认关着，
+因为打开意味着 Kero 会把捕获到的终端输出写到磁盘上。

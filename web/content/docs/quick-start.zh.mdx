@@ -74,8 +74,9 @@ description: 从空窗口到能干活的项目——最值得先学的五件事�
 退出再打开，项目、标签页和窗格布局都还在原处。每个终端会在原来的目录里启动一个
 **全新的 shell**——不会有东西被偷偷留在后台跑着。
 
-滚动缓冲区默认不恢复。打开 **设置 → Terminal → Restore session history on relaunch** 之后，
-重开的终端会在 `Session Contents Restored` 分隔线上方显示之前的输出，新 shell 在下方运行。
+滚动缓冲区默认不恢复。打开
+[`terminal.restore-history`](/zh/docs/configuration#terminalrestore-history) 之后，重开的
+终端会在 `Session Contents Restored` 分隔线上方显示之前的输出，新 shell 在下方运行。
 
 <Callout type="info">
 恢复出来的就是文本本身。它是「当时发生过什么」的记录，不是一个活着的会话，往回滚不会重新

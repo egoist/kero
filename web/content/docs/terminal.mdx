@@ -23,7 +23,7 @@ image-rendering CLIs, for one, use it to pick the Kitty graphics protocol.
 
 <Callout type="info">
 Kero does **not** read `~/.config/ghostty`. Appearance is configured in Kero's
-own settings and [config file](/docs/settings); everything else uses Ghostty's
+own settings and [config file](/docs/configuration); everything else uses Ghostty's
 defaults.
 </Callout>
 
@@ -80,5 +80,6 @@ see one prompt naming Kero rather than the program.
 
 Kero ships **JetBrains Mono** plus Nerd Font symbols, so powerline prompts and
 icon glyphs render without installing anything. Any installed monospace family
-can replace it in **Settings → Font**, along with size and an optional
-stroke-thickening toggle. See [Settings](/docs/settings).
+can replace it — see [`font-family`](/docs/configuration#font-family), along
+with [`font-size`](/docs/configuration#font-size) and
+[`font-thicken`](/docs/configuration#font-thicken).

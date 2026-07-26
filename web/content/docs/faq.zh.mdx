@@ -27,7 +27,7 @@ dotfiles。底层终端是 libghostty，和 Ghostty 同一个内核。
 
 <Accordion title="它会读我的 Ghostty 配置吗？">
 
-不会。`~/.config/ghostty` 被完全忽略。字体和配色来自 Kero 自己的[设置](/zh/docs/settings)，
+不会。`~/.config/ghostty` 被完全忽略。字体和配色来自 Kero 自己的[设置](/zh/docs/configuration)，
 其余一切都用 Ghostty 的默认值。
 
 </Accordion>
@@ -37,8 +37,8 @@ dotfiles。底层终端是 libghostty，和 Ghostty 同一个内核。
 项目、标签页和窗格布局会在重启后回来，每个终端会在原目录里以全新的 shell 打开。退出之后
 不会有任何东西继续在后台跑。
 
-如果你打开 **设置 → Terminal → Restore session history on relaunch**，之前的滚动缓冲区也会
-回来——它以静态文本的形式出现在 `Session Contents Restored` 分隔线上方。
+如果你打开 [`terminal.restore-history`](/zh/docs/configuration#terminalrestore-history)，
+之前的滚动缓冲区也会回来——它以静态文本的形式出现在 `Session Contents Restored` 分隔线上方。
 
 </Accordion>
 
