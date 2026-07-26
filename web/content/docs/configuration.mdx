@@ -34,9 +34,7 @@ Worth knowing before you hand-edit:
 - **Bad values are ignored, not rejected.** An out-of-range size or a
   misspelled theme falls back to the default instead of failing to start.
 
-## Appearance
-
-### `theme`
+## `theme`
 
 `"system"` · `"light"` · `"dark"` — default `"system"`
 
@@ -47,7 +45,7 @@ whatever the system is doing.
 This decides *which* of the two color themes below is active — it isn't a color
 choice itself.
 
-### `theme-dark` and `theme-light`
+## `theme-dark` and `theme-light`
 
 string — default `"Default Dark"` and `"Default Light"`
 
@@ -72,15 +70,7 @@ Nothing stops you putting a dark theme in `theme-light`. Kero won't correct
 you; the Settings pickers just won't offer it, since they split the catalog by
 background luminance.
 
-```toml
-theme = "system"
-theme-dark = "Catppuccin Mocha"
-theme-light = "Catppuccin Latte"
-```
-
-## Text
-
-### `font-family`
+## `font-family`
 
 string — default `""`, meaning the bundled JetBrains Mono
 
@@ -98,7 +88,7 @@ Give a family name, not a face: `"IBM Plex Mono"`, not `"IBM Plex Mono
 Regular"`. An unknown or non-monospace name falls back to the bundled default,
 and Settings only offers fixed-pitch families in the first place.
 
-### `font-size`
+## `font-size`
 
 number, 8–32 — default `13`
 
@@ -107,7 +97,7 @@ instead.
 
 This is the one key Kero always writes, even at its default value.
 
-### `font-thicken`
+## `font-thicken`
 
 boolean — default `false`
 
@@ -117,7 +107,7 @@ smoothing did. Off by default so text matches a stock Ghostty install.
 Worth trying on a non-Retina display, where the default can look thin. On a
 Retina display it mostly just makes text softer.
 
-### `editor.wrap-lines`
+## `editor.wrap-lines`
 
 boolean — default `false`
 
@@ -127,9 +117,7 @@ means they scroll horizontally instead.
 Affects the editor only — wrapping in the terminal is the running program's
 business, and the diff viewer always scrolls.
 
-## Terminal
-
-### `terminal.restore-history`
+## `terminal.restore-history`
 
 boolean — default `false`
 

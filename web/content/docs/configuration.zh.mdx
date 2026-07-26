@@ -28,9 +28,7 @@ Kero 能改的一切都在一个文件里：
 - **错误的值会被忽略，而不是报错。** 超出范围的字号或拼错的主题名会退回默认值，而不是让程序
   起不来。
 
-## 外观
-
-### `theme`
+## `theme`
 
 `"system"` · `"light"` · `"dark"`——默认 `"system"`
 
@@ -39,7 +37,7 @@ Kero 用哪种外观，和 macOS 其余部分无关。`"system"` 跟随系统一
 
 它决定的是下面**哪一个**配色主题生效——它本身不是配色选择。
 
-### `theme-dark` 和 `theme-light`
+## `theme-dark` 和 `theme-light`
 
 字符串——默认 `"Default Dark"` 和 `"Default Light"`
 
@@ -59,15 +57,7 @@ Kero 用哪种外观，和 macOS 其余部分无关。`"system"` 跟随系统一
 没有什么拦着你把深色主题写进 `theme-light`。Kero 不会纠正你；只是设置里的选择器不会给你这个
 选项，因为它按背景明度把主题目录分成了两半。
 
-```toml
-theme = "system"
-theme-dark = "Catppuccin Mocha"
-theme-light = "Catppuccin Latte"
-```
-
-## 文字
-
-### `font-family`
+## `font-family`
 
 字符串——默认 `""`，即内置的 JetBrains Mono
 
@@ -81,7 +71,7 @@ Kero 内置 **JetBrains Mono**，并且只为自己这个进程注册它，不�
 写字族名，不要写具体字重：`"IBM Plex Mono"`，不是 `"IBM Plex Mono Regular"`。不存在的名字或者
 非等宽字体会退回内置默认值，而设置窗口本来就只列出等宽字族。
 
-### `font-size`
+## `font-size`
 
 数字，8–32——默认 `13`
 
@@ -89,7 +79,7 @@ Kero 内置 **JetBrains Mono**，并且只为自己这个进程注册它，不�
 
 这是唯一一个即使等于默认值 Kero 也照写不误的键。
 
-### `font-thicken`
+## `font-thicken`
 
 布尔值——默认 `false`
 
@@ -98,7 +88,7 @@ Kero 内置 **JetBrains Mono**，并且只为自己这个进程注册它，不�
 
 在非 Retina 屏上值得一试，那里默认的字看着可能偏细。在 Retina 屏上它基本只会让文字变糊。
 
-### `editor.wrap-lines`
+## `editor.wrap-lines`
 
 布尔值——默认 `false`
 
@@ -106,9 +96,7 @@ Kero 内置 **JetBrains Mono**，并且只为自己这个进程注册它，不�
 
 只影响编辑器——终端里怎么折行是运行中的程序的事，而 diff 视图始终是滚动的。
 
-## 终端
-
-### `terminal.restore-history`
+## `terminal.restore-history`
 
 布尔值——默认 `false`
 
