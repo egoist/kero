@@ -204,21 +204,22 @@ const en: HomeCopy = {
 
 const zh: HomeCopy = {
   languageName: '中文',
-  title: 'Kero — 原生的 macOS 终端工作区',
+  title: 'Kero — 原生 macOS 终端工作区',
   description:
-    'Kero 是一个快速、键盘优先的 macOS 终端工作区。项目、会话、命令面板、内联 git diff，都在同一个原生窗口里。',
-  taglineBefore: '你的终端，周围就是',
+    'Kero 是面向 macOS 的原生终端工作区：快速、键盘优先。项目、会话、命令面板、内联 git diff，都在同一个窗口里。',
+  taglineBefore: '你的终端，',
   taglineHighlight: '整个项目',
-  taglineAfter: '。',
-  intro: '围绕终端打造的原生 macOS 工作区——项目、常开的会话、文件和 git，都在一个窗口里。',
-  introFree: '免费、无遥测、无订阅。',
+  taglineAfter: '都在身边。',
+  intro:
+    '以终端为中心的原生 macOS 工作区——项目、可恢复的会话、文件和 git，都在同一个窗口里。',
+  introFree: '免费，无遥测，无订阅。',
   download: '下载',
   docs: '文档',
   copy: '复制',
   copied: '已复制',
-  copyAria: (command) => `把“${command}”复制到剪贴板`,
+  copyAria: (command) => `将「${command}」复制到剪贴板`,
   pillFree: '免费开源',
-  screenshotAlt: 'kero 的窗口：一个项目的终端会话，旁边开着 git 面板',
+  screenshotAlt: 'kero 窗口：项目的终端会话，旁边开着 git 面板',
   screenshotCaption: '项目、标签页，旁边开着信息面板',
   featuresHeading: '功能',
   shortcutsHeading: '快捷键',
@@ -228,50 +229,53 @@ const zh: HomeCopy = {
       group: '项目与会话',
       rows: [
         {
-          name: '项目，不是窗口',
-          detail: '每个仓库就是侧边栏里的一个项目——Cmd+1–9 切换，Cmd+N 新建',
+          name: '按项目组织，而不是窗口',
+          detail: '每个仓库对应侧边栏里的一个项目——Cmd+1–9 切换，Cmd+N 新建',
         },
         {
           name: '一个项目，多个会话',
-          detail: 'Cmd+T 想开几个终端标签页就开几个，每个都有自己的工作目录和滚动内容',
+          detail:
+            'Cmd+T 想开几个终端标签页就开几个，每个都有自己的工作目录和滚动历史',
         },
         {
           name: '分屏',
-          detail: 'Cmd+D 向右分，Cmd+Shift+D 向下分，Opt+Cmd+方向键在窗格间移动焦点',
+          detail: 'Cmd+D 向右分，Cmd+Shift+D 向下分，Opt+Cmd+方向键在窗格间切换焦点',
         },
         {
-          name: '重启后原样回来',
+          name: '重启后原样恢复',
           detail:
-            '退出再打开，项目、标签页和窗格布局都在原处；每个 shell 都是新的，之前的输出留在上面',
+            '退出再打开，项目、标签页和窗格布局都还在；每个 shell 重新启动，之前的输出留在上方',
         },
         {
           name: '命令面板',
-          detail: 'Cmd+P 跳到任意项目或会话，也可以直接执行命令',
+          detail: 'Cmd+P 跳到任意项目或会话，也能直接执行命令',
         },
       ],
     },
     {
-      group: '审阅与交付',
+      group: '审阅与提交',
       rows: [
         {
           name: 'Git 面板',
-          detail: '暂存、取消暂存、丢弃、提交，amend 也有——就在写出这些改动的 shell 旁边',
+          detail:
+            '暂存、取消暂存、丢弃、提交（含 amend）——就在产生改动的那个 shell 旁边',
         },
         {
           name: '内联 diff',
-          detail: '点一个改动过的文件，就地看它的 diff，不用离开窗口',
+          detail: '点开改动过的文件，直接看 diff，不用离开窗口',
         },
         {
           name: '分支操作',
-          detail: '切换或新建分支，fetch、fast-forward 拉取、推送、发布新的 upstream，或者 stash',
+          detail:
+            '切换或新建分支，fetch、fast-forward 拉取、推送、发布 upstream，或 stash',
         },
         {
           name: '文件面板',
-          detail: '浏览工作树，打开文件编辑，语法高亮用 tree-sitter，Cmd+S 保存',
+          detail: '浏览工作区，打开文件编辑；tree-sitter 语法高亮，Cmd+S 保存',
         },
         {
           name: '会话信息',
-          detail: '一个会话里在跑哪些进程，它们又在监听哪些 TCP 端口',
+          detail: '当前会话在跑哪些进程，以及它们监听的 TCP 端口',
         },
       ],
     },
@@ -279,28 +283,31 @@ const zh: HomeCopy = {
       group: '终端本身',
       rows: [
         {
-          name: '你的 shell，原样不动',
-          detail: 'zsh、fish 还是 bash，你怎么配的就怎么用——提示符、别名、dotfiles 一个不少',
+          name: '你的 shell，原封不动',
+          detail:
+            'zsh、fish 还是 bash，你怎么配的就怎么用——提示符、别名、dotfiles 一个不少',
         },
         {
           name: '基于 libghostty',
-          detail: 'Ghostty 的终端内核，内嵌进 kero 里原生跑',
+          detail: 'Ghostty 的终端内核，由 kero 原生嵌入运行',
         },
         {
           name: '桌面通知',
-          detail: '没在看的会话响了铃，或者跑很久的命令发来通知，都会出现在通知中心',
+          detail:
+            '未聚焦的会话响铃，或跑了很久的命令发来通知，都会出现在系统通知中心',
         },
         {
           name: '进度显示',
-          detail: '程序报的 OSC 9;4 进度会变成终端上方的一条细进度条，出错和暂停也看得出来',
+          detail:
+            '程序上报的 OSC 9;4 进度会变成终端上方的细进度条，错误和暂停也能看出来',
         },
         {
           name: '字体',
           detail: '内置 JetBrains Mono 和 Nerd Font 符号；也可以换成任何等宽字体和字号',
         },
         {
-          name: '安静的更新',
-          detail: '新版本由 Sparkle 自己去查，也自己在后台装好',
+          name: '静默更新',
+          detail: '通过 Sparkle 在后台检查并安装新版本，不用你操心',
         },
       ],
     },
@@ -318,7 +325,7 @@ const zh: HomeCopy = {
     { name: 'Cmd+[ / Cmd+]', detail: '循环切换窗格焦点' },
     { name: 'Cmd+Shift+Return', detail: '放大当前窗格' },
     { name: 'Ctrl+Cmd+arrows / =', detail: '调整窗格大小 / 等分' },
-    { name: 'Cmd+B / Cmd+Shift+B', detail: '开合左 / 右侧边栏' },
+    { name: 'Cmd+B / Cmd+Shift+B', detail: '切换左 / 右侧边栏' },
     { name: 'Cmd+Shift+G / E / I', detail: 'git / 文件 / 信息面板' },
     { name: 'Cmd+F / Cmd+G', detail: '查找 / 查找下一个' },
     { name: 'Cmd+K', detail: '清空终端' },
@@ -327,23 +334,23 @@ const zh: HomeCopy = {
   faq: [
     {
       q: 'kero 免费吗？',
-      a: '免费。没有订阅，也不需要账号。',
+      a: '是的。免费下载，无需订阅，也不需要账号。',
     },
     {
       q: '它会替换我的 shell 吗？',
-      a: '不会。kero 承载的是你本来就在用的 shell，提示符、别名和 dotfiles 都不动。底层终端是 libghostty，和 Ghostty 同一个内核。',
+      a: '不会。kero 运行的就是你本来在用的 shell，提示符、别名和 dotfiles 都不受影响。底层终端是 libghostty，与 Ghostty 同一内核。',
     },
     {
       q: '它会收集数据吗？',
-      a: '没有遥测，也没有统计分析。kero 唯一主动发起的网络请求，是去 releases.kero.sh 查更新。',
+      a: '没有遥测，也没有分析统计。kero 唯一主动发起的网络请求，是向 releases.kero.sh 检查更新。',
     },
     {
       q: '退出之后我的会话会怎样？',
-      a: '项目、标签页和窗格布局会在重开时回来。每个终端都会在原来的目录里重新起一个 shell，之前的输出恢复在「Session Contents Restored」分隔线上方。',
+      a: '项目、标签页和窗格布局会在重新打开时恢复。每个终端会在原来的目录里启动一个新 shell，之前的输出出现在「Session Contents Restored」分隔线上方。',
     },
     {
       q: '这是一个 IDE 吗？',
-      a: '不是——终端始终是重心。git 和文件面板是为了让你不切到编辑器就能审阅、交付终端里发生的事。',
+      a: '不是——终端始终是核心。git 和文件面板是为了让你不用切到编辑器，也能审阅并提交终端里完成的工作。',
     },
   ],
   footerBuiltBy: { before: '由 ', after: ' 打造' },

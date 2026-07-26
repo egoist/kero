@@ -7,27 +7,27 @@ description: 关于费用、隐私，以及 Kero 和你的 shell 是什么关系
 
 <Accordion title="Kero 免费吗？">
 
-免费。下载免费，基于 GPLv3 开源，不需要账号，也没有订阅。
+是的。免费下载，基于 GPLv3 开源，不需要账号，也没有订阅。
 
 </Accordion>
 
 <Accordion title="它会替换我的 shell 吗？">
 
-不会。Kero 承载的是你已经在用的 shell——它启动 `$SHELL -l`，不碰你的提示符、别名、函数和
-dotfiles。底层终端是 libghostty，和 Ghostty 同一个内核。
+不会。Kero 运行的就是你已经在用的 shell——它启动 `$SHELL -l`，不碰你的提示符、别名、函数和
+dotfiles。底层终端是 libghostty，与 Ghostty 同一内核。
 
 </Accordion>
 
 <Accordion title="它会收集数据吗？">
 
-没有遥测，也没有统计分析。Kero 自己发起的唯一网络请求，是向 `releases.kero.sh` 检查更新，
+没有遥测，也没有分析统计。Kero 自己发起的唯一网络请求，是向 `releases.kero.sh` 检查更新，
 而这个可以在 **设置 → Updates** 里关掉。
 
 </Accordion>
 
 <Accordion title="它会读我的 Ghostty 配置吗？">
 
-不会。`~/.config/ghostty` 被完全忽略。字体和配色来自 Kero 自己的[设置](/zh/docs/configuration)，
+不会。`~/.config/ghostty` 会被完全忽略。字体和配色来自 Kero 自己的[设置](/zh/docs/configuration)，
 其余一切都用 Ghostty 的默认值。
 
 </Accordion>
@@ -38,14 +38,14 @@ dotfiles。底层终端是 libghostty，和 Ghostty 同一个内核。
 不会有任何东西继续在后台跑。
 
 如果你打开 [`terminal.restore-history`](/zh/docs/configuration#terminalrestore-history)，
-之前的滚动缓冲区也会回来——它以静态文本的形式出现在 `Session Contents Restored` 分隔线上方。
+之前的滚动历史也会回来——它以静态文本的形式出现在 `Session Contents Restored` 分隔线上方。
 
 </Accordion>
 
 <Accordion title="这是一个 IDE 吗？">
 
-不是，也不打算往那个方向走。终端始终是重心。git 和文件面板的存在，是为了让你不切换应用就能
-审阅并交付终端里发生的事——而不是为了变成你工作的地方。
+不是，也不打算往那个方向走。终端始终是核心。git 和文件面板的存在，是为了让你不切换应用就能
+审阅并提交终端里完成的工作——而不是变成你主要的工作场所。
 
 </Accordion>
 
@@ -58,7 +58,7 @@ dotfiles。底层终端是 libghostty，和 Ghostty 同一个内核。
 
 <Accordion title="能和 AI 编码工具一起用吗？">
 
-它很大程度上就是为此而做的。在一个会话里跑 agent，在 [git 面板](/zh/docs/git)里看它产生的
+很大程度上就是为此而做的。在一个会话里跑 agent，在 [git 面板](/zh/docs/git)里看它产生的
 diff，在旁边的窗格里读改动过的文件，然后只暂存你真正想要的部分。会话里的程序还可以申请
 麦克风权限来做语音输入——macOS 会把这个提示归到 Kero 名下。
 
