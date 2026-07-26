@@ -42,6 +42,17 @@ final class TerminalMetalRenderer {
     private var instances: [Instance] = []
     private var instanceBuffer: MTLBuffer?
 
+    /// Draw instances per grid row, kept between frames.
+    ///
+    /// Building a row means an atlas lookup, a colour unpack and a flag test
+    /// per cell — the bulk of a frame's CPU cost. Almost every change touches
+    /// one row (a prompt redraw, a cursor blink), so rows the emulator did not
+    /// damage are reused verbatim and only the dirty ones are rebuilt.
+    private var rowInstances: [[Instance]] = []
+    /// Rebuilt rows are only valid for the geometry they were built at.
+    private var cachedColumns = 0
+    private var cachedRows = 0
+
     init?(device: MTLDevice) {
         guard let queue = device.makeCommandQueue() else { return nil }
         self.device = device
@@ -88,6 +99,7 @@ final class TerminalMetalRenderer {
         metrics: AlacrittyMetrics,
         padding: CGPoint,
         scale: CGFloat,
+        dirtyRows: [Int]?,
         in drawable: CAMetalDrawable,
         viewportSize: CGSize
     ) {
@@ -97,7 +109,10 @@ final class TerminalMetalRenderer {
         atlas?.reset(metrics: metrics, scale: scale)
         guard let atlas else { return }
 
-        build(snapshot: snapshot, metrics: metrics, padding: padding, atlas: atlas)
+        build(
+            snapshot: snapshot, metrics: metrics, padding: padding,
+            atlas: atlas, dirtyRows: dirtyRows
+        )
 
         let pass = MTLRenderPassDescriptor()
         pass.colorAttachments[0].texture = drawable.texture
@@ -155,108 +170,146 @@ final class TerminalMetalRenderer {
         snapshot: KeroSnapshot,
         metrics: AlacrittyMetrics,
         padding: CGPoint,
-        atlas: TerminalGlyphAtlas
+        atlas: TerminalGlyphAtlas,
+        dirtyRows: [Int]?
     ) {
         instances.removeAll(keepingCapacity: true)
         guard let cells = snapshot.cells else { return }
 
         let columns = snapshot.columns
         let rows = snapshot.rows
+
+        // A geometry change invalidates every cached row: positions are baked
+        // into the instances.
+        if cachedColumns != columns || cachedRows != rows {
+            rowInstances = Array(repeating: [], count: rows)
+            cachedColumns = columns
+            cachedRows = rows
+        }
+
+        // nil means rebuild everything — a full-damage frame, or a host-side
+        // change the emulator never saw.
+        let rowsToBuild: [Int]
+        if let dirtyRows {
+            rowsToBuild = dirtyRows.filter { $0 >= 0 && $0 < rows }
+        } else {
+            rowsToBuild = Array(0..<rows)
+        }
+        for row in rowsToBuild {
+            rowInstances[row] = buildRow(
+                row: row, cells: cells, columns: columns,
+                snapshot: snapshot, metrics: metrics, padding: padding, atlas: atlas
+            )
+        }
+
+        instances.reserveCapacity(rowInstances.reduce(0) { $0 + $1.count } + 1)
+        for row in rowInstances { instances.append(contentsOf: row) }
+        appendCursor(snapshot: snapshot, metrics: metrics, padding: padding)
+    }
+
+    private func buildRow(
+        row: Int,
+        cells: UnsafePointer<KeroCell>,
+        columns: Int,
+        snapshot: KeroSnapshot,
+        metrics: AlacrittyMetrics,
+        padding: CGPoint,
+        atlas: TerminalGlyphAtlas
+    ) -> [Instance] {
+        var instances: [Instance] = []
         let cellWidth = Float(metrics.cellWidth)
         let cellHeight = Float(metrics.cellHeight)
         let originX = Float(padding.x)
         let originY = Float(padding.y)
         let defaultBackground = snapshot.background
 
-        for row in 0..<rows {
-            let top = originY + Float(row) * cellHeight
-            var column = 0
+        let top = originY + Float(row) * cellHeight
+        var column = 0
 
-            // Backgrounds first, coalescing equal-coloured runs into one quad.
-            while column < columns {
-                let cell = cells[row * columns + column]
-                let background = AlacrittyRenderer.background(of: cell, default: defaultBackground)
-                var span = 1
-                while column + span < columns {
-                    let next = cells[row * columns + column + span]
-                    guard AlacrittyRenderer.background(of: next, default: defaultBackground)
-                        == background else { break }
-                    span += 1
-                }
-                if background != defaultBackground {
+        // Backgrounds first, coalescing equal-coloured runs into one quad.
+        while column < columns {
+            let cell = cells[row * columns + column]
+            let background = AlacrittyRenderer.background(of: cell, default: defaultBackground)
+            var span = 1
+            while column + span < columns {
+                let next = cells[row * columns + column + span]
+                guard AlacrittyRenderer.background(of: next, default: defaultBackground)
+                    == background else { break }
+                span += 1
+            }
+            if background != defaultBackground {
+                instances.append(Instance(
+                    origin: SIMD2(originX + Float(column) * cellWidth, top),
+                    size: SIMD2(cellWidth * Float(span), cellHeight),
+                    color: Self.color(background),
+                    uvOrigin: .zero,
+                    uvSize: .zero,
+                    kind: 0
+                ))
+            }
+            column += span
+        }
+
+        for column in 0..<columns {
+            let cell = cells[row * columns + column]
+            guard cell.flags & UInt16(KERO_CELL_HIDDEN) == 0,
+                  cell.flags & UInt16(KERO_CELL_WIDE_SPACER) == 0
+            else { continue }
+
+            var foreground = AlacrittyRenderer.foreground(of: cell, default: defaultBackground)
+            let isCursorCell = snapshot.cursor_line == row
+                && snapshot.cursor_column == column
+                && snapshot.cursor_shape == 0
+            if isCursorCell {
+                foreground = AlacrittyRenderer.background(of: cell, default: defaultBackground)
+            }
+            let color = Self.color(foreground)
+            let left = originX + Float(column) * cellWidth
+
+            if cell.ch != 0, cell.ch != UInt32(UInt8(ascii: " ")) {
+                let key = TerminalGlyphAtlas.Key(
+                    scalar: cell.ch,
+                    bold: cell.flags & UInt16(KERO_CELL_BOLD) != 0,
+                    italic: cell.flags & UInt16(KERO_CELL_ITALIC) != 0
+                )
+                if let entry = atlas.entry(for: key) {
+                    // The atlas stores bearings relative to the text
+                    // origin; y grows downward here, so the ascent above
+                    // the baseline becomes a negative offset.
+                    let baseline = top + Float(metrics.baseline)
                     instances.append(Instance(
-                        origin: SIMD2(originX + Float(column) * cellWidth, top),
-                        size: SIMD2(cellWidth * Float(span), cellHeight),
-                        color: Self.color(background),
-                        uvOrigin: .zero,
-                        uvSize: .zero,
-                        kind: 0
+                        origin: SIMD2(
+                            left + entry.bearing.x,
+                            baseline - entry.bearing.y - entry.size.y
+                        ),
+                        size: entry.size,
+                        color: color,
+                        uvOrigin: entry.uvOrigin,
+                        uvSize: entry.uvSize,
+                        kind: 1
                     ))
                 }
-                column += span
             }
 
-            for column in 0..<columns {
-                let cell = cells[row * columns + column]
-                guard cell.flags & UInt16(KERO_CELL_HIDDEN) == 0,
-                      cell.flags & UInt16(KERO_CELL_WIDE_SPACER) == 0
-                else { continue }
-
-                var foreground = AlacrittyRenderer.foreground(of: cell, default: defaultBackground)
-                let isCursorCell = snapshot.cursor_line == row
-                    && snapshot.cursor_column == column
-                    && snapshot.cursor_shape == 0
-                if isCursorCell {
-                    foreground = AlacrittyRenderer.background(of: cell, default: defaultBackground)
-                }
-                let color = Self.color(foreground)
-                let left = originX + Float(column) * cellWidth
-
-                if cell.ch != 0, cell.ch != UInt32(UInt8(ascii: " ")) {
-                    let key = TerminalGlyphAtlas.Key(
-                        scalar: cell.ch,
-                        bold: cell.flags & UInt16(KERO_CELL_BOLD) != 0,
-                        italic: cell.flags & UInt16(KERO_CELL_ITALIC) != 0
-                    )
-                    if let entry = atlas.entry(for: key) {
-                        // The atlas stores bearings relative to the text
-                        // origin; y grows downward here, so the ascent above
-                        // the baseline becomes a negative offset.
-                        let baseline = top + Float(metrics.baseline)
-                        instances.append(Instance(
-                            origin: SIMD2(
-                                left + entry.bearing.x,
-                                baseline - entry.bearing.y - entry.size.y
-                            ),
-                            size: entry.size,
-                            color: color,
-                            uvOrigin: entry.uvOrigin,
-                            uvSize: entry.uvSize,
-                            kind: 1
-                        ))
-                    }
-                }
-
-                if cell.flags & UInt16(KERO_CELL_UNDERLINE) != 0 {
-                    instances.append(Instance(
-                        origin: SIMD2(left, top + Float(metrics.baseline) + cellHeight * 0.12),
-                        size: SIMD2(cellWidth, 1),
-                        color: color,
-                        uvOrigin: .zero, uvSize: .zero, kind: 0
-                    ))
-                }
-                if cell.flags & UInt16(KERO_CELL_STRIKEOUT) != 0 {
-                    instances.append(Instance(
-                        origin: SIMD2(left, top + Float(metrics.baseline) - cellHeight * 0.22),
-                        size: SIMD2(cellWidth, 1),
-                        color: color,
-                        uvOrigin: .zero, uvSize: .zero, kind: 0
-                    ))
-                }
+            if cell.flags & UInt16(KERO_CELL_UNDERLINE) != 0 {
+                instances.append(Instance(
+                    origin: SIMD2(left, top + Float(metrics.baseline) + cellHeight * 0.12),
+                    size: SIMD2(cellWidth, 1),
+                    color: color,
+                    uvOrigin: .zero, uvSize: .zero, kind: 0
+                ))
+            }
+            if cell.flags & UInt16(KERO_CELL_STRIKEOUT) != 0 {
+                instances.append(Instance(
+                    origin: SIMD2(left, top + Float(metrics.baseline) - cellHeight * 0.22),
+                    size: SIMD2(cellWidth, 1),
+                    color: color,
+                    uvOrigin: .zero, uvSize: .zero, kind: 0
+                ))
             }
         }
 
-        appendCursor(snapshot: snapshot, metrics: metrics, padding: padding)
+        return instances
     }
 
     /// Drawn before the glyph pass in z-order terms — a block cursor is a

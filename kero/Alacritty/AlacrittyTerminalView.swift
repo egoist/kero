@@ -272,7 +272,18 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
         // emulator whether anything actually changed before paying for a
         // snapshot and a full instance rebuild — a heartbeat or a cursor
         // query would otherwise cost a whole frame.
-        if !needsUnconditionalRedraw, !kero_alacritty_take_damage(handle) {
+        var damage = KeroDamage()
+        kero_alacritty_take_damage(handle, &damage)
+
+        // nil means "rebuild every row": a full-damage frame, or a host-side
+        // change — resize, theme, selection, focus — that the emulator never
+        // saw and so never reported as damage.
+        var dirtyRows: [Int]?
+        if needsUnconditionalRedraw || damage.kind == KERO_DAMAGE_FULL {
+            dirtyRows = nil
+        } else if damage.kind == KERO_DAMAGE_PARTIAL, let rows = damage.rows {
+            dirtyRows = (0..<damage.rows_len).map { Int(rows[$0]) }
+        } else {
             AlacrittyRenderStats.shared.skipped()
             return
         }
@@ -296,9 +307,11 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
             metrics: metrics,
             padding: Self.padding,
             scale: scale,
+            dirtyRows: dirtyRows,
             in: drawable,
             viewportSize: size
         )
+        AlacrittyRenderStats.shared.rebuilt(rows: dirtyRows?.count ?? snapshot.rows)
     }
 
     /// Feeds Kero's overlay scrollbar.

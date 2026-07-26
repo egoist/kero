@@ -55,6 +55,22 @@ pub const KERO_CELL_WIDE: u16 = 1 << 7;
 pub const KERO_CELL_WIDE_SPACER: u16 = 1 << 8;
 pub const KERO_CELL_SELECTED: u16 = 1 << 9;
 
+/// Nothing changed; the host can drop the frame entirely.
+pub const KERO_DAMAGE_NONE: u32 = 0;
+/// Only the listed rows changed.
+pub const KERO_DAMAGE_PARTIAL: u32 = 1;
+/// Everything changed — a resize, a screen swap, a scroll.
+pub const KERO_DAMAGE_FULL: u32 = 2;
+
+#[repr(C)]
+pub struct KeroDamage {
+    pub kind: u32,
+    /// Viewport row indices, owned by the handle and valid only until the next
+    /// call on it. Empty unless `kind` is `KERO_DAMAGE_PARTIAL`.
+    pub rows: *const usize,
+    pub rows_len: usize,
+}
+
 pub type KeroEventCallback =
     extern "C" fn(context: *mut c_void, kind: u32, data: *const u8, len: usize);
 
@@ -226,6 +242,8 @@ pub struct KeroTerminal {
     /// selected. Collected up front so the host can show a total.
     matches: Vec<(Point, Point)>,
     match_index: usize,
+    /// Reused per frame so damage reporting does not allocate.
+    dirty_rows: Vec<usize>,
     /// Set once the shell has exited, so teardown does not wait on a loop that
     /// has already stopped.
     exited: bool,
@@ -375,6 +393,7 @@ pub unsafe extern "C" fn kero_alacritty_new(
         master_fd,
         matches: Vec::new(),
         match_index: 0,
+        dirty_rows: Vec::new(),
         exited: false,
     }))
 }
@@ -806,33 +825,54 @@ pub unsafe extern "C" fn kero_alacritty_clear(handle: *mut KeroTerminal) {
     term.grid_mut().clear_history();
 }
 
-/// Whether anything has changed since the last call, resetting the emulator's
+/// Which viewport rows changed since the last call, resetting the emulator's
 /// damage as it goes.
 ///
 /// A wakeup only means bytes arrived, not that the grid moved: a heartbeat, a
-/// cursor-position query, or output that overwrites a cell with the same
-/// contents all wake the host for nothing. Snapshotting and rebuilding every
-/// instance for those is pure waste, so the renderer asks this first.
+/// cursor-position query, or output that overwrites a cell with identical
+/// contents all wake the host for nothing. And when something *has* changed it
+/// is usually one row — a prompt redraw, a cursor blink — so rebuilding every
+/// cell's draw instance is almost all waste.
 ///
-/// Deliberately coarse — a bool, not the spans. The GPU path clears and redraws
-/// the whole drawable anyway, so the win is skipping the frame entirely, and a
-/// span list the renderer cannot act on would just be more FFI surface.
+/// Rows rather than the full spans: the renderer caches per row and columns
+/// would not let it skip any more work, so carrying them would only widen the
+/// FFI. The row list belongs to the handle and is valid until the next call.
 ///
 /// # Safety
-/// `handle` must be live.
+/// `handle` must be live and `out` a valid `KeroDamage`.
 #[no_mangle]
-pub unsafe extern "C" fn kero_alacritty_take_damage(handle: *mut KeroTerminal) -> bool {
-    if handle.is_null() {
-        return false;
+pub unsafe extern "C" fn kero_alacritty_take_damage(
+    handle: *mut KeroTerminal,
+    out: *mut KeroDamage,
+) {
+    if handle.is_null() || out.is_null() {
+        return;
     }
     let terminal = &mut *handle;
+    terminal.dirty_rows.clear();
+
     let mut term = terminal.term.lock();
-    let damaged = match term.damage() {
-        TermDamage::Full => true,
-        TermDamage::Partial(mut iter) => iter.next().is_some(),
+    let kind = match term.damage() {
+        TermDamage::Full => KERO_DAMAGE_FULL,
+        TermDamage::Partial(iter) => {
+            for bounds in iter {
+                terminal.dirty_rows.push(bounds.line);
+            }
+            if terminal.dirty_rows.is_empty() {
+                KERO_DAMAGE_NONE
+            } else {
+                KERO_DAMAGE_PARTIAL
+            }
+        },
     };
     term.reset_damage();
-    damaged
+    drop(term);
+
+    *out = KeroDamage {
+        kind,
+        rows: terminal.dirty_rows.as_ptr(),
+        rows_len: terminal.dirty_rows.len(),
+    };
 }
 
 /// Fills `out` with the visible grid.

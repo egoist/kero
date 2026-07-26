@@ -20,6 +20,7 @@ final class AlacrittyRenderStats: @unchecked Sendable {
     private let lock = NSLock()
     private var frames = 0
     private var skippedFrames = 0
+    private var rebuiltRows = 0
     private var totalSeconds: Double = 0
     private var worstSeconds: Double = 0
     private var lastReport = Date()
@@ -35,6 +36,15 @@ final class AlacrittyRenderStats: @unchecked Sendable {
         if due { report() }
     }
 
+    /// Rows actually rebuilt this frame. The gap between this and the grid
+    /// height is what row-level damage buys.
+    func rebuilt(rows: Int) {
+        guard Self.isEnabled else { return }
+        lock.lock()
+        rebuiltRows += rows
+        lock.unlock()
+    }
+
     func skipped() {
         guard Self.isEnabled else { return }
         lock.lock()
@@ -46,18 +56,20 @@ final class AlacrittyRenderStats: @unchecked Sendable {
         lock.lock()
         let drawn = frames
         let skipped = skippedFrames
+        let rows = rebuiltRows
         let mean = drawn > 0 ? totalSeconds / Double(drawn) * 1000 : 0
         let worst = worstSeconds * 1000
         frames = 0
         skippedFrames = 0
+        rebuiltRows = 0
         totalSeconds = 0
         worstSeconds = 0
         lastReport = Date()
         lock.unlock()
 
         NSLog(String(
-            format: "kero-render drawn=%d skipped=%d mean=%.3fms worst=%.3fms",
-            drawn, skipped, mean, worst
+            format: "kero-render drawn=%d skipped=%d rows=%d mean=%.3fms worst=%.3fms",
+            drawn, skipped, rows, mean, worst
         ))
     }
 }

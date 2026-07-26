@@ -154,9 +154,25 @@ bool kero_alacritty_has_scrollback(KeroTerminal *handle);
 
 void kero_alacritty_clear(KeroTerminal *handle);
 
-/// Whether the grid changed since the last call, resetting damage as it goes.
-/// A wakeup only means bytes arrived — ask this before paying for a snapshot.
-bool kero_alacritty_take_damage(KeroTerminal *handle);
+/// Nothing changed; the host can drop the frame entirely.
+#define KERO_DAMAGE_NONE 0u
+/// Only the listed rows changed.
+#define KERO_DAMAGE_PARTIAL 1u
+/// Everything changed — a resize, a screen swap, a scroll.
+#define KERO_DAMAGE_FULL 2u
+
+typedef struct {
+  uint32_t kind;
+  /// Viewport row indices, owned by the handle and valid only until the next
+  /// call on it. Empty unless `kind` is KERO_DAMAGE_PARTIAL.
+  const size_t *rows;
+  size_t rows_len;
+} KeroDamage;
+
+/// Which viewport rows changed since the last call, resetting damage as it
+/// goes. A wakeup only means bytes arrived — ask this before paying for a
+/// snapshot, and rebuild only the rows it names.
+void kero_alacritty_take_damage(KeroTerminal *handle, KeroDamage *out);
 
 /// Fills `out` with the visible grid.
 void kero_alacritty_snapshot(KeroTerminal *handle, KeroSnapshot *out);
