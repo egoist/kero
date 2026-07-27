@@ -3,19 +3,24 @@
 //  kero
 //
 
+import AppKit
 import Foundation
 import UserNotifications
 
 /// Delivers terminal notification requests through macOS Notification Center.
 /// Authorization is intentionally deferred until a terminal first asks to
-/// notify, rather than prompting at app launch.
+/// notify, rather than prompting at app launch. Each request carries the
+/// emitting session's id so a click can reveal that tab.
 final class TerminalNotificationService: NSObject, UNUserNotificationCenterDelegate {
     static let shared = TerminalNotificationService()
+
+    /// `userInfo` key for the emitting `TerminalSession.id`.
+    static let sessionIDKey = "sessionID"
 
     private let center = UNUserNotificationCenter.current()
     private let authorizationOptions: UNAuthorizationOptions = [.alert, .sound]
     private var isRequestingAuthorization = false
-    private var pendingMessage: String?
+    private var pending: (message: String, sessionID: UUID?)?
 
     func configure() {
         center.delegate = self
@@ -30,35 +35,43 @@ final class TerminalNotificationService: NSObject, UNUserNotificationCenterDeleg
         }
     }
 
-    func post(message: String) {
+    func post(message: String, sessionID: UUID? = nil) {
         guard !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         DispatchQueue.main.async { [weak self] in
-            self?.checkAuthorization(for: message)
+            self?.checkAuthorization(for: message, sessionID: sessionID)
         }
     }
 
-    private func checkAuthorization(for message: String) {
+    private func checkAuthorization(for message: String, sessionID: UUID?) {
         center.getNotificationSettings { [weak self] settings in
             DispatchQueue.main.async {
-                self?.handle(settings, message: message)
+                self?.handle(
+                    settings,
+                    message: message,
+                    sessionID: sessionID
+                )
             }
         }
     }
 
-    private func handle(_ settings: UNNotificationSettings, message: String) {
+    private func handle(
+        _ settings: UNNotificationSettings,
+        message: String,
+        sessionID: UUID?
+    ) {
         switch settings.authorizationStatus {
         case .authorized, .provisional:
             if settings.soundSetting == .notSupported {
                 // Authorized without sound — upgrade options before delivering.
-                requestAuthorization(message: message)
+                requestAuthorization(message: message, sessionID: sessionID)
             } else {
-                deliver(message)
+                deliver(message, sessionID: sessionID)
             }
         case .notDetermined:
             // A terminal can emit OSC 9 repeatedly while the permission sheet
             // is open. Keep only the latest request so an untrusted process
             // cannot grow an unbounded queue or release a banner storm.
-            requestAuthorization(message: message)
+            requestAuthorization(message: message, sessionID: sessionID)
         case .denied:
             break
         @unknown default:
@@ -73,15 +86,15 @@ final class TerminalNotificationService: NSObject, UNUserNotificationCenterDeleg
         switch settings.authorizationStatus {
         case .authorized, .provisional:
             guard settings.soundSetting == .notSupported else { return }
-            requestAuthorization(message: nil)
+            requestAuthorization(message: nil, sessionID: nil)
         default:
             break
         }
     }
 
-    private func requestAuthorization(message: String?) {
+    private func requestAuthorization(message: String?, sessionID: UUID?) {
         if let message {
-            pendingMessage = message
+            pending = (message, sessionID)
         }
         guard !isRequestingAuthorization else { return }
 
@@ -91,24 +104,27 @@ final class TerminalNotificationService: NSObject, UNUserNotificationCenterDeleg
                 guard let self else { return }
                 self.isRequestingAuthorization = false
 
-                let message = self.pendingMessage
-                self.pendingMessage = nil
+                let pending = self.pending
+                self.pending = nil
 
                 if let error {
                     NSLog("Kero: notification authorization failed: %@", String(describing: error))
                 }
-                if granted, let message {
-                    self.deliver(message)
+                if granted, let pending {
+                    self.deliver(pending.message, sessionID: pending.sessionID)
                 }
             }
         }
     }
 
-    private func deliver(_ message: String) {
+    private func deliver(_ message: String, sessionID: UUID?) {
         let content = UNMutableNotificationContent()
         content.title = "Kero"
         content.body = message
         content.sound = .default
+        if let sessionID {
+            content.userInfo = [Self.sessionIDKey: sessionID.uuidString]
+        }
 
         let request = UNNotificationRequest(
             identifier: UUID().uuidString,
@@ -128,5 +144,23 @@ final class TerminalNotificationService: NSObject, UNUserNotificationCenterDeleg
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
     ) {
         completionHandler([.banner, .list, .sound])
+    }
+
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
+        let userInfo = response.notification.request.content.userInfo
+        let sessionID = (userInfo[Self.sessionIDKey] as? String)
+            .flatMap(UUID.init(uuidString:))
+        DispatchQueue.main.async {
+            if let sessionID {
+                TerminalManager.revealSession(id: sessionID)
+            } else {
+                NSApp.activate()
+            }
+            completionHandler()
+        }
     }
 }

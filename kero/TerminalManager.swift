@@ -434,6 +434,26 @@ final class TerminalManager: nonisolated ObservableObject {
         }
     }
 
+    /// Activates Kero and reveals the session that emitted a desktop
+    /// notification. Searches every open window; if the session is gone,
+    /// still brings the app forward so the click isn't a dead end.
+    static func revealSession(id: UUID) {
+        NSApp.activate()
+        for manager in registry {
+            for project in manager.projects {
+                for session in project.sessions where session.id == id {
+                    manager.revealSession(session)
+                    manager.window?.makeKeyAndOrderFront(nil)
+                    return
+                }
+            }
+        }
+        // Session closed since the banner was posted — surface any live window.
+        if let manager = registry.first(where: { $0.window != nil }) {
+            manager.window?.makeKeyAndOrderFront(nil)
+        }
+    }
+
     /// Clears the terminal in the focused pane. No-op while another content
     /// kind is focused, so ⌘K never wipes an off-screen terminal.
     func clearActiveTerminal() {
