@@ -456,26 +456,33 @@ private struct PaneTabItem: View {
                 end: { renamingTabID = nil }
             )
         } else {
-            switch tab.focusedContent {
-            case .session(let session):
-                SessionTabLabel(session: session, customTitle: tab.customName, paneCount: paneCount, isSelected: isSelected, select: select, close: close)
-            case .file(let file):
-                FileTabLabel(file: file, customTitle: tab.customName, paneCount: paneCount, isSelected: isSelected, select: select, close: close)
-            case .browser(let browser):
-                BrowserTabLabel(browser: browser, customTitle: tab.customName, paneCount: paneCount, isSelected: isSelected, select: select, close: close)
-            case .diff(let diff):
-                TabItemChrome(
-                    systemImage: "plus.forwardslash.minus",
-                    title: tab.customName ?? diff.title,
-                    paneCount: paneCount,
-                    isSelected: isSelected,
-                    select: select,
-                    close: close
-                )
-                .help(diff.path)
-            case nil:
-                EmptyView()
+            Group {
+                switch tab.focusedContent {
+                case .session(let session):
+                    SessionTabLabel(session: session, customTitle: tab.customName, paneCount: paneCount, isSelected: isSelected, select: select, close: close)
+                case .file(let file):
+                    FileTabLabel(file: file, customTitle: tab.customName, paneCount: paneCount, isSelected: isSelected, select: select, close: close)
+                case .browser(let browser):
+                    BrowserTabLabel(browser: browser, customTitle: tab.customName, paneCount: paneCount, isSelected: isSelected, select: select, close: close)
+                case .diff(let diff):
+                    TabItemChrome(
+                        systemImage: "plus.forwardslash.minus",
+                        title: tab.customName ?? diff.title,
+                        paneCount: paneCount,
+                        isSelected: isSelected,
+                        select: select,
+                        close: close
+                    )
+                    .help(diff.path)
+                case nil:
+                    EmptyView()
+                }
             }
+            // Double-click renames in place — same affordance as the left
+            // sidebar and the context-menu Rename… item.
+            .simultaneousGesture(
+                TapGesture(count: 2).onEnded { renamingTabID = tab.id }
+            )
         }
     }
 
