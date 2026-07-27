@@ -17,6 +17,7 @@ the original feature bullet instead of adding separate entries for them.
 ## [unrelease]
 
 - Choose which terminal emulator drives new panes in Settings → Terminal → Backend. Ghostty remains the default, with a new Alacritty backend
+- Settings font preview now reflects “Thicken font strokes”: it draws through AppKit with CoreText font smoothing, matching what Ghostty does in the terminal
 
 ## [0.1.26]
 

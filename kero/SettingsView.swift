@@ -79,15 +79,11 @@ struct SettingsView: View {
             }
 
             Section("Preview") {
-                // Exercises regular/bold plus Nerd Font icon fallback.
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("kero ❯ echo \"the quick brown fox\" 0O 1lI")
-                    Text("\u{E0A0} main \u{E0B0} ~/dev/kero \u{E711} \u{F024B} \u{F0A7D}")
-                    Text("bold — permission denied (os error 13)")
-                        .bold()
-                }
-                .font(Font(previewFont))
-                .padding(.vertical, 4)
+                // SwiftUI Text cannot show Ghostty's font-thicken — that flag
+                // only affects CoreText glyph rasterization — so draw through
+                // AppKit with shouldSmoothFonts matching the toggle.
+                FontThickenPreview(font: previewFont, thicken: settings.fontThicken)
+                    .padding(.vertical, 4)
             }
 
             Section("Terminal") {
