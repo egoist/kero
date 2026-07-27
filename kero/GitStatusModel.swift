@@ -7,7 +7,7 @@ import Combine
 import Dispatch
 import Foundation
 
-/// Polls repository state for the active terminal directory and performs
+/// Loads repository state in response to explicit UI events and performs
 /// source-control operations without blocking the UI.
 @MainActor
 final class GitStatusModel: nonisolated ObservableObject {
@@ -103,12 +103,11 @@ final class GitStatusModel: nonisolated ObservableObject {
     @Published private(set) var stashCount = 0
     @Published private(set) var isRefreshing = false
     /// True once a status load has completed for the current `rootPath`. The
-    /// UI keeps showing resolved content (the repo view or the "no repository"
-    /// state) during routine background polls instead of flashing a loading
-    /// placeholder every two-second refresh tick.
+    /// UI keeps showing resolved content during later event-driven refreshes
+    /// instead of flashing a loading placeholder.
     @Published private(set) var hasResolvedStatus = false
     @Published private(set) var statusError: String?
-    /// True while a user-initiated Git operation (not a status poll) runs.
+    /// True while a user-initiated Git operation runs.
     @Published private(set) var isBusy = false
     @Published private(set) var operation: Operation?
     @Published var lastError: String?
@@ -118,24 +117,23 @@ final class GitStatusModel: nonisolated ObservableObject {
     private var topLevel = ""
     /// Invalidates async refreshes and operations after the terminal changes cwd.
     private var contextGeneration: UInt = 0
-    /// Invalidates an in-flight status poll when a mutation begins, so its
+    /// Invalidates an in-flight status refresh when a mutation begins, so its
     /// pre-operation snapshot cannot overwrite the post-operation state.
     private var statusRequestID: UInt = 0
+    /// Coalesces an event that arrives while another refresh or mutation is
+    /// running. Without polling, dropping that event could leave the snapshot
+    /// stale indefinitely.
+    private var refreshPending = false
     /// Keeps a mutation globally exclusive even if the terminal changes cwd
     /// while its Git process is still running.
     private var runningOperationID: UUID?
-    /// Branch lists, history, remotes, and stash state do not need the same
-    /// two-second cadence as the working-tree status.
-    private var lastDetailsRefresh = Date.distantPast
-
     var totalChangeCount: Int {
         mergeEntries.count + stagedEntries.count + changedEntries.count
     }
 
     /// True while the first status load for the current directory is still in
-    /// flight. Distinguishes the initial "finding repository" phase from the
-    /// fast background polls that follow, so the UI can show progress for the
-    /// former without flickering a spinner on every two-second tick.
+    /// flight, so later event-driven refreshes do not replace resolved content
+    /// with a loading state.
     var isResolvingInitialStatus: Bool {
         isRefreshing && !hasResolvedStatus
     }
@@ -166,20 +164,19 @@ final class GitStatusModel: nonisolated ObservableObject {
     func refresh() {
         let root = rootPath
         let generation = contextGeneration
-        guard !root.isEmpty, !isRefreshing, !isBusy else { return }
-        let knownTopLevel = topLevel
-        let includeDetails = Date().timeIntervalSince(lastDetailsRefresh) >= 8
+        guard !root.isEmpty else { return }
+        guard !isRefreshing, !isBusy else {
+            refreshPending = true
+            return
+        }
+        refreshPending = false
         statusRequestID &+= 1
         let requestID = statusRequestID
         isRefreshing = true
 
         Task { [weak self] in
             let result = await Task.detached(priority: .utility) {
-                Self.runGitStatus(
-                    in: root,
-                    previousTopLevel: knownTopLevel,
-                    includeDetails: includeDetails
-                )
+                Self.runGitStatus(in: root)
             }.value
             guard let self, self.contextGeneration == generation,
                   self.statusRequestID == requestID,
@@ -187,8 +184,9 @@ final class GitStatusModel: nonisolated ObservableObject {
             self.isRefreshing = false
             self.apply(result)
             self.hasResolvedStatus = true
-            if case .repository(let snapshot) = result, snapshot.loadedDetails {
-                self.lastDetailsRefresh = Date()
+            if self.refreshPending {
+                self.refreshPending = false
+                self.refresh()
             }
         }
     }
@@ -621,7 +619,6 @@ final class GitStatusModel: nonisolated ObservableObject {
                 // success-only follow-ups (for example moving a renamed file
                 // to Trash) must never continue in the newly selected context.
                 completion?(false)
-                self.lastDetailsRefresh = .distantPast
                 self.refresh()
                 return
             }
@@ -649,7 +646,6 @@ final class GitStatusModel: nonisolated ObservableObject {
                 )
                 completion?(true)
             }
-            self.lastDetailsRefresh = .distantPast
             self.refresh()
         }
     }
@@ -734,7 +730,6 @@ final class GitStatusModel: nonisolated ObservableObject {
             self.isBusy = false
             guard self.contextGeneration == generation,
                   self.operation?.id == operationID else {
-                self.lastDetailsRefresh = .distantPast
                 self.refresh()
                 return
             }
@@ -765,7 +760,6 @@ final class GitStatusModel: nonisolated ObservableObject {
                     finishedAt: finishedAt
                 )
             }
-            self.lastDetailsRefresh = .distantPast
             self.refresh()
         }
     }
@@ -788,6 +782,7 @@ final class GitStatusModel: nonisolated ObservableObject {
     private func invalidateStatusRefresh() {
         statusRequestID &+= 1
         isRefreshing = false
+        refreshPending = false
     }
 
     private nonisolated static func displayCommand(_ args: [String]) -> String {
@@ -832,7 +827,6 @@ final class GitStatusModel: nonisolated ObservableObject {
         operation = failedOperation
         lastError = failedError
         statusError = nil
-        lastDetailsRefresh = .distantPast
         statusRequestID &+= 1
         if !preserveIdentity { repositoryIdentity = "" }
     }
@@ -981,11 +975,7 @@ final class GitStatusModel: nonisolated ObservableObject {
 
     /// Resolves the active repository and distinguishes a normal non-repo
     /// directory from an actual Git failure that the UI should surface.
-    private nonisolated static func runGitStatus(
-        in root: String,
-        previousTopLevel: String,
-        includeDetails: Bool
-    ) -> StatusLoadResult {
+    private nonisolated static func runGitStatus(in root: String) -> StatusLoadResult {
         let top = runGit(["rev-parse", "--show-toplevel"], in: root)
         guard top.status == 0 else {
             let failure = gitFailureMessage(top, fallback: "Unable to locate the Git repository.")
@@ -1010,9 +1000,6 @@ final class GitStatusModel: nonisolated ObservableObject {
         var result = parseStatus(status.stdout)
         result.topLevel = resolvedRoot
 
-        guard includeDetails || resolvedRoot != previousTopLevel else {
-            return .repository(result)
-        }
         result.loadedDetails = true
         let repoRoot = resolvedRoot
 

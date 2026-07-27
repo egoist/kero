@@ -18,6 +18,23 @@ struct RightSidebarView: View {
     @State private var applicationIsActive = NSApp.isActive
     @AppStorage("rightSidebarWidth") private var width: Double = 240
 
+    private var pollsSelectedPanel: Bool {
+        manager.isPanelVisible
+            && applicationIsActive
+            && manager.panelTab != .git
+    }
+
+    /// Every terminal in the selected project can change the same repository.
+    /// Watching only these counters avoids reacting to prompt/input lifecycle
+    /// updates while still catching commands completed in an unfocused pane.
+    private var commandCompletionSequences: [UUID: UInt64] {
+        Dictionary(uniqueKeysWithValues:
+            manager.selectedProject?.sessions.map {
+                ($0.id, $0.commandLifecycle.completionSequence)
+            } ?? []
+        )
+    }
+
     /// Path of the file in the focused pane, so the tree can highlight it.
     /// Reactive: focus/selection is published up through the project to `manager`.
     private var openFilePath: String? {
@@ -81,12 +98,11 @@ struct RightSidebarView: View {
             }
         }
         .onAppear(perform: syncModels)
-        // Keep live process/git/file information while the user is looking at
-        // Kero, but leave no repeating main-run-loop source behind while the
-        // app or sidebar is inactive. Repeated ps/lsof and SwiftUI updates
-        // otherwise keep tens of MiB of otherwise-idle heap pages resident.
-        .task(id: manager.isPanelVisible && applicationIsActive) {
-            guard manager.isPanelVisible, applicationIsActive else { return }
+        // Files and process information remain live while visible. Git is
+        // event-driven: terminal/Git command completion and app activation
+        // refresh it without a repeating main-run-loop source.
+        .task(id: pollsSelectedPanel) {
+            guard pollsSelectedPanel else { return }
             while !Task.isCancelled {
                 do {
                     try await Task.sleep(for: .seconds(2))
@@ -107,15 +123,18 @@ struct RightSidebarView: View {
         )) { _ in
             applicationIsActive = false
         }
+        .onChange(of: commandCompletionSequences) {
+            guard manager.panelTab == .git else { return }
+            syncModels()
+        }
         .onChange(of: manager.isPanelVisible) { syncModels() }
         .onChange(of: manager.panelTab) { syncModels() }
         .onChange(of: manager.selectedSession?.id) { syncModels() }
         // A `cd` in the terminal publishes the new cwd immediately (OSC 7 →
-        // session.workingDirectory); resync at once instead of waiting for the
-        // next periodic refresh, which is what made the panel lag the change.
+        // session.workingDirectory); resync at once so automatically rooted
+        // panels follow the terminal without waiting for another event.
         .onChange(of: manager.selectedSession?.workingDirectory) { syncModels() }
-        // Same for pinning/unpinning the project directory: re-root the
-        // panels the moment it changes rather than on the next tick.
+        // Same for pinning/unpinning the project directory.
         .onChange(of: manager.selectedProject?.customDirectory) { syncModels() }
         .environment(
             \.sidebarFontScale,
@@ -610,10 +629,8 @@ private struct GitPanel: View {
                     .foregroundStyle(Color(nsColor: Theme.accent))
                 PanelHeader(title: "Git", subtitle: model.rootPath)
             }
-            // Only surface progress for user operations and the initial
-            // repository discovery. Routine two-second background polls resolve
-            // in milliseconds; showing a spinner for them just makes the header
-            // flicker.
+            // Only surface progress for user operations and initial repository
+            // discovery. Event-driven refreshes retain the resolved content.
             if model.isBusy || model.isResolvingInitialStatus {
                 ProgressView()
                     .controlSize(.small)

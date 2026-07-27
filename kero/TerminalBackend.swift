@@ -273,6 +273,9 @@ struct TerminalCommandLifecycle: Equatable, Sendable {
     var phase: Phase = .idle
     var lastExitCode: Int?
     var lastDurationNanos: UInt64?
+    /// Monotonic signal for consumers that need to react to every completed
+    /// command, including consecutive commands with identical result metadata.
+    var completionSequence: UInt64 = 0
 }
 
 /// Where the viewport sits within a surface's total content. Kept as raw row
