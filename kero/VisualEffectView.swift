@@ -58,37 +58,48 @@ struct BackdropBlurView: NSViewRepresentable {
 }
 
 final class BackdropBlurHostView: NSView {
+    private static let blurFilterName = "keroBackgroundBlur"
+
     private var backdrop: CALayer?
     private var currentRadius: Double?
 
     func install(radius: Double) {
         wantsLayer = true
-        guard let backdropClass = NSClassFromString("CABackdropLayer") as? CALayer.Type else {
+        guard let backdropClass = NSClassFromString("CABackdropLayer") as? CALayer.Type,
+              let filters = Self.makeFilters(radius: radius)
+        else {
             return
         }
         let layer = backdropClass.init()
+        layer.filters = filters
         layer.frame = bounds
         self.layer?.addSublayer(layer)
         backdrop = layer
-        setRadius(radius)
+        currentRadius = radius
     }
 
     func setRadius(_ radius: Double) {
         guard let backdrop, radius != currentRadius else { return }
-        // Fresh filter instances every time: the render server snapshots
-        // filter parameters when the array is assigned, so mutating an
-        // installed filter in place changes nothing (the same trap that
-        // makes the system material's own gaussian un-adjustable).
-        backdrop.filters = Self.makeFilters(radius: radius)
+        // Replacing this animatable array briefly commits the new filters,
+        // then the attached backdrop restores its previous filter state.
+        // Addressing the named filter through its layer is the observable
+        // update path; changing the filter object itself is not.
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        backdrop.setValue(
+            radius,
+            forKeyPath: "filters.\(Self.blurFilterName).inputRadius"
+        )
+        CATransaction.commit()
         currentRadius = radius
     }
 
     /// gaussianBlur at the configured radius, plus colorSaturate matching
     /// the second half of the material's own stack (sdrNormalize ·
     /// gaussianBlur · colorSaturate) so the frosted saturation boost stays.
-    private static func makeFilters(radius: Double) -> [Any] {
+    private static func makeFilters(radius: Double) -> [Any]? {
         guard let filterClass = NSClassFromString("CAFilter") as? NSObject.Type else {
-            return []
+            return nil
         }
         func make(_ type: String, _ key: String, _ value: Double) -> NSObject? {
             guard let filter = filterClass
@@ -98,15 +109,19 @@ final class BackdropBlurHostView: NSView {
             filter.setValue(true, forKey: "enabled")
             return filter
         }
-        let blur = make("gaussianBlur", "inputRadius", radius)
+        guard let blur = make("gaussianBlur", "inputRadius", radius) else {
+            return nil
+        }
+        blur.setValue(Self.blurFilterName, forKey: "name")
         // Without edge normalization the kernel's weights fall off where it
         // samples past the layer bounds, reading as a vignette of weaker
         // blur along the window edges.
-        blur?.setValue(true, forKey: "inputNormalizeEdges")
-        return [
-            blur,
-            make("colorSaturate", "inputAmount", 1.5),
-        ].compactMap { $0 }
+        blur.setValue(true, forKey: "inputNormalizeEdges")
+        var filters: [Any] = [blur]
+        if let saturate = make("colorSaturate", "inputAmount", 1.5) {
+            filters.append(saturate)
+        }
+        return filters
     }
 
     override func layout() {

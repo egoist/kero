@@ -126,4 +126,5 @@ set in the Xcode project.
 ## [0.1]
 
 ### Added
+
 - Initial release.
