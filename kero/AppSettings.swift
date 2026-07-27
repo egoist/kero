@@ -31,6 +31,8 @@ final class AppSettings: nonisolated ObservableObject {
 
     static let defaultFontSize: Double = 13
     static let fontSizeRange: ClosedRange<Double> = 8...32
+    static let defaultBackgroundOpacity: Double = 1
+    static let backgroundOpacityRange: ClosedRange<Double> = 0.05...1
 
     /// Light/dark appearance override; `system` follows macOS.
     @Published var theme: AppTheme {
@@ -67,6 +69,12 @@ final class AppSettings: nonisolated ObservableObject {
         didSet { save() }
     }
 
+    /// Opacity shared by the window chrome and libghostty surface. Fully
+    /// opaque by default, preserving the window's existing rendering path.
+    @Published var backgroundOpacity: Double {
+        didSet { save() }
+    }
+
     /// Ghostty's `font-thicken`: render glyphs with slightly heavier strokes,
     /// like classic macOS font smoothing. Off by default so kero's text
     /// matches a stock Ghostty install.
@@ -100,6 +108,11 @@ final class AppSettings: nonisolated ObservableObject {
         fontFamily = toml["font-family"]?.string ?? ""
         let size = toml["font-size"]?.double ?? Self.defaultFontSize
         fontSize = Self.fontSizeRange.contains(size) ? size : Self.defaultFontSize
+        let opacity = toml["background-opacity"]?.double ?? Self.defaultBackgroundOpacity
+        backgroundOpacity = opacity.isFinite
+            ? min(max(opacity, Self.backgroundOpacityRange.lowerBound),
+                  Self.backgroundOpacityRange.upperBound)
+            : Self.defaultBackgroundOpacity
         fontThicken = toml["font-thicken"]?.bool ?? false
         wrapLines = toml["editor.wrap-lines"]?.bool ?? false
         restoreTerminalHistory = toml["terminal.restore-history"]?.bool ?? false
@@ -142,6 +155,7 @@ final class AppSettings: nonisolated ObservableObject {
         theme = .system
         themeDark = Theme.defaultDarkThemeName
         themeLight = Theme.defaultLightThemeName
+        backgroundOpacity = Self.defaultBackgroundOpacity
         wrapLines = false
         restoreTerminalHistory = false
     }
@@ -163,6 +177,11 @@ final class AppSettings: nonisolated ObservableObject {
             lines.append("font-family = \(TOML.quote(fontFamily))")
         }
         lines.append("font-size = \(TOML.number(fontSize))")
+        // Like font-thicken: only a non-default value earns a line, so the
+        // config file of an opaque-window user never mentions the key.
+        if backgroundOpacity != Self.defaultBackgroundOpacity {
+            lines.append("background-opacity = \(TOML.number(backgroundOpacity))")
+        }
         if fontThicken {
             lines.append("font-thicken = true")
         }

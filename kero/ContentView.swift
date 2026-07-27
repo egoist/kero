@@ -7,6 +7,7 @@ import SwiftUI
 
 struct ContentView: View {
     @ObservedObject var manager: TerminalManager
+    @ObservedObject private var settings = AppSettings.shared
     @ObservedObject private var themeChanges = Theme.changes
     @Environment(\.colorScheme) private var colorScheme
     @StateObject private var tabSwitcher = TabSwitcherController()
@@ -28,7 +29,7 @@ struct ContentView: View {
                     // would pull its NSHostingView out of the window, which
                     // tears down and re-creates the WKWebView inside (losing
                     // the rendered diff and scroll position). Unselected ones
-                    // just sit covered by the active tab's opaque pane layer.
+                    // just sit covered by the active tab's pane layer.
                     // Diffs are always their own single-pane tab, so a selected
                     // diff fills the whole content area, unchanged.
                     if let project = manager.selectedProject {
@@ -37,7 +38,7 @@ struct ContentView: View {
                                 diff: placement.diff,
                                 isSelected: project.selectedTabID == placement.tabID
                             )
-                            .background(Color(nsColor: Theme.background))
+                            .background(windowBackground)
                             .allowsHitTesting(project.selectedTabID == placement.tabID)
                             .zIndex(project.selectedTabID == placement.tabID ? 1 : 0)
                         }
@@ -50,15 +51,15 @@ struct ContentView: View {
                         }
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    // Opaque so the pane gaps hide the unselected diffs behind,
-                    // except while a diff tab is up — then stay clear so its
-                    // web view shows through from the stack below.
-                    .background(paneLayerIsOpaque ? AnyShapeStyle(Color(nsColor: Theme.background)) : AnyShapeStyle(Color.clear))
+                    // Covers unselected diffs in the stack behind. In
+                    // translucent mode the material does that job without
+                    // replacing the desktop blur with an opaque fill.
+                    .background(paneLayerBackground)
                     .zIndex(2)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .background(Color(nsColor: Theme.background))
+            .background(windowBackground)
 
             RightSidebarView(manager: manager)
         }
@@ -81,13 +82,28 @@ struct ContentView: View {
             }
         }
         .background {
+            if settings.backgroundOpacity < AppSettings.defaultBackgroundOpacity {
+                VisualEffectView(material: .underWindowBackground, state: .active)
+            }
+        }
+        .background {
             TabSwitcherEventMonitor(manager: manager, controller: tabSwitcher)
                 .frame(width: 0, height: 0)
         }
-        .background(WindowChromeAccessor { manager.attach(to: $0) })
+        .background(WindowChromeAccessor(
+            backgroundOpacity: settings.backgroundOpacity
+        ) { manager.attach(to: $0) })
         .onChange(of: colorScheme) {
             manager.refreshAppearance()
         }
+    }
+
+    private var windowBackground: Color {
+        let color = Theme.background
+        guard settings.backgroundOpacity < AppSettings.defaultBackgroundOpacity else {
+            return Color(nsColor: color)
+        }
+        return Color(nsColor: color.withAlphaComponent(CGFloat(settings.backgroundOpacity)))
     }
 
     /// Sessions in the visible tab are owned by `TerminalHostView`; every
@@ -101,10 +117,21 @@ struct ContentView: View {
             .filter { !visibleIDs.contains($0.id) }
     }
 
-    /// The pane layer paints an opaque background to hide unselected diffs in
-    /// its gaps — but a diff tab's own pane must stay clear so its web view
-    /// (mounted in the stack behind) shows through.
-    private var paneLayerIsOpaque: Bool {
+    @ViewBuilder
+    private var paneLayerBackground: some View {
+        if paneLayerCoversDiffs {
+            if settings.backgroundOpacity < AppSettings.defaultBackgroundOpacity {
+                VisualEffectView(material: .underWindowBackground, state: .active)
+                    .overlay(windowBackground)
+            } else {
+                windowBackground
+            }
+        }
+    }
+
+    /// A diff tab's own pane stays clear so its web view (mounted in the
+    /// stack behind) shows through; every other pane layer covers that stack.
+    private var paneLayerCoversDiffs: Bool {
         guard let tab = manager.selectedProject?.selectedTab else { return true }
         return tab.diffs.isEmpty
     }

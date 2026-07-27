@@ -29,13 +29,17 @@ struct EditorPalette: Equatable {
     var lineHighlight: NSColor
     var gutterText: NSColor
 
-    static func theme(dark: Bool) -> EditorPalette {
+    static func theme(dark: Bool, backgroundOpacity: Double = 1) -> EditorPalette {
         let theme = Theme.terminal(dark: dark)
+        let background = theme.backgroundNSColor
+        let lineHighlight = theme.surfaceNSColor(elevation: 0.04)
         return EditorPalette(
             text: theme.foregroundNSColor,
-            background: theme.backgroundNSColor,
+            background: backgroundOpacity < 1
+                ? background.withAlphaComponent(CGFloat(backgroundOpacity)) : background,
             insertionPoint: theme.accentNSColor,
-            lineHighlight: theme.surfaceNSColor(elevation: 0.04),
+            lineHighlight: backgroundOpacity < 1
+                ? lineHighlight.withAlphaComponent(CGFloat(backgroundOpacity)) : lineHighlight,
             gutterText: theme.surfaceNSColor(elevation: 0.3)
         )
     }

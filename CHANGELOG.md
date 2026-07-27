@@ -12,6 +12,8 @@ set in the Xcode project.
 
 ## [unrelease]
 
+- Add a background opacity setting for translucent, frosted-glass windows
+
 ## [0.1.26]
 
 - Opening the Ctrl-Tab switcher no longer highlights whichever tab happens to be under the stationary pointer

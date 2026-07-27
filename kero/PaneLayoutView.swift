@@ -407,6 +407,7 @@ private struct ResizableDivider: View {
 /// it's the drop target.
 private struct PaneView: View {
     @ObservedObject var tab: PaneTab
+    @ObservedObject private var settings = AppSettings.shared
     @ObservedObject private var themeChanges = Theme.changes
     let pane: Pane
     let showFocusRing: Bool
@@ -474,18 +475,26 @@ private struct PaneView: View {
         switch pane.content {
         case .session(let session):
             TerminalHostView(session: session, isFocused: isFocused, onFocused: focus, onSplit: splitFromMenu)
-                .background(Color(nsColor: Theme.background))
+                .background(paneBackground)
                 .overlay(alignment: .topTrailing) {
                     TerminalFindOverlay(find: session.find)
                 }
         case .file(let file):
             FileViewerView(file: file, isFocused: isFocused, onFocused: focus, onSplit: splitFromMenu)
-                .background(Color(nsColor: Theme.background))
+                .background(paneBackground)
         case .diff:
             // Rendered by the always-mounted diff stack behind the layout; stay
             // transparent and non-interactive so clicks and scrolls reach it.
             Color.clear.allowsHitTesting(false)
         }
+    }
+
+    private var paneBackground: Color {
+        let color = Theme.background
+        guard settings.backgroundOpacity < AppSettings.defaultBackgroundOpacity else {
+            return Color(nsColor: color)
+        }
+        return Color(nsColor: color.withAlphaComponent(CGFloat(settings.backgroundOpacity)))
     }
 
     private var focusRing: some View {

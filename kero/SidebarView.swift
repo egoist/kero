@@ -10,6 +10,7 @@ import SwiftUI
 /// its sessions show as horizontal tabs in the main header.
 struct SidebarView: View {
     @ObservedObject var manager: TerminalManager
+    @ObservedObject private var settings = AppSettings.shared
     @ObservedObject private var themeChanges = Theme.changes
     @Environment(\.openSettings) private var openSettings
     @Environment(\.colorScheme) private var colorScheme
@@ -88,7 +89,9 @@ struct SidebarView: View {
             if Theme.isDefault(dark: colorScheme == .dark) {
                 VisualEffectView(material: .sidebar)
             } else {
-                Color(nsColor: Theme.sidebar)
+                let color = Theme.sidebar
+                Color(nsColor: settings.backgroundOpacity < AppSettings.defaultBackgroundOpacity
+                    ? color.withAlphaComponent(CGFloat(settings.backgroundOpacity)) : color)
             }
         }
         // Hairline between sidebar and content: themes fill both with the

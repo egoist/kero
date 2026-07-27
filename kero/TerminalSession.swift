@@ -259,6 +259,11 @@ final class TerminalSession: NSObject, nonisolated ObservableObject, nonisolated
             // primary face. Repeated font-family entries form Ghostty's list.
             builder.withCustom("font-family", "Symbols Nerd Font Mono")
             builder.withFontSize(Float(settings.fontSize))
+            // Embedded libghostty owns the terminal surface's alpha, while
+            // Kero owns the behind-window blur and surrounding pane chrome.
+            builder.withCustom(
+                "background-opacity", TOML.number(settings.backgroundOpacity)
+            )
             // Always set explicitly: the wrapper's ConfigSource.none base
             // config injects the package default `font-thicken = true`, and
             // only a later entry in the rendered config overrides it.

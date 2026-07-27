@@ -30,6 +30,19 @@ struct SettingsView: View {
                     Spacer()
                     ThemePicker(selection: $settings.theme)
                 }
+
+                HStack {
+                    Text("Background opacity")
+                    Slider(
+                        value: $settings.backgroundOpacity,
+                        in: AppSettings.backgroundOpacityRange,
+                        step: 0.05
+                    )
+                    Text("\(Int((settings.backgroundOpacity * 100).rounded()))%")
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                        .frame(width: 40, alignment: .trailing)
+                }
             }
 
             Section("Colors") {
@@ -133,6 +146,7 @@ struct SettingsView: View {
                         && settings.theme == .system
                         && settings.themeDark == Theme.defaultDarkThemeName
                         && settings.themeLight == Theme.defaultLightThemeName
+                        && settings.backgroundOpacity == AppSettings.defaultBackgroundOpacity
                         && !settings.wrapLines
                         && !settings.restoreTerminalHistory)
                 }
