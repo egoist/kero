@@ -18,6 +18,7 @@ the original feature bullet instead of adding separate entries for them.
 
 - Add per-pane live titles and split controls in split layouts
 - Splitting a pane now divides only the focused pane, preserving the size of neighboring panes in nested layouts
+- The Ctrl-Tab switcher now lists tabs in the order you last used them and opens already pointing at the previous tab, so a quick Ctrl-Tab flips between the two tabs you're working in
 
 ## [0.1.34]
 

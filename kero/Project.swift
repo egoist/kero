@@ -26,7 +26,18 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
     /// moves (see `panelRoot(followingSessionAt:)`).
     @Published var customDirectory: String?
     @Published var tabs: [PaneTab] = []
-    @Published var selectedTabID: UUID?
+    @Published var selectedTabID: UUID? {
+        didSet {
+            guard selectedTabID != oldValue, let selectedTabID else { return }
+            recentTabIDs.removeAll { $0 == selectedTabID }
+            recentTabIDs.insert(selectedTabID, at: 0)
+        }
+    }
+
+    /// Tab IDs newest-used first. Kept here rather than in the switcher
+    /// because every way of reaching a tab — strip click, Ctrl-number,
+    /// opening a file — counts as a use.
+    private var recentTabIDs: [UUID] = []
 
     private let fallbackName: String
     /// Sessions publish their own changes (title, directory); re-publish them
@@ -76,6 +87,32 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
 
     var selectedTab: PaneTab? {
         tabs.first { $0.id == selectedTabID }
+    }
+
+    /// Tabs by recency of use, selected first. Tabs not yet selected this
+    /// session trail in strip order, so the sequence covers every tab even
+    /// before any switching has happened.
+    var tabsByRecency: [PaneTab] {
+        var seen = Set<UUID>()
+        var ordered: [PaneTab] = []
+        func add(_ tab: PaneTab) {
+            guard seen.insert(tab.id).inserted else { return }
+            ordered.append(tab)
+        }
+        if let selectedTab { add(selectedTab) }
+        for id in recentTabIDs {
+            guard let tab = tabs.first(where: { $0.id == id }) else { continue }
+            add(tab)
+        }
+        tabs.forEach(add)
+        return ordered
+    }
+
+    /// Drops recorded recency, leaving strip order behind the selected tab.
+    /// Restoring a window selects each tab as it is rebuilt; without this the
+    /// order would just mirror the rebuild.
+    func resetRecency() {
+        recentTabIDs = selectedTabID.map { [$0] } ?? []
     }
 
     /// Content of the focused pane in the selected tab.
@@ -725,6 +762,7 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
             browserObservations[browser.id] = nil
         }
         tabObservations[tabID] = nil
+        recentTabIDs.removeAll { $0 == tabID }
         tabs.remove(at: index)
         if selectedTabID == tabID {
             let neighbor = min(index, tabs.count - 1)
