@@ -53,3 +53,92 @@ final class MiddleClickNSView: NSView {
         onMiddleClick?()
     }
 }
+
+/// Invisible background that reports mouse-downs outside its bounds, plus
+/// application deactivation. macOS buttons generally do not become first
+/// responder, so `@FocusState` alone cannot tell an inline text field that a
+/// user clicked another tab/sidebar row or the desktop.
+struct OutsideClickMonitor: NSViewRepresentable {
+    var action: () -> Void
+
+    func makeNSView(context: Context) -> OutsideClickMonitorNSView {
+        let view = OutsideClickMonitorNSView()
+        view.onOutsideClick = action
+        return view
+    }
+
+    func updateNSView(_ view: OutsideClickMonitorNSView, context: Context) {
+        view.onOutsideClick = action
+    }
+
+    static func dismantleNSView(_ view: OutsideClickMonitorNSView, coordinator: ()) {
+        view.stopMonitoring()
+    }
+}
+
+final class OutsideClickMonitorNSView: NSView {
+    var onOutsideClick: (() -> Void)?
+
+    private var eventMonitor: Any?
+    private var resignActiveObserver: NSObjectProtocol?
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        stopMonitoring()
+        guard window != nil else { return }
+
+        eventMonitor = NSEvent.addLocalMonitorForEvents(
+            matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]
+        ) { [weak self] event in
+            guard let self else { return event }
+            let isInside: Bool
+            if event.window === self.window {
+                isInside = self.bounds.contains(
+                    self.convert(event.locationInWindow, from: nil)
+                )
+            } else {
+                isInside = false
+            }
+            if !isInside {
+                self.reportOutsideClick()
+            }
+            return event
+        }
+
+        resignActiveObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didResignActiveNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.reportOutsideClick()
+        }
+    }
+
+    /// This view observes events globally within the app; it never takes a hit
+    /// away from the SwiftUI control layered above it.
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+    func stopMonitoring() {
+        if let eventMonitor {
+            NSEvent.removeMonitor(eventMonitor)
+            self.eventMonitor = nil
+        }
+        if let resignActiveObserver {
+            NotificationCenter.default.removeObserver(resignActiveObserver)
+            self.resignActiveObserver = nil
+        }
+    }
+
+    private func reportOutsideClick() {
+        // Leave the current event free to reach its intended target. Capture
+        // the closure now because SwiftUI may dismantle this view first.
+        let action = onOutsideClick
+        DispatchQueue.main.async {
+            action?()
+        }
+    }
+
+    deinit {
+        stopMonitoring()
+    }
+}

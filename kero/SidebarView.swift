@@ -360,6 +360,13 @@ private struct SidebarProjectRow: View {
         .padding(.horizontal, 8)
         .padding(.vertical, 6)
         .contentShape(RoundedRectangle(cornerRadius: 6))
+        .background {
+            if isRenaming {
+                OutsideClickMonitor {
+                    commitRename()
+                }
+            }
+        }
     }
 
     private func beginRename() {
@@ -373,6 +380,7 @@ private struct SidebarProjectRow: View {
     }
 
     private func commitRename() {
+        guard isRenaming else { return }
         let trimmed = renameDraft.trimmingCharacters(in: .whitespacesAndNewlines)
         let initial = renameInitialValue.trimmingCharacters(in: .whitespacesAndNewlines)
         // If the selected session changes its title while the field is open,

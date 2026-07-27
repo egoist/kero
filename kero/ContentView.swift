@@ -578,6 +578,11 @@ private struct TabRenameChrome: View {
             RoundedRectangle(cornerRadius: 6)
                 .fill(Color.primary.opacity(0.09))
         )
+        .background {
+            OutsideClickMonitor {
+                finish(apply: true)
+            }
+        }
         .onAppear {
             DispatchQueue.main.async { focused = true }
         }
