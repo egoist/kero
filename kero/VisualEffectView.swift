@@ -98,8 +98,13 @@ final class BackdropBlurHostView: NSView {
             filter.setValue(true, forKey: "enabled")
             return filter
         }
+        let blur = make("gaussianBlur", "inputRadius", radius)
+        // Without edge normalization the kernel's weights fall off where it
+        // samples past the layer bounds, reading as a vignette of weaker
+        // blur along the window edges.
+        blur?.setValue(true, forKey: "inputNormalizeEdges")
         return [
-            make("gaussianBlur", "inputRadius", radius),
+            blur,
             make("colorSaturate", "inputAmount", 1.5),
         ].compactMap { $0 }
     }
