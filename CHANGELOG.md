@@ -12,6 +12,8 @@ set in the Xcode project.
 
 ## [unrelease]
 
+- Add translucent frosted-glass windows: background opacity, blur strength, and a three-way translucency style (material sidebar, tint everything, or material everything)
+
 ## [0.1.26]
 
 - Opening the Ctrl-Tab switcher no longer highlights whichever tab happens to be under the stationary pointer
@@ -124,4 +126,5 @@ set in the Xcode project.
 ## [0.1]
 
 ### Added
+
 - Initial release.

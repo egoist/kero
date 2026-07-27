@@ -30,6 +30,47 @@ struct SettingsView: View {
                     Spacer()
                     ThemePicker(selection: $settings.theme)
                 }
+
+                HStack {
+                    Text("Background opacity")
+                    Slider(
+                        value: $settings.backgroundOpacity,
+                        in: AppSettings.backgroundOpacityRange,
+                        step: 0.05
+                    )
+                    Text("\(Int((settings.backgroundOpacity * 100).rounded()))%")
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                        .frame(width: 40, alignment: .trailing)
+                }
+
+                if settings.backgroundOpacity < AppSettings.defaultBackgroundOpacity {
+                    HStack {
+                        Text("Background blur")
+                        Slider(
+                            value: $settings.backgroundBlur,
+                            in: AppSettings.backgroundBlurRange,
+                            step: 2
+                        )
+                        Text("\(Int(settings.backgroundBlur.rounded()))")
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                            .frame(width: 40, alignment: .trailing)
+                    }
+
+                    HStack {
+                        Text("Translucency style")
+                        Spacer()
+                        Picker("", selection: $settings.backgroundOpacityStyle) {
+                            Text("Material sidebar").tag(AppSettings.BackgroundOpacityStyle.auto)
+                            Text("Tint everything").tag(AppSettings.BackgroundOpacityStyle.tint)
+                            Text("Material everything").tag(AppSettings.BackgroundOpacityStyle.material)
+                        }
+                        .pickerStyle(.menu)
+                        .labelsHidden()
+                        .fixedSize()
+                    }
+                }
             }
 
             Section("Colors") {
@@ -133,6 +174,9 @@ struct SettingsView: View {
                         && settings.theme == .system
                         && settings.themeDark == Theme.defaultDarkThemeName
                         && settings.themeLight == Theme.defaultLightThemeName
+                        && settings.backgroundOpacity == AppSettings.defaultBackgroundOpacity
+                        && settings.backgroundOpacityStyle == .auto
+                        && settings.backgroundBlur == AppSettings.defaultBackgroundBlur
                         && !settings.wrapLines
                         && !settings.restoreTerminalHistory)
                 }

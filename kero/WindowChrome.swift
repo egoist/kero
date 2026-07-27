@@ -14,14 +14,19 @@ struct WindowChromeAccessor: NSViewRepresentable {
     static let buttonLeading: CGFloat = 16
     static let buttonSpacing: CGFloat = 20
 
+    private let backgroundOpacity: Double
     private let onAttach: (NSWindow) -> Void
 
-    init(onAttach: @escaping (NSWindow) -> Void = { _ in }) {
+    init(
+        backgroundOpacity: Double = 1,
+        onAttach: @escaping (NSWindow) -> Void = { _ in }
+    ) {
+        self.backgroundOpacity = backgroundOpacity
         self.onAttach = onAttach
     }
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(onAttach: onAttach)
+        Coordinator(backgroundOpacity: backgroundOpacity, onAttach: onAttach)
     }
 
     func makeNSView(context: Context) -> NSView {
@@ -35,6 +40,7 @@ struct WindowChromeAccessor: NSViewRepresentable {
     }
 
     func updateNSView(_ view: NSView, context: Context) {
+        context.coordinator.setBackgroundOpacity(backgroundOpacity)
         if let window = view.window {
             context.coordinator.attach(window)
         }
@@ -42,18 +48,36 @@ struct WindowChromeAccessor: NSViewRepresentable {
 
     @MainActor
     final class Coordinator {
+        private struct OpaqueBackground {
+            let isOpaque: Bool
+            let color: NSColor?
+        }
+
         private weak var window: NSWindow?
         private var observers: [NSObjectProtocol] = []
+        private var backgroundOpacity: Double
+        private var opaqueBackground: OpaqueBackground?
         private let onAttach: (NSWindow) -> Void
 
-        init(onAttach: @escaping (NSWindow) -> Void) {
+        init(
+            backgroundOpacity: Double,
+            onAttach: @escaping (NSWindow) -> Void
+        ) {
+            self.backgroundOpacity = backgroundOpacity
             self.onAttach = onAttach
+        }
+
+        func setBackgroundOpacity(_ opacity: Double) {
+            backgroundOpacity = opacity
+            updateWindowBackground()
         }
 
         func attach(_ window: NSWindow) {
             guard self.window !== window else { return }
+            restoreOpaqueBackground()
             self.window = window
             onAttach(window)
+            updateWindowBackground()
             // Interactive controls occupy the title-bar region. Disable the
             // server-side title-bar drag entirely; WindowDragArea is the only
             // surface that opts into moving the window.
@@ -81,6 +105,49 @@ struct WindowChromeAccessor: NSViewRepresentable {
                     }
                 })
             }
+        }
+
+        /// Capture and restore AppKit's exact opaque-window state so the
+        /// default path is untouched, including after live opacity changes.
+        private func updateWindowBackground() {
+            guard let window else { return }
+            if backgroundOpacity < AppSettings.defaultBackgroundOpacity {
+                if opaqueBackground == nil {
+                    opaqueBackground = OpaqueBackground(
+                        isOpaque: window.isOpaque,
+                        color: window.backgroundColor
+                    )
+                }
+                window.isOpaque = false
+                window.backgroundColor = .clear
+                setTitlebarBackdropHidden(true, in: window)
+            } else {
+                restoreOpaqueBackground()
+            }
+        }
+
+        /// `.hiddenTitleBar` leaves AppKit's titlebar container in place; its
+        /// material backing is invisible over an opaque window but reads as a
+        /// darker band across the top of a clear one. Hide just the backing
+        /// effect views — the container keeps hosting the traffic lights.
+        private func setTitlebarBackdropHidden(_ hidden: Bool, in window: NSWindow) {
+            guard let frame = window.contentView?.superview else { return }
+            for container in frame.subviews
+            where String(describing: type(of: container)) == "NSTitlebarContainerView" {
+                for titlebar in container.subviews {
+                    for view in titlebar.subviews where view is NSVisualEffectView {
+                        view.isHidden = hidden
+                    }
+                }
+            }
+        }
+
+        private func restoreOpaqueBackground() {
+            guard let window, let opaqueBackground else { return }
+            window.isOpaque = opaqueBackground.isOpaque
+            window.backgroundColor = opaqueBackground.color
+            setTitlebarBackdropHidden(false, in: window)
+            self.opaqueBackground = nil
         }
 
         private func reposition() {

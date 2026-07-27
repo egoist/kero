@@ -11,6 +11,7 @@ import SwiftUI
 /// button or ⇧⌘B. Files/Git switch via tabs along its top, otty-style.
 struct RightSidebarView: View {
     @ObservedObject var manager: TerminalManager
+    @ObservedObject private var settings = AppSettings.shared
     @ObservedObject private var themeChanges = Theme.changes
     @StateObject private var fileTree = FileTreeModel()
     @StateObject private var git = GitStatusModel()
@@ -68,7 +69,7 @@ struct RightSidebarView: View {
                     }
                 }
                 .frame(width: width)
-                .background(Color(nsColor: Theme.sidebar))
+                .background(sidebarBackground)
             }
         }
         .overlay(alignment: .leading) {
@@ -93,6 +94,14 @@ struct RightSidebarView: View {
         // Same for pinning/unpinning the project directory: re-root the
         // panels the moment it changes rather than on the next tick.
         .onChange(of: manager.selectedProject?.customDirectory) { syncModels() }
+    }
+
+    private var sidebarBackground: Color {
+        let color = Theme.sidebar
+        guard settings.backgroundOpacity < AppSettings.defaultBackgroundOpacity else {
+            return Color(nsColor: color)
+        }
+        return Color(nsColor: color.withAlphaComponent(CGFloat(settings.backgroundOpacity)))
     }
 
     private var tabBar: some View {

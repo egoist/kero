@@ -31,6 +31,10 @@ final class AppSettings: nonisolated ObservableObject {
 
     static let defaultFontSize: Double = 13
     static let fontSizeRange: ClosedRange<Double> = 8...32
+    static let defaultBackgroundOpacity: Double = 1
+    static let backgroundOpacityRange: ClosedRange<Double> = 0.05...1
+    static let defaultBackgroundBlur: Double = 0
+    static let backgroundBlurRange: ClosedRange<Double> = 0...64
 
     /// Light/dark appearance override; `system` follows macOS.
     @Published var theme: AppTheme {
@@ -67,6 +71,12 @@ final class AppSettings: nonisolated ObservableObject {
         didSet { save() }
     }
 
+    /// Opacity shared by the window chrome and libghostty surface. Fully
+    /// opaque by default, preserving the window's existing rendering path.
+    @Published var backgroundOpacity: Double {
+        didSet { save() }
+    }
+
     /// Ghostty's `font-thicken`: render glyphs with slightly heavier strokes,
     /// like classic macOS font smoothing. Off by default so kero's text
     /// matches a stock Ghostty install.
@@ -77,6 +87,27 @@ final class AppSettings: nonisolated ObservableObject {
     /// Soft-wrap file editor lines to the viewport width. Off by default so
     /// long lines scroll horizontally.
     @Published var wrapLines: Bool {
+        didSet { save() }
+    }
+
+    /// How the two translucent surface treatments are distributed when
+    /// `backgroundOpacity` is below 1. `auto` keeps today's split — system
+    /// material on the sidebar, theme tint on the content. The other two
+    /// unify the window in either direction; which reads best is taste.
+    enum BackgroundOpacityStyle: String, CaseIterable {
+        case auto
+        case tint      // sidebar joins the content's theme tint
+        case material  // content joins the sidebar's system material
+    }
+
+    @Published var backgroundOpacityStyle: BackgroundOpacityStyle {
+        didSet { save() }
+    }
+
+    /// Gaussian-blur radius (points) behind a translucent window. 0 keeps
+    /// the system material's fixed blur; any other value swaps the material
+    /// for a custom backdrop at this radius (see `BackdropBlurView`).
+    @Published var backgroundBlur: Double {
         didSet { save() }
     }
 
@@ -100,8 +131,20 @@ final class AppSettings: nonisolated ObservableObject {
         fontFamily = toml["font-family"]?.string ?? ""
         let size = toml["font-size"]?.double ?? Self.defaultFontSize
         fontSize = Self.fontSizeRange.contains(size) ? size : Self.defaultFontSize
+        let opacity = toml["background-opacity"]?.double ?? Self.defaultBackgroundOpacity
+        backgroundOpacity = opacity.isFinite
+            ? min(max(opacity, Self.backgroundOpacityRange.lowerBound),
+                  Self.backgroundOpacityRange.upperBound)
+            : Self.defaultBackgroundOpacity
         fontThicken = toml["font-thicken"]?.bool ?? false
         wrapLines = toml["editor.wrap-lines"]?.bool ?? false
+        backgroundOpacityStyle = toml["background-opacity-style"]?.string
+            .flatMap(BackgroundOpacityStyle.init(rawValue:)) ?? .auto
+        let blur = toml["background-blur"]?.double ?? Self.defaultBackgroundBlur
+        backgroundBlur = blur.isFinite
+            ? min(max(blur, Self.backgroundBlurRange.lowerBound),
+                  Self.backgroundBlurRange.upperBound)
+            : Self.defaultBackgroundBlur
         restoreTerminalHistory = toml["terminal.restore-history"]?.bool ?? false
         applyAppearance()
         reloadThemeSelection()
@@ -142,7 +185,10 @@ final class AppSettings: nonisolated ObservableObject {
         theme = .system
         themeDark = Theme.defaultDarkThemeName
         themeLight = Theme.defaultLightThemeName
+        backgroundOpacity = Self.defaultBackgroundOpacity
         wrapLines = false
+        backgroundOpacityStyle = .auto
+        backgroundBlur = Self.defaultBackgroundBlur
         restoreTerminalHistory = false
     }
 
@@ -163,11 +209,22 @@ final class AppSettings: nonisolated ObservableObject {
             lines.append("font-family = \(TOML.quote(fontFamily))")
         }
         lines.append("font-size = \(TOML.number(fontSize))")
+        // Like font-thicken: only a non-default value earns a line, so the
+        // config file of an opaque-window user never mentions the key.
+        if backgroundOpacity != Self.defaultBackgroundOpacity {
+            lines.append("background-opacity = \(TOML.number(backgroundOpacity))")
+        }
         if fontThicken {
             lines.append("font-thicken = true")
         }
         if wrapLines {
             lines.append("editor.wrap-lines = true")
+        }
+        if backgroundOpacityStyle != .auto {
+            lines.append("background-opacity-style = \(TOML.quote(backgroundOpacityStyle.rawValue))")
+        }
+        if backgroundBlur != Self.defaultBackgroundBlur {
+            lines.append("background-blur = \(TOML.number(backgroundBlur))")
         }
         if restoreTerminalHistory {
             lines.append("terminal.restore-history = true")

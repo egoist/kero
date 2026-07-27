@@ -259,6 +259,13 @@ final class TerminalSession: NSObject, nonisolated ObservableObject, nonisolated
             // primary face. Repeated font-family entries form Ghostty's list.
             builder.withCustom("font-family", "Symbols Nerd Font Mono")
             builder.withFontSize(Float(settings.fontSize))
+            // While translucent, the surface renders a fully clear background:
+            // the window chrome applies the theme tint once across the whole
+            // window (see ContentView.windowBackground), and a second tint
+            // here would compound into a visibly darker cell grid.
+            let surfaceOpacity =
+                settings.backgroundOpacity < AppSettings.defaultBackgroundOpacity ? 0 : 1.0
+            builder.withCustom("background-opacity", TOML.number(surfaceOpacity))
             // Always set explicitly: the wrapper's ConfigSource.none base
             // config injects the package default `font-thicken = true`, and
             // only a later entry in the rendered config overrides it.
