@@ -154,7 +154,14 @@ final class OutsideClickMonitorNSView: NSView {
     }
 
     deinit {
-        stopMonitoring()
+        // `deinit` is nonisolated, so it cannot call the @MainActor helper.
+        // Mirror TabSwitcherMonitorView and release the AppKit tokens here.
+        if let eventMonitor {
+            NSEvent.removeMonitor(eventMonitor)
+        }
+        for observer in focusObservers {
+            NotificationCenter.default.removeObserver(observer)
+        }
     }
 }
 
