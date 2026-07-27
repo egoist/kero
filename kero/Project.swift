@@ -74,6 +74,7 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
 
+
     }
 
     /// Every terminal session across every pane in every tab.

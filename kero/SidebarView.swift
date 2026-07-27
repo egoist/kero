@@ -216,6 +216,7 @@ private struct SidebarProjectRow: View {
     @State private var isHovering = false
     @State private var isRenaming = false
     @State private var renameDraft = ""
+    @State private var renameInitialValue = ""
     @FocusState private var renameFocused: Bool
 
     var body: some View {
@@ -362,7 +363,9 @@ private struct SidebarProjectRow: View {
     }
 
     private func beginRename() {
-        renameDraft = project.name
+        let initialValue = project.name
+        renameDraft = initialValue
+        renameInitialValue = initialValue
         isRenaming = true
         DispatchQueue.main.async {
             renameFocused = true
@@ -370,13 +373,12 @@ private struct SidebarProjectRow: View {
     }
 
     private func commitRename() {
-        // Empty or unchanged vs the live automatic name → stay automatic so
-        // the row keeps following the selected session's terminal title.
         let trimmed = renameDraft.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.isEmpty || trimmed == project.automaticName {
-            project.customName = nil
-        } else {
-            project.customName = Project.normalizedCustomName(renameDraft)
+        let initial = renameInitialValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        // If the selected session changes its title while the field is open,
+        // an untouched draft must not freeze the old value as a custom name.
+        if trimmed != initial {
+            project.customName = trimmed.isEmpty ? nil : Project.normalizedCustomName(renameDraft)
         }
         isRenaming = false
     }

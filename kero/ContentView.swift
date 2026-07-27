@@ -449,13 +449,14 @@ private struct PaneTabItem: View {
                 systemImage: tab.focusedContent?.systemImage ?? "terminal",
                 browserIcon: focusedBrowser,
                 initialValue: tab.displayTitle ?? "",
-                commit: { name in
-                    // Empty or unchanged vs the live pane title → stay
-                    // automatic so OSC / tool title updates keep flowing.
+                commit: { name, changed in
+                    // An untouched field is not a rename. In particular, do
+                    // not pin the title if OSC updates it while this editor is
+                    // open; TabRenameChrome compares against its captured
+                    // initial value rather than the latest live title.
+                    guard changed else { return }
                     let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-                    let automatic = tab.focusedContent?.title
-                    tab.customName =
-                        (trimmed.isEmpty || trimmed == automatic) ? nil : trimmed
+                    tab.customName = trimmed.isEmpty ? nil : trimmed
                 },
                 end: { renamingTabID = nil }
             )
@@ -501,16 +502,20 @@ private struct PaneTabItem: View {
 
 /// Inline editor shown in place of a tab while it's renamed — the same
 /// affordance as the project row's rename. Commits on Return or focus loss,
-/// cancels on Escape. An empty name, or one that matches the live pane
-/// title, clears the override so the tab keeps following terminal updates.
+/// cancels on Escape. An untouched field leaves the current automatic/custom
+/// mode alone; an empty edited field returns the tab to its automatic title.
 private struct TabRenameChrome: View {
     @ObservedObject private var themeChanges = Theme.changes
     let systemImage: String
     let browserIcon: BrowserTab?
-    let commit: (String) -> Void
+    let commit: (String, Bool) -> Void
     let end: () -> Void
 
     @State private var draft: String
+    /// Frozen when editing starts. The live terminal title may change while
+    /// the field is open, but that must not turn an untouched draft into a
+    /// user rename.
+    @State private var initialValue: String
     /// Set by the first commit/cancel so the focus-loss handler that fires
     /// while the field is being torn down doesn't commit a second time.
     @State private var finished = false
@@ -520,7 +525,7 @@ private struct TabRenameChrome: View {
         systemImage: String,
         browserIcon: BrowserTab?,
         initialValue: String,
-        commit: @escaping (String) -> Void,
+        commit: @escaping (String, Bool) -> Void,
         end: @escaping () -> Void
     ) {
         self.systemImage = systemImage
@@ -528,6 +533,7 @@ private struct TabRenameChrome: View {
         self.commit = commit
         self.end = end
         _draft = State(initialValue: initialValue)
+        _initialValue = State(initialValue: initialValue)
     }
 
     var body: some View {
@@ -567,7 +573,11 @@ private struct TabRenameChrome: View {
     private func finish(apply: Bool) {
         guard !finished else { return }
         finished = true
-        if apply { commit(draft) }
+        if apply {
+            let normalizedDraft = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+            let normalizedInitial = initialValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            commit(draft, normalizedDraft != normalizedInitial)
+        }
         end()
     }
 }
