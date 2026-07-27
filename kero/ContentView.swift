@@ -450,8 +450,12 @@ private struct PaneTabItem: View {
                 browserIcon: focusedBrowser,
                 initialValue: tab.displayTitle ?? "",
                 commit: { name in
+                    // Empty or unchanged vs the live pane title → stay
+                    // automatic so OSC / tool title updates keep flowing.
                     let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-                    tab.customName = trimmed.isEmpty ? nil : trimmed
+                    let automatic = tab.focusedContent?.title
+                    tab.customName =
+                        (trimmed.isEmpty || trimmed == automatic) ? nil : trimmed
                 },
                 end: { renamingTabID = nil }
             )
@@ -497,7 +501,8 @@ private struct PaneTabItem: View {
 
 /// Inline editor shown in place of a tab while it's renamed — the same
 /// affordance as the project row's rename. Commits on Return or focus loss,
-/// cancels on Escape; an empty name returns the tab to its automatic title.
+/// cancels on Escape. An empty name, or one that matches the live pane
+/// title, clears the override so the tab keeps following terminal updates.
 private struct TabRenameChrome: View {
     @ObservedObject private var themeChanges = Theme.changes
     let systemImage: String

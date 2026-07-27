@@ -370,7 +370,14 @@ private struct SidebarProjectRow: View {
     }
 
     private func commitRename() {
-        project.customName = Project.normalizedCustomName(renameDraft)
+        // Empty or unchanged vs the live automatic name → stay automatic so
+        // the row keeps following the selected session's terminal title.
+        let trimmed = renameDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty || trimmed == project.automaticName {
+            project.customName = nil
+        } else {
+            project.customName = Project.normalizedCustomName(renameDraft)
+        }
         isRenaming = false
     }
 
