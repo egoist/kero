@@ -76,11 +76,12 @@ struct OutsideClickMonitor: NSViewRepresentable {
     }
 }
 
+@MainActor
 final class OutsideClickMonitorNSView: NSView {
     var onOutsideClick: (() -> Void)?
 
     private var eventMonitor: Any?
-    private var resignActiveObserver: NSObjectProtocol?
+    private var focusObservers: [NSObjectProtocol] = []
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
@@ -90,27 +91,41 @@ final class OutsideClickMonitorNSView: NSView {
         eventMonitor = NSEvent.addLocalMonitorForEvents(
             matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]
         ) { [weak self] event in
-            guard let self else { return event }
-            let isInside: Bool
-            if event.window === self.window {
-                isInside = self.bounds.contains(
-                    self.convert(event.locationInWindow, from: nil)
-                )
-            } else {
-                isInside = false
+            // Local monitors run synchronously on AppKit's main event thread.
+            // Keep non-Sendable NSEvent inside an unchecked wrapper while
+            // crossing `assumeIsolated`'s generic boundary.
+            let input = MainThreadMouseEvent(event)
+            let output: MainThreadMouseEvent = MainActor.assumeIsolated {
+                guard let self, let event = input.value else { return input }
+                let isInside: Bool
+                if event.window === self.window {
+                    isInside = self.bounds.contains(
+                        self.convert(event.locationInWindow, from: nil)
+                    )
+                } else {
+                    isInside = false
+                }
+                if !isInside {
+                    self.reportOutsideClick()
+                }
+                return input
             }
-            if !isInside {
-                self.reportOutsideClick()
-            }
-            return event
+            return output.value
         }
 
-        resignActiveObserver = NotificationCenter.default.addObserver(
-            forName: NSApplication.didResignActiveNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            self?.reportOutsideClick()
+        for name in [
+            NSWindow.didResignKeyNotification,
+            NSApplication.didResignActiveNotification,
+        ] {
+            focusObservers.append(NotificationCenter.default.addObserver(
+                forName: name,
+                object: name == NSWindow.didResignKeyNotification ? window : nil,
+                queue: .main
+            ) { [weak self] _ in
+                MainActor.assumeIsolated {
+                    self?.reportOutsideClick()
+                }
+            })
         }
     }
 
@@ -123,10 +138,10 @@ final class OutsideClickMonitorNSView: NSView {
             NSEvent.removeMonitor(eventMonitor)
             self.eventMonitor = nil
         }
-        if let resignActiveObserver {
-            NotificationCenter.default.removeObserver(resignActiveObserver)
-            self.resignActiveObserver = nil
+        for observer in focusObservers {
+            NotificationCenter.default.removeObserver(observer)
         }
+        focusObservers.removeAll()
     }
 
     private func reportOutsideClick() {
@@ -140,5 +155,13 @@ final class OutsideClickMonitorNSView: NSView {
 
     deinit {
         stopMonitoring()
+    }
+}
+
+private struct MainThreadMouseEvent: @unchecked Sendable {
+    let value: NSEvent?
+
+    init(_ value: NSEvent?) {
+        self.value = value
     }
 }
