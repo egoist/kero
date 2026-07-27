@@ -165,6 +165,81 @@ struct SettingsView: View {
     private static let lightThemeNames = Theme.commonLightThemes.map(\.name)
 }
 
+/// Settings font preview that honors `font-thicken`. Ghostty thickens by
+/// enabling CoreText font smoothing when rasterizing glyphs; SwiftUI `Text`
+/// does not, so toggling the setting left this preview unchanged.
+private struct FontThickenPreview: NSViewRepresentable {
+    var font: NSFont
+    var thicken: Bool
+
+    func makeNSView(context: Context) -> FontThickenPreviewView {
+        FontThickenPreviewView()
+    }
+
+    func updateNSView(_ view: FontThickenPreviewView, context: Context) {
+        view.previewFont = font
+        view.thicken = thicken
+        view.needsDisplay = true
+        view.invalidateIntrinsicContentSize()
+    }
+}
+
+private final class FontThickenPreviewView: NSView {
+    var previewFont: NSFont = .monospacedSystemFont(ofSize: 13, weight: .regular)
+    var thicken = false
+
+    /// Regular / CJK / icon / bold — same idea as the old SwiftUI preview,
+    /// plus a Chinese line so stroke weight is obvious on CJK glyphs too.
+    private let lines: [(text: String, bold: Bool)] = [
+        ("kero ❯ echo \"the quick brown fox\" 0O 1lI", false),
+        ("中文预览 — 你好，世界", false),
+        ("\u{E0A0} main \u{E0B0} ~/dev/kero \u{E711} \u{F024B} \u{F0A7D}", false),
+        ("bold — 加粗中文 permission denied", true),
+    ]
+
+    private let lineSpacing: CGFloat = 6
+    private let verticalPadding: CGFloat = 4
+
+    override var isFlipped: Bool { true }
+
+    override var intrinsicContentSize: NSSize {
+        let lineHeight = ceil(previewFont.boundingRectForFont.height)
+        let height = verticalPadding * 2
+            + CGFloat(lines.count) * lineHeight
+            + CGFloat(max(0, lines.count - 1)) * lineSpacing
+        return NSSize(width: NSView.noIntrinsicMetric, height: height)
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        guard let ctx = NSGraphicsContext.current?.cgContext else { return }
+        // Mirror Ghostty's CoreText glyph path (face/coretext.zig):
+        // font-thicken == shouldSmoothFonts.
+        ctx.setAllowsFontSmoothing(true)
+        ctx.setShouldSmoothFonts(thicken)
+        ctx.setAllowsFontSubpixelPositioning(true)
+        ctx.setShouldSubpixelPositionFonts(true)
+        ctx.setAllowsFontSubpixelQuantization(false)
+        ctx.setShouldSubpixelQuantizeFonts(false)
+        ctx.setAllowsAntialiasing(true)
+        ctx.setShouldAntialias(true)
+
+        let color = NSColor.labelColor
+        var y = verticalPadding
+        let lineHeight = ceil(previewFont.boundingRectForFont.height)
+        for (text, bold) in lines {
+            let font = bold
+                ? (NSFontManager.shared.convert(previewFont, toHaveTrait: .boldFontMask) ?? previewFont)
+                : previewFont
+            let attrs: [NSAttributedString.Key: Any] = [
+                .font: font,
+                .foregroundColor: color,
+            ]
+            (text as NSString).draw(at: NSPoint(x: 0, y: y), withAttributes: attrs)
+            y += lineHeight + lineSpacing
+        }
+    }
+}
+
 /// Sizes its sole child to the child's ideal height, capped at `maxHeight`.
 /// A `maxHeight` frame plus `fixedSize` can't express this: the grouped Form
 /// is a List, which only scrolls when *proposed* the capped height, yet still
