@@ -88,6 +88,14 @@ final class AppSettings: nonisolated ObservableObject {
         didSet { save() }
     }
 
+    /// When translucent, drop the sidebar's system material so it takes the
+    /// same theme-tinted frost as the rest of the window. Off by default:
+    /// the stock material reads brighter than the frosted content area, and
+    /// which of the two looks right is taste.
+    @Published var sidebarOpacityMatch: Bool {
+        didSet { save() }
+    }
+
     /// Restore each terminal's previous scrollback (as static, styled text)
     /// when the app relaunches, above the freshly started shell. Off by
     /// default: opt-in, and it writes captured output to disk.
@@ -115,6 +123,7 @@ final class AppSettings: nonisolated ObservableObject {
             : Self.defaultBackgroundOpacity
         fontThicken = toml["font-thicken"]?.bool ?? false
         wrapLines = toml["editor.wrap-lines"]?.bool ?? false
+        sidebarOpacityMatch = toml["sidebar-opacity-match"]?.bool ?? false
         restoreTerminalHistory = toml["terminal.restore-history"]?.bool ?? false
         applyAppearance()
         reloadThemeSelection()
@@ -157,6 +166,7 @@ final class AppSettings: nonisolated ObservableObject {
         themeLight = Theme.defaultLightThemeName
         backgroundOpacity = Self.defaultBackgroundOpacity
         wrapLines = false
+        sidebarOpacityMatch = false
         restoreTerminalHistory = false
     }
 
@@ -187,6 +197,9 @@ final class AppSettings: nonisolated ObservableObject {
         }
         if wrapLines {
             lines.append("editor.wrap-lines = true")
+        }
+        if sidebarOpacityMatch {
+            lines.append("sidebar-opacity-match = true")
         }
         if restoreTerminalHistory {
             lines.append("terminal.restore-history = true")

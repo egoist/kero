@@ -12,7 +12,7 @@ set in the Xcode project.
 
 ## [unrelease]
 
-- Add a background opacity setting for translucent, frosted-glass windows
+- Add a background opacity setting for translucent, frosted-glass windows, with an optional sidebar-opacity-match toggle
 
 ## [0.1.26]
 

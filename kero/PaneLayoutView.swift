@@ -490,11 +490,14 @@ private struct PaneView: View {
     }
 
     private var paneBackground: Color {
-        let color = Theme.background
+        // Translucent mode: the pane's libghostty surface (or editor palette)
+        // carries the theme tint at the configured alpha — an additional
+        // tinted fill here would compound with it and over-darken the frost
+        // (see windowBackground in ContentView), so the pane stays clear.
         guard settings.backgroundOpacity < AppSettings.defaultBackgroundOpacity else {
-            return Color(nsColor: color)
+            return Color(nsColor: Theme.background)
         }
-        return Color(nsColor: color.withAlphaComponent(CGFloat(settings.backgroundOpacity)))
+        return Color.clear
     }
 
     private var focusRing: some View {

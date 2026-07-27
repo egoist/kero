@@ -99,11 +99,15 @@ struct ContentView: View {
     }
 
     private var windowBackground: Color {
-        let color = Theme.background
+        // In translucent mode the libghostty surface (and the editor palette)
+        // already carry the theme tint at the configured alpha. Tinting the
+        // chrome layers as well would stack: each 20%-dark layer keeps only
+        // 80% of the backdrop, so three of them read as near-opaque. The
+        // chrome stays clear and lets the window material show instead.
         guard settings.backgroundOpacity < AppSettings.defaultBackgroundOpacity else {
-            return Color(nsColor: color)
+            return Color(nsColor: Theme.background)
         }
-        return Color(nsColor: color.withAlphaComponent(CGFloat(settings.backgroundOpacity)))
+        return Color.clear
     }
 
     /// Sessions in the visible tab are owned by `TerminalHostView`; every

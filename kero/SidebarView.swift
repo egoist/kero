@@ -86,7 +86,12 @@ struct SidebarView: View {
             // sidebar material; every other theme — including the GitHub
             // originals they're based on — paints its flat sidebar shade so
             // the strip follows the palette.
-            if Theme.isDefault(dark: colorScheme == .dark) {
+            // In translucent mode, sidebar-opacity-match trades the material
+            // for the same theme-tinted frost as the content area, so the
+            // whole window reads as one surface.
+            if Theme.isDefault(dark: colorScheme == .dark),
+               !(settings.sidebarOpacityMatch
+                   && settings.backgroundOpacity < AppSettings.defaultBackgroundOpacity) {
                 VisualEffectView(material: .sidebar)
             } else {
                 let color = Theme.sidebar

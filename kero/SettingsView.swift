@@ -43,6 +43,10 @@ struct SettingsView: View {
                         .foregroundStyle(.secondary)
                         .frame(width: 40, alignment: .trailing)
                 }
+
+                if settings.backgroundOpacity < AppSettings.defaultBackgroundOpacity {
+                    Toggle("Sidebar matches background opacity", isOn: $settings.sidebarOpacityMatch)
+                }
             }
 
             Section("Colors") {
@@ -147,6 +151,7 @@ struct SettingsView: View {
                         && settings.themeDark == Theme.defaultDarkThemeName
                         && settings.themeLight == Theme.defaultLightThemeName
                         && settings.backgroundOpacity == AppSettings.defaultBackgroundOpacity
+                        && !settings.sidebarOpacityMatch
                         && !settings.wrapLines
                         && !settings.restoreTerminalHistory)
                 }
