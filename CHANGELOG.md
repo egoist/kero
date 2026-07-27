@@ -16,6 +16,8 @@ the original feature bullet instead of adding separate entries for them.
 
 ## [unrelease]
 
+- The Git panel now refreshes after commands and when Kero regains focus instead of polling continuously in the background
+
 ## [0.1.28]
 
 - Tweak some UI colors
