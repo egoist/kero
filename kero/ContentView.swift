@@ -256,6 +256,7 @@ private struct SessionTabsView: View {
                             isSelected: tab.id == project.selectedTabID,
                             select: { project.selectedTabID = tab.id },
                             close: { project.close(tab) },
+                            initialRenameWidth: tabFrames[tab.id]?.width,
                             renamingTabID: $renamingTabID
                         )
                         .contextMenu { tabContextMenu(for: tab) }
@@ -440,6 +441,9 @@ private struct PaneTabItem: View {
     let isSelected: Bool
     let select: () -> Void
     let close: () -> Void
+    /// Width of the rendered tab before editing starts. The rename field
+    /// captures this so long tabs do not collapse to its intrinsic width.
+    let initialRenameWidth: CGFloat?
     @Binding var renamingTabID: UUID?
 
     var body: some View {
@@ -449,6 +453,7 @@ private struct PaneTabItem: View {
                 systemImage: tab.focusedContent?.systemImage ?? "terminal",
                 browserIcon: focusedBrowser,
                 initialValue: tab.displayTitle ?? "",
+                initialWidth: initialRenameWidth,
                 commit: { name, changed in
                     // An untouched field is not a rename. In particular, do
                     // not pin the title if OSC updates it while this editor is
@@ -505,6 +510,8 @@ private struct PaneTabItem: View {
 /// cancels on Escape. An untouched field leaves the current automatic/custom
 /// mode alone; an empty edited field returns the tab to its automatic title.
 private struct TabRenameChrome: View {
+    private static let minimumWidth: CGFloat = 140
+
     @ObservedObject private var themeChanges = Theme.changes
     let systemImage: String
     let browserIcon: BrowserTab?
@@ -516,6 +523,9 @@ private struct TabRenameChrome: View {
     /// the field is open, but that must not turn an untouched draft into a
     /// user rename.
     @State private var initialValue: String
+    /// Lower bound captured from the non-editing tab. Short tabs may grow to
+    /// fit the 110 pt field, while long tabs retain their previous width.
+    @State private var initialWidth: CGFloat
     /// Set by the first commit/cancel so the focus-loss handler that fires
     /// while the field is being torn down doesn't commit a second time.
     @State private var finished = false
@@ -525,6 +535,7 @@ private struct TabRenameChrome: View {
         systemImage: String,
         browserIcon: BrowserTab?,
         initialValue: String,
+        initialWidth: CGFloat?,
         commit: @escaping (String, Bool) -> Void,
         end: @escaping () -> Void
     ) {
@@ -534,6 +545,7 @@ private struct TabRenameChrome: View {
         self.end = end
         _draft = State(initialValue: initialValue)
         _initialValue = State(initialValue: initialValue)
+        _initialWidth = State(initialValue: initialWidth ?? 0)
     }
 
     var body: some View {
@@ -550,7 +562,7 @@ private struct TabRenameChrome: View {
             TextField("", text: $draft)
                 .textFieldStyle(.plain)
                 .font(.system(size: 11.5))
-                .frame(width: 110)
+                .frame(minWidth: 110, maxWidth: .infinity)
                 .focused($focused)
                 .onSubmit { finish(apply: true) }
                 .onExitCommand { finish(apply: false) }
@@ -561,6 +573,7 @@ private struct TabRenameChrome: View {
         .padding(.leading, 9)
         .padding(.trailing, 5)
         .padding(.vertical, 4)
+        .frame(width: max(initialWidth, Self.minimumWidth))
         .background(
             RoundedRectangle(cornerRadius: 6)
                 .fill(Color.primary.opacity(0.09))
