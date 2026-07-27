@@ -33,6 +33,8 @@ final class AppSettings: nonisolated ObservableObject {
     static let fontSizeRange: ClosedRange<Double> = 8...32
     static let defaultBackgroundOpacity: Double = 1
     static let backgroundOpacityRange: ClosedRange<Double> = 0.05...1
+    static let defaultBackgroundBlur: Double = 0
+    static let backgroundBlurRange: ClosedRange<Double> = 0...64
 
     /// Light/dark appearance override; `system` follows macOS.
     @Published var theme: AppTheme {
@@ -102,6 +104,13 @@ final class AppSettings: nonisolated ObservableObject {
         didSet { save() }
     }
 
+    /// Gaussian-blur radius (points) behind a translucent window. 0 keeps
+    /// the system material's fixed blur; any other value swaps the material
+    /// for a custom backdrop at this radius (see `BackdropBlurView`).
+    @Published var backgroundBlur: Double {
+        didSet { save() }
+    }
+
     /// Restore each terminal's previous scrollback (as static, styled text)
     /// when the app relaunches, above the freshly started shell. Off by
     /// default: opt-in, and it writes captured output to disk.
@@ -131,6 +140,11 @@ final class AppSettings: nonisolated ObservableObject {
         wrapLines = toml["editor.wrap-lines"]?.bool ?? false
         backgroundOpacityStyle = toml["background-opacity-style"]?.string
             .flatMap(BackgroundOpacityStyle.init(rawValue:)) ?? .auto
+        let blur = toml["background-blur"]?.double ?? Self.defaultBackgroundBlur
+        backgroundBlur = blur.isFinite
+            ? min(max(blur, Self.backgroundBlurRange.lowerBound),
+                  Self.backgroundBlurRange.upperBound)
+            : Self.defaultBackgroundBlur
         restoreTerminalHistory = toml["terminal.restore-history"]?.bool ?? false
         applyAppearance()
         reloadThemeSelection()
@@ -174,6 +188,7 @@ final class AppSettings: nonisolated ObservableObject {
         backgroundOpacity = Self.defaultBackgroundOpacity
         wrapLines = false
         backgroundOpacityStyle = .auto
+        backgroundBlur = Self.defaultBackgroundBlur
         restoreTerminalHistory = false
     }
 
@@ -207,6 +222,9 @@ final class AppSettings: nonisolated ObservableObject {
         }
         if backgroundOpacityStyle != .auto {
             lines.append("background-opacity-style = \(TOML.quote(backgroundOpacityStyle.rawValue))")
+        }
+        if backgroundBlur != Self.defaultBackgroundBlur {
+            lines.append("background-blur = \(TOML.number(backgroundBlur))")
         }
         if restoreTerminalHistory {
             lines.append("terminal.restore-history = true")

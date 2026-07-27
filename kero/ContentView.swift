@@ -93,11 +93,19 @@ struct ContentView: View {
                 // the safe-area inset before the ZStack escapes it.
                 GeometryReader { geo in
                     ZStack(alignment: .top) {
-                        VisualEffectView(
-                            material: settings.backgroundOpacityStyle == .material
-                                ? .sidebar : .underWindowBackground,
-                            state: .active
-                        )
+                        // A custom blur radius replaces the material rather
+                        // than layering under it: the material samples the
+                        // content behind the window directly, so it would
+                        // paint straight over anything blurred beneath it.
+                        if settings.backgroundBlur > 0, BackdropBlurView.isSupported {
+                            BackdropBlurView(radius: settings.backgroundBlur)
+                        } else {
+                            VisualEffectView(
+                                material: settings.backgroundOpacityStyle == .material
+                                    ? .sidebar : .underWindowBackground,
+                                state: .active
+                            )
+                        }
                         if settings.backgroundOpacityStyle == .tint {
                             Color(nsColor: Theme.background
                                 .withAlphaComponent(CGFloat(settings.backgroundOpacity)))
@@ -147,11 +155,20 @@ struct ContentView: View {
     private var paneLayerBackground: some View {
         if paneLayerCoversDiffs {
             if settings.backgroundOpacity < AppSettings.defaultBackgroundOpacity {
-                VisualEffectView(
-                    material: settings.backgroundOpacityStyle == .material
-                        ? .sidebar : .underWindowBackground,
-                    state: .active
-                )
+                // Same substitution as the window background: a custom blur
+                // radius replaces the material, which would otherwise sample
+                // the unblurred content behind the window and paint over it.
+                Group {
+                    if settings.backgroundBlur > 0, BackdropBlurView.isSupported {
+                        BackdropBlurView(radius: settings.backgroundBlur)
+                    } else {
+                        VisualEffectView(
+                            material: settings.backgroundOpacityStyle == .material
+                                ? .sidebar : .underWindowBackground,
+                            state: .active
+                        )
+                    }
+                }
                 .overlay(windowBackground)
             } else {
                 windowBackground

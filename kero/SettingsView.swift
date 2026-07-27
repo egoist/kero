@@ -46,6 +46,19 @@ struct SettingsView: View {
 
                 if settings.backgroundOpacity < AppSettings.defaultBackgroundOpacity {
                     HStack {
+                        Text("Background blur")
+                        Slider(
+                            value: $settings.backgroundBlur,
+                            in: AppSettings.backgroundBlurRange,
+                            step: 2
+                        )
+                        Text("\(Int(settings.backgroundBlur.rounded()))")
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                            .frame(width: 40, alignment: .trailing)
+                    }
+
+                    HStack {
                         Text("Translucency style")
                         Spacer()
                         Picker("", selection: $settings.backgroundOpacityStyle) {
@@ -163,6 +176,7 @@ struct SettingsView: View {
                         && settings.themeLight == Theme.defaultLightThemeName
                         && settings.backgroundOpacity == AppSettings.defaultBackgroundOpacity
                         && settings.backgroundOpacityStyle == .auto
+                        && settings.backgroundBlur == AppSettings.defaultBackgroundBlur
                         && !settings.wrapLines
                         && !settings.restoreTerminalHistory)
                 }

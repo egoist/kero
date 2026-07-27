@@ -12,7 +12,7 @@ set in the Xcode project.
 
 ## [unrelease]
 
-- Add a background opacity setting for translucent, frosted-glass windows, with a three-way translucency style: material sidebar, tint everything, or material everything
+- Add translucent frosted-glass windows: background opacity, blur strength, and a three-way translucency style (material sidebar, tint everything, or material everything)
 
 ## [0.1.26]
 
