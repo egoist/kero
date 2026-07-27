@@ -59,43 +59,49 @@ struct BackdropBlurView: NSViewRepresentable {
 
 final class BackdropBlurHostView: NSView {
     private var backdrop: CALayer?
-    private var filter: NSObject?
+    private var currentRadius: Double?
 
     func install(radius: Double) {
         wantsLayer = true
-        guard let backdropClass = NSClassFromString("CABackdropLayer") as? CALayer.Type,
-              let filterClass = NSClassFromString("CAFilter") as? NSObject.Type,
-              let blur = filterClass
-                  .perform(NSSelectorFromString("filterWithType:"), with: "gaussianBlur")?
-                  .takeUnretainedValue() as? NSObject
-        else { return }
-        blur.setValue(radius, forKey: "inputRadius")
-        blur.setValue(true, forKey: "enabled")
-        let layer = backdropClass.init()
-        // colorSaturate matches the second half of the material's own filter
-        // stack (sdrNormalize · gaussianBlur · colorSaturate), so the custom
-        // radius keeps the familiar frosted saturation boost.
-        var filters: [Any] = [blur]
-        if let saturate = filterClass
-            .perform(NSSelectorFromString("filterWithType:"), with: "colorSaturate")?
-            .takeUnretainedValue() as? NSObject {
-            saturate.setValue(1.5, forKey: "inputAmount")
-            saturate.setValue(true, forKey: "enabled")
-            filters.append(saturate)
+        guard let backdropClass = NSClassFromString("CABackdropLayer") as? CALayer.Type else {
+            return
         }
-        layer.filters = filters
+        let layer = backdropClass.init()
         layer.frame = bounds
         self.layer?.addSublayer(layer)
         backdrop = layer
-        filter = blur
+        setRadius(radius)
     }
 
     func setRadius(_ radius: Double) {
-        guard let backdrop, let filter else { return }
-        filter.setValue(radius, forKey: "inputRadius")
-        // Mutating a filter in place isn't observed; reassigning the array
-        // recommits it to the render tree.
-        backdrop.filters = backdrop.filters
+        guard let backdrop, radius != currentRadius else { return }
+        // Fresh filter instances every time: the render server snapshots
+        // filter parameters when the array is assigned, so mutating an
+        // installed filter in place changes nothing (the same trap that
+        // makes the system material's own gaussian un-adjustable).
+        backdrop.filters = Self.makeFilters(radius: radius)
+        currentRadius = radius
+    }
+
+    /// gaussianBlur at the configured radius, plus colorSaturate matching
+    /// the second half of the material's own stack (sdrNormalize ·
+    /// gaussianBlur · colorSaturate) so the frosted saturation boost stays.
+    private static func makeFilters(radius: Double) -> [Any] {
+        guard let filterClass = NSClassFromString("CAFilter") as? NSObject.Type else {
+            return []
+        }
+        func make(_ type: String, _ key: String, _ value: Double) -> NSObject? {
+            guard let filter = filterClass
+                .perform(NSSelectorFromString("filterWithType:"), with: type)?
+                .takeUnretainedValue() as? NSObject else { return nil }
+            filter.setValue(value, forKey: key)
+            filter.setValue(true, forKey: "enabled")
+            return filter
+        }
+        return [
+            make("gaussianBlur", "inputRadius", radius),
+            make("colorSaturate", "inputAmount", 1.5),
+        ].compactMap { $0 }
     }
 
     override func layout() {

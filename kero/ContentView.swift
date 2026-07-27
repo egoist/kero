@@ -87,33 +87,23 @@ struct ContentView: View {
                 // material the sidebar wears, unifying the two treatments.
                 // ignoresSafeArea reaches under the hidden title bar — its
                 // AppKit backing is suppressed while translucent (see
-                // WindowChromeAccessor), so this material is all that strip
-                // has. In the `tint` style the title-bar strip additionally
-                // takes the theme tint the surfaces below carry, measured as
-                // the safe-area inset before the ZStack escapes it.
-                GeometryReader { geo in
-                    ZStack(alignment: .top) {
-                        // A custom blur radius replaces the material rather
-                        // than layering under it: the material samples the
-                        // content behind the window directly, so it would
-                        // paint straight over anything blurred beneath it.
-                        if settings.backgroundBlur > 0, BackdropBlurView.isSupported {
-                            BackdropBlurView(radius: settings.backgroundBlur)
-                        } else {
-                            VisualEffectView(
-                                material: settings.backgroundOpacityStyle == .material
-                                    ? .sidebar : .underWindowBackground,
-                                state: .active
-                            )
-                        }
-                        if settings.backgroundOpacityStyle == .tint {
-                            Color(nsColor: Theme.background
-                                .withAlphaComponent(CGFloat(settings.backgroundOpacity)))
-                                .frame(height: geo.safeAreaInsets.top)
-                        }
+                // WindowChromeAccessor), so this backdrop is all that strip
+                // has. A custom blur radius replaces the material rather
+                // than layering under it: the material samples the content
+                // behind the window directly, so it would paint straight
+                // over anything blurred beneath it.
+                Group {
+                    if settings.backgroundBlur > 0, BackdropBlurView.isSupported {
+                        BackdropBlurView(radius: settings.backgroundBlur)
+                    } else {
+                        VisualEffectView(
+                            material: settings.backgroundOpacityStyle == .material
+                                ? .sidebar : .underWindowBackground,
+                            state: .active
+                        )
                     }
-                    .ignoresSafeArea()
                 }
+                .ignoresSafeArea()
             }
         }
         .background {
@@ -129,15 +119,17 @@ struct ContentView: View {
     }
 
     private var windowBackground: Color {
-        // In translucent mode the libghostty surface (and the editor palette)
-        // already carry the theme tint at the configured alpha. Tinting the
-        // chrome layers as well would stack: each 20%-dark layer keeps only
-        // 80% of the backdrop, so three of them read as near-opaque. The
-        // chrome stays clear and lets the window material show instead.
+        // In translucent mode this is the one place the theme tint is
+        // applied — the libghostty surface and editor render fully clear
+        // backgrounds (see TerminalSession / EditorPalette) so the wash is
+        // uniform across cells, padding, header, and gaps. Stacking tinted
+        // layers would compound: each 20%-dark layer keeps only 80% of the
+        // backdrop, so even two read noticeably darker than one.
+        let color = Theme.background
         guard settings.backgroundOpacity < AppSettings.defaultBackgroundOpacity else {
-            return Color(nsColor: Theme.background)
+            return Color(nsColor: color)
         }
-        return Color.clear
+        return Color(nsColor: color.withAlphaComponent(CGFloat(settings.backgroundOpacity)))
     }
 
     /// Sessions in the visible tab are owned by `TerminalHostView`; every

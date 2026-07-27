@@ -32,14 +32,15 @@ struct EditorPalette: Equatable {
     static func theme(dark: Bool, backgroundOpacity: Double = 1) -> EditorPalette {
         let theme = Theme.terminal(dark: dark)
         let background = theme.backgroundNSColor
-        let lineHighlight = theme.surfaceNSColor(elevation: 0.04)
         return EditorPalette(
             text: theme.foregroundNSColor,
+            // Fully clear while translucent: the window chrome carries the
+            // theme tint (see ContentView.windowBackground); tinting here
+            // too would darken the editor against its neighbors.
             background: backgroundOpacity < 1
-                ? background.withAlphaComponent(CGFloat(backgroundOpacity)) : background,
+                ? background.withAlphaComponent(0) : background,
             insertionPoint: theme.accentNSColor,
-            lineHighlight: backgroundOpacity < 1
-                ? lineHighlight.withAlphaComponent(CGFloat(backgroundOpacity)) : lineHighlight,
+            lineHighlight: theme.surfaceNSColor(elevation: 0.04),
             gutterText: theme.surfaceNSColor(elevation: 0.3)
         )
     }
