@@ -120,8 +120,25 @@ struct WindowChromeAccessor: NSViewRepresentable {
                 }
                 window.isOpaque = false
                 window.backgroundColor = .clear
+                setTitlebarBackdropHidden(true, in: window)
             } else {
                 restoreOpaqueBackground()
+            }
+        }
+
+        /// `.hiddenTitleBar` leaves AppKit's titlebar container in place; its
+        /// material backing is invisible over an opaque window but reads as a
+        /// darker band across the top of a clear one. Hide just the backing
+        /// effect views — the container keeps hosting the traffic lights.
+        private func setTitlebarBackdropHidden(_ hidden: Bool, in window: NSWindow) {
+            guard let frame = window.contentView?.superview else { return }
+            for container in frame.subviews
+            where String(describing: type(of: container)) == "NSTitlebarContainerView" {
+                for titlebar in container.subviews {
+                    for view in titlebar.subviews where view is NSVisualEffectView {
+                        view.isHidden = hidden
+                    }
+                }
             }
         }
 
@@ -129,6 +146,7 @@ struct WindowChromeAccessor: NSViewRepresentable {
             guard let window, let opaqueBackground else { return }
             window.isOpaque = opaqueBackground.isOpaque
             window.backgroundColor = opaqueBackground.color
+            setTitlebarBackdropHidden(false, in: window)
             self.opaqueBackground = nil
         }
 

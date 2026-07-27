@@ -83,7 +83,29 @@ struct ContentView: View {
         }
         .background {
             if settings.backgroundOpacity < AppSettings.defaultBackgroundOpacity {
-                VisualEffectView(material: .underWindowBackground, state: .active)
+                // The `material` style backs the whole window with the same
+                // material the sidebar wears, unifying the two treatments.
+                // ignoresSafeArea reaches under the hidden title bar — its
+                // AppKit backing is suppressed while translucent (see
+                // WindowChromeAccessor), so this material is all that strip
+                // has. In the `tint` style the title-bar strip additionally
+                // takes the theme tint the surfaces below carry, measured as
+                // the safe-area inset before the ZStack escapes it.
+                GeometryReader { geo in
+                    ZStack(alignment: .top) {
+                        VisualEffectView(
+                            material: settings.backgroundOpacityStyle == .material
+                                ? .sidebar : .underWindowBackground,
+                            state: .active
+                        )
+                        if settings.backgroundOpacityStyle == .tint {
+                            Color(nsColor: Theme.background
+                                .withAlphaComponent(CGFloat(settings.backgroundOpacity)))
+                                .frame(height: geo.safeAreaInsets.top)
+                        }
+                    }
+                    .ignoresSafeArea()
+                }
             }
         }
         .background {
@@ -125,8 +147,12 @@ struct ContentView: View {
     private var paneLayerBackground: some View {
         if paneLayerCoversDiffs {
             if settings.backgroundOpacity < AppSettings.defaultBackgroundOpacity {
-                VisualEffectView(material: .underWindowBackground, state: .active)
-                    .overlay(windowBackground)
+                VisualEffectView(
+                    material: settings.backgroundOpacityStyle == .material
+                        ? .sidebar : .underWindowBackground,
+                    state: .active
+                )
+                .overlay(windowBackground)
             } else {
                 windowBackground
             }

@@ -88,11 +88,17 @@ final class AppSettings: nonisolated ObservableObject {
         didSet { save() }
     }
 
-    /// When translucent, drop the sidebar's system material so it takes the
-    /// same theme-tinted frost as the rest of the window. Off by default:
-    /// the stock material reads brighter than the frosted content area, and
-    /// which of the two looks right is taste.
-    @Published var sidebarOpacityMatch: Bool {
+    /// How the two translucent surface treatments are distributed when
+    /// `backgroundOpacity` is below 1. `auto` keeps today's split — system
+    /// material on the sidebar, theme tint on the content. The other two
+    /// unify the window in either direction; which reads best is taste.
+    enum BackgroundOpacityStyle: String, CaseIterable {
+        case auto
+        case tint      // sidebar joins the content's theme tint
+        case material  // content joins the sidebar's system material
+    }
+
+    @Published var backgroundOpacityStyle: BackgroundOpacityStyle {
         didSet { save() }
     }
 
@@ -123,7 +129,8 @@ final class AppSettings: nonisolated ObservableObject {
             : Self.defaultBackgroundOpacity
         fontThicken = toml["font-thicken"]?.bool ?? false
         wrapLines = toml["editor.wrap-lines"]?.bool ?? false
-        sidebarOpacityMatch = toml["sidebar-opacity-match"]?.bool ?? false
+        backgroundOpacityStyle = toml["background-opacity-style"]?.string
+            .flatMap(BackgroundOpacityStyle.init(rawValue:)) ?? .auto
         restoreTerminalHistory = toml["terminal.restore-history"]?.bool ?? false
         applyAppearance()
         reloadThemeSelection()
@@ -166,7 +173,7 @@ final class AppSettings: nonisolated ObservableObject {
         themeLight = Theme.defaultLightThemeName
         backgroundOpacity = Self.defaultBackgroundOpacity
         wrapLines = false
-        sidebarOpacityMatch = false
+        backgroundOpacityStyle = .auto
         restoreTerminalHistory = false
     }
 
@@ -198,8 +205,8 @@ final class AppSettings: nonisolated ObservableObject {
         if wrapLines {
             lines.append("editor.wrap-lines = true")
         }
-        if sidebarOpacityMatch {
-            lines.append("sidebar-opacity-match = true")
+        if backgroundOpacityStyle != .auto {
+            lines.append("background-opacity-style = \(TOML.quote(backgroundOpacityStyle.rawValue))")
         }
         if restoreTerminalHistory {
             lines.append("terminal.restore-history = true")

@@ -45,7 +45,18 @@ struct SettingsView: View {
                 }
 
                 if settings.backgroundOpacity < AppSettings.defaultBackgroundOpacity {
-                    Toggle("Sidebar matches background opacity", isOn: $settings.sidebarOpacityMatch)
+                    HStack {
+                        Text("Translucency style")
+                        Spacer()
+                        Picker("", selection: $settings.backgroundOpacityStyle) {
+                            Text("Material sidebar").tag(AppSettings.BackgroundOpacityStyle.auto)
+                            Text("Tint everything").tag(AppSettings.BackgroundOpacityStyle.tint)
+                            Text("Material everything").tag(AppSettings.BackgroundOpacityStyle.material)
+                        }
+                        .pickerStyle(.menu)
+                        .labelsHidden()
+                        .fixedSize()
+                    }
                 }
             }
 
@@ -151,7 +162,7 @@ struct SettingsView: View {
                         && settings.themeDark == Theme.defaultDarkThemeName
                         && settings.themeLight == Theme.defaultLightThemeName
                         && settings.backgroundOpacity == AppSettings.defaultBackgroundOpacity
-                        && !settings.sidebarOpacityMatch
+                        && settings.backgroundOpacityStyle == .auto
                         && !settings.wrapLines
                         && !settings.restoreTerminalHistory)
                 }
