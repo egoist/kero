@@ -56,6 +56,7 @@ the original feature bullet instead of adding separate entries for them.
 
 - Choose which terminal emulator drives new panes in Settings → Terminal → Backend. Ghostty remains the default, with a new Alacritty backend
 - Configure the left and right sidebar font size in Settings
+- Clicking a highlighted file path in the terminal now opens it with its default macOS app, including absolute, relative, tilde, and compiler-style `path:line:column` links
 
 ## [0.1.26]
 
