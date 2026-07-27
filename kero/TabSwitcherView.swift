@@ -164,9 +164,9 @@ final class TabSwitcherController: ObservableObject {
     }
 
     /// Terminal surfaces are Metal-backed, so AppKit bitmap caching produces
-    /// black cards. Ask Ghostty for plain visible output instead, recapturing
-    /// every terminal once when the switcher opens. Non-terminal cards are
-    /// rendered directly from their models.
+    /// black cards. Ask the backend for plain visible output instead,
+    /// recapturing every terminal once when the switcher opens. Non-terminal
+    /// cards are rendered directly from their models.
     private func refreshTerminalPreviews(in project: Project) {
         previewTask?.cancel()
         let sessions = project.tabs.flatMap(\.sessions)
@@ -179,7 +179,7 @@ final class TabSwitcherController: ObservableObject {
             for session in sessions {
                 guard !Task.isCancelled, let self, self.isPresented else { return }
                 if let preview = TerminalHistorySerializer.previewText(
-                    from: session.terminalView,
+                    from: session.surface,
                     maxLines: 28,
                     maxColumns: 140
                 ), self.terminalPreviews[session.id] != preview {

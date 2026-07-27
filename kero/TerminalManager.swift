@@ -523,7 +523,7 @@ final class TerminalManager: nonisolated ObservableObject {
         } else {
             commandPaletteWindow = NSApp.keyWindow
             if let responder = commandPaletteWindow?.firstResponder,
-               responder is KeroTerminalView || responder is FocusReportingTextView {
+               responder is any TerminalBackendSurface || responder is FocusReportingTextView {
                 commandPalettePreviousResponder = responder
             } else {
                 commandPalettePreviousResponder = nil
@@ -553,7 +553,7 @@ final class TerminalManager: nonisolated ObservableObject {
             // editor. Never let restoration race that newer focus and win.
             if let current = window.firstResponder,
                current !== responder,
-               current is KeroTerminalView || current is FocusReportingTextView {
+               current is any TerminalBackendSurface || current is FocusReportingTextView {
                 return
             }
             window.makeFirstResponder(responder)

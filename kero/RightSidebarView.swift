@@ -4,7 +4,6 @@
 //
 
 import AppKit
-import Combine
 import SwiftUI
 
 /// Right sidebar: hidden by default, toggled from the terminal's corner
@@ -15,9 +14,8 @@ struct RightSidebarView: View {
     @StateObject private var fileTree = FileTreeModel()
     @StateObject private var git = GitStatusModel()
     @StateObject private var info = SessionInfoModel()
+    @State private var applicationIsActive = NSApp.isActive
     @AppStorage("rightSidebarWidth") private var width: Double = 240
-
-    private let refreshTimer = Timer.publish(every: 2, on: .main, in: .common).autoconnect()
 
     /// Path of the file in the focused pane, so the tree can highlight it.
     /// Reactive: focus/selection is published up through the project to `manager`.
@@ -82,13 +80,38 @@ struct RightSidebarView: View {
             }
         }
         .onAppear(perform: syncModels)
-        .onReceive(refreshTimer) { _ in syncModels() }
+        // Keep live process/git/file information while the user is looking at
+        // Kero, but leave no repeating main-run-loop source behind while the
+        // app or sidebar is inactive. Repeated ps/lsof and SwiftUI updates
+        // otherwise keep tens of MiB of otherwise-idle heap pages resident.
+        .task(id: manager.isPanelVisible && applicationIsActive) {
+            guard manager.isPanelVisible, applicationIsActive else { return }
+            while !Task.isCancelled {
+                do {
+                    try await Task.sleep(for: .seconds(2))
+                } catch {
+                    return
+                }
+                syncModels()
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(
+            for: NSApplication.didBecomeActiveNotification
+        )) { _ in
+            applicationIsActive = true
+            syncModels()
+        }
+        .onReceive(NotificationCenter.default.publisher(
+            for: NSApplication.didResignActiveNotification
+        )) { _ in
+            applicationIsActive = false
+        }
         .onChange(of: manager.isPanelVisible) { syncModels() }
         .onChange(of: manager.panelTab) { syncModels() }
         .onChange(of: manager.selectedSession?.id) { syncModels() }
         // A `cd` in the terminal publishes the new cwd immediately (OSC 7 →
         // session.workingDirectory); resync at once instead of waiting for the
-        // next refreshTimer tick, which is what made the panel lag the change.
+        // next periodic refresh, which is what made the panel lag the change.
         .onChange(of: manager.selectedSession?.workingDirectory) { syncModels() }
         // Same for pinning/unpinning the project directory: re-root the
         // panels the moment it changes rather than on the next tick.

@@ -312,7 +312,7 @@ struct PaneLayoutView: View {
     private func thumbnail(for sourceID: UUID) -> NSImage? {
         switch tab.allPanes.first(where: { $0.id == sourceID })?.content {
         case .session(let session):
-            return session.terminalView.paneSnapshot()
+            return session.surface.paneSnapshot()
         case .file(let file): return file.editorView?.paneSnapshot()
         default: return nil
         }

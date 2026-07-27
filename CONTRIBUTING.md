@@ -13,10 +13,15 @@ git clone --recurse-submodules https://github.com/egoist/kero.git
 Already cloned? `git submodule update --init --recursive`. Bun is also needed for
 `web/` and `scripts/`.
 
+A Rust toolchain ([rustup](https://rustup.rs)) is required: the Alacritty
+backend's bridge in `Vendor/alacritty-bridge` is a Rust static library, built
+from an Xcode build phase. Building for a second architecture needs its target
+installed too — `rustup target add x86_64-apple-darwin`.
+
 Open `kero.xcodeproj` and run the `kero` scheme, or:
 
 ```bash
 xcodebuild -project kero.xcodeproj -scheme kero -configuration Debug -destination 'platform=macOS,arch=arm64' CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build
 ```
 
-Add `DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer` for if you only have XCode beta.
+Add `DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer` if you only have Xcode beta.

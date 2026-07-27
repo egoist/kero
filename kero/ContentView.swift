@@ -60,7 +60,12 @@ struct ContentView: View {
             }
             .background(Color(nsColor: Theme.background))
 
-            RightSidebarView(manager: manager)
+            // Dropping the hidden sidebar also drops any expanded file tree,
+            // git snapshot and process snapshot it owned instead of retaining
+            // them for the rest of the window's lifetime.
+            if manager.isPanelVisible {
+                RightSidebarView(manager: manager)
+            }
         }
         .ignoresSafeArea()
         .overlay(alignment: .topLeading) {

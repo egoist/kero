@@ -4,12 +4,11 @@
 //
 
 import AppKit
-import GhosttyTerminal
 import SwiftUI
 
-/// Hosts a session's long-lived Ghostty terminal view in SwiftUI,
-/// wrapped in a container that insets the terminal content while pinning
-/// the session's overlay scrollbar to the container's true trailing edge.
+/// Hosts a session's long-lived terminal surface in SwiftUI, wrapped in a
+/// container that insets the terminal content while pinning the session's
+/// overlay scrollbar to the container's true trailing edge.
 struct TerminalHostView: NSViewRepresentable {
     let session: TerminalSession
     /// Whether this terminal's pane is the focused one in its tab.
@@ -24,20 +23,18 @@ struct TerminalHostView: NSViewRepresentable {
 
     func makeNSView(context: Context) -> NSView {
         let container = TerminalContainerView()
-        container.terminal = session.terminalView
+        container.terminal = session.surface
         container.focusOnAppear = isFocused
-        let terminal = session.terminalView
-        // Coming out of parking: let the renderer draw again.
-        terminal.setSurfaceVisible(true)
+        let terminal = session.surface
         terminal.onBecomeFirstResponder = onFocused
         terminal.splitTarget.onSplit = onSplit
         let scrollbar = session.overlayScrollbar
-        // Kero's visual insets live inside ghostty as window-padding (see
-        // TerminalSession), so that window-padding-color=extend can flood
-        // them with the content's background and window-padding-balance
-        // keeps the prompt near the pane's bottom edge. The surface keeps a
-        // hairline inset of pane background so a full-screen TUI's fill
-        // stops just short of the pane edges.
+        // Kero's visual insets live inside the backend as window padding (see
+        // KeroTerminalView+Ghostty), so that a padding-color of `extend` can
+        // flood them with the content's background and padding balance keeps
+        // the prompt near the pane's bottom edge. The surface keeps a hairline
+        // inset of pane background so a full-screen TUI's fill stops just
+        // short of the pane edges.
         let frameInset: CGFloat = 2
         terminal.translatesAutoresizingMaskIntoConstraints = false
         scrollbar.translatesAutoresizingMaskIntoConstraints = false
@@ -53,15 +50,19 @@ struct TerminalHostView: NSViewRepresentable {
             scrollbar.bottomAnchor.constraint(equalTo: container.bottomAnchor),
             scrollbar.widthAnchor.constraint(equalToConstant: OverlayScrollbarView.stripWidth),
         ])
+        // A parked Metal surface has discarded its drawable pool. Activate it
+        // only after Auto Layout has assigned the real pane geometry, so its
+        // first replacement drawable is created at the correct size.
+        container.activateSurfaceAfterLayout()
         context.coordinator.isFocused = isFocused
         return container
     }
 
     func updateNSView(_ view: NSView, context: Context) {
-        session.terminalView.setSurfaceVisible(true)
-        session.terminalView.onBecomeFirstResponder = onFocused
-        session.terminalView.splitTarget.onSplit = onSplit
+        session.surface.onBecomeFirstResponder = onFocused
+        session.surface.splitTarget.onSplit = onSplit
         let container = view as? TerminalContainerView
+        container?.activateSurfaceAfterLayout()
         container?.focusOnAppear = isFocused
         // Take focus only on the unfocused→focused edge (keyboard navigation,
         // a split landing here), never on every render — that would fight the
@@ -72,14 +73,28 @@ struct TerminalHostView: NSViewRepresentable {
         context.coordinator.isFocused = isFocused
     }
 
+    static func dismantleNSView(_ view: NSView, coordinator: Coordinator) {
+        guard let container = view as? TerminalContainerView,
+              let terminal = container.terminal as? any TerminalBackendSurface
+        else { return }
+        // These closures originate on PaneView and therefore capture its
+        // PaneContent, including the same TerminalSession that owns `terminal`.
+        // Clear them whenever SwiftUI removes this host so a closed tab cannot
+        // leave the session and its renderer in a retain cycle. A parked
+        // session gets fresh callbacks when its host is recreated.
+        terminal.onBecomeFirstResponder = nil
+        terminal.splitTarget.onSplit = nil
+        container.terminal = nil
+    }
+
     final class Coordinator {
         var isFocused = false
     }
 }
 
-/// Keeps every non-visible terminal attached to the window. libghostty starts
-/// an exec surface only after attachment and drains process/title/bell events
-/// from its app tick, so parking preserves the eager/background session
+/// Keeps every non-visible terminal attached to the window. A backend may
+/// start its shell only after attachment and drain process/title/bell events
+/// from its own tick, so parking preserves the eager/background session
 /// behavior Kero had before the backend migration without drawing those panes
 /// into the visible layout.
 struct TerminalParkingView: NSViewRepresentable {
@@ -115,17 +130,17 @@ final class TerminalParkingContainerView: NSView {
     }
 
     func mount(_ sessions: [TerminalSession]) {
-        let desired = Set(sessions.map { ObjectIdentifier($0.terminalView) })
+        let desired = Set(sessions.map { ObjectIdentifier($0.surface) })
         for subview in subviews where !desired.contains(ObjectIdentifier(subview)) {
             subview.removeFromSuperview()
         }
 
         for session in sessions {
-            let terminal = session.terminalView
+            let terminal = session.surface
             // Parked panes stay attached at full size so the grid survives
             // unparking, but nothing composites them. Marking them occluded
-            // lets libghostty drop the renderer's pane-sized IOSurfaces
-            // (~20 MB each) while `shouldProcessWakeup` — gated on attachment,
+            // lets the backend drop the renderer's pane-sized IOSurfaces
+            // (~20 MB each) while its wakeup check — gated on attachment,
             // not visibility — keeps title/bell/exit events draining.
             terminal.setSurfaceVisible(false)
             guard terminal.superview !== self else { continue }
@@ -164,6 +179,7 @@ private final class TerminalContainerView: NSView {
         }
     }
     private var pendingFocusRequest = false
+    private var needsSurfaceActivation = false
 
     deinit {
         NotificationCenter.default.removeObserver(self)
@@ -183,9 +199,30 @@ private final class TerminalContainerView: NSView {
                 name: NSWindow.didBecomeKeyNotification,
                 object: window
             )
+            if needsSurfaceActivation {
+                needsLayout = true
+            }
         }
         guard focusOnAppear else { return }
         requestTerminalFocus()
+    }
+
+    func activateSurfaceAfterLayout() {
+        needsSurfaceActivation = true
+        needsLayout = true
+    }
+
+    override func layout() {
+        super.layout()
+        guard needsSurfaceActivation,
+              window != nil,
+              bounds.width > 0, bounds.height > 0,
+              let terminal = terminal as? any TerminalBackendSurface,
+              terminal.window != nil,
+              terminal.bounds.width > 0, terminal.bounds.height > 0
+        else { return }
+        needsSurfaceActivation = false
+        terminal.setSurfaceVisible(true)
     }
 
     @objc private func windowDidBecomeKey(_ notification: Notification) {
