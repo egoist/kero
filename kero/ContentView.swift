@@ -706,6 +706,7 @@ private struct TabItemChrome: View {
             RoundedRectangle(cornerRadius: 6)
                 .fill(isSelected ? Color.primary.opacity(0.09) : (isHovering ? Color.primary.opacity(0.04) : .clear))
         )
+        .overlay { MiddleClickCatcher(action: close) }
         .onHover { isHovering = $0 }
     }
 }

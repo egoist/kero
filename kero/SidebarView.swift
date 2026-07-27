@@ -227,6 +227,11 @@ private struct SidebarProjectRow: View {
                     rowContent
                 }
                 .buttonStyle(.plain)
+                // Double-click renames in place — same affordance as Finder
+                // list rows and browser tabs; the context-menu Rename… stays.
+                .simultaneousGesture(
+                    TapGesture(count: 2).onEnded { beginRename() }
+                )
                 .highPriorityGesture(
                     DragGesture(minimumDistance: 4, coordinateSpace: .global)
                         .onChanged { onDrag($0.location) }
@@ -239,6 +244,12 @@ private struct SidebarProjectRow: View {
             RoundedRectangle(cornerRadius: 6)
                 .fill(isSelected ? Color.primary.opacity(0.09) : (isHovering ? Color.primary.opacity(0.04) : .clear))
         )
+        // Middle-click closes, matching browser tabs and the session strip.
+        .overlay {
+            if !isRenaming {
+                MiddleClickCatcher(action: close)
+            }
+        }
         .onHover { isHovering = $0 }
         .contextMenu {
             Button("Rename…") {

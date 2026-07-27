@@ -56,6 +56,8 @@ the original feature bullet instead of adding separate entries for them.
 
 - Choose which terminal emulator drives new panes in Settings → Terminal → Backend. Ghostty remains the default, with a new Alacritty backend
 - Configure the left and right sidebar font size in Settings
+- Double-click a project in the left sidebar to rename it
+- Middle-click a project or session tab to close it
 
 ## [0.1.26]
 
