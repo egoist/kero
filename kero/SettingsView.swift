@@ -188,13 +188,11 @@ private final class FontThickenPreviewView: NSView {
     var previewFont: NSFont = .monospacedSystemFont(ofSize: 13, weight: .regular)
     var thicken = false
 
-    /// Regular / CJK / icon / bold — same idea as the old SwiftUI preview,
-    /// plus a Chinese line so stroke weight is obvious on CJK glyphs too.
+    /// Regular / icon / bold lines — same samples as the old SwiftUI preview.
     private let lines: [(text: String, bold: Bool)] = [
         ("kero ❯ echo \"the quick brown fox\" 0O 1lI", false),
-        ("中文预览 — 你好，世界", false),
         ("\u{E0A0} main \u{E0B0} ~/dev/kero \u{E711} \u{F024B} \u{F0A7D}", false),
-        ("bold — 加粗中文 permission denied", true),
+        ("bold — permission denied (os error 13)", true),
     ]
 
     private let lineSpacing: CGFloat = 6
