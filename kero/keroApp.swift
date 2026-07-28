@@ -294,6 +294,12 @@ private struct KeroCommands: Commands {
             .keyboardShortcut(.return, modifiers: [.command, .shift])
             .disabled(manager?.hasSplitPanes != true)
 
+            Button("Rename Pane…") {
+                manager?.beginRenamingFocusedPane()
+            }
+            .keyboardShortcut("r", modifiers: [.command, .control])
+            .disabled(manager?.canRenameFocusedPane != true)
+
             Button("Equalize Panes") {
                 manager?.equalizePanes()
             }

@@ -129,6 +129,9 @@ struct CommandPaletteView: View {
             PaletteCommand(id: "resize-pane-right", title: "Resize Pane Right", systemImage: "arrow.right.to.line", shortcut: "⌃⌘→") {
                 manager.resizePaneRight()
             },
+            PaletteCommand(id: "rename-pane", title: "Rename Pane…", systemImage: "pencil", shortcut: "⌃⌘R") {
+                manager.beginRenamingFocusedPane()
+            },
             PaletteCommand(id: "new-project", title: "New Project", systemImage: "folder.badge.plus", shortcut: "⌘N") {
                 manager.newProject()
             },
@@ -197,18 +200,20 @@ struct CommandPaletteView: View {
     }
 
     /// Every open terminal session across all projects, as a jump-to entry.
-    /// The directory shows as a subtitle and the project name folds into the
-    /// searchable text, so typing a repo or folder name finds its sessions.
+    /// A named pane reads "zsh · build" so two shells with the same title can
+    /// be told apart; the directory shows as a subtitle, and the name and
+    /// project fold into the searchable text, so typing a pane name, a repo or
+    /// a folder finds its sessions.
     private var sessionCommands: [PaletteCommand] {
         manager.projects.flatMap { project in
-            project.sessions.map { session in
+            project.namedSessions.map { session, name in
                 let directory = sessionDirectory(session)
-                let search = [session.title, project.name, directory]
+                let search = [session.title, name, project.name, directory]
                     .compactMap { $0 }
                     .joined(separator: " ")
                 return PaletteCommand(
                     id: "session-\(session.id)",
-                    title: session.title,
+                    title: name.map { "\(session.title) · \($0)" } ?? session.title,
                     systemImage: "terminal",
                     subtitle: directory,
                     section: .session,

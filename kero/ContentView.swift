@@ -10,6 +10,9 @@ struct ContentView: View {
     @ObservedObject private var themeChanges = Theme.changes
     @Environment(\.colorScheme) private var colorScheme
     @StateObject private var tabSwitcher = TabSwitcherController()
+    /// Shared geometry and in-flight state for the drags that cross between
+    /// the tab strip and the pane layout.
+    @StateObject private var dragging = PaneDragCoordinator()
 
     var body: some View {
         HStack(spacing: 0) {
@@ -43,8 +46,20 @@ struct ContentView: View {
                         }
                     }
                     Group {
-                        if let tab = manager.selectedProject?.selectedTab {
-                            PaneLayoutView(tab: tab, onSplit: { manager.split(toward: $0) })
+                        if let project = manager.selectedProject, let tab = project.selectedTab {
+                            PaneLayoutView(
+                                tab: tab,
+                                onSplit: { manager.split(toward: $0) },
+                                onExtractPane: { paneID, index in
+                                    project.extractPane(paneID, from: tab, at: index)
+                                },
+                                onCloseContent: { project.closeContent($0) },
+                                onMovePaneToProject: { paneID, projectID in
+                                    manager.movePane(paneID, toProject: projectID)
+                                },
+                                tabOrder: project.tabs.map(\.id),
+                                currentProjectID: project.id
+                            )
                         } else {
                             emptyState
                         }
@@ -90,6 +105,7 @@ struct ContentView: View {
                 .frame(width: 0, height: 0)
         }
         .background(WindowChromeAccessor { manager.attach(to: $0) })
+        .environmentObject(dragging)
         .onChange(of: colorScheme) {
             manager.refreshAppearance()
         }
@@ -170,6 +186,9 @@ private struct MainHeaderView: View {
                     // and the exit-zoom button (24 + 8 spacing) while shown.
                     SessionTabsView(
                         project: project,
+                        moveTabToProject: { tabID, projectID in
+                            manager.moveTab(tabID, toProject: projectID)
+                        },
                         maxStripWidth: max(0, geo.size.width - leadingInset - 74 - (manager.isPaneZoomed ? 32 : 0))
                     )
                 }
@@ -220,6 +239,9 @@ private struct MainHeaderView: View {
 /// plus a "+" button.
 private struct SessionTabsView: View {
     @ObservedObject var project: Project
+    @EnvironmentObject private var dragging: PaneDragCoordinator
+    /// Moves a tab into another project, dropped on its sidebar row.
+    var moveTabToProject: (UUID, UUID) -> Void = { _, _ in }
     let maxStripWidth: CGFloat
     @State private var overflow = StripOverflow()
     @State private var draggedTabID: UUID?
@@ -238,7 +260,10 @@ private struct SessionTabsView: View {
             ScrollViewReader { proxy in
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 3) {
-                    ForEach(project.tabs) { tab in
+                    ForEach(Array(project.tabs.enumerated()), id: \.element.id) { index, tab in
+                        // Caret marking where a pane carried up from the layout
+                        // would be inserted as a tab.
+                        insertionCaret(at: index)
                         PaneTabItem(
                             tab: tab,
                             isSelected: tab.id == project.selectedTabID,
@@ -263,10 +288,11 @@ private struct SessionTabsView: View {
                                 .onChanged { value in
                                     updateTabDrag(source: tab.id, location: value.location)
                                 }
-                                .onEnded { _ in endTabDrag() },
+                                .onEnded { _ in endTabDrag(source: tab.id) },
                             including: renamingTabID == tab.id ? .subviews : .all
                         )
                     }
+                    insertionCaret(at: project.tabs.count)
                 }
             }
             .onScrollGeometryChange(for: StripOverflow.self) { geo in
@@ -320,24 +346,108 @@ private struct SessionTabsView: View {
                 project.newSession()
             }
         }
-        .onPreferenceChange(TabFramePreferenceKey.self) { tabFrames = $0 }
-    }
-
-    /// Reorders immediately as the pointer crosses another tab. This direct
-    /// gesture deliberately avoids a pasteboard drag session, which the
-    /// hidden title bar can otherwise claim as a window move first.
-    private func updateTabDrag(source: UUID, location: CGPoint) {
-        draggedTabID = source
-        NSCursor.closedHand.set()
-        guard let target = tabFrames.first(where: {
-            $0.key != source && $0.value.contains(location)
-        })?.key else { return }
-        withAnimation(.easeInOut(duration: 0.12)) {
-            project.moveTab(source, to: target)
+        // A rename asked for from outside the strip (palette, Info panel) opens
+        // the same inline field the tab's context menu does — this is where a
+        // single-pane tab's rename lands, since it has no pane header.
+        .onChange(of: project.pendingRenameTabID) { _, requested in
+            guard let requested else { return }
+            renamingTabID = requested
+            DispatchQueue.main.async { project.pendingRenameTabID = nil }
+        }
+        .onPreferenceChange(TabFramePreferenceKey.self) { frames in
+            tabFrames = frames
+            dragging.tabFrames = frames
+        }
+        // The strip's own frame is the drop region for a pane carried up out of
+        // the layout — anywhere in the header row counts, so the gesture
+        // doesn't demand pixel accuracy on the tabs themselves.
+        .background {
+            GeometryReader { proxy in
+                Color.clear
+                    .onAppear { dragging.stripFrame = headerRegion(of: proxy) }
+                    .onChange(of: proxy.frame(in: .global)) {
+                        dragging.stripFrame = headerRegion(of: proxy)
+                    }
+            }
         }
     }
 
-    private func endTabDrag() {
+    /// The strip stretched across the full header row: a pane dropped anywhere
+    /// along that row becomes a tab, rather than only over the tabs themselves
+    /// (which occupy a fraction of it, and scroll). Widened past both window
+    /// edges and given a little vertical slack so the drop is forgiving; only
+    /// the row's height really distinguishes it from the layout below.
+    private func headerRegion(of proxy: GeometryProxy) -> CGRect {
+        proxy.frame(in: .global).insetBy(dx: -10_000, dy: -8)
+    }
+
+    /// A pane being carried up onto the strip lands between two tabs; this is
+    /// the marker for that spot. Zero-width the rest of the time.
+    @ViewBuilder
+    private func insertionCaret(at index: Int) -> some View {
+        if dragging.paneDrag?.tabDropIndex == index {
+            RoundedRectangle(cornerRadius: 1)
+                .fill(Color(nsColor: Theme.accent))
+                .frame(width: 2, height: 20)
+        }
+    }
+
+    /// Drives a tab drag. Inside the strip it reorders immediately as the
+    /// pointer crosses another tab; dragged down over the pane layout it
+    /// instead previews merging this tab's panes into the pane under the
+    /// cursor. This direct gesture deliberately avoids a pasteboard drag
+    /// session, which the hidden title bar can otherwise claim as a window move
+    /// first.
+    private func updateTabDrag(source: UUID, location: CGPoint) {
+        draggedTabID = source
+        NSCursor.closedHand.set()
+
+        // A sidebar row wins over everything else: it sits outside both the
+        // strip and the layout, and the strip's drop region deliberately
+        // reaches past the window's edges.
+        if let target = dragging.project(at: location, excluding: project.id) {
+            dragging.tabDrag = PaneDragCoordinator.TabDrag(
+                tabID: source, location: location, targetProjectID: target
+            )
+            return
+        }
+
+        if dragging.stripFrame.contains(location) {
+            dragging.tabDrag = nil
+            guard let target = tabFrames.first(where: {
+                $0.key != source && $0.value.contains(location)
+            })?.key else { return }
+            withAnimation(.easeInOut(duration: 0.12)) {
+                project.moveTab(source, to: target)
+            }
+            return
+        }
+
+        // Below the strip: over the layout of whichever tab is on screen. Only
+        // offered when the two tabs can actually be merged (no diffs either
+        // side), so there is never a highlight the drop won't honor.
+        var drag = PaneDragCoordinator.TabDrag(tabID: source, location: location)
+        if let dragged = project.tabs.first(where: { $0.id == source }),
+           let selected = project.selectedTab,
+           project.canMerge(dragged, into: selected),
+           let target = dragging.pane(at: location) {
+            drag.targetPaneID = target.id
+            drag.edge = dragging.dropEdge(at: location, in: target.frame)
+        } else {
+            NSCursor.operationNotAllowed.set()
+        }
+        dragging.tabDrag = drag
+    }
+
+    private func endTabDrag(source: UUID) {
+        if let drag = dragging.tabDrag, drag.tabID == source {
+            if let destination = drag.targetProjectID {
+                moveTabToProject(source, destination)
+            } else if let target = drag.targetPaneID, let edge = drag.edge {
+                project.mergeTab(source, into: target, edge: edge)
+            }
+        }
+        dragging.tabDrag = nil
         draggedTabID = nil
         NSCursor.arrow.set()
     }
@@ -366,16 +476,6 @@ private struct SessionTabsView: View {
             .disabled(project.tabs.last?.id == tab.id)
         Divider()
         Button("Close All") { project.closeAll() }
-    }
-}
-
-/// Collects each tab's global frame so a direct drag gesture can hit-test the
-/// pointer even while the horizontal strip is moving under it.
-private struct TabFramePreferenceKey: PreferenceKey {
-    static let defaultValue: [UUID: CGRect] = [:]
-
-    static func reduce(value: inout [UUID: CGRect], nextValue: () -> [UUID: CGRect]) {
-        value.merge(nextValue()) { $1 }
     }
 }
 

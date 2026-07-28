@@ -13,8 +13,22 @@ import SwiftUI
 struct PaneLayoutView: View {
     @ObservedObject var tab: PaneTab
     @ObservedObject private var themeChanges = Theme.changes
+    @EnvironmentObject private var dragging: PaneDragCoordinator
     /// Splits the focused pane on the given edge — from a pane's context menu.
     var onSplit: (PaneDropEdge) -> Void = { _ in }
+    /// Lifts a pane out into a tab of its own, at the given index in the strip
+    /// (appended next to this tab when nil).
+    var onExtractPane: (UUID, Int?) -> Void = { _, _ in }
+    /// Closes one pane's content, with the project's save prompts.
+    var onCloseContent: (PaneContent) -> Void = { _ in }
+    /// Moves a pane into another project, dropped on its sidebar row.
+    var onMovePaneToProject: (UUID, UUID) -> Void = { _, _ in }
+    /// The order tabs appear in the strip, so a pane dropped there can be given
+    /// an insertion index.
+    var tabOrder: [UUID] = []
+    /// The project this layout belongs to, so its own sidebar row isn't
+    /// offered as a destination for a pane already in it.
+    var currentProjectID: UUID?
 
     /// Gap between tiles, which doubles as the divider hit area. The same
     /// value insets the whole grid from the parent, so the spacing around the
@@ -34,12 +48,6 @@ struct PaneLayoutView: View {
     /// Committed back to the model once, on release.
     @State private var dragColumns: [PaneColumn]?
 
-    /// Global-space frame of every pane, so a pane-move drag can tell which
-    /// pane the cursor is over.
-    @State private var paneFrames: [UUID: CGRect] = [:]
-    /// In-flight pane-move drag: which pane is being carried, where the pointer
-    /// is, and which pane it is hovering over (the drop target).
-    @State private var paneDrag: PaneMove?
     /// A snapshot of the carried pane, shown as a thumbnail under the cursor.
     @State private var dragThumbnail: NSImage?
 
@@ -53,13 +61,6 @@ struct PaneLayoutView: View {
         var weights: [CGFloat]
     }
 
-    private struct PaneMove {
-        let sourceID: UUID
-        var location: CGPoint
-        var targetID: UUID?
-        var edge: PaneDropEdge?
-    }
-
     var body: some View {
         Group {
             if tab.isZoomed, tab.hasMultiplePanes, let pane = tab.focusedPane {
@@ -70,13 +71,15 @@ struct PaneLayoutView: View {
                 PaneView(
                     tab: tab,
                     pane: pane,
-                    showFocusRing: true,
+                    showChrome: true,
                     allowsMove: false,
                     isMoveSource: false,
                     dropEdge: nil,
                     onMove: { _ in },
                     onMoveEnded: {},
-                    onSplit: onSplit
+                    onSplit: onSplit,
+                    onExtract: {},
+                    onClose: { onCloseContent(pane.content) }
                 )
             } else {
                 grid
@@ -86,15 +89,25 @@ struct PaneLayoutView: View {
         // tiles, so a split tab has even breathing room on every side. A
         // single-pane tab stays full-bleed, exactly as before splits existed.
         .padding(tab.hasMultiplePanes ? gap : 0)
-        .onPreferenceChange(PaneFramePreferenceKey.self) { paneFrames = $0 }
+        .onPreferenceChange(PaneFramePreferenceKey.self) { frames in
+            dragging.paneFrames = frames
+        }
         // A divider or pane-move drag can't deliver its ending callback once
         // toggling zoom unmounts its view — drop any in-flight drag state so a
         // stale snapshot never sticks around.
         .onChange(of: tab.isZoomed) {
             drag = nil
             dragColumns = nil
-            paneDrag = nil
+            dragging.clear()
             dragThumbnail = nil
+        }
+        .onDisappear {
+            // Switching tabs mid-drag unmounts this layout, and no ending
+            // callback arrives — drop the drag rather than leave it in flight.
+            // The frames themselves are left alone: the incoming layout's
+            // preference values replace them on the same pass, and clearing
+            // here would race that and blank them.
+            dragging.clear()
         }
     }
 
@@ -130,16 +143,18 @@ struct PaneLayoutView: View {
                 // The carried pane's thumbnail, trailing the cursor. Positioned
                 // in this grid's local space by subtracting its global origin
                 // from the (global) pointer location.
-                if let paneDrag {
+                if let paneDrag = dragging.paneDrag {
                     let origin = geo.frame(in: .global).origin
-                    let size = thumbnailFrame(for: paneDrag.sourceID)
-                    dragThumbnailView(for: paneDrag.sourceID, size: size)
-                        // Centered on the pointer, both axes.
-                        .offset(
-                            x: paneDrag.location.x - origin.x - size.width / 2,
-                            y: paneDrag.location.y - origin.y - size.height / 2
-                        )
-                        .allowsHitTesting(false)
+                    let size = thumbnailFrame(for: paneDrag.paneID)
+                    dragThumbnailView(
+                        for: paneDrag.paneID, size: size, isOverStrip: paneDrag.previewsTab
+                    )
+                    // Centered on the pointer, both axes.
+                    .offset(
+                        x: paneDrag.location.x - origin.x - size.width / 2,
+                        y: paneDrag.location.y - origin.y - size.height / 2
+                    )
+                    .allowsHitTesting(false)
                 }
             }
         }
@@ -157,13 +172,15 @@ struct PaneLayoutView: View {
                 PaneView(
                     tab: tab,
                     pane: pane,
-                    showFocusRing: tab.hasMultiplePanes,
+                    showChrome: tab.hasMultiplePanes,
                     allowsMove: true,
-                    isMoveSource: paneDrag?.sourceID == pane.id,
-                    dropEdge: paneDrag?.targetID == pane.id ? paneDrag?.edge : nil,
+                    isMoveSource: dragging.paneDrag?.paneID == pane.id,
+                    dropEdge: dragging.dropEdge(previewedOn: pane.id),
                     onMove: { updateDropTarget(source: pane.id, location: $0) },
                     onMoveEnded: { commitPaneMove() },
-                    onSplit: onSplit
+                    onSplit: onSplit,
+                    onExtract: { onExtractPane(pane.id, nil) },
+                    onClose: { onCloseContent(pane.content) }
                 )
                 .frame(width: width, height: heights[paneIndex])
                 if paneIndex < column.panes.count - 1 {
@@ -238,30 +255,49 @@ struct PaneLayoutView: View {
     // MARK: - Moving panes
 
     /// Tracks a pane-move drag: `location` is the pointer in global space. The
-    /// drop target is whichever *other* pane's frame contains it (none over a
-    /// gap), and the edge is which quadrant of that pane the pointer is in.
-    /// Local @State, so only this grid re-renders per frame.
+    /// pane can land in two places, so they are resolved in priority order —
+    /// the tab strip first (drop it there and it leaves this layout for a tab
+    /// of its own), then whichever *other* pane's frame contains the pointer,
+    /// with the edge decided by the quadrant. Over neither, there's no drop.
     private func updateDropTarget(source: UUID, location: CGPoint) {
         // First frame of the drag: grab the thumbnail once.
-        if paneDrag == nil {
+        if dragging.paneDrag == nil {
             dragThumbnail = thumbnail(for: source)
         }
-        if let (targetID, frame) = paneFrames.first(where: { $0.key != source && $0.value.contains(location) }) {
-            paneDrag = PaneMove(sourceID: source, location: location, targetID: targetID, edge: dropEdge(at: location, in: frame))
+        var move = PaneDragCoordinator.PaneDrag(paneID: source, location: location)
+        // Extracting needs a pane to leave behind; a lone pane is already its
+        // own tab, so neither the strip nor the sidebar is offered for it.
+        if tab.hasMultiplePanes,
+           let project = dragging.project(at: location, excluding: currentProjectID) {
+            move.targetProjectID = project
+            NSCursor.closedHand.set()
+        } else if tab.hasMultiplePanes,
+           let index = dragging.tabInsertionIndex(at: location, in: tabOrder) {
+            move.tabDropIndex = index
+            NSCursor.closedHand.set()
+        } else if let target = dragging.pane(at: location, excluding: source) {
+            move.targetPaneID = target.id
+            move.edge = dragging.dropEdge(at: location, in: target.frame)
             NSCursor.closedHand.set()
         } else {
-            paneDrag = PaneMove(sourceID: source, location: location, targetID: nil, edge: nil)
             NSCursor.operationNotAllowed.set()
         }
+        dragging.paneDrag = move
     }
 
-    /// Commits a pane-move on release: splits the target on the chosen edge and
-    /// drops the carried pane there.
+    /// Commits a pane-move on release: out to the tab strip as a new tab, or
+    /// onto the chosen edge of another pane in this layout.
     private func commitPaneMove() {
-        if let paneDrag, let target = paneDrag.targetID, let edge = paneDrag.edge {
-            tab.movePane(paneDrag.sourceID, edge, of: target)
+        if let move = dragging.paneDrag {
+            if let project = move.targetProjectID {
+                onMovePaneToProject(move.paneID, project)
+            } else if let index = move.tabDropIndex {
+                onExtractPane(move.paneID, index)
+            } else if let target = move.targetPaneID, let edge = move.edge {
+                tab.movePane(move.paneID, edge, of: target)
+            }
         }
-        paneDrag = nil
+        dragging.paneDrag = nil
         dragThumbnail = nil
         // Clear the drag cursor; the next hover/move asserts the right one.
         NSCursor.arrow.set()
@@ -270,20 +306,37 @@ struct PaneLayoutView: View {
     /// A snapshot of the carried pane's terminal (falls back to a labeled card
     /// for files), shown centered under the cursor while dragging. `size` is
     /// aspect-matched to the pane, so the whole pane scales down instead of
-    /// being cropped.
+    /// being cropped. Over the tab strip it shrinks to a tab-sized chip, so the
+    /// thumbnail itself previews what the drop produces.
     @ViewBuilder
-    private func dragThumbnailView(for sourceID: UUID, size: CGSize) -> some View {
-        let content = tab.allPanes.first { $0.id == sourceID }?.content
+    private func dragThumbnailView(
+        for sourceID: UUID, size: CGSize, isOverStrip: Bool
+    ) -> some View {
+        let pane = tab.allPanes.first { $0.id == sourceID }
         Group {
-            if let dragThumbnail {
+            if isOverStrip, let pane {
+                HStack(spacing: 5) {
+                    Image(systemName: pane.content.systemImage)
+                        .font(.system(size: 9, weight: .medium))
+                    Text(pane.displayTitle)
+                        .font(.system(size: 11.5))
+                        .lineLimit(1)
+                }
+                .padding(.horizontal, 9)
+                .padding(.vertical, 4)
+                .background(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(Color(nsColor: Theme.background))
+                )
+            } else if let dragThumbnail {
                 Image(nsImage: dragThumbnail)
                     .resizable()
                     .frame(width: size.width, height: size.height)
                     .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-            } else if let content {
+            } else if let pane {
                 HStack(spacing: 6) {
-                    Image(systemName: content.systemImage)
-                    Text(content.title).lineLimit(1)
+                    Image(systemName: pane.content.systemImage)
+                    Text(pane.displayTitle).lineLimit(1)
                 }
                 .font(.system(size: 12, weight: .medium))
                 .padding(.horizontal, 12)
@@ -302,7 +355,7 @@ struct PaneLayoutView: View {
     /// The thumbnail's on-screen size: the source pane's aspect ratio scaled to
     /// fit within `thumbnailMaxSize`.
     private func thumbnailFrame(for sourceID: UUID) -> CGSize {
-        guard let frame = paneFrames[sourceID], frame.width > 0, frame.height > 0 else {
+        guard let frame = dragging.paneFrames[sourceID], frame.width > 0, frame.height > 0 else {
             return thumbnailMaxSize
         }
         let scale = min(thumbnailMaxSize.width / frame.width, thumbnailMaxSize.height / frame.height)
@@ -315,19 +368,6 @@ struct PaneLayoutView: View {
             return session.surface.paneSnapshot()
         case .file(let file): return file.editorView?.paneSnapshot()
         default: return nil
-        }
-    }
-
-    /// Which edge of `frame` the pointer is nearest — the target is cut into
-    /// four triangular quadrants by its diagonals, the standard drop-zone
-    /// scheme (VS Code, Ghostty).
-    private func dropEdge(at location: CGPoint, in frame: CGRect) -> PaneDropEdge {
-        let dx = (location.x - frame.midX) / max(frame.width, 1)
-        let dy = (location.y - frame.midY) / max(frame.height, 1)
-        if abs(dx) > abs(dy) {
-            return dx < 0 ? .left : .right
-        } else {
-            return dy < 0 ? .top : .bottom
         }
     }
 
@@ -402,36 +442,48 @@ private struct ResizableDivider: View {
 }
 
 /// One tile: hosts its content and, when the tab holds more than one pane,
-/// draws a focus ring (accent for the focused pane, faint otherwise), a thin
-/// top strip you can grab to move the pane onto another, and a highlight while
-/// it's the drop target.
+/// draws a focus ring (accent for the focused pane, faint otherwise), a header
+/// strip carrying the pane's title that you can grab to move it, and a
+/// highlight while it's the drop target.
 private struct PaneView: View {
     @ObservedObject var tab: PaneTab
     @ObservedObject private var themeChanges = Theme.changes
     let pane: Pane
-    let showFocusRing: Bool
-    /// Whether the top grab strip is offered at all — false while zoomed,
-    /// where there is no other pane on screen to drop onto.
+    /// Whether pane chrome — ring and header — is shown at all. False for a
+    /// single-pane tab, which is indistinguishable from a pre-splits tab and
+    /// whose title and rename already live in the tab strip.
+    let showChrome: Bool
+    /// Whether the header may be dragged — false while zoomed, where there is
+    /// no other pane on screen to drop onto.
     let allowsMove: Bool
     /// The pane currently being carried by a move drag (dimmed).
     let isMoveSource: Bool
-    /// When this pane is the drop target, the edge the carried pane will land
-    /// on — drives the half-pane preview. Nil when it isn't the target.
+    /// When this pane is the drop target, the edge the carried pane or tab will
+    /// land on — drives the half-pane preview. Nil when it isn't the target.
     let dropEdge: PaneDropEdge?
-    /// Reports the pointer (global space) as the top strip is dragged.
+    /// Reports the pointer (global space) as the header is dragged.
     let onMove: (CGPoint) -> Void
     let onMoveEnded: () -> Void
-    /// Splits the focused pane on the given edge (from the content's context
-    /// menu).
+    /// Splits the focused pane on the given edge (from the context menu).
     let onSplit: (PaneDropEdge) -> Void
+    /// Lifts this pane out into a tab of its own.
+    let onExtract: () -> Void
+    /// Closes this pane.
+    let onClose: () -> Void
 
-    /// Height of the grab strip at the pane's top.
-    private let handleHeight: CGFloat = 8
+    /// Height of the header strip at the pane's top. Tall enough to read a
+    /// title in and to hit without aiming.
+    private let headerHeight: CGFloat = 18
 
-    @State private var isHandleHovered = false
+    @State private var isHeaderHovered = false
     @State private var isDragging = false
+    @State private var isRenaming = false
 
     private var isFocused: Bool { tab.focusedPaneID == pane.id }
+
+    /// A named pane keeps its header on screen permanently, so the name is
+    /// always readable; an unnamed one only reveals it on hover.
+    private var isPinned: Bool { pane.customName?.isEmpty == false }
 
     /// Marks this pane focused — invoked when its content takes first-responder
     /// status (a click). Idempotent when already focused.
@@ -443,27 +495,48 @@ private struct PaneView: View {
 
     var body: some View {
         // Single-pane tabs render exactly as before splits existed — no ring,
-        // no handle — so nothing about the common case changes.
-        if showFocusRing {
-            content
-                // Deliberately no clip: masking an AppKit view forces an
-                // offscreen recomposite that flickers on live resize. The
-                // content background matches the surrounding gaps, so square
-                // content corners blend in and only the rounded stroke reads.
-                .overlay { focusRing }
-                .overlay(alignment: .top) {
-                    if allowsMove { moveHandle }
+        // no header — so nothing about the common case changes.
+        Group {
+            if showChrome, isPinned || isRenaming {
+                // A pinned header takes its own row: it must never sit over the
+                // terminal, where it would cover the top line of output.
+                VStack(spacing: 0) {
+                    header
+                    content
                 }
-                .overlay { dropHighlight }
-                .opacity(isMoveSource ? 0.55 : 1)
-                .background(frameReporter)
-        } else {
-            content
+            } else if showChrome {
+                // Unpinned, the header is an overlay in the terminal's own top
+                // padding — invisible until hovered, so it costs no space.
+                content.overlay(alignment: .top) {
+                    if allowsMove || isPinned { header }
+                }
+            } else {
+                content
+            }
+        }
+        // Deliberately no clip: masking an AppKit view forces an offscreen
+        // recomposite that flickers on live resize. The content background
+        // matches the surrounding gaps, so square content corners blend in and
+        // only the rounded stroke reads.
+        .overlay { if showChrome { focusRing } }
+        .overlay { dropHighlight }
+        .opacity(isMoveSource ? 0.55 : 1)
+        // Reported even without chrome: a single-pane tab is still a legitimate
+        // target for a tab dragged onto it.
+        .background(frameReporter)
+        // A rename asked for from outside the pane (palette, Info panel) opens
+        // the very same field the header's own menu does. Cleared on the next
+        // tick so the flag never lingers to re-fire, and so the model isn't
+        // mutated from inside this update pass.
+        .onChange(of: tab.pendingRenamePaneID) { _, requested in
+            guard requested == pane.id else { return }
+            isRenaming = true
+            DispatchQueue.main.async { tab.pendingRenamePaneID = nil }
         }
     }
 
-    /// Focuses this pane, then splits it — the context menu acts on the pane it
-    /// was opened over, not whatever held focus before.
+    /// Focuses this pane, then acts — the context menu acts on the pane it was
+    /// opened over, not whatever held focus before.
     private func splitFromMenu(_ edge: PaneDropEdge) {
         focus()
         onSplit(edge)
@@ -498,48 +571,99 @@ private struct PaneView: View {
             )
     }
 
-    /// Thin strip pinned to the pane's top edge — an absolutely-positioned grab
-    /// handle over the content — that you drag to move this pane onto another.
-    /// A grab bar fades in on hover so the zone is easy to find; the strip sits
-    /// in the terminal's own top padding, so it doesn't cover text. Global
-    /// coordinate space so the reported location survives the layout shifting.
-    private var moveHandle: some View {
-        Color.clear
-            .frame(height: handleHeight)
-            .frame(maxWidth: .infinity)
-            .overlay {
-                Image(systemName: "ellipsis")
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundStyle(.secondary)
-                    .opacity(isHandleHovered ? 0.9 : 0)
+    /// Strip across the pane's top edge showing its title, which doubles as the
+    /// grab handle for moving the pane and as the target for its context menu.
+    /// While the pane is unnamed it fades in on hover and sits over the
+    /// terminal's own top padding, so it costs no space and covers no text;
+    /// once named it is laid out above the content instead.
+    private var header: some View {
+        HStack(spacing: 5) {
+            if isRenaming {
+                PaneRenameField(
+                    initialValue: pane.customName ?? pane.content.title,
+                    commit: { tab.renamePane(pane.id, to: $0) },
+                    end: { isRenaming = false }
+                )
+            } else {
+                Image(systemName: "line.3.horizontal")
+                    .font(.system(size: 8, weight: .bold))
+                    .foregroundStyle(.tertiary)
+                Text(pane.displayTitle)
+                    .font(.system(size: 10.5, weight: isPinned ? .medium : .regular))
+                    .foregroundStyle(isPinned ? .secondary : .tertiary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
             }
-            .contentShape(Rectangle())
-            // onContinuousHover (not onHover): re-assert the open hand on every
-            // move so it wins against the terminal re-setting its own cursor.
-            // On exit, reset explicitly — moving *up* off the handle lands in the
-            // gap, which has no cursor management to revert it otherwise. Both
-            // guarded by !isDragging so they never fight the drag cursor.
-            .onContinuousHover { phase in
-                switch phase {
-                case .active:
-                    isHandleHovered = true
-                    if !isDragging { NSCursor.openHand.set() }
-                case .ended:
-                    isHandleHovered = false
-                    if !isDragging { NSCursor.arrow.set() }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 8)
+        .frame(height: headerHeight)
+        .frame(maxWidth: .infinity)
+        .background(headerBackground)
+        // The whole strip is grabbable, not just the text.
+        .contentShape(Rectangle())
+        // Visible only when it has something to say: a pinned name, a hover, or
+        // an in-flight rename. The shape stays hit-testable either way, so the
+        // invisible strip is still a grab handle exactly as it was at 8pt.
+        .opacity(isPinned || isHeaderHovered || isRenaming ? 1 : 0)
+        // onContinuousHover (not onHover): re-assert the open hand on every
+        // move so it wins against the terminal re-setting its own cursor.
+        // On exit, reset explicitly — moving *up* off the header lands in the
+        // gap, which has no cursor management to revert it otherwise. Both
+        // guarded by !isDragging so they never fight the drag cursor.
+        .onContinuousHover { phase in
+            switch phase {
+            case .active:
+                isHeaderHovered = true
+                if !isDragging, !isRenaming { NSCursor.openHand.set() }
+            case .ended:
+                isHeaderHovered = false
+                if !isDragging, !isRenaming { NSCursor.arrow.set() }
+            }
+        }
+        .contextMenu { headerMenu }
+        // Masked to .subviews while renaming so dragging in the text field
+        // selects text instead of carrying the pane off.
+        .gesture(
+            DragGesture(minimumDistance: 4, coordinateSpace: .global)
+                .onChanged { value in
+                    guard allowsMove else { return }
+                    isDragging = true
+                    onMove(value.location)
                 }
-            }
-            .gesture(
-                DragGesture(minimumDistance: 4, coordinateSpace: .global)
-                    .onChanged { value in
-                        isDragging = true
-                        onMove(value.location)
-                    }
-                    .onEnded { _ in
-                        isDragging = false
-                        onMoveEnded()
-                    }
-            )
+                .onEnded { _ in
+                    guard allowsMove else { return }
+                    isDragging = false
+                    onMoveEnded()
+                },
+            including: isRenaming ? .subviews : .all
+        )
+    }
+
+    @ViewBuilder
+    private var headerBackground: some View {
+        if isPinned || isHeaderHovered || isRenaming {
+            Rectangle().fill(Color.primary.opacity(isPinned ? 0.05 : 0.08))
+        }
+    }
+
+    @ViewBuilder
+    private var headerMenu: some View {
+        Button("Rename…") {
+            focus()
+            isRenaming = true
+        }
+        if isPinned {
+            Button("Use Automatic Title") { tab.renamePane(pane.id, to: nil) }
+        }
+        Divider()
+        Button("Move to New Tab", action: onExtract)
+            .disabled(!tab.hasMultiplePanes)
+        Divider()
+        Button("Split Right") { splitFromMenu(.right) }
+        Button("Split Down") { splitFromMenu(.bottom) }
+        Divider()
+        Button("Close Pane", action: onClose)
     }
 
     @ViewBuilder
@@ -580,6 +704,48 @@ private struct PaneView: View {
     }
 }
 
+/// Inline editor shown in the pane header while it's renamed — the same
+/// affordance as the tab strip's rename. Commits on Return or focus loss,
+/// cancels on Escape; an empty name returns the pane to its automatic title.
+private struct PaneRenameField: View {
+    let commit: (String?) -> Void
+    let end: () -> Void
+
+    @State private var draft: String
+    /// Set by the first commit/cancel so the focus-loss handler that fires
+    /// while the field is being torn down doesn't commit a second time.
+    @State private var finished = false
+    @FocusState private var focused: Bool
+
+    init(initialValue: String, commit: @escaping (String?) -> Void, end: @escaping () -> Void) {
+        self.commit = commit
+        self.end = end
+        _draft = State(initialValue: initialValue)
+    }
+
+    var body: some View {
+        TextField("", text: $draft)
+            .textFieldStyle(.plain)
+            .font(.system(size: 10.5))
+            .focused($focused)
+            .onSubmit { finish(apply: true) }
+            .onExitCommand { finish(apply: false) }
+            .onChange(of: focused) {
+                if !focused { finish(apply: true) }
+            }
+            .onAppear {
+                DispatchQueue.main.async { focused = true }
+            }
+    }
+
+    private func finish(apply: Bool) {
+        guard !finished else { return }
+        finished = true
+        if apply { commit(draft) }
+        end()
+    }
+}
+
 /// Mounts a session's find bar only while it is open, so a closed bar never
 /// sits over the terminal swallowing clicks. Separate from `PaneView` so that
 /// opening and closing it re-renders nothing but the overlay.
@@ -590,15 +756,6 @@ private struct TerminalFindOverlay: View {
         if find.isPresented {
             TerminalFindBar(find: find)
         }
-    }
-}
-
-/// Collects each pane's global-space frame so a move drag can hit-test the
-/// cursor against them.
-private struct PaneFramePreferenceKey: PreferenceKey {
-    static let defaultValue: [UUID: CGRect] = [:]
-    static func reduce(value: inout [UUID: CGRect], nextValue: () -> [UUID: CGRect]) {
-        value.merge(nextValue()) { $1 }
     }
 }
 

@@ -27,6 +27,10 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
     @Published var customDirectory: String?
     @Published var tabs: [PaneTab] = []
     @Published var selectedTabID: UUID?
+    /// A tab whose strip item should open its inline rename field, requested
+    /// from outside the strip (the command palette, the Info panel). The strip
+    /// consumes and clears it. The pane-level counterpart lives on `PaneTab`.
+    @Published var pendingRenameTabID: UUID?
 
     private let fallbackName: String
     /// Sessions publish their own changes (title, directory); re-publish them
@@ -166,6 +170,15 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
             commandArguments: commandArguments,
             environmentPath: environmentPath
         )
+        observe(session)
+        return session
+    }
+
+    /// Wires a session to this project: its exit closure and its change
+    /// re-publishing both point at whichever project currently holds it. Called
+    /// again on adoption, so a session that moves between projects reports its
+    /// exit to its new owner rather than the one that started it.
+    private func observe(_ session: TerminalSession) {
         session.onExited = { [weak self] session in
             // Already dead — just drop its pane, no second terminate.
             self?.closeContent(.session(session), terminate: false)
@@ -173,7 +186,6 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
         sessionObservations[session.id] = session.objectWillChange.sink { [weak self] _ in
             self?.objectWillChange.send()
         }
-        return session
     }
 
     func terminateAll() {
@@ -218,6 +230,132 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
 
     /// Whether the selected tab is showing a zoomed pane.
     var isPaneZoomed: Bool { selectedTab?.isZoomed ?? false }
+
+    // MARK: - Naming the focused pane
+
+    /// Every terminal in the project paired with the name its pane shows, for
+    /// listings that identify a shell by where it lives rather than by its
+    /// title alone. A pane in a split carries its own name; a pane that is its
+    /// whole tab is named by the tab, which is what the strip renames.
+    var namedSessions: [(session: TerminalSession, name: String?)] {
+        tabs.flatMap { tab in
+            tab.allPanes.compactMap { pane in
+                guard case .session(let session) = pane.content else { return nil }
+                return (session, tab.hasMultiplePanes ? pane.customName : tab.customName)
+            }
+        }
+    }
+
+    /// The name shown for the focused pane — and the place a rename of it
+    /// lands: the pane's own name inside a split, the tab's when the tab holds
+    /// a single pane. Keeping those the same field is what makes renaming from
+    /// the palette or the Info panel agree with renaming by hand, where a lone
+    /// pane is renamed through the tab strip and a split pane through its
+    /// header.
+    var focusedPaneName: String? {
+        guard let tab = selectedTab else { return nil }
+        return tab.hasMultiplePanes ? tab.focusedPane?.customName : tab.customName
+    }
+
+    /// The title the focused pane falls back to when it has no name.
+    var focusedPaneAutomaticTitle: String? {
+        selectedTab?.focusedContent?.title
+    }
+
+    /// Renames the focused pane, or clears the name back to automatic when
+    /// `name` is nil or blank.
+    func renameFocusedPane(to name: String?) {
+        guard let tab = selectedTab else { return }
+        if tab.hasMultiplePanes, let paneID = tab.focusedPane?.id {
+            tab.renamePane(paneID, to: name)
+        } else {
+            let trimmed = name?.trimmingCharacters(in: .whitespacesAndNewlines)
+            tab.customName = (trimmed?.isEmpty ?? true) ? nil : trimmed
+        }
+    }
+
+    /// Opens the inline rename field on the focused pane — its header strip in
+    /// a split, its tab in the strip when it is the tab's only pane.
+    func beginRenamingFocusedPane() {
+        guard let tab = selectedTab else { return }
+        if tab.hasMultiplePanes {
+            tab.pendingRenamePaneID = tab.focusedPaneID
+        } else {
+            pendingRenameTabID = tab.id
+        }
+    }
+
+    // MARK: - Moving panes between tabs
+
+    /// Pulls a pane out of `tab` into a tab of its own — the drag-a-pane-onto-
+    /// the-strip gesture — inserted at `index` in the strip (appended after the
+    /// source tab when nil) and selected. The pane keeps its content, so a
+    /// running shell is carried across rather than restarted. A no-op when the
+    /// pane is the tab's only one: it already *is* the whole tab.
+    @discardableResult
+    func extractPane(_ paneID: UUID, from tab: PaneTab, at index: Int? = nil) -> PaneTab? {
+        guard let pane = tab.extractPane(paneID) else { return nil }
+        let newTab = register(PaneTab(pane: pane))
+        let fallback = tabs.firstIndex { $0.id == tab.id }.map { $0 + 1 } ?? tabs.count
+        tabs.insert(newTab, at: min(max(0, index ?? fallback), tabs.count))
+        selectedTabID = newTab.id
+        return newTab
+    }
+
+    /// Hands a tab off to another project: drops it from the strip and clears
+    /// the bookkeeping it holds here, terminating nothing. The tab object — and
+    /// every shell inside it — lives on for `adopt(_:)` to take up.
+    func release(tabID: UUID) -> PaneTab? {
+        guard let tab = tabs.first(where: { $0.id == tabID }) else { return nil }
+        remove(tabID: tabID)
+        return tab
+    }
+
+    /// Takes in a tab released by another project. Re-wiring is the whole job:
+    /// each session's exit closure and change observation still point at the
+    /// project that made it, so without this a moved shell would report its
+    /// exit to the project it left.
+    func adopt(_ tab: PaneTab) {
+        for session in tab.sessions {
+            observe(session)
+        }
+        register(tab)
+        insertNextToSelected(tab)
+        selectedTabID = tab.id
+    }
+
+    /// Whether a tab may be dropped into another tab's layout. Diffs keep their
+    /// own single-pane tab (their web view fills the tab), so neither side may
+    /// hold one.
+    func canMerge(_ tab: PaneTab, into target: PaneTab) -> Bool {
+        tab.id != target.id && tab.diffs.isEmpty && target.diffs.isEmpty
+    }
+
+    /// Moves every pane of the dragged tab into the tab holding `targetPaneID`,
+    /// splitting that pane on `edge`, then drops the emptied tab from the strip
+    /// — the drag-a-tab-onto-a-pane gesture. Nothing is torn down: the panes,
+    /// and the shells inside them, move across intact.
+    func mergeTab(_ draggedID: UUID, into targetPaneID: UUID, edge: PaneDropEdge) {
+        guard let dragged = tabs.first(where: { $0.id == draggedID }),
+              let target = tabs.first(where: { tab in
+                  tab.allPanes.contains { $0.id == targetPaneID }
+              }),
+              canMerge(dragged, into: target)
+        else { return }
+
+        var columns = dragged.columns
+        // A named single-pane tab hands its name down to the pane, so the label
+        // the user gave it survives as the pane's header title.
+        if let name = dragged.customName, columns.count == 1, columns[0].panes.count == 1,
+           columns[0].panes[0].customName == nil {
+            columns[0].panes[0].customName = name
+        }
+        // Detach before inserting: the panes are about to have a new home, so
+        // their sessions' observations must stay wired.
+        remove(tabID: dragged.id, keepingSessionObservations: true)
+        target.insert(columns, edge, of: targetPaneID)
+        selectedTabID = target.id
+    }
 
     // MARK: - Files
 
@@ -526,7 +664,8 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
                 let restoredHistory = paneSnap.historyKey.flatMap { histories[$0] }
                 panes.append(Pane(
                     content: makeContent(from: paneSnap.content, restoredHistory: restoredHistory),
-                    weight: CGFloat(paneSnap.weight)
+                    weight: CGFloat(paneSnap.weight),
+                    customName: paneSnap.customName
                 ))
             }
             guard !panes.isEmpty else { continue }
@@ -594,11 +733,16 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
         }
     }
 
-    private func remove(tabID: UUID) {
+    /// Drops a tab from the strip. `keepingSessionObservations` is set when the
+    /// tab's panes are being re-homed rather than closed (a merge), so their
+    /// sessions keep re-publishing through the project.
+    private func remove(tabID: UUID, keepingSessionObservations: Bool = false) {
         guard let index = tabs.firstIndex(where: { $0.id == tabID }) else { return }
         let tab = tabs[index]
-        for session in tab.sessions {
-            sessionObservations[session.id] = nil
+        if !keepingSessionObservations {
+            for session in tab.sessions {
+                sessionObservations[session.id] = nil
+            }
         }
         tabObservations[tabID] = nil
         tabs.remove(at: index)

@@ -12,6 +12,7 @@ struct SidebarView: View {
     @ObservedObject var manager: TerminalManager
     @ObservedObject private var settings = AppSettings.shared
     @ObservedObject private var themeChanges = Theme.changes
+    @EnvironmentObject private var dragging: PaneDragCoordinator
     @Environment(\.openSettings) private var openSettings
     @Environment(\.colorScheme) private var colorScheme
     @AppStorage("leftSidebarWidth") private var width: Double = 220
@@ -45,6 +46,7 @@ struct SidebarView: View {
                             select: { manager.selectedProjectID = project.id },
                             close: { manager.close(project) },
                             isDragging: draggedProjectID == project.id,
+                            isDropTarget: dragging.isDropTarget(project: project.id),
                             onDrag: { updateProjectDrag(source: project.id, location: $0) },
                             onDragEnded: endProjectDrag,
                             fontSize: settings.sidebarFontSize
@@ -124,7 +126,12 @@ struct SidebarView: View {
                 defaultWidth: 220
             )
         }
-        .onPreferenceChange(ProjectFramePreferenceKey.self) { projectFrames = $0 }
+        .onPreferenceChange(ProjectFramePreferenceKey.self) { frames in
+            projectFrames = frames
+            // Shared so a tab or pane dragged over from the header or the
+            // layout can hit-test these rows as a destination.
+            dragging.projectFrames = frames
+        }
     }
 
     private func updateProjectDrag(source: UUID, location: CGPoint) {
@@ -209,6 +216,9 @@ private struct SidebarProjectRow: View {
     let select: () -> Void
     let close: () -> Void
     let isDragging: Bool
+    /// A tab or pane is hovering over this row and would move into this
+    /// project on release.
+    var isDropTarget = false
     let onDrag: (CGPoint) -> Void
     let onDragEnded: () -> Void
     let fontSize: Double
@@ -237,8 +247,18 @@ private struct SidebarProjectRow: View {
         .opacity(isDragging ? 0.65 : 1)
         .background(
             RoundedRectangle(cornerRadius: 6)
-                .fill(isSelected ? Color.primary.opacity(0.09) : (isHovering ? Color.primary.opacity(0.04) : .clear))
+                .fill(isDropTarget
+                    ? Color(nsColor: Theme.accent).opacity(0.18)
+                    : (isSelected ? Color.primary.opacity(0.09) : (isHovering ? Color.primary.opacity(0.04) : .clear)))
         )
+        // Ring while it's the destination of a tab or pane being dragged in —
+        // the sidebar's echo of the half-pane highlight in the layout.
+        .overlay {
+            if isDropTarget {
+                RoundedRectangle(cornerRadius: 6)
+                    .strokeBorder(Color(nsColor: Theme.accent), lineWidth: 2)
+            }
+        }
         .onHover { isHovering = $0 }
         .contextMenu {
             Button("Rename…") {

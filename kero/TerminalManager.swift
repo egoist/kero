@@ -362,6 +362,33 @@ final class TerminalManager: nonisolated ObservableObject {
         projects = reorderedProjects
     }
 
+    /// Moves a tab into another project — the drag onto a sidebar row. The tab
+    /// object itself makes the trip: the same panes, the same
+    /// `TerminalSession`s, the same shells and pids and scrollback, released by
+    /// one project and adopted by the other. Selection follows it, so the drop
+    /// shows its own result.
+    func moveTab(_ tabID: UUID, toProject projectID: UUID) {
+        guard let source = projects.first(where: { project in
+                  project.tabs.contains { $0.id == tabID }
+              }),
+              let destination = projects.first(where: { $0.id == projectID }),
+              source !== destination,
+              let tab = source.release(tabID: tabID)
+        else { return }
+        destination.adopt(tab)
+        selectedProjectID = destination.id
+    }
+
+    /// Moves a single pane into another project, by making it a tab of its own
+    /// first — the same extraction the tab strip performs — and handing that
+    /// tab over. A no-op for a pane that is already its whole tab; there the
+    /// tab itself is what you drag.
+    func movePane(_ paneID: UUID, toProject projectID: UUID) {
+        guard let project = selectedProject, let tab = project.selectedTab,
+              let extracted = project.extractPane(paneID, from: tab) else { return }
+        moveTab(extracted.id, toProject: projectID)
+    }
+
     func selectProject(index: Int) {
         guard projects.indices.contains(index) else { return }
         selectedProjectID = projects[index].id
@@ -475,6 +502,27 @@ final class TerminalManager: nonisolated ObservableObject {
     func focusPaneDown() { selectedProject?.focusDown() }
     func focusNextPane() { selectedProject?.focusNextPane() }
     func focusPreviousPane() { selectedProject?.focusPreviousPane() }
+
+    /// The focused pane's name, the title it falls back to without one, and
+    /// the two ways to change it — read by the Info panel.
+    var focusedPaneName: String? { selectedProject?.focusedPaneName }
+    var focusedPaneAutomaticTitle: String? { selectedProject?.focusedPaneAutomaticTitle }
+    func renameFocusedPane(to name: String?) { selectedProject?.renameFocusedPane(to: name) }
+
+    /// Opens the inline rename field on the focused pane, wherever it lives —
+    /// the pane's header strip, or its tab in the strip when the tab holds a
+    /// single pane. Same field, same commit rules as renaming by hand.
+    func beginRenamingFocusedPane() {
+        // The palette is dismissed around this, and its focus restoration would
+        // put the terminal back as first responder a tick later — right on top
+        // of the rename field. Forget the displaced responder so it doesn't.
+        commandPalettePreviousResponder = nil
+        commandPaletteWindow = nil
+        selectedProject?.beginRenamingFocusedPane()
+    }
+
+    /// Whether there is a pane on screen to rename.
+    var canRenameFocusedPane: Bool { selectedProject?.selectedTab != nil }
 
     func togglePaneZoom() { selectedProject?.togglePaneZoom() }
     func equalizePanes() { selectedProject?.equalizePanes() }
@@ -710,7 +758,8 @@ final class TerminalManager: nonisolated ObservableObject {
                                 return ProjectSnapshot.PaneSnapshot(
                                     content: Self.contentSnapshot(pane.content),
                                     weight: Double(pane.weight),
-                                    historyKey: historyKey
+                                    historyKey: historyKey,
+                                    customName: pane.customName
                                 )
                             },
                             weight: Double(column.weight)
