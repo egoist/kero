@@ -475,59 +475,19 @@ extension TerminalSession: TerminalBackendEvents {
     }
 
     func terminalDidRequestOpenURL(_ url: String) {
-        let fileTarget = Self.fileLinkURL(url, relativeTo: currentDirectoryPath)
+        // Ghostty sends detected filesystem links as plain paths, not
+        // `file://` URLs. A schemeless `URL(string:)` is not a file URL and
+        // Launch Services rejects it, so convert paths explicitly — same fix
+        // as ghostty-org/ghostty#8764.
         let target: URL
-        if let parsed = URL(string: url), parsed.isFileURL {
-            // Resolve from `path` so percent escapes are decoded and a
-            // compiler-style line/column suffix can still be removed.
-            target = Self.fileLinkURL(parsed.path, relativeTo: currentDirectoryPath)
-        } else if let parsed = URL(string: url), parsed.scheme != nil,
-                  !FileManager.default.fileExists(atPath: fileTarget.path) {
+        if let parsed = URL(string: url), parsed.scheme != nil {
             target = parsed
         } else {
-            target = fileTarget
+            target = URL(filePath: (url as NSString).standardizingPath)
         }
         if !NSWorkspace.shared.open(target) {
             NSLog("kero: failed to open terminal link %@", target.absoluteString)
         }
-    }
-
-    /// Ghostty sends detected filesystem links as plain paths, not `file://`
-    /// URLs. A schemeless `URL(string:)` is not a file URL and Launch Services
-    /// rejects it, so resolve paths against this session's working directory.
-    /// Compiler-style `path:line[:column]` suffixes are removed only when the
-    /// resulting path names an existing file.
-    private static func fileLinkURL(_ value: String, relativeTo directory: String) -> URL {
-        let direct = resolvedFileURL(value, relativeTo: directory)
-        if FileManager.default.fileExists(atPath: direct.path) {
-            return direct
-        }
-
-        if let range = value.range(
-            of: #":\d+(?::\d+)?$"#,
-            options: .regularExpression
-        ) {
-            let withoutLocation = String(value[..<range.lowerBound])
-            let file = resolvedFileURL(withoutLocation, relativeTo: directory)
-            if FileManager.default.fileExists(atPath: file.path) {
-                return file
-            }
-        }
-        return direct
-    }
-
-    private static func resolvedFileURL(
-        _ value: String, relativeTo directory: String
-    ) -> URL {
-        let path = (value as NSString).expandingTildeInPath
-        if path.hasPrefix("/") {
-            return URL(fileURLWithPath: path).standardizedFileURL
-        }
-        let base = URL(
-            fileURLWithPath: directory,
-            isDirectory: true
-        )
-        return URL(fileURLWithPath: path, relativeTo: base).standardizedFileURL
     }
 
     func terminalDidScroll(_ position: TerminalScrollPosition) {

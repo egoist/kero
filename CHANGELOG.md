@@ -22,6 +22,7 @@ the original feature bullet instead of adding separate entries for them.
 - Settings font preview now reflects “Thicken font strokes”
 - Prevent terminal tabs from crashing after switching sessions or resizing during a partial redraw
 - Files created in a terminal now use your system's default permissions instead of being made private to your user
+- Clicking a highlighted file path in the terminal now opens it with its default macOS app (absolute, relative, and `~/…` paths)
 
 ## [0.1.33]
 
@@ -56,7 +57,6 @@ the original feature bullet instead of adding separate entries for them.
 
 - Choose which terminal emulator drives new panes in Settings → Terminal → Backend. Ghostty remains the default, with a new Alacritty backend
 - Configure the left and right sidebar font size in Settings
-- Clicking a highlighted file path in the terminal now opens it with its default macOS app, including absolute, relative, tilde, and compiler-style `path:line:column` links
 
 ## [0.1.26]
 
