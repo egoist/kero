@@ -14,8 +14,19 @@ struct SettingsView: View {
     @State private var relaunchError = ""
     @State private var isShowingRelaunchError = false
 
+    /// Nil until the switch is used: a command the picker has no entry for is
+    /// one the user wrote, so the field shows itself.
+    @State private var isShellEnteredManually: Bool?
+
     /// Installed fixed-pitch families (bundled default first).
     private let families = TerminalFont.selectableFamilies()
+
+    /// Shells found on this Mac, login shell first.
+    private let installedShells = TerminalSession.installedShells()
+
+    /// Label column the Terminal section's two multi-line rows share, so the
+    /// backend cards, the shell picker, and both captions start on one line.
+    private static let terminalLabelWidth: CGFloat = 58
 
     var body: some View {
         CappedIdealHeight(maxHeight: 600) { form }
@@ -141,7 +152,7 @@ struct SettingsView: View {
                 if TerminalBackend.selectable.count > 1 {
                     HStack(alignment: .top) {
                         Text("Backend")
-                        Spacer()
+                            .frame(width: Self.terminalLabelWidth, alignment: .leading)
                         VStack(alignment: .leading, spacing: 8) {
                             TerminalBackendPicker(selection: $settings.terminalBackend)
                             Text("Changes apply to new terminals.")
@@ -149,6 +160,51 @@ struct SettingsView: View {
                                 .foregroundStyle(.secondary)
                         }
                     }
+                }
+
+                HStack(alignment: .top) {
+                    Text("Shell")
+                        .frame(width: Self.terminalLabelWidth, alignment: .leading)
+                    VStack(alignment: .leading, spacing: 8) {
+                        Picker("Shell", selection: shellChoice) {
+                            Text("Login shell (\(TerminalSession.loginShell()))")
+                                .tag(ShellChoice.loginShell)
+                            ForEach(installedShells, id: \.self) { shell in
+                                Text(verbatim: shell).tag(ShellChoice.installed(shell))
+                            }
+                            Divider()
+                            Text("Custom command…").tag(ShellChoice.custom)
+                        }
+                        .labelsHidden()
+
+                        if isCustomShell {
+                            TextField(
+                                "Shell",
+                                text: $settings.terminalCommand,
+                                prompt: Text(verbatim: TerminalSession.loginShell())
+                            )
+                            .labelsHidden()
+                            .textFieldStyle(.roundedBorder)
+                        }
+
+                        if isCustomShell, unresolvedShellProgram != nil {
+                            Label(
+                                "Nothing executable at that path. New terminals keep using your login shell.",
+                                systemImage: "exclamationmark.triangle"
+                            )
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                        } else if isCustomShell {
+                            Text("The whole command line, with any arguments it needs. Use a full path.")
+                                .font(.callout)
+                                .foregroundStyle(.secondary)
+                        } else {
+                            Text("Changes apply to new terminals.")
+                                .font(.callout)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    Spacer()
                 }
 
                 Toggle("Thicken font strokes", isOn: $settings.fontThicken)
@@ -206,7 +262,8 @@ struct SettingsView: View {
                         && settings.themeLight == Theme.defaultLightThemeName
                         && !settings.wrapLines
                         && !settings.restoreTerminalHistory
-                        && settings.terminalBackend == .fallback)
+                        && settings.terminalBackend == .fallback
+                        && settings.terminalCommand.isEmpty)
                 }
             }
         }
@@ -220,6 +277,55 @@ struct SettingsView: View {
         } message: {
             Text(verbatim: relaunchError)
         }
+    }
+
+    /// What the Shell picker stands for. The stored setting is one string, so
+    /// "a command I typed" is the case it cannot express on its own.
+    private enum ShellChoice: Hashable {
+        case loginShell
+        case installed(String)
+        case custom
+    }
+
+    private var shellChoice: Binding<ShellChoice> {
+        Binding(
+            get: {
+                if isCustomShell { return .custom }
+                let command = settings.terminalCommand
+                return command.isEmpty ? .loginShell : .installed(command)
+            },
+            set: { choice in
+                switch choice {
+                case .loginShell:
+                    isShellEnteredManually = false
+                    settings.terminalCommand = ""
+                case .installed(let shell):
+                    isShellEnteredManually = false
+                    settings.terminalCommand = shell
+                case .custom:
+                    // The field opens on whatever is set, so a shell picked a
+                    // moment ago is there to add arguments to.
+                    isShellEnteredManually = true
+                }
+            }
+        )
+    }
+
+    private var isCustomShell: Bool {
+        isShellEnteredManually
+            ?? (!settings.terminalCommand.isEmpty
+                && !installedShells.contains(settings.terminalCommand))
+    }
+
+    /// The configured program when it names a path that holds nothing runnable.
+    /// A bare name is left alone: `env` resolves it against `PATH` at launch,
+    /// which is not this process's `PATH` to check.
+    private var unresolvedShellProgram: String? {
+        guard let program = TerminalSession.commandTokens(settings.terminalCommand).first,
+              program.contains("/"),
+              !FileManager.default.isExecutableFile(atPath: program)
+        else { return nil }
+        return program
     }
 
     private var previewFont: NSFont {

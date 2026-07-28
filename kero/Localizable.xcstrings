@@ -1857,6 +1857,22 @@
         }
       }
     },
+    "Custom command…" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "カスタムコマンド…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自定义命令…"
+          }
+        }
+      }
+    },
     "Dark" : {
       "comment" : "Dark app appearance.",
       "localizations" : {
@@ -3229,6 +3245,23 @@
         }
       }
     },
+    "Login shell (%@)" : {
+      "comment" : "The placeholder is the path to the user’s login shell.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ログインシェル（%@）"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "登录 Shell（%@）"
+          }
+        }
+      }
+    },
     "Lower memory footprint" : {
       "localizations" : {
         "ja" : {
@@ -3946,6 +3979,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "未选中"
+          }
+        }
+      }
+    },
+    "Nothing executable at that path. New terminals keep using your login shell." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "そのパスに実行可能なファイルがありません。新しいターミナルは引き続きログインシェルを使います。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "该路径下没有可执行文件。新建的终端将继续使用登录 Shell。"
           }
         }
       }
@@ -5504,6 +5553,22 @@
         }
       }
     },
+    "Shell" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "シェル"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shell"
+          }
+        }
+      }
+    },
     "Show Git Output" : {
       "localizations" : {
         "ja" : {
@@ -6144,6 +6209,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "网页已停止响应。"
+          }
+        }
+      }
+    },
+    "The whole command line, with any arguments it needs. Use a full path." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "引数を含むコマンドライン全体を指定します。フルパスで指定してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "完整的命令行，可附带所需的参数。请使用完整路径。"
           }
         }
       }

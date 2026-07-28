@@ -51,7 +51,10 @@ final class TerminalSession: NSObject, nonisolated ObservableObject, nonisolated
         commandArguments: [String]? = nil,
         environmentPath: String? = nil
     ) {
+        // An argv from the CLI is for this one terminal, so it wins over the
+        // shell configured for every terminal.
         let directCommand = commandArguments.flatMap { $0.isEmpty ? nil : $0 }
+            ?? Self.configuredCommand()
         let shellPath = directCommand?.first ?? Self.loginShell()
         let directory = Self.validWorkingDirectory(initialDirectory)
         let artifacts = Self.makeLaunchArtifacts(restoredHistory: restoredHistory)
@@ -383,12 +386,97 @@ final class TerminalSession: NSObject, nonisolated ObservableObject, nonisolated
         return NSHomeDirectory()
     }
 
-    private static func loginShell() -> String {
+    nonisolated static func loginShell() -> String {
         if let pw = getpwuid(getuid()), let shell = pw.pointee.pw_shell {
             let path = String(cString: shell)
             if !path.isEmpty { return path }
         }
         return ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/zsh"
+    }
+
+    /// The shells Settings offers besides the login shell, which it names on
+    /// its own. `/etc/shells` is the list macOS itself keeps, but a shell
+    /// installed by Homebrew only reaches it if someone added the line by hand
+    /// — so the usual prefixes are checked for the usual names too. Every path
+    /// returned is executable right now.
+    nonisolated static func installedShells() -> [String] {
+        var shells: [String] = []
+        var seen: Set<String> = [loginShell()]
+        func add(_ path: String) {
+            guard !seen.contains(path),
+                  FileManager.default.isExecutableFile(atPath: path)
+            else { return }
+            seen.insert(path)
+            shells.append(path)
+        }
+
+        if let listed = try? String(contentsOfFile: "/etc/shells", encoding: .utf8) {
+            for line in listed.split(separator: "\n") {
+                let entry = line.trimmingCharacters(in: .whitespaces)
+                if entry.hasPrefix("/") { add(entry) }
+            }
+        }
+        for prefix in ["/opt/homebrew/bin", "/usr/local/bin", "/opt/local/bin"] {
+            for name in ["bash", "zsh", "fish", "nu", "elvish", "xonsh", "pwsh", "dash"] {
+                add("\(prefix)/\(name)")
+            }
+        }
+        return shells
+    }
+
+    /// The shell configured in Settings, as an argv, or nil to use the login
+    /// shell. A program written on its own is started as a login shell, the
+    /// same way Kero starts the default one — a shell that skips its login
+    /// files inherits the app's sparse `PATH` and little else. Writing
+    /// arguments takes that over: they are then the whole argv.
+    private static func configuredCommand() -> [String]? {
+        let argv = commandTokens(AppSettings.shared.terminalCommand)
+        guard let program = argv.first else { return nil }
+        // A path that isn't there would exec-fail into a pane that closes as
+        // soon as it opens, with the reason only in Settings. Better a working
+        // terminal; Settings flags the same path in place.
+        if program.contains("/"), !FileManager.default.isExecutableFile(atPath: program) {
+            return nil
+        }
+        return argv.count == 1 ? [program, "-l"] : argv
+    }
+
+    /// Splits a command line into an argv the way a shell splits one: spaces
+    /// separate arguments, and quotes or a backslash keep one together — which
+    /// is all it takes to name `/Applications/My Tools/fish`. Nothing is
+    /// expanded, since the argv reaches the program through `env` rather than a
+    /// shell, so a `$HOME` or a `*` here arrives as those characters.
+    nonisolated static func commandTokens(_ commandLine: String) -> [String] {
+        var tokens: [String] = []
+        var current = ""
+        var hasToken = false
+        var quote: Character?
+        var isEscaped = false
+        for character in commandLine {
+            if isEscaped {
+                current.append(character)
+                isEscaped = false
+            } else if character == "\\", quote != "'" {
+                isEscaped = true
+                hasToken = true
+            } else if character == quote {
+                quote = nil
+            } else if quote == nil, character == "'" || character == "\"" {
+                quote = character
+                hasToken = true
+            } else if quote == nil, character == " " || character == "\t" {
+                if hasToken {
+                    tokens.append(current)
+                    current = ""
+                    hasToken = false
+                }
+            } else {
+                current.append(character)
+                hasToken = true
+            }
+        }
+        if hasToken { tokens.append(current) }
+        return tokens
     }
 }
 

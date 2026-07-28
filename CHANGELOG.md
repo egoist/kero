@@ -16,6 +16,8 @@ the original feature bullet instead of adding separate entries for them.
 
 ## [unrelease]
 
+- Choose the shell new terminals start in Settings → Terminal → Shell: pick one of the shells Kero finds on this Mac, or “Custom command…” to write out a command line with its own arguments
+
 ## [0.1.32]
 
 - Add native English, Simplified Chinese, and Japanese localization throughout the app, with a language picker in Settings

@@ -196,6 +196,14 @@ final class AppSettings: nonisolated ObservableObject {
         didSet { save() }
     }
 
+    /// What a new terminal runs instead of the login shell, as a command line
+    /// the user writes: empty keeps the login shell. Kept verbatim so Settings
+    /// shows it back unchanged — ``TerminalSession`` splits it into an argv.
+    /// Like the backend, a session reads it once at creation.
+    @Published var terminalCommand: String {
+        didSet { save() }
+    }
+
     private init() {
         let savedLanguage = AppLanguage.saved
         activeLanguage = savedLanguage
@@ -229,6 +237,7 @@ final class AppSettings: nonisolated ObservableObject {
         wrapLines = toml["editor.wrap-lines"]?.bool ?? false
         restoreTerminalHistory = toml["terminal.restore-history"]?.bool ?? false
         terminalBackend = TerminalBackend(persisted: toml["terminal.backend"]?.string)
+        terminalCommand = toml["terminal.command"]?.string ?? ""
         applyAppearance()
         reloadThemeSelection()
         if existing == nil { save() }
@@ -276,6 +285,7 @@ final class AppSettings: nonisolated ObservableObject {
         wrapLines = false
         restoreTerminalHistory = false
         terminalBackend = .fallback
+        terminalCommand = ""
     }
 
     private func save() {
@@ -312,6 +322,9 @@ final class AppSettings: nonisolated ObservableObject {
         }
         if terminalBackend != .fallback {
             lines.append("terminal.backend = \(TOML.quote(terminalBackend.rawValue))")
+        }
+        if !terminalCommand.isEmpty {
+            lines.append("terminal.command = \(TOML.quote(terminalCommand))")
         }
         let dir = Self.configURL.deletingLastPathComponent()
         do {
