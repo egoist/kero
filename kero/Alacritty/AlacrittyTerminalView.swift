@@ -1170,12 +1170,27 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
                 break
             }
         }
+
+        // While an IME is composing, every key belongs to the input context —
+        // including arrows, Enter, and Escape that select or cancel.
+        if hasMarkedText() {
+            _ = inputContext?.handleEvent(event)
+            return
+        }
+
+        // Ctrl / Option / special keys encode as terminal sequences. Plain
+        // text returns nil from the key map so CJK IMEs can start composition
+        // instead of each Latin keycap being written straight to the PTY.
         if let bytes = AlacrittyKeyMap.bytes(for: event, mode: terminalMode) {
             write(bytes)
             return
         }
-        // Anything left is either IME composition or a key Kero's menus own;
-        // the input client below turns the former into text.
+
+        // First key of a composition, committed Unicode from an input source,
+        // or a shortcut Kero's menus own.
+        if inputContext?.handleEvent(event) == true {
+            return
+        }
         interpretKeyEvents([event])
     }
 
@@ -1522,7 +1537,9 @@ extension AlacrittyTerminalView: NSTextInputClient {
     }
 
     func selectedRange() -> NSRange {
-        NSRange(location: NSNotFound, length: 0)
+        // Insertion point with no selection. `NSNotFound` makes some IMEs
+        // refuse to begin composition against this client.
+        NSRange(location: 0, length: 0)
     }
 
     func markedRange() -> NSRange {

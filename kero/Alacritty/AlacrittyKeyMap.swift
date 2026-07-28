@@ -65,13 +65,21 @@ enum AlacrittyKeyMap {
             }
         }
 
-        // Plain text: take the modified characters so Shift and dead keys have
-        // already been applied. Some input sources synthesize committed
-        // Unicode with no `charactersIgnoringModifiers`; only Ctrl encoding
-        // actually needs that second representation.
-        guard let typed = event.characters, !typed.isEmpty else { return nil }
-        let payload = Array(typed.utf8)
-        return alt ? [0x1b] + payload : payload
+        // Option-as-Alt: ESC-prefix the base character. Don't fall through to
+        // the IME — Option is a Meta modifier here, matching Ghostty's
+        // `macos-option-as-alt`.
+        if alt {
+            guard let typed = event.charactersIgnoringModifiers, !typed.isEmpty
+            else { return nil }
+            return [0x1b] + Array(typed.utf8)
+        }
+
+        // Unmodified (and Shift-only) text must reach `NSTextInputClient` so
+        // CJK IMEs can compose. Writing `event.characters` straight to the
+        // PTY starves composition: Latin keycaps still report as "n"/"i" while
+        // the input source is building 你. Committed text arrives via
+        // `insertText`.
+        return nil
     }
 
     /// Ctrl-<key> for the range a terminal encodes as a C0 control code.
