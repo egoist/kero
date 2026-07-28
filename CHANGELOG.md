@@ -16,6 +16,8 @@ the original feature bullet instead of adding separate entries for them.
 
 ## [unrelease]
 
+- Files created in a terminal now use your system's default permissions instead of being made private to your user
+
 ## [0.1.33]
 
 - Fix: never set `LANG` env for the terminal session
