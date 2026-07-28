@@ -2216,6 +2216,22 @@
         }
       }
     },
+    "Drop a folder to open it as a project" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "フォルダをドロップするとプロジェクトとして開きます"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拖入文件夹即可作为项目打开"
+          }
+        }
+      }
+    },
     "Enter a branch name" : {
       "localizations" : {
         "ja" : {

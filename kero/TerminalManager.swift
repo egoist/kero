@@ -179,8 +179,9 @@ final class TerminalManager: nonisolated ObservableObject {
     }
 
     /// Creates a project rooted at `directory`, with its first terminal
-    /// launched there. Used by Kero's Finder service.
-    private func newProject(directory: String) {
+    /// launched there. Used by Kero's Finder service and by folders dropped
+    /// on the sidebar.
+    func newProject(directory: String) {
         let project = makeProject(createInitialSession: false)
         project.customName = URL(
             fileURLWithPath: directory,

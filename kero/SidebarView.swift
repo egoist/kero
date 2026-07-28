@@ -17,6 +17,7 @@ struct SidebarView: View {
     @AppStorage("leftSidebarWidth") private var width: Double = 220
     @State private var draggedProjectID: UUID?
     @State private var projectFrames: [UUID: CGRect] = [:]
+    @State private var isFolderDropTargeted = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -125,6 +126,56 @@ struct SidebarView: View {
             )
         }
         .onPreferenceChange(ProjectFramePreferenceKey.self) { projectFrames = $0 }
+        // A folder dragged from Finder opens as a project rooted there, the
+        // same as the Finder service's "Open in Kero". The whole strip takes
+        // the drop: aiming for the list is fussy once it fills the sidebar.
+        .dropDestination(for: URL.self) { urls, _ in
+            openDroppedFolders(urls)
+        } isTargeted: { isFolderDropTargeted = $0 }
+        .overlay {
+            if isFolderDropTargeted { folderDropHighlight }
+        }
+    }
+
+    /// Shown while something is held over the sidebar. It names what the drop
+    /// takes, since a drag carrying anything else lands on the same highlight
+    /// and then does nothing.
+    private var folderDropHighlight: some View {
+        RoundedRectangle(cornerRadius: 10)
+            .strokeBorder(Color(nsColor: Theme.accent), lineWidth: 2)
+            .background {
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(Color(nsColor: Theme.accent).opacity(0.08))
+            }
+            .overlay {
+                Text("Drop a folder to open it as a project")
+                    .font(.callout)
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 16)
+            }
+            .padding(6)
+            .allowsHitTesting(false)
+    }
+
+    /// Opens every dropped folder, ignoring the rest: a drag can carry files,
+    /// or a URL that is no file at all, and neither has a project directory
+    /// to root one on. Returning false leaves the item animating back to
+    /// where it came from, which is the system's way of saying so.
+    private func openDroppedFolders(_ urls: [URL]) -> Bool {
+        let folders = urls.filter { url in
+            var isDirectory: ObjCBool = false
+            return url.isFileURL
+                && FileManager.default.fileExists(
+                    atPath: url.path, isDirectory: &isDirectory
+                )
+                && isDirectory.boolValue
+        }
+        guard !folders.isEmpty else { return false }
+        for folder in folders {
+            manager.newProject(directory: folder.path)
+        }
+        return true
     }
 
     private func updateProjectDrag(source: UUID, location: CGPoint) {
