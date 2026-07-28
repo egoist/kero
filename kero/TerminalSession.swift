@@ -274,16 +274,18 @@ final class TerminalSession: NSObject, nonisolated ObservableObject, nonisolated
             builder.withCursorStyleBlink(true)
             // Kero's insets around the grid live inside ghostty as
             // window-padding so that window-padding-color=extend can flood
-            // them with the nearest cell's background — full-screen TUIs
-            // fill the surface while text keeps its breathing room (the
-            // host adds a 2pt pane-background frame around the surface, so
-            // the fill stops just short of the pane edges; these values plus
-            // that frame put the text at least 12pt from the sides and 10pt
-            // from the top/bottom). balance re-centers the grid, splitting
-            // the sub-cell remainder evenly per axis instead of stranding
-            // the prompt a full row above the pane's bottom edge; it also
-            // makes each side's padding equal to the value here plus half
-            // the remainder, so per-side asymmetry is not expressible.
+            // them with the nearest cell's background. Ghostty keeps explicit
+            // cell backgrounds opaque even when the default surface
+            // background is clear, so full-screen TUIs still fill the surface
+            // while text keeps its breathing room (the host adds a 2pt
+            // pane-background frame around the surface, so the fill stops
+            // just short of the pane edges; these values plus that frame put
+            // the text at least 12pt from the sides and 10pt from the
+            // top/bottom). balance re-centers the grid, splitting the sub-cell
+            // remainder evenly per axis instead of stranding the prompt a
+            // full row above the pane's bottom edge; it also makes each side's
+            // padding equal to the value here plus half the remainder, so
+            // per-side asymmetry is not expressible.
             builder.withWindowPaddingX(10)
             builder.withWindowPaddingY(8)
             builder.withCustom("window-padding-balance", "true")

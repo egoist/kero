@@ -77,28 +77,13 @@ struct SidebarView: View {
             .overlay(alignment: .top) {
                 Rectangle()
                     .fill(Color(nsColor: Theme.divider))
+                    .opacity(settings.backgroundOpacity < AppSettings.defaultBackgroundOpacity
+                        ? settings.backgroundOpacity : 1)
                     .frame(height: 1)
             }
         }
         .frame(width: width)
-        .background {
-            // Kero's built-in Default themes keep the native translucent
-            // sidebar material; every other theme — including the GitHub
-            // originals they're based on — paints its flat sidebar shade so
-            // the strip follows the palette.
-            // In translucent mode the `tint` style trades the material for
-            // the same theme-tinted frost as the content area, so the whole
-            // window reads as one surface.
-            if Theme.isDefault(dark: colorScheme == .dark),
-               !(settings.backgroundOpacityStyle == .tint
-                   && settings.backgroundOpacity < AppSettings.defaultBackgroundOpacity) {
-                VisualEffectView(material: .sidebar)
-            } else {
-                let color = Theme.sidebar
-                Color(nsColor: settings.backgroundOpacity < AppSettings.defaultBackgroundOpacity
-                    ? color.withAlphaComponent(CGFloat(settings.backgroundOpacity)) : color)
-            }
-        }
+        .background { sidebarBackground }
         // Hairline between sidebar and content: themes fill both with the
         // same background, so the boundary needs its own line. The built-in
         // Defaults keep their material fill, whose contrast already draws
@@ -107,6 +92,8 @@ struct SidebarView: View {
             if !Theme.isDefault(dark: colorScheme == .dark) {
                 Rectangle()
                     .fill(Color(nsColor: Theme.divider))
+                    .opacity(settings.backgroundOpacity < AppSettings.defaultBackgroundOpacity
+                        ? settings.backgroundOpacity : 1)
                     .frame(width: 1)
                     .allowsHitTesting(false)
             }
@@ -120,6 +107,36 @@ struct SidebarView: View {
             )
         }
         .onPreferenceChange(ProjectFramePreferenceKey.self) { projectFrames = $0 }
+    }
+
+    @ViewBuilder
+    private var sidebarBackground: some View {
+        if settings.backgroundOpacity >= AppSettings.defaultBackgroundOpacity {
+            // Preserve the opaque-window path exactly: built-in Default
+            // themes use native sidebar material; catalog themes use their
+            // flat sidebar shade.
+            if Theme.isDefault(dark: colorScheme == .dark) {
+                VisualEffectView(material: .sidebar)
+            } else {
+                Color(nsColor: Theme.sidebar)
+            }
+        } else {
+            switch settings.backgroundOpacityStyle {
+            case .auto:
+                if Theme.isDefault(dark: colorScheme == .dark) {
+                    VisualEffectView(material: .sidebar)
+                } else {
+                    Color.clear
+                }
+            case .tint:
+                Color.clear
+            case .material:
+                // The root already carries the window-wide material (or its
+                // custom-radius replacement); stacking another here darkens
+                // the sidebar and breaks the unified treatment.
+                Color.clear
+            }
+        }
     }
 
     private func updateProjectDrag(source: UUID, location: CGPoint) {

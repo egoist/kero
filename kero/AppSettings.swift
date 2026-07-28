@@ -91,9 +91,9 @@ final class AppSettings: nonisolated ObservableObject {
     }
 
     /// How the two translucent surface treatments are distributed when
-    /// `backgroundOpacity` is below 1. `auto` keeps today's split — system
-    /// material on the sidebar, theme tint on the content. The other two
-    /// unify the window in either direction; which reads best is taste.
+    /// `backgroundOpacity` is below 1. `auto` keeps the built-in themes'
+    /// material sidebar while catalog themes stay palette-matched. The other
+    /// two unify the window in either direction; which reads best is taste.
     enum BackgroundOpacityStyle: String, CaseIterable {
         case auto
         case tint      // sidebar joins the content's theme tint

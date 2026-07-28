@@ -16,6 +16,7 @@ struct RightSidebarView: View {
     @StateObject private var fileTree = FileTreeModel()
     @StateObject private var git = GitStatusModel()
     @StateObject private var info = SessionInfoModel()
+    @Environment(\.colorScheme) private var colorScheme
     @AppStorage("rightSidebarWidth") private var width: Double = 240
 
     private let refreshTimer = Timer.publish(every: 2, on: .main, in: .common).autoconnect()
@@ -34,6 +35,8 @@ struct RightSidebarView: View {
             if manager.isPanelVisible {
                 Rectangle()
                     .fill(Color(nsColor: Theme.divider))
+                    .opacity(settings.backgroundOpacity < AppSettings.defaultBackgroundOpacity
+                        ? settings.backgroundOpacity : 1)
                     .frame(width: 1)
 
                 VStack(spacing: 0) {
@@ -96,12 +99,26 @@ struct RightSidebarView: View {
         .onChange(of: manager.selectedProject?.customDirectory) { syncModels() }
     }
 
-    private var sidebarBackground: Color {
-        let color = Theme.sidebar
-        guard settings.backgroundOpacity < AppSettings.defaultBackgroundOpacity else {
-            return Color(nsColor: color)
+    @ViewBuilder
+    private var sidebarBackground: some View {
+        if settings.backgroundOpacity >= AppSettings.defaultBackgroundOpacity {
+            // The default opaque path predates translucency and stays flat.
+            Color(nsColor: Theme.sidebar)
+        } else {
+            switch settings.backgroundOpacityStyle {
+            case .auto:
+                if Theme.isDefault(dark: colorScheme == .dark) {
+                    VisualEffectView(material: .sidebar)
+                } else {
+                    Color.clear
+                }
+            case .tint:
+                Color.clear
+            case .material:
+                // The root owns the unified material/custom-radius frost.
+                Color.clear
+            }
         }
-        return Color(nsColor: color.withAlphaComponent(CGFloat(settings.backgroundOpacity)))
     }
 
     private var tabBar: some View {

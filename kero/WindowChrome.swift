@@ -46,6 +46,10 @@ struct WindowChromeAccessor: NSViewRepresentable {
         }
     }
 
+    static func dismantleNSView(_ view: NSView, coordinator: Coordinator) {
+        coordinator.detach()
+    }
+
     @MainActor
     final class Coordinator {
         private struct OpaqueBackground {
@@ -75,6 +79,7 @@ struct WindowChromeAccessor: NSViewRepresentable {
         func attach(_ window: NSWindow) {
             guard self.window !== window else { return }
             restoreOpaqueBackground()
+            removeObservers()
             self.window = window
             onAttach(window)
             updateWindowBackground()
@@ -107,6 +112,15 @@ struct WindowChromeAccessor: NSViewRepresentable {
             }
         }
 
+        /// Restore the window if SwiftUI removes this accessor while the
+        /// window is still alive. Without this, a replacement coordinator
+        /// can capture the already-clear state as its opaque baseline.
+        func detach() {
+            restoreOpaqueBackground()
+            removeObservers()
+            window = nil
+        }
+
         /// Capture and restore AppKit's exact opaque-window state so the
         /// default path is untouched, including after live opacity changes.
         private func updateWindowBackground() {
@@ -134,11 +148,18 @@ struct WindowChromeAccessor: NSViewRepresentable {
             guard let frame = window.contentView?.superview else { return }
             for container in frame.subviews
             where String(describing: type(of: container)) == "NSTitlebarContainerView" {
-                for titlebar in container.subviews {
-                    for view in titlebar.subviews where view is NSVisualEffectView {
-                        view.isHidden = hidden
-                    }
+                setEffectViewsHidden(hidden, below: container)
+            }
+        }
+
+        /// AppKit has changed the titlebar backing's nesting between macOS
+        /// releases. Search only inside its container, but at any depth.
+        private func setEffectViewsHidden(_ hidden: Bool, below view: NSView) {
+            for subview in view.subviews {
+                if let effect = subview as? NSVisualEffectView {
+                    effect.isHidden = hidden
                 }
+                setEffectViewsHidden(hidden, below: subview)
             }
         }
 
@@ -153,6 +174,12 @@ struct WindowChromeAccessor: NSViewRepresentable {
         private func reposition() {
             guard let window else { return }
             window.isMovable = false
+            // The titlebar effect view can be installed after our first
+            // attachment. Reassert on the same delayed and notification-
+            // driven passes already used for AppKit's late button layout.
+            if backgroundOpacity < AppSettings.defaultBackgroundOpacity {
+                setTitlebarBackdropHidden(true, in: window)
+            }
             guard !window.styleMask.contains(.fullScreen) else { return }
             let types: [NSWindow.ButtonType] = [.closeButton, .miniaturizeButton, .zoomButton]
             for (index, type) in types.enumerated() {
@@ -178,6 +205,13 @@ struct WindowChromeAccessor: NSViewRepresentable {
             for observer in observers {
                 NotificationCenter.default.removeObserver(observer)
             }
+        }
+
+        private func removeObservers() {
+            for observer in observers {
+                NotificationCenter.default.removeObserver(observer)
+            }
+            observers.removeAll()
         }
     }
 }

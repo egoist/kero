@@ -490,9 +490,9 @@ private struct PaneView: View {
     }
 
     private var paneBackground: Color {
-        // Translucent mode: the pane's libghostty surface (or editor palette)
-        // carries the theme tint at the configured alpha — an additional
-        // tinted fill here would compound with it and over-darken the frost
+        // Translucent mode: the window backdrop owns the one theme tint while
+        // the libghostty surface and editor palette are clear. An additional
+        // pane fill would compound with that tint and over-darken the frost
         // (see windowBackground in ContentView), so the pane stays clear.
         guard settings.backgroundOpacity < AppSettings.defaultBackgroundOpacity else {
             return Color(nsColor: Theme.background)

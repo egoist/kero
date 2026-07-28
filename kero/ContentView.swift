@@ -94,12 +94,16 @@ struct ContentView: View {
                 // over anything blurred beneath it.
                 Group {
                     if settings.backgroundBlur > 0, BackdropBlurView.isSupported {
-                        BackdropBlurView(radius: settings.backgroundBlur)
+                        BackdropBlurView(
+                            radius: settings.backgroundBlur,
+                            tint: nativeBackdropTint
+                        )
                     } else {
-                        VisualEffectView(
+                        TintedVisualEffectView(
                             material: settings.backgroundOpacityStyle == .material
                                 ? .sidebar : .underWindowBackground,
-                            state: .active
+                            state: .active,
+                            tint: nativeBackdropTint
                         )
                     }
                 }
@@ -118,18 +122,30 @@ struct ContentView: View {
         }
     }
 
+    /// The single application of the theme tint while translucent — the
+    /// libghostty surface and editor render fully clear backgrounds (see
+    /// TerminalSession / EditorPalette) so the wash is uniform across
+    /// cells, padding, header, and gaps. Stacking tinted layers would
+    /// compound: each 20%-dark layer keeps only 80% of the backdrop.
+    private var translucentTint: NSColor {
+        Theme.background.withAlphaComponent(CGFloat(settings.backgroundOpacity))
+    }
+
+    /// `material` deliberately leaves the native treatment uncolored; the
+    /// other styles apply the selected theme's wash once, in the same native
+    /// hierarchy as whichever backdrop is active.
+    private var nativeBackdropTint: NSColor? {
+        settings.backgroundOpacityStyle == .material ? nil : translucentTint
+    }
+
     private var windowBackground: Color {
-        // In translucent mode this is the one place the theme tint is
-        // applied — the libghostty surface and editor render fully clear
-        // backgrounds (see TerminalSession / EditorPalette) so the wash is
-        // uniform across cells, padding, header, and gaps. Stacking tinted
-        // layers would compound: each 20%-dark layer keeps only 80% of the
-        // backdrop, so even two read noticeably darker than one.
-        let color = Theme.background
         guard settings.backgroundOpacity < AppSettings.defaultBackgroundOpacity else {
-            return Color(nsColor: color)
+            return Color(nsColor: Theme.background)
         }
-        return Color(nsColor: color.withAlphaComponent(CGFloat(settings.backgroundOpacity)))
+        // The active native backdrop owns the translucent tint. Keeping every
+        // SwiftUI region clear avoids both representable ordering loss and
+        // accidental double application at region boundaries.
+        return Color.clear
     }
 
     /// Sessions in the visible tab are owned by `TerminalHostView`; every
@@ -147,21 +163,22 @@ struct ContentView: View {
     private var paneLayerBackground: some View {
         if paneLayerCoversDiffs {
             if settings.backgroundOpacity < AppSettings.defaultBackgroundOpacity {
-                // Same substitution as the window background: a custom blur
-                // radius replaces the material, which would otherwise sample
-                // the unblurred content behind the window and paint over it.
-                Group {
-                    if settings.backgroundBlur > 0, BackdropBlurView.isSupported {
-                        BackdropBlurView(radius: settings.backgroundBlur)
-                    } else {
-                        VisualEffectView(
-                            material: settings.backgroundOpacityStyle == .material
-                                ? .sidebar : .underWindowBackground,
-                            state: .active
-                        )
-                    }
+                // With a custom blur the root backdrop (and its tint) already
+                // fills the content area, and a second backdrop here would
+                // blur the very diffs this layer exists to cover — only the
+                // material path needs its own fill. Diff-covering while a
+                // custom blur is active falls back to the material.
+                if settings.backgroundBlur > 0, BackdropBlurView.isSupported,
+                   manager.selectedProject?.diffPlacements.isEmpty != false {
+                    EmptyView()
+                } else {
+                    TintedVisualEffectView(
+                        material: settings.backgroundOpacityStyle == .material
+                            ? .sidebar : .underWindowBackground,
+                        state: .active,
+                        tint: nativeBackdropTint
+                    )
                 }
-                .overlay(windowBackground)
             } else {
                 windowBackground
             }
@@ -213,6 +230,7 @@ struct ContentView: View {
 /// window-drag space.
 private struct MainHeaderView: View {
     @ObservedObject var manager: TerminalManager
+    @ObservedObject private var settings = AppSettings.shared
     @ObservedObject private var themeChanges = Theme.changes
 
     /// With the left sidebar hidden the header slides under the window's
@@ -277,6 +295,11 @@ private struct MainHeaderView: View {
         .overlay(alignment: .bottom) {
             Rectangle()
                 .fill(Color(nsColor: Theme.divider))
+                // Catalog-theme dividers are opaque colors. Let the same
+                // opacity as the surrounding frost keep this from becoming
+                // a solid dark rule across a translucent window.
+                .opacity(settings.backgroundOpacity < AppSettings.defaultBackgroundOpacity
+                    ? settings.backgroundOpacity : 1)
                 .frame(height: 1)
         }
     }
