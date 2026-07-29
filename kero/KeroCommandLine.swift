@@ -75,8 +75,18 @@ private final class AppConnection {
     let token: String
 
     init(environment: [String: String] = ProcessInfo.processInfo.environment) throws {
-        guard let statePath = environment["KERO_CLI_STATE"],
-              let token = environment["KERO_CLI_TOKEN"],
+        var statePath = environment["KERO_CLI_STATE"]
+        var token = environment["KERO_CLI_TOKEN"]
+        if environment["KERO_MUX_SESSION"] == "1",
+           let data = try? Data(contentsOf: KeroCLIBridge.currentURL),
+           let bridge = try? JSONDecoder().decode(KeroCLIBridgeState.self, from: data),
+           bridge.appPID > 1,
+           Darwin.kill(bridge.appPID, 0) == 0 || errno == EPERM {
+            statePath = bridge.statePath
+            token = bridge.token
+        }
+        guard let statePath,
+              let token,
               !statePath.isEmpty,
               !token.isEmpty
         else {
@@ -538,6 +548,16 @@ private func printHelp() {
 
 private func run() throws {
     let arguments = Array(CommandLine.arguments.dropFirst())
+    if arguments == ["+mux-server"] {
+        try KeroMuxServer.run()
+        return
+    }
+    if arguments.count == 2,
+       arguments.first == "+mux-client",
+       let sessionID = UUID(uuidString: arguments[1]) {
+        try KeroMuxClientProcess.run(sessionID: sessionID)
+        return
+    }
     if arguments == ["+help"] {
         printHelp()
         return

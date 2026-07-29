@@ -8,6 +8,28 @@ import Darwin
 import Foundation
 import GhosttyTheme
 
+struct KeroCLIBridgeState: Codable {
+    let statePath: String
+    let token: String
+    let appPID: pid_t
+}
+
+enum KeroCLIBridge {
+    static let currentURL: URL = {
+        #if DEBUG
+        let directory = "kero-dev"
+        #else
+        let directory = "kero"
+        #endif
+        let base = FileManager.default.urls(
+            for: .applicationSupportDirectory, in: .userDomainMask
+        ).first ?? FileManager.default.temporaryDirectory
+        return base
+            .appendingPathComponent(directory, isDirectory: true)
+            .appendingPathComponent("cli-current.json")
+    }()
+}
+
 /// Bridges the bundled `kero` executable back to its owning app process.
 ///
 /// The CLI receives a per-launch secret and a generated catalog file through
@@ -70,6 +92,7 @@ final class KeroCLIService {
         }
 
         writeState()
+        writeCurrentBridge()
 
         notificationObserver = DistributedNotificationCenter.default()
             .addObserver(
@@ -88,6 +111,7 @@ final class KeroCLIService {
             queue: .main
         ) { [weak self] _ in
             MainActor.assumeIsolated {
+                self?.removeCurrentBridge()
                 self?.removeStateDirectory()
             }
         }
@@ -284,6 +308,41 @@ final class KeroCLIService {
         } catch {
             NSLog("kero: failed to write CLI theme catalog: \(error)")
         }
+    }
+
+    /// Durable shells retain their original environment across app launches.
+    /// This small same-user pointer lets their bundled `kero` command discover
+    /// the current app's otherwise per-launch token and catalog file.
+    private func writeCurrentBridge() {
+        let bridge = KeroCLIBridgeState(
+            statePath: stateURL.path,
+            token: secret,
+            appPID: getpid()
+        )
+        guard let data = try? JSONEncoder().encode(bridge) else { return }
+        let fileManager = FileManager.default
+        do {
+            try fileManager.createDirectory(
+                at: KeroCLIBridge.currentURL.deletingLastPathComponent(),
+                withIntermediateDirectories: true,
+                attributes: [.posixPermissions: 0o700]
+            )
+            try data.write(to: KeroCLIBridge.currentURL, options: .atomic)
+            try fileManager.setAttributes(
+                [.posixPermissions: 0o600],
+                ofItemAtPath: KeroCLIBridge.currentURL.path
+            )
+        } catch {
+            NSLog("kero: failed to publish the current CLI bridge: \(error)")
+        }
+    }
+
+    private func removeCurrentBridge() {
+        guard let data = try? Data(contentsOf: KeroCLIBridge.currentURL),
+              let bridge = try? JSONDecoder().decode(KeroCLIBridgeState.self, from: data),
+              bridge.token == secret
+        else { return }
+        try? FileManager.default.removeItem(at: KeroCLIBridge.currentURL)
     }
 
     private func removeStateDirectory() {

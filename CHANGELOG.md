@@ -51,6 +51,8 @@ the original feature bullet instead of adding separate entries for them.
 - Splitting a pane now divides only the focused pane, preserving the size of neighboring panes in nested layouts
 - The Ctrl-Tab switcher now lists tabs in the order you last used them and opens already pointing at the previous tab, so a quick Ctrl-Tab flips between the two tabs you're working in
 
+- Optionally keep terminal sessions running locally when Kero closes, then reconnect their live processes and output when Kero reopens
+
 ## [0.1.34]
 
 - Show terminal titles verbatim while keeping sidebar project rows stable as titles update or hover controls appear
