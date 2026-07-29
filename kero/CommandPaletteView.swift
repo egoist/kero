@@ -340,7 +340,10 @@ struct CommandPaletteView: View {
         else { return nil }
         let root: String?
         if let session = project.selectedSession {
-            root = project.panelRoot(followingSessionAt: session.currentDirectoryPath).root
+            root = project.panelRoot(
+                followingSessionAt: session.currentDirectoryPath,
+                foregroundAt: session.foregroundDirectoryPath
+            ).root
         } else if let pinned = project.customDirectory,
                   FileManager.default.fileExists(atPath: pinned) {
             root = pinned

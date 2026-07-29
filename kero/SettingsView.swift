@@ -123,15 +123,21 @@ struct SettingsView: View {
             }
 
             Section("Preview") {
-                // Exercises regular/bold plus Nerd Font icon fallback.
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(verbatim: "kero ❯ echo \"the quick brown fox\" 0O 1lI")
-                    Text(verbatim: "\u{E0A0} main \u{E0B0} ~/dev/kero \u{E711} \u{F024B} \u{F0A7D}")
-                    Text(verbatim: "bold — permission denied (os error 13)")
-                        .bold()
-                }
-                .font(Font(previewFont))
-                .padding(.vertical, 4)
+                // SwiftUI Text cannot show Ghostty's font-thicken — that flag
+                // only affects CoreText glyph rasterization — so draw through
+                // AppKit with shouldSmoothFonts matching the toggle.
+                FontThickenPreview(font: previewFont, thicken: settings.fontThicken)
+                    .padding(.vertical, 4)
+                    // NSView drawing has no semantic children of its own.
+                    // Preserve the sample text that the previous SwiftUI Text
+                    // views exposed to VoiceOver.
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(Text(verbatim: """
+                    kero ❯ echo "the quick brown fox" 0O 1lI
+                    \u{E0A0} main \u{E0B0} ~/dev/kero \u{E711} \u{F024B} \u{F0A7D}
+                    bold — permission denied (os error 13)
+                    """))
+                    .accessibilityAddTraits(.isStaticText)
             }
 
             Section("Terminal") {
@@ -251,6 +257,79 @@ struct SettingsView: View {
     /// split by the appearance slot they suit.
     private static let darkThemeNames = Theme.commonDarkThemes.map(\.name)
     private static let lightThemeNames = Theme.commonLightThemes.map(\.name)
+}
+
+/// Settings font preview that honors `font-thicken`. Ghostty thickens by
+/// enabling CoreText font smoothing when rasterizing glyphs; SwiftUI `Text`
+/// does not, so toggling the setting left this preview unchanged.
+private struct FontThickenPreview: NSViewRepresentable {
+    var font: NSFont
+    var thicken: Bool
+
+    func makeNSView(context: Context) -> FontThickenPreviewView {
+        FontThickenPreviewView()
+    }
+
+    func updateNSView(_ view: FontThickenPreviewView, context: Context) {
+        view.previewFont = font
+        view.thicken = thicken
+        view.needsDisplay = true
+        view.invalidateIntrinsicContentSize()
+    }
+}
+
+private final class FontThickenPreviewView: NSView {
+    var previewFont: NSFont = .monospacedSystemFont(ofSize: 13, weight: .regular)
+    var thicken = false
+
+    /// Regular / icon / bold lines — same samples as the old SwiftUI preview.
+    private let lines: [(text: String, bold: Bool)] = [
+        ("kero ❯ echo \"the quick brown fox\" 0O 1lI", false),
+        ("\u{E0A0} main \u{E0B0} ~/dev/kero \u{E711} \u{F024B} \u{F0A7D}", false),
+        ("bold — permission denied (os error 13)", true),
+    ]
+
+    private let lineSpacing: CGFloat = 6
+    private let verticalPadding: CGFloat = 4
+
+    override var isFlipped: Bool { true }
+
+    override var intrinsicContentSize: NSSize {
+        let lineHeight = ceil(previewFont.boundingRectForFont.height)
+        let height = verticalPadding * 2
+            + CGFloat(lines.count) * lineHeight
+            + CGFloat(max(0, lines.count - 1)) * lineSpacing
+        return NSSize(width: NSView.noIntrinsicMetric, height: height)
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        guard let ctx = NSGraphicsContext.current?.cgContext else { return }
+        // Mirror Ghostty's CoreText glyph path (face/coretext.zig):
+        // font-thicken == shouldSmoothFonts.
+        ctx.setAllowsFontSmoothing(true)
+        ctx.setShouldSmoothFonts(thicken)
+        ctx.setAllowsFontSubpixelPositioning(true)
+        ctx.setShouldSubpixelPositionFonts(true)
+        ctx.setAllowsFontSubpixelQuantization(false)
+        ctx.setShouldSubpixelQuantizeFonts(false)
+        ctx.setAllowsAntialiasing(true)
+        ctx.setShouldAntialias(true)
+
+        let color = NSColor.labelColor
+        var y = verticalPadding
+        let lineHeight = ceil(previewFont.boundingRectForFont.height)
+        for (text, bold) in lines {
+            let font = bold
+                ? NSFontManager.shared.convert(previewFont, toHaveTrait: .boldFontMask)
+                : previewFont
+            let attrs: [NSAttributedString.Key: Any] = [
+                .font: font,
+                .foregroundColor: color,
+            ]
+            (text as NSString).draw(at: NSPoint(x: 0, y: y), withAttributes: attrs)
+            y += lineHeight + lineSpacing
+        }
+    }
 }
 
 /// Sizes its sole child to the child's ideal height, capped at `maxHeight`.
