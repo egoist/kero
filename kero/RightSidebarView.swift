@@ -1951,6 +1951,19 @@ private struct GitEntryRow: View {
 /// Session dashboard: working directory (with reveal/open/copy actions),
 /// processes running under the shell, and ports they are listening on.
 private struct InfoPanel: View {
+    private struct ExternalEditor: Identifiable {
+        let name: String
+        let bundleIdentifier: String
+
+        var id: String { bundleIdentifier }
+
+        var applicationURL: URL? {
+            NSWorkspace.shared.urlForApplication(
+                withBundleIdentifier: bundleIdentifier
+            )
+        }
+    }
+
     @ObservedObject var model: SessionInfoModel
     @ObservedObject private var themeChanges = Theme.changes
     let session: TerminalSession?
@@ -1960,8 +1973,20 @@ private struct InfoPanel: View {
     @State private var processesCollapsed = false
     @State private var portsCollapsed = false
 
-    private static let vsCodeURL = NSWorkspace.shared
-        .urlForApplication(withBundleIdentifier: "com.microsoft.VSCode")
+    private static let externalEditors = [
+        ExternalEditor(
+            name: "VS Code",
+            bundleIdentifier: "com.microsoft.VSCode"
+        ),
+        ExternalEditor(
+            name: "Zed",
+            bundleIdentifier: "dev.zed.Zed"
+        ),
+        ExternalEditor(
+            name: "Cursor",
+            bundleIdentifier: "com.todesktop.230313mzl4w4u92"
+        ),
+    ]
 
     var body: some View {
         VStack(spacing: 0) {
@@ -2041,7 +2066,7 @@ private struct InfoPanel: View {
         }
     }
 
-    /// Path line plus Finder / VS Code / Copy actions, shared by both
+    /// Path line plus Finder / editor / Copy actions, shared by both
     /// directory sections.
     private func directoryGroup(path: String) -> some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -2056,19 +2081,27 @@ private struct InfoPanel: View {
                     Button("Copy Path") { copyPath(path) }
                 }
 
-            HStack(spacing: 4) {
+            LazyVGrid(
+                columns: [GridItem(.adaptive(minimum: 64), spacing: 4)],
+                spacing: 4
+            ) {
                 actionButton("Finder", systemImage: "arrow.up.forward.app") {
                     NSWorkspace.shared.activateFileViewerSelecting(
                         [URL(fileURLWithPath: path)]
                     )
                 }
-                if let vsCode = Self.vsCodeURL {
-                    actionButton("VS Code", systemImage: "chevron.left.forwardslash.chevron.right") {
-                        NSWorkspace.shared.open(
-                            [URL(fileURLWithPath: path)],
-                            withApplicationAt: vsCode,
-                            configuration: NSWorkspace.OpenConfiguration()
-                        )
+                ForEach(Self.externalEditors) { editor in
+                    if let applicationURL = editor.applicationURL {
+                        actionButton(
+                            editor.name,
+                            systemImage: "chevron.left.forwardslash.chevron.right"
+                        ) {
+                            NSWorkspace.shared.open(
+                                [URL(fileURLWithPath: path)],
+                                withApplicationAt: applicationURL,
+                                configuration: NSWorkspace.OpenConfiguration()
+                            )
+                        }
                     }
                 }
                 actionButton(String(localized: "Copy"), systemImage: "doc.on.doc") {
