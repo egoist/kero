@@ -24,9 +24,10 @@ final class SessionInfoModel: nonisolated ObservableObject {
         let memoryKB: Int
 
         var memoryLabel: String {
-            memoryKB >= 1024
-                ? String(format: "%.0f MB", Double(memoryKB) / 1024)
-                : "\(memoryKB) KB"
+            ByteCountFormatter.string(
+                fromByteCount: Int64(memoryKB) * 1024,
+                countStyle: .memory
+            )
         }
     }
 

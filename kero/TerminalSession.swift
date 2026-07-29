@@ -8,9 +8,10 @@ import Combine
 import Darwin
 import Foundation
 
-/// One login shell rendered by one long-lived terminal surface. SwiftUI only
-/// reparents the same surface, so PTY state, selection, and scrollback survive
-/// tab and split-layout changes.
+/// One long-lived terminal process rendered by one terminal surface. Normally
+/// that process is the user's login shell; a CLI-created project can instead
+/// exec an explicit argv directly. SwiftUI only reparents the same surface, so
+/// PTY state, selection, and scrollback survive tab and split-layout changes.
 ///
 /// Which emulator draws that surface is `TerminalBackend`'s business: this
 /// type talks to ``TerminalBackendSurface`` and hears back through
@@ -44,14 +45,21 @@ final class TerminalSession: NSObject, nonisolated ObservableObject, nonisolated
     private var isTerminating = false
     private var commandExecutionStartedAtNanos: UInt64?
 
-    init(initialDirectory: String? = nil, restoredHistory: String? = nil) {
-        let shellPath = Self.loginShell()
+    init(
+        initialDirectory: String? = nil,
+        restoredHistory: String? = nil,
+        commandArguments: [String]? = nil,
+        environmentPath: String? = nil
+    ) {
+        let directCommand = commandArguments.flatMap { $0.isEmpty ? nil : $0 }
+        let shellPath = directCommand?.first ?? Self.loginShell()
         let directory = Self.validWorkingDirectory(initialDirectory)
         let artifacts = Self.makeLaunchArtifacts(restoredHistory: restoredHistory)
         let backend = AppSettings.shared.terminalBackend
         let script = Self.makeLaunchScript(
             backend: backend,
             shellPath: shellPath,
+            commandArguments: directCommand,
             pidFileURL: artifacts.pidFileURL,
             replayFileURL: artifacts.replayFileURL
         )
@@ -60,7 +68,7 @@ final class TerminalSession: NSObject, nonisolated ObservableObject, nonisolated
             arguments: ["-c", script],
             commandLine: "/bin/sh -c \(Self.shellQuote(script))",
             workingDirectory: directory,
-            environment: Self.surfaceEnvironment()
+            environment: Self.surfaceEnvironment(pathOverride: environmentPath)
         )
 
         self.shellPath = shellPath
@@ -130,6 +138,8 @@ final class TerminalSession: NSObject, nonisolated ObservableObject, nonisolated
         surface.setSurfaceVisible(false)
         surface.onBecomeFirstResponder = nil
         surface.splitTarget.onSplit = nil
+        surface.splitTarget.onNewBrowserTab = nil
+        surface.splitTarget.onNewBrowserPane = nil
 
         if processAlive {
             _ = shellPid // Cache it before `hasExited` changes.
@@ -237,9 +247,9 @@ final class TerminalSession: NSObject, nonisolated ObservableObject, nonisolated
         (shellPath as NSString).lastPathComponent
     }
 
-    /// PID of the root login shell. The launch shim records its own PID before
-    /// `exec`, so this remains stable while the backend's foreground PID moves
-    /// to child jobs and back.
+    /// PID of the root terminal process. The launch shim records its own PID
+    /// before `exec`, so this remains stable while a shell's foreground PID
+    /// moves to child jobs and back.
     var shellPid: pid_t? {
         if let cachedShellPid, cachedShellPid > 0 { return cachedShellPid }
         guard !hasExited, let shellPidFileURL,
@@ -253,14 +263,20 @@ final class TerminalSession: NSObject, nonisolated ObservableObject, nonisolated
 
     // MARK: - Launch
 
-    private static func surfaceEnvironment() -> [String: String] {
+    private static func surfaceEnvironment(pathOverride: String?) -> [String: String] {
         var environment = [
             "TERM": "xterm-256color",
             "COLORTERM": "truecolor",
         ]
-        if ProcessInfo.processInfo.environment["LANG"] == nil {
-            environment["LANG"] = "en_US.UTF-8"
+        environment.merge(
+            KeroCLIService.shared.terminalEnvironment,
+            uniquingKeysWith: { _, cliValue in cliValue }
+        )
+        if let pathOverride, !pathOverride.isEmpty {
+            environment["PATH"] = pathOverride
         }
+        // Locale belongs to the user's shell environment. Kero's app language
+        // must never synthesize or override LANG/LC_* for terminal processes.
         return environment
     }
 
@@ -307,18 +323,27 @@ final class TerminalSession: NSObject, nonisolated ObservableObject, nonisolated
         }
     }
 
-    /// The `sh` script every pane starts with: record the shell's PID, replay
-    /// any restored scrollback, advertise the emulator, then become the login
-    /// shell.
+    /// The `sh` script every pane starts with: record the process PID, replay
+    /// any restored scrollback, advertise the emulator, then become either the
+    /// requested argv or the user's login shell.
     private static func makeLaunchScript(
         backend: TerminalBackend,
         shellPath: String,
+        commandArguments: [String]?,
         pidFileURL: URL?,
         replayFileURL: URL?
     ) -> String {
-        var commands = ["umask 077"]
+        var commands: [String] = []
         if let pidFileURL {
-            commands.append("printf '%s\\n' \"$$\" > \(shellQuote(pidFileURL.path))")
+            // The PID file is the only thing this script creates, so the
+            // tightened mask stays inside a subshell: `umask` outlives the
+            // `exec` below, and a terminal that leaves the user's shell at 077
+            // silently makes every file they create private. `$$` keeps
+            // expanding to this shell's PID inside the subshell — the same PID
+            // `exec` hands to the shell itself.
+            commands.append(
+                "(umask 077; printf '%s\\n' \"$$\" > \(shellQuote(pidFileURL.path)))"
+            )
         }
         if let replayFileURL {
             let path = shellQuote(replayFileURL.path)
@@ -336,10 +361,18 @@ final class TerminalSession: NSObject, nonisolated ObservableObject, nonisolated
         } else {
             commands.append("unset TERM_PROGRAM_VERSION")
         }
-        commands.append("exec \(shellQuote(shellPath)) -l")
+        if let commandArguments {
+            let argv = commandArguments.map(shellQuote).joined(separator: " ")
+            // `env` resolves argv[0] against the caller's PATH. Every argument
+            // is quoted independently, so no command text is reparsed or
+            // expanded by the launch shim.
+            commands.append("exec /usr/bin/env -- \(argv)")
+        } else {
+            commands.append("exec \(shellQuote(shellPath)) -l")
+        }
         // Ghostty's macOS launcher prepends `exec -l` to a shell command.
         // Keeping the setup as one compound command means `exec -l` does not
-        // stop after the first shell builtin (`umask`).
+        // stop after the first shell builtin.
         return commands.joined(separator: "; ")
     }
 
@@ -383,7 +416,7 @@ extension TerminalSession: TerminalBackendEvents {
     func terminalDidRingBell() {
         NSSound.beep()
         guard !surface.hasEffectiveTerminalFocus else { return }
-        TerminalNotificationService.shared.post(message: "Terminal bell")
+        TerminalNotificationService.shared.post(message: String(localized: "Terminal bell"))
         if !NSApp.isActive {
             NSApp.requestUserAttention(.informationalRequest)
         }
@@ -407,6 +440,7 @@ extension TerminalSession: TerminalBackendEvents {
             lifecycle.phase = .idle
             lifecycle.lastExitCode = exitCode
             lifecycle.lastDurationNanos = reportedDuration ?? measuredDuration
+            lifecycle.completionSequence &+= 1
             commandExecutionStartedAtNanos = nil
         }
         commandLifecycle = lifecycle
@@ -465,18 +499,22 @@ extension TerminalSession: TerminalBackendEvents {
         alert.alertStyle = .warning
         switch request.kind {
         case .unsafePaste:
-            alert.messageText = "Warning: Potentially Unsafe Paste"
+            alert.messageText = String(localized: "Warning: Potentially Unsafe Paste")
             alert.informativeText =
-                "Pasting this text to the terminal may be dangerous as it looks like some commands may be executed."
+                String(localized: "Pasting this text to the terminal may be dangerous because it looks like one or more commands may execute.")
         case .programRead:
-            alert.messageText = "Authorize Clipboard Access"
+            alert.messageText = String(localized: "Authorize Clipboard Access")
             alert.informativeText =
-                "A program is attempting to read from the clipboard. The current clipboard contents are shown below."
+                String(localized: "A program is attempting to read from the clipboard. The current clipboard contents are shown below.")
         }
         alert.accessoryView = Self.clipboardPreview(request.contents)
-        alert.addButton(withTitle: request.kind == .unsafePaste ? "Paste" : "Allow")
+        alert.addButton(withTitle: request.kind == .unsafePaste
+            ? String(localized: "Paste")
+            : String(localized: "Allow"))
         let cancel = alert.addButton(
-            withTitle: request.kind == .unsafePaste ? "Cancel" : "Deny"
+            withTitle: request.kind == .unsafePaste
+                ? String(localized: "Cancel")
+                : String(localized: "Deny")
         )
         cancel.keyEquivalent = "\u{1b}"
 

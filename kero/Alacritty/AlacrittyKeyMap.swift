@@ -33,7 +33,11 @@ struct AlacrittyTerminalMode: OptionSet {
 enum AlacrittyKeyMap {
     /// Bytes for `event`, or nil when the key should fall through to AppKit
     /// (IME composition, or a shortcut Kero's menus own).
-    static func bytes(for event: NSEvent, mode: AlacrittyTerminalMode) -> [UInt8]? {
+    static func bytes(
+        for event: NSEvent,
+        mode: AlacrittyTerminalMode,
+        optionAsAlt: Bool
+    ) -> [UInt8]? {
         let flags = event.modifierFlags
         if flags.contains(.command) {
             // Match the terminal-local bindings installed for Ghostty. Other
@@ -47,9 +51,9 @@ enum AlacrittyKeyMap {
         }
 
         let control = flags.contains(.control)
-        // Kero's Ghostty panes run with `macos-option-as-alt`, so Option is a
-        // Meta prefix here too rather than composing accented characters.
-        let alt = flags.contains(.option)
+        // When Option-as-Alt is disabled, leave Option-modified text to
+        // NSTextInputClient so the active macOS input source can compose it.
+        let alt = optionAsAlt && flags.contains(.option)
         let shift = flags.contains(.shift)
 
         if let special = specialKey(event, mode: mode, shift: shift, control: control, alt: alt) {
@@ -65,13 +69,21 @@ enum AlacrittyKeyMap {
             }
         }
 
-        // Plain text: take the modified characters so Shift and dead keys have
-        // already been applied. Some input sources synthesize committed
-        // Unicode with no `charactersIgnoringModifiers`; only Ctrl encoding
-        // actually needs that second representation.
-        guard let typed = event.characters, !typed.isEmpty else { return nil }
-        let payload = Array(typed.utf8)
-        return alt ? [0x1b] + payload : payload
+        // Option-as-Alt: ESC-prefix the base character. Don't fall through to
+        // the IME — Option is a Meta modifier here, matching Ghostty's
+        // `macos-option-as-alt`.
+        if alt {
+            guard let typed = event.charactersIgnoringModifiers, !typed.isEmpty
+            else { return nil }
+            return [0x1b] + Array(typed.utf8)
+        }
+
+        // Unmodified (and Shift-only) text must reach `NSTextInputClient` so
+        // CJK IMEs can compose. Writing `event.characters` straight to the
+        // PTY starves composition: Latin keycaps still report as "n"/"i" while
+        // the input source is building 你. Committed text arrives via
+        // `insertText`.
+        return nil
     }
 
     /// Ctrl-<key> for the range a terminal encodes as a C0 control code.

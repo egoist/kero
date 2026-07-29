@@ -51,6 +51,9 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
     private var lastPresentedSurface: IOSurface?
     private var pendingEvents: [(kind: UInt32, payload: Data)] = []
     private var trackingArea: NSTrackingArea?
+    private var modifierMonitor: Any?
+    private var isPointerInside = false
+    private var isCommandPressed = false
     private var reportingMouseButton = false
     private var lastReportedFocus: Bool?
     private var cursorTimer: Timer?
@@ -63,6 +66,15 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
     private var scrollAccumulator: CGFloat = 0
     private var selectionAnchor: (line: Int, column: Int)?
     private let findState = AlacrittyFind()
+    private var hoveredURL: URLHit?
+
+    private struct URLHit: Equatable {
+        let value: String
+        let startLine: Int
+        let startColumn: Int
+        let endLine: Int
+        let endColumn: Int
+    }
 
     /// Process metadata is a fallback until a shell reports OSC 7. It keeps
     /// ordinary local shells useful without integration; once OSC arrives it
@@ -135,6 +147,9 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
     deinit {
         directoryTimer?.invalidate()
         cursorTimer?.invalidate()
+        if let modifierMonitor {
+            NSEvent.removeMonitor(modifierMonitor)
+        }
         NotificationCenter.default.removeObserver(self)
         AlacrittyRegistry.shared.unregister(token)
         if let handle { kero_alacritty_free(handle) }
@@ -338,6 +353,10 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
         directoryTimer = nil
         cursorTimer?.invalidate()
         cursorTimer = nil
+        isPointerInside = false
+        isCommandPressed = false
+        stopModifierMonitor()
+        updateHoveredURL(nil)
         guard let handle else { return }
         self.handle = nil
         kero_alacritty_free(handle)
@@ -358,6 +377,9 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
             updateActiveTimers()
             updateFocusReport()
         } else {
+            isPointerInside = false
+            stopModifierMonitor()
+            updateHoveredURL(nil)
             // Drop the glyph atlas and row/instance buffers while parked,
             // matching Ghostty's occluded-surface GPU memory behavior.
             metalRenderer = nil
@@ -542,6 +564,7 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
         if !waitUntilCompleted, kero_alacritty_synchronized_update(handle) {
             return true
         }
+        revalidateURLHoverForRender()
         if metalRenderer == nil, let metalDevice {
             metalRenderer = TerminalMetalRenderer(device: metalDevice)
         }
@@ -582,9 +605,13 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
             width: size.width * scale, height: size.height * scale
         )
         guard let drawable = metalLayer.nextDrawable() else { return false }
+        // Keep the IOSurface before render schedules this drawable for
+        // presentation. Accessing drawable.texture afterward is invalid.
+        let drawableSurface = drawable.texture.iosurface
 
         var snapshot = KeroSnapshot()
         kero_alacritty_snapshot(handle, &snapshot)
+        applyHoveredURLUnderline(to: &snapshot)
         updateKittyGraphics(handle: handle)
         updateMarkedTextOverlay(snapshot: snapshot)
         updateCursorBlinking(snapshot.cursor_blinking)
@@ -630,7 +657,7 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
             waitUntilCompleted: waitUntilCompleted
         )
         if submitted {
-            lastPresentedSurface = drawable.texture.iosurface
+            lastPresentedSurface = drawableSurface
         }
         if submitted, waitUntilCompleted {
             lastPresentedSize = size
@@ -640,6 +667,36 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
         }
         AlacrittyRenderStats.shared.rebuilt(rows: dirtyRows?.count ?? snapshot.rows)
         return submitted
+    }
+
+    /// Snapshot cells are rebuilt by the bridge for every frame, so adding the
+    /// transient hover underline here cannot leak into terminal state.
+    private func applyHoveredURLUnderline(to snapshot: inout KeroSnapshot) {
+        guard let hoveredURL,
+              snapshot.columns > 0,
+              snapshot.rows > 0,
+              let cells = snapshot.cells
+        else { return }
+
+        let mutableCells = UnsafeMutablePointer(mutating: cells)
+        let firstRow = max(hoveredURL.startLine, 0)
+        let lastRow = min(hoveredURL.endLine, snapshot.rows - 1)
+        guard firstRow <= lastRow else { return }
+
+        for row in firstRow...lastRow {
+            let firstColumn = row == hoveredURL.startLine ? hoveredURL.startColumn : 0
+            let lastColumn = row == hoveredURL.endLine
+                ? hoveredURL.endColumn : snapshot.columns - 1
+            let clampedFirst = max(firstColumn, 0)
+            let clampedLast = min(lastColumn, snapshot.columns - 1)
+            guard clampedFirst <= clampedLast else { continue }
+
+            for column in clampedFirst...clampedLast {
+                mutableCells[row * snapshot.columns + column].flags |= UInt16(
+                    KERO_CELL_UNDERLINE
+                )
+            }
+        }
     }
 
     private func updateKittyGraphics(handle: OpaquePointer) {
@@ -825,6 +882,9 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
         switch kind {
         case KERO_EVENT_WAKEUP:
             updateFocusReport()
+            if isPointerInside, isCommandPressed {
+                refreshURLHover(modifierFlags: NSEvent.modifierFlags)
+            }
             // Output must not restart the host cursor timer. Animated TUIs can
             // wake the PTY many times per second even while the user is idle.
             if isSurfaceVisible {
@@ -849,7 +909,7 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
         case KERO_EVENT_CLIPBOARD_LOAD:
             guard payload.count == MemoryLayout<UInt64>.size else { return }
             var requestID: UInt64 = 0
-            withUnsafeMutableBytes(of: &requestID) { bytes in
+            _ = withUnsafeMutableBytes(of: &requestID) { bytes in
                 payload.copyBytes(to: bytes)
             }
             requestID = UInt64(littleEndian: requestID)
@@ -1108,6 +1168,8 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
     }
 
     @objc private func applicationWillResignActive(_ notification: Notification) {
+        isCommandPressed = false
+        updateHoveredURL(nil)
         // Once the app is inactive, CAMetalLayer may stop vending drawables.
         // Capture the steady inactive cursor while the active drawable pool is
         // still available, then keep that IOSurface behind the other app.
@@ -1122,6 +1184,7 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
             self.updateActiveTimers()
             self.updateFocusReport()
             self.updateBackingLayerActivity()
+            self.refreshURLHover(modifierFlags: NSEvent.modifierFlags)
             if self.shouldKeepMetalLayerActive {
                 self.scheduleRender(force: true)
             }
@@ -1167,12 +1230,31 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
                 break
             }
         }
-        if let bytes = AlacrittyKeyMap.bytes(for: event, mode: terminalMode) {
+
+        // While an IME is composing, every key belongs to the input context —
+        // including arrows, Enter, and Escape that select or cancel.
+        if hasMarkedText() {
+            _ = inputContext?.handleEvent(event)
+            return
+        }
+
+        // Ctrl / enabled Option-as-Alt / special keys encode as terminal
+        // sequences. Text returns nil from the key map so macOS input sources
+        // can compose before committed Unicode reaches `insertText`.
+        if let bytes = AlacrittyKeyMap.bytes(
+            for: event,
+            mode: terminalMode,
+            optionAsAlt: AppSettings.shared.macosOptionAsAlt
+        ) {
             write(bytes)
             return
         }
-        // Anything left is either IME composition or a key Kero's menus own;
-        // the input client below turns the former into text.
+
+        // First key of a composition, committed Unicode from an input source,
+        // or a shortcut Kero's menus own.
+        if inputContext?.handleEvent(event) == true {
+            return
+        }
         interpretKeyEvents([event])
     }
 
@@ -1180,8 +1262,8 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
         focusForInteraction()
         guard let handle else { return }
         if event.modifierFlags.contains(.command),
-           let url = hyperlink(at: gridPoint(for: event)) {
-            events?.terminalDidRequestOpenURL(url)
+           let hit = url(at: gridPoint(for: event)) {
+            events?.terminalDidRequestOpenURL(hit.value)
             return
         }
         if shouldReportMouse(event) {
@@ -1238,22 +1320,128 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
         self.trackingArea = trackingArea
     }
 
+    override func mouseEntered(with event: NSEvent) {
+        isPointerInside = true
+        startModifierMonitor()
+        updateURLHover(
+            at: convert(event.locationInWindow, from: nil),
+            modifierFlags: event.modifierFlags
+        )
+    }
+
     override func mouseMoved(with event: NSEvent) {
-        let point = gridPoint(for: event)
-        if hyperlink(at: point) != nil {
-            NSCursor.pointingHand.set()
-        } else {
-            NSCursor.iBeam.set()
-        }
+        isPointerInside = true
+        startModifierMonitor()
+        updateURLHover(
+            at: convert(event.locationInWindow, from: nil),
+            modifierFlags: event.modifierFlags
+        )
         if terminalMode.contains(.mouseMotion), shouldReportMouse(event) {
             sendMouse(code: 35, event: event, released: false)
         }
     }
 
     override func mouseExited(with event: NSEvent) {
+        isPointerInside = false
+        isCommandPressed = false
+        stopModifierMonitor()
+        updateHoveredURL(nil)
         // SwiftUI chrome does not necessarily install a cursor rect, so clear
         // the terminal's explicitly-set text cursor when leaving the surface.
         NSCursor.arrow.set()
+    }
+
+    private func startModifierMonitor() {
+        guard modifierMonitor == nil else { return }
+        modifierMonitor = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) {
+            [weak self] event in
+            MainActor.assumeIsolated {
+                self?.refreshURLHover(modifierFlags: event.modifierFlags)
+            }
+            return event
+        }
+    }
+
+    private func stopModifierMonitor() {
+        guard let modifierMonitor else { return }
+        NSEvent.removeMonitor(modifierMonitor)
+        self.modifierMonitor = nil
+    }
+
+    private func refreshURLHover(modifierFlags: NSEvent.ModifierFlags) {
+        guard let window, window.isKeyWindow, isSurfaceVisible else {
+            isCommandPressed = false
+            updateHoveredURL(nil)
+            return
+        }
+        let local = convert(window.mouseLocationOutsideOfEventStream, from: nil)
+        isPointerInside = bounds.contains(local)
+        guard isPointerInside else {
+            isCommandPressed = false
+            stopModifierMonitor()
+            updateHoveredURL(nil)
+            return
+        }
+        startModifierMonitor()
+        updateURLHover(at: local, modifierFlags: modifierFlags)
+    }
+
+    private func updateURLHover(
+        at localPoint: NSPoint,
+        modifierFlags: NSEvent.ModifierFlags
+    ) {
+        isCommandPressed = modifierFlags.contains(.command)
+        guard isCommandPressed else {
+            updateHoveredURL(nil)
+            NSCursor.iBeam.set()
+            return
+        }
+
+        let hit = url(at: gridPoint(at: localPoint))
+        updateHoveredURL(hit)
+        (hit == nil ? NSCursor.iBeam : NSCursor.pointingHand).set()
+    }
+
+    private func updateHoveredURL(_ hit: URLHit?) {
+        guard hit != hoveredURL else { return }
+        hoveredURL = hit
+        scheduleRender(force: true)
+    }
+
+    /// Output, scrollback, and resizes can move text without moving the
+    /// pointer. Revalidate before a frame so a cached underline never remains
+    /// attached to cells that are no longer the hovered URL.
+    private func revalidateURLHoverForRender() {
+        guard isPointerInside,
+              isCommandPressed,
+              NSApp.isActive,
+              let window,
+              window.isKeyWindow
+        else {
+            if hoveredURL != nil {
+                hoveredURL = nil
+                needsUnconditionalRedraw = true
+            }
+            return
+        }
+
+        let local = convert(window.mouseLocationOutsideOfEventStream, from: nil)
+        guard bounds.contains(local) else {
+            isPointerInside = false
+            isCommandPressed = false
+            if hoveredURL != nil {
+                hoveredURL = nil
+                needsUnconditionalRedraw = true
+            }
+            return
+        }
+
+        let hit = url(at: gridPoint(at: local))
+        if hit != hoveredURL {
+            hoveredURL = hit
+            needsUnconditionalRedraw = true
+        }
+        (hit == nil ? NSCursor.iBeam : NSCursor.pointingHand).set()
     }
 
     override func scrollWheel(with event: NSEvent) {
@@ -1290,7 +1478,10 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
     }
 
     private func gridPoint(for event: NSEvent) -> (line: Int, column: Int, rightHalf: Bool) {
-        let local = convert(event.locationInWindow, from: nil)
+        gridPoint(at: convert(event.locationInWindow, from: nil))
+    }
+
+    private func gridPoint(at local: NSPoint) -> (line: Int, column: Int, rightHalf: Bool) {
         let x = local.x - Self.padding.x
         // The view is unflipped, so row 0 is at the top of the content box.
         let y = bounds.maxY - Self.padding.y - local.y
@@ -1338,23 +1529,30 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
                       UInt8(legacyCode), UInt8(legacyX), UInt8(legacyY)])
     }
 
-    private func hyperlink(
+    private func url(
         at point: (line: Int, column: Int, rightHalf: Bool)
-    ) -> String? {
+    ) -> URLHit? {
         guard let handle else { return nil }
-        let needed = kero_alacritty_hyperlink_at(
-            handle, Int32(point.line), point.column, nil, 0
+        let needed = kero_alacritty_url_at(
+            handle, Int32(point.line), point.column, nil, nil, 0
         )
         guard needed > 0 else { return nil }
         var buffer = [UInt8](repeating: 0, count: needed)
+        var range = KeroURLRange()
         let written = buffer.withUnsafeMutableBufferPointer { pointer in
-            kero_alacritty_hyperlink_at(
+            kero_alacritty_url_at(
                 handle, Int32(point.line), point.column,
-                pointer.baseAddress, pointer.count
+                &range, pointer.baseAddress, pointer.count
             )
         }
-        guard written > 0 else { return nil }
-        return String(decoding: buffer[..<written], as: UTF8.self)
+        guard written > 0, written <= buffer.count else { return nil }
+        return URLHit(
+            value: String(decoding: buffer[..<written], as: UTF8.self),
+            startLine: Int(range.start_line),
+            startColumn: Int(range.start_column),
+            endLine: Int(range.end_line),
+            endColumn: Int(range.end_column)
+        )
     }
 
     // MARK: - Editing commands
@@ -1423,20 +1621,33 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
     /// Ghostty backend rather than AppKit's default text menu.
     override func rightMouseDown(with event: NSEvent) {
         focusForInteraction()
-        NSMenu.popUpContextMenu(contextMenu(), with: event, for: self)
+        NSMenu.popUpContextMenu(
+            contextMenu(initialURL: browserInitialURL(for: event)),
+            with: event,
+            for: self
+        )
     }
 
     override func menu(for event: NSEvent) -> NSMenu? {
         focusForInteraction()
-        return contextMenu()
+        return contextMenu(initialURL: browserInitialURL(for: event))
     }
 
-    private func contextMenu() -> NSMenu {
+    private func browserInitialURL(for event: NSEvent) -> String? {
+        guard event.modifierFlags.contains(.command) else { return nil }
+        return url(at: gridPoint(for: event))?.value
+    }
+
+    private func contextMenu(initialURL: String?) -> NSMenu {
         let menu = NSMenu()
-        menu.addItem(contextItem("Copy", #selector(copy(_:))))
-        menu.addItem(contextItem("Paste", #selector(paste(_:))))
+        menu.addItem(contextItem(String(localized: "Copy"), #selector(copy(_:))))
+        menu.addItem(contextItem(String(localized: "Paste"), #selector(paste(_:))))
         menu.addItem(.separator())
-        menu.addItem(contextItem("Select All", #selector(selectAll(_:))))
+        menu.addItem(contextItem(String(localized: "Select All"), #selector(selectAll(_:))))
+        menu.addItem(.separator())
+        for item in splitTarget.browserMenuItems(initialURL: initialURL) {
+            menu.addItem(item)
+        }
         menu.addItem(.separator())
         for item in splitTarget.menuItems() { menu.addItem(item) }
         return menu
@@ -1519,7 +1730,9 @@ extension AlacrittyTerminalView: NSTextInputClient {
     }
 
     func selectedRange() -> NSRange {
-        NSRange(location: NSNotFound, length: 0)
+        // Insertion point with no selection. `NSNotFound` makes some IMEs
+        // refuse to begin composition against this client.
+        NSRange(location: 0, length: 0)
     }
 
     func markedRange() -> NSRange {

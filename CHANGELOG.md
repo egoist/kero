@@ -16,8 +16,43 @@ the original feature bullet instead of adding separate entries for them.
 
 ## [unrelease]
 
+- Settings font preview now reflects “Thicken font strokes”
+- Prevent terminal tabs from crashing after switching sessions or resizing during a partial redraw
+- Files created in a terminal now use your system's default permissions instead of being made private to your user
+
+## [0.1.33]
+
+- Fix: never set `LANG` env for the terminal session
+
+## [0.1.32]
+
+- Add native English, Simplified Chinese, and Japanese localization throughout the app, with a language picker in Settings
+- Search and open files from the project directory in the command palette
+- Open native browser tabs and split panes from the command palette or terminal/editor context menus, with a combined address/search field, navigation controls, page sharing, and restored URLs
+
+## [0.1.31]
+
+- File previews now refresh after files are changed outside Kero
+- Option-key characters from macOS input sources such as Polish Pro now work in terminals; users who prefer terminal Meta bindings can opt in under Settings → Terminal
+
+## [0.1.30]
+
+- Fix Chinese IME under Alacritty backend
+- Reduce hidden Ghostty tab renderer memory
+
+## [0.1.29]
+
+- Add `kero` command: run `kero` in any Kero terminal to create a project in the current directory, optionally with an argv to run directly (`kero vim ~/foo.js`); `kero +themes` browses themes with a live app-wide preview and saves the selection on Return
+- The Git panel now refreshes after commands and when Kero regains focus instead of polling continuously in the background
+
+## [0.1.28]
+
+- Tweak some UI colors
+
+## [0.1.27]
+
 - Choose which terminal emulator drives new panes in Settings → Terminal → Backend. Ghostty remains the default, with a new Alacritty backend
-- Settings font preview now reflects “Thicken font strokes”: it draws through AppKit with CoreText font smoothing, matching what Ghostty does in the terminal
+- Configure the left and right sidebar font size in Settings
 
 ## [0.1.26]
 

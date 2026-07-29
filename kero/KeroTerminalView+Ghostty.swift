@@ -35,8 +35,8 @@ extension KeroTerminalView {
         applyAppearance()
     }
 
-    /// Reconfigures libghostty in place when either appearance or terminal
-    /// font settings change. Ghostty also uses these values for OSC 10/11
+    /// Reconfigures libghostty in place when appearance, font, or terminal
+    /// input settings change. Ghostty also uses these values for OSC 10/11
     /// queries, so reported defaults always match the visible theme.
     func applyAppearance() {
         guard let ghosttyController else { return }
@@ -120,7 +120,13 @@ extension KeroTerminalView {
             // least that many normally sized rows while keeping synchronous
             // history exports bounded.
             builder.withCustom("scrollback-limit", "4194304")
-            builder.withCustom("macos-option-as-alt", "true")
+            // Keep macOS text composition available by default so input
+            // sources such as Polish Pro can produce Option-key characters.
+            // Users who rely on terminal Meta bindings can opt back in.
+            builder.withCustom(
+                "macos-option-as-alt",
+                settings.macosOptionAsAlt ? "true" : "false"
+            )
             builder.withCustom("scrollbar", "never")
             // Terminal-program clipboard access via OSC 52, matching the
             // Ghostty app defaults: reads prompt the user per request
@@ -202,6 +208,12 @@ extension KeroTerminalView: TerminalSurfaceOpenURLDelegate {
         // channel for a file path; that one is not a URL to open.
         if consumeHistoryExportURL(url, kind: kind) { return }
         events?.terminalDidRequestOpenURL(url)
+    }
+}
+
+extension KeroTerminalView: TerminalSurfaceHoverLinkDelegate {
+    func terminalDidUpdateHoverLink(_ url: String?) {
+        hoveredLink = url
     }
 }
 

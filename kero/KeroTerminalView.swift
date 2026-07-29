@@ -29,6 +29,9 @@ final class KeroTerminalView: AppTerminalView, TerminalBackendSurface {
     var launchCommand = ""
     /// Latest scroll report, so a scrollbar drag can be mapped back onto a row.
     var lastScroll: TerminalScrollPosition?
+    /// Ghostty reports the recognized link under the pointer as hover state.
+    /// The Command-right-click menu uses it to seed a new browser.
+    var hoveredLink: String?
 
     private let progressBar = KeroTerminalProgressBarView(frame: .zero)
     private var isCapturingHistoryExport = false
@@ -164,22 +167,34 @@ final class KeroTerminalView: AppTerminalView, TerminalBackendSurface {
     /// matches Kero's existing UI, including focusing before Paste.
     override func rightMouseDown(with event: NSEvent) {
         focusForInteraction()
-        NSMenu.popUpContextMenu(contextMenu(), with: event, for: self)
+        NSMenu.popUpContextMenu(
+            contextMenu(initialURL: browserInitialURL(for: event)),
+            with: event,
+            for: self
+        )
     }
 
     override func rightMouseUp(with event: NSEvent) {}
 
     override func menu(for event: NSEvent) -> NSMenu? {
         focusForInteraction()
-        return contextMenu()
+        return contextMenu(initialURL: browserInitialURL(for: event))
     }
 
-    private func contextMenu() -> NSMenu {
+    private func browserInitialURL(for event: NSEvent) -> String? {
+        event.modifierFlags.contains(.command) ? hoveredLink : nil
+    }
+
+    private func contextMenu(initialURL: String?) -> NSMenu {
         let menu = NSMenu()
-        menu.addItem(contextItem("Copy", #selector(copy(_:))))
-        menu.addItem(contextItem("Paste", #selector(NSText.paste(_:))))
+        menu.addItem(contextItem(String(localized: "Copy"), #selector(copy(_:))))
+        menu.addItem(contextItem(String(localized: "Paste"), #selector(NSText.paste(_:))))
         menu.addItem(.separator())
-        menu.addItem(contextItem("Select All", #selector(selectAll(_:))))
+        menu.addItem(contextItem(String(localized: "Select All"), #selector(selectAll(_:))))
+        menu.addItem(.separator())
+        for item in splitTarget.browserMenuItems(initialURL: initialURL) {
+            menu.addItem(item)
+        }
         menu.addItem(.separator())
         for item in splitTarget.menuItems() { menu.addItem(item) }
         return menu
@@ -403,13 +418,29 @@ final class KeroTerminalProgressBarView: NSView {
 /// validation so these actions remain enabled even when there is no selection.
 final class SplitMenuTarget: NSObject {
     var onSplit: ((PaneDropEdge) -> Void)?
+    var onNewBrowserTab: ((String?) -> Void)?
+    var onNewBrowserPane: ((String?) -> Void)?
+
+    func browserMenuItems(initialURL: String? = nil) -> [NSMenuItem] {
+        let tabItem = item(
+            String(localized: "New Browser Tab"),
+            #selector(newBrowserTab(_:))
+        )
+        tabItem.representedObject = initialURL
+        let paneItem = item(
+            String(localized: "New Browser Pane"),
+            #selector(newBrowserPane(_:))
+        )
+        paneItem.representedObject = initialURL
+        return [tabItem, paneItem]
+    }
 
     func menuItems() -> [NSMenuItem] {
         [
-            item("Split Right", #selector(splitRight)),
-            item("Split Left", #selector(splitLeft)),
-            item("Split Up", #selector(splitUp)),
-            item("Split Down", #selector(splitDown)),
+            item(String(localized: "Split Right"), #selector(splitRight)),
+            item(String(localized: "Split Left"), #selector(splitLeft)),
+            item(String(localized: "Split Up"), #selector(splitUp)),
+            item(String(localized: "Split Down"), #selector(splitDown)),
         ]
     }
 
@@ -423,4 +454,11 @@ final class SplitMenuTarget: NSObject {
     @objc private func splitLeft() { onSplit?(.left) }
     @objc private func splitUp() { onSplit?(.top) }
     @objc private func splitDown() { onSplit?(.bottom) }
+    @objc private func newBrowserTab(_ sender: NSMenuItem) {
+        onNewBrowserTab?(sender.representedObject as? String)
+    }
+
+    @objc private func newBrowserPane(_ sender: NSMenuItem) {
+        onNewBrowserPane?(sender.representedObject as? String)
+    }
 }

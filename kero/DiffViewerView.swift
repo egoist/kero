@@ -79,7 +79,9 @@ final class DiffTab: nonisolated ObservableObject, nonisolated Identifiable {
     }
 
     var title: String {
-        staged ? name + " (Staged)" : name
+        staged
+            ? String(localized: "\(name) (Staged)", comment: "Tab title for the staged diff of a file.")
+            : name
     }
 
     func reload() {
@@ -149,10 +151,10 @@ final class DiffTab: nonisolated ObservableObject, nonisolated Identifiable {
             case .content(let content):
                 return content
             case .binary:
-                error = "Binary file"
+                error = String(localized: "Binary file")
                 return ""
             case .tooLarge:
-                error = "File is too large to diff"
+                error = String(localized: "File is too large to diff")
                 return ""
             }
         }
@@ -256,7 +258,7 @@ final class DiffTab: nonisolated ObservableObject, nonisolated Identifiable {
         let fm = FileManager.default
         if let destination = try? fm.destinationOfSymbolicLink(atPath: url.path) {
             guard destination.utf8.count <= maxBytes else {
-                error = "File is too large to diff"
+                error = String(localized: "File is too large to diff")
                 return ""
             }
             return destination
@@ -269,7 +271,7 @@ final class DiffTab: nonisolated ObservableObject, nonisolated Identifiable {
             defer { try? handle.close() }
             let initialSize = try handle.seekToEnd()
             guard initialSize <= UInt64(maxBytes) else {
-                error = "File is too large to diff"
+                error = String(localized: "File is too large to diff")
                 return ""
             }
             try handle.seek(toOffset: 0)
@@ -284,13 +286,13 @@ final class DiffTab: nonisolated ObservableObject, nonisolated Identifiable {
             }
             let finalSize = try handle.seekToEnd()
             guard finalSize <= UInt64(maxBytes) else {
-                error = "File is too large to diff"
+                error = String(localized: "File is too large to diff")
                 return ""
             }
             guard !data.contains(0),
                   let text = String(data: data, encoding: .utf8)
             else {
-                error = "Binary file"
+                error = String(localized: "Binary file")
                 return ""
             }
             return text
@@ -299,7 +301,10 @@ final class DiffTab: nonisolated ObservableObject, nonisolated Identifiable {
             // Deleted from the worktree: an empty "after" side is the diff.
             return ""
         } catch let fileError {
-            error = "Unable to read file: \(fileError.localizedDescription)"
+            error = String(
+                localized: "Unable to read file: \(fileError.localizedDescription)",
+                comment: "Diff error followed by a system-provided error description."
+            )
             return ""
         }
     }
@@ -445,10 +450,10 @@ struct DiffViewerView: View {
                     } else if diff.isUnmerged {
                         placeholder(
                             icon: "arrow.triangle.merge",
-                            text: "Conflict is still unresolved"
+                            text: String(localized: "Conflict is still unresolved")
                         )
                     } else {
-                        placeholder(icon: "checkmark.circle", text: "No changes")
+                        placeholder(icon: "checkmark.circle", text: String(localized: "No changes"))
                     }
                 } else {
                     VStack(spacing: 0) {
@@ -504,7 +509,7 @@ struct DiffViewerView: View {
             Spacer(minLength: 0)
             Picker("", selection: $web.diffStyle) {
                 ForEach(DiffStyle.allCases) { style in
-                    Text(style.displayName).tag(style)
+                    Text(verbatim: localizedDiffStyle(style)).tag(style)
                 }
             }
             .pickerStyle(.segmented)
@@ -533,6 +538,17 @@ struct DiffViewerView: View {
                 .padding(.horizontal, 24)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func localizedDiffStyle(_ style: DiffStyle) -> String {
+        switch style {
+        case .unified:
+            return String(localized: "Unified", comment: "A single-column diff layout.")
+        case .split:
+            return String(localized: "Split", comment: "A side-by-side diff layout.")
+        @unknown default:
+            return style.displayName
+        }
     }
 }
 

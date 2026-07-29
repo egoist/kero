@@ -1,0 +1,54 @@
+{
+  "sourceLanguage": "en",
+  "strings": {
+    "New Kero Debug Project Here": {
+      "comment": "Finder Services menu item used by debug builds.",
+      "extractionState": "stale",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New Kero Debug Project Here"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ここに新規Kero Debugプロジェクトを作成"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在此处新建 Kero Debug 项目"
+          }
+        }
+      }
+    },
+    "New Kero Project Here": {
+      "comment": "Finder Services menu item used by release builds.",
+      "extractionState": "stale",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New Kero Project Here"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ここに新規Keroプロジェクトを作成"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在此处新建 Kero 项目"
+          }
+        }
+      }
+    }
+  },
+  "version": "1.0"
+}

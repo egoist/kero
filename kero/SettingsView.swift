@@ -11,6 +11,8 @@ import SwiftUI
 struct SettingsView: View {
     @ObservedObject private var settings = AppSettings.shared
     @ObservedObject private var updater = Updater.shared
+    @State private var relaunchError = ""
+    @State private var isShowingRelaunchError = false
 
     /// Installed fixed-pitch families (bundled default first).
     private let families = TerminalFont.selectableFamilies()
@@ -29,6 +31,24 @@ struct SettingsView: View {
                     Text("Theme")
                     Spacer()
                     ThemePicker(selection: $settings.theme)
+                }
+
+                Picker("Language", selection: $settings.language) {
+                    ForEach(AppLanguage.allCases) { language in
+                        Text(verbatim: language.title).tag(language)
+                    }
+                }
+
+                if settings.languageRequiresRelaunch {
+                    HStack(alignment: .firstTextBaseline) {
+                        Text("Relaunch Kero to apply the language change.")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Button("Relaunch Kero") {
+                            relaunch()
+                        }
+                    }
                 }
             }
 
@@ -78,12 +98,46 @@ struct SettingsView: View {
                 }
             }
 
+            Section("Sidebar") {
+                HStack {
+                    Text("Font size")
+                    Slider(
+                        value: $settings.sidebarFontSize,
+                        in: AppSettings.sidebarFontSizeRange,
+                        step: 1
+                    )
+                    .accessibilityLabel("Sidebar font size")
+                    Text("\(Int(settings.sidebarFontSize)) pt")
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                        .frame(width: 40, alignment: .trailing)
+                    Stepper(
+                        "",
+                        value: $settings.sidebarFontSize,
+                        in: AppSettings.sidebarFontSizeRange,
+                        step: 1
+                    )
+                    .labelsHidden()
+                    .accessibilityLabel("Sidebar font size")
+                }
+            }
+
             Section("Preview") {
                 // SwiftUI Text cannot show Ghostty's font-thicken — that flag
                 // only affects CoreText glyph rasterization — so draw through
                 // AppKit with shouldSmoothFonts matching the toggle.
                 FontThickenPreview(font: previewFont, thicken: settings.fontThicken)
                     .padding(.vertical, 4)
+                    // NSView drawing has no semantic children of its own.
+                    // Preserve the sample text that the previous SwiftUI Text
+                    // views exposed to VoiceOver.
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(Text(verbatim: """
+                    kero ❯ echo "the quick brown fox" 0O 1lI
+                    \u{E0A0} main \u{E0B0} ~/dev/kero \u{E711} \u{F024B} \u{F0A7D}
+                    bold — permission denied (os error 13)
+                    """))
+                    .accessibilityAddTraits(.isStaticText)
             }
 
             Section("Terminal") {
@@ -105,6 +159,14 @@ struct SettingsView: View {
 
                 Toggle("Thicken font strokes", isOn: $settings.fontThicken)
                 Text("Renders terminal text with slightly heavier strokes, like classic macOS font smoothing.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+
+                Toggle(
+                    "Use Option as Alt/Meta",
+                    isOn: $settings.macosOptionAsAlt
+                )
+                Text("Sends Option-key combinations to terminal programs as Meta shortcuts instead of macOS text input.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
 
@@ -141,7 +203,10 @@ struct SettingsView: View {
                     }
                     .disabled(settings.fontFamily.isEmpty
                         && settings.fontSize == AppSettings.defaultFontSize
+                        && settings.sidebarFontSize == AppSettings.defaultSidebarFontSize
                         && !settings.fontThicken
+                        && !settings.macosOptionAsAlt
+                        && settings.language == .system
                         && settings.theme == .system
                         && settings.themeDark == Theme.defaultDarkThemeName
                         && settings.themeLight == Theme.defaultLightThemeName
@@ -153,10 +218,39 @@ struct SettingsView: View {
         }
         .formStyle(.grouped)
         .frame(width: 440)
+        .alert(
+            "Couldn’t Relaunch Kero",
+            isPresented: $isShowingRelaunchError
+        ) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(verbatim: relaunchError)
+        }
     }
 
     private var previewFont: NSFont {
         TerminalFont.resolve(family: settings.fontFamily, size: CGFloat(settings.fontSize))
+    }
+
+    private func relaunch() {
+        TerminalManager.saveForRelaunch()
+
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.createsNewApplicationInstance = true
+        configuration.activates = true
+        NSWorkspace.shared.openApplication(
+            at: Bundle.main.bundleURL,
+            configuration: configuration
+        ) { _, error in
+            DispatchQueue.main.async {
+                if let error {
+                    relaunchError = error.localizedDescription
+                    isShowingRelaunchError = true
+                } else {
+                    NSApp.terminate(nil)
+                }
+            }
+        }
     }
 
     /// The compact catalog of popular themes shared by both terminal backends,
@@ -226,7 +320,7 @@ private final class FontThickenPreviewView: NSView {
         let lineHeight = ceil(previewFont.boundingRectForFont.height)
         for (text, bold) in lines {
             let font = bold
-                ? (NSFontManager.shared.convert(previewFont, toHaveTrait: .boldFontMask) ?? previewFont)
+                ? NSFontManager.shared.convert(previewFont, toHaveTrait: .boldFontMask)
                 : previewFont
             let attrs: [NSAttributedString.Key: Any] = [
                 .font: font,
@@ -388,6 +482,9 @@ private struct TerminalBackendHighlightRow: View {
     let highlight: TerminalBackendHighlight
 
     var body: some View {
+        let availability = highlight.isPositive
+            ? String(localized: "Available", comment: "Accessibility description for a supported terminal feature.")
+            : String(localized: "Unavailable", comment: "Accessibility description for an unsupported terminal feature.")
         HStack(spacing: 4) {
             Image(systemName: highlight.isPositive
                 ? "checkmark.circle.fill"
@@ -400,7 +497,10 @@ private struct TerminalBackendHighlightRow: View {
         .font(.caption)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
-            "\(highlight.isPositive ? "Available" : "Unavailable"): \(highlight.title)"
+            String(
+                localized: "\(availability): \(highlight.title)",
+                comment: "Accessibility label for a terminal feature and whether it is available."
+            )
         )
     }
 }

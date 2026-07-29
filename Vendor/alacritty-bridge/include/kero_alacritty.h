@@ -78,6 +78,15 @@ typedef struct {
 } KeroCell;
 
 typedef struct {
+  /// Inclusive viewport-relative cell bounds. Lines can be outside the
+  /// viewport when a soft-wrapped URL begins or ends in scrollback.
+  int32_t start_line;
+  size_t start_column;
+  int32_t end_line;
+  size_t end_column;
+} KeroURLRange;
+
+typedef struct {
   uint32_t palette[256];
   uint32_t foreground;
   uint32_t background;
@@ -201,10 +210,11 @@ size_t kero_alacritty_selection_text(KeroTerminal *handle, uint8_t *buffer, size
 size_t kero_alacritty_buffer_text(KeroTerminal *handle, bool scrollback_only, uint8_t *buffer,
                                   size_t capacity);
 
-/// OSC 8 hyperlink under one viewport cell, using the same length protocol as
-/// selection text. Returns zero when the cell has no hyperlink.
-size_t kero_alacritty_hyperlink_at(KeroTerminal *handle, int32_t line, size_t column,
-                                   uint8_t *buffer, size_t capacity);
+/// OSC 8 hyperlink or recognized plain-text URL under one viewport cell. Also
+/// writes its inclusive cell bounds when `range` is non-NULL. The URL uses the
+/// same length protocol as selection text; zero means neither kind was found.
+size_t kero_alacritty_url_at(KeroTerminal *handle, int32_t line, size_t column,
+                             KeroURLRange *range, uint8_t *buffer, size_t capacity);
 
 /// Counts every literal match of `needle` in screen and scrollback. Regex
 /// metacharacters are escaped, not interpreted.

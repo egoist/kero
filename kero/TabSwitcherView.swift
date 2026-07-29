@@ -491,10 +491,10 @@ private struct TabSwitcherCard: View {
                 }
 
             HStack(spacing: 8) {
-                Image(systemName: tab.focusedContent?.systemImage ?? "rectangle")
+                titleIcon
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(.primary.opacity(isHighlighted ? 1 : 0.82))
-                Text(tab.displayTitle ?? "Tab \(index + 1)")
+                Text(verbatim: tab.displayTitle ?? String(localized: "Tab \(index + 1)"))
                     .font(.system(
                         size: 14,
                         weight: .medium
@@ -536,11 +536,25 @@ private struct TabSwitcherCard: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Tab \(index + 1), \(tab.displayTitle ?? "Untitled")")
+        .accessibilityLabel(
+            String(
+                localized: "Tab \(index + 1), \(tab.displayTitle ?? String(localized: "Untitled"))",
+                comment: "Accessibility label for a tab. The placeholders are its position and title."
+            )
+        )
         .accessibilityValue(isHighlighted ? "Selected on release" : "")
         .accessibilityAddTraits(.isButton)
         .accessibilityAddTraits(isHighlighted ? .isSelected : [])
         .accessibilityAction { select() }
+    }
+
+    @ViewBuilder
+    private var titleIcon: some View {
+        if case .browser(let browser) = tab.focusedContent {
+            BrowserFaviconView(browser: browser, size: 16)
+        } else {
+            Image(systemName: tab.focusedContent?.systemImage ?? "rectangle")
+        }
     }
 
     private var highlightedBackground: Color {
@@ -679,6 +693,8 @@ private struct TabPaneThumbnail: View {
                 terminal(session)
             case .file(let file):
                 filePreview(file)
+            case .browser(let browser):
+                browserPreview(browser)
             case .diff(let diff):
                 diffPreview(diff)
             }
@@ -762,6 +778,10 @@ private struct TabPaneThumbnail: View {
         .padding(4)
     }
 
+    private func browserPreview(_ browser: BrowserTab) -> some View {
+        BrowserTabSwitcherPreview(browser: browser)
+    }
+
     private var terminalForeground: NSColor {
         Theme.terminal(dark: colorScheme == .dark).foregroundNSColor
     }
@@ -789,5 +809,35 @@ private struct TabPaneThumbnail: View {
             .prefix(26)
             .map { String($0.prefix(120)) }
         return lines.joined(separator: "\n")
+    }
+}
+
+private struct BrowserTabSwitcherPreview: View {
+    @ObservedObject var browser: BrowserTab
+
+    var body: some View {
+        VStack(spacing: 5) {
+            BrowserFaviconView(
+                browser: browser,
+                size: 18,
+                fallbackSystemImage: browser.isLoading
+                    ? "globe.americas.fill"
+                    : "globe"
+            )
+            .font(.system(size: 17, weight: .light))
+            .foregroundStyle(Color(nsColor: Theme.accent))
+            Text(browser.title)
+                .font(.system(size: 8, weight: .medium))
+                .lineLimit(1)
+            if !browser.urlString.isEmpty {
+                Text(browser.urlString)
+                    .font(.system(size: 5.5))
+                    .foregroundStyle(.tertiary)
+                    .lineLimit(2)
+                    .truncationMode(.middle)
+                    .multilineTextAlignment(.center)
+            }
+        }
+        .padding(6)
     }
 }

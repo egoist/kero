@@ -4,11 +4,11 @@
 <dict>
 	<!-- This Info.plist is authored by hand (GENERATE_INFOPLIST_FILE = NO) so we
 	     own the Bundle* keys instead of letting the generator derive them.
-	     PRODUCT_NAME is pinned per configuration (Kero for Release, Kero Debug
-	     for Debug) rather than derived from the lowercase target name. The
-	     release bundle id stays sh.kero — it's the app's identity for Sparkle
-	     and code signing, so it must not change. Dynamic values use build-setting
-	     substitution to stay in sync. -->
+	     PRODUCT_NAME remains lowercase so Xcode and the CLI agree on the
+	     executable name. KERO_DISPLAY_NAME supplies Kero for Release and Kero
+	     Debug for Debug. The release bundle id stays sh.kero — it's the app's
+	     identity for Sparkle and code signing, so it must not change. Dynamic
+	     values use build-setting substitution to stay in sync. -->
 
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
@@ -24,9 +24,9 @@
 	<!-- User-visible name. CFBundleName drives the app menu (bold menu next to
 	     the Apple menu); CFBundleDisplayName is what Finder/Dock show. -->
 	<key>CFBundleName</key>
-	<string>$(PRODUCT_NAME)</string>
+	<string>$(KERO_DISPLAY_NAME)</string>
 	<key>CFBundleDisplayName</key>
-	<string>$(PRODUCT_NAME)</string>
+	<string>$(KERO_DISPLAY_NAME)</string>
 
 	<key>CFBundleShortVersionString</key>
 	<string>$(MARKETING_VERSION)</string>
@@ -43,7 +43,7 @@
 			<key>NSMenuItem</key>
 			<dict>
 				<key>default</key>
-				<string>New $(PRODUCT_NAME) Project Here</string>
+				<string>New $(KERO_DISPLAY_NAME) Project Here</string>
 			</dict>
 			<key>NSMessage</key>
 			<string>openInKero</string>

@@ -35,6 +35,10 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
     /// Tabs publish layout changes (splits, focus, resize); re-publish them so
     /// the strip re-renders and autosave fires.
     private var tabObservations: [UUID: AnyCancellable] = [:]
+    /// Browser navigation changes the tab's automatic title and persisted URL.
+    /// Re-publish it through the project just like a terminal's live title and
+    /// working directory.
+    private var browserObservations: [UUID: AnyCancellable] = [:]
 
     /// Pass `createInitialSession: false` when restoring a saved project;
     /// the caller then rebuilds the tabs itself.
@@ -72,13 +76,11 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
         tabs.flatMap { tab in tab.diffs.map { (diff: $0, tabID: tab.id) } }
     }
 
-    /// The focused terminal session; while a file (or diff) pane is focused it
-    /// has no directory of its own, so panels that need a working directory
-    /// (file tree, git, info) track a terminal that does: one sharing the
-    /// file's tab (a split), else the session the file was opened from (the
-    /// tab's `contextSession`), else the project's first session. The last two
-    /// fallbacks are why opening a file from one tab kept showing another tab's
-    /// directory when it landed on `sessions.first`.
+    /// The focused terminal session; while a file, browser, or diff pane is
+    /// focused it has no directory of its own, so panels that need a working
+    /// directory (file tree, git, info) track a terminal that does: one sharing
+    /// the tab (a split), else the session the content was opened from (the
+    /// tab's `contextSession`), else the project's first session.
     var selectedSession: TerminalSession? {
         if case .session(let session)? = focusedContent {
             return session
@@ -133,8 +135,16 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
     /// session's working directory, then the pinned project directory
     /// (home when neither is known).
     @discardableResult
-    func newSession(directory: String? = nil) -> TerminalSession {
-        let session = makeSession(directory: directory)
+    func newSession(
+        directory: String? = nil,
+        commandArguments: [String]? = nil,
+        environmentPath: String? = nil
+    ) -> TerminalSession {
+        let session = makeSession(
+            directory: directory,
+            commandArguments: commandArguments,
+            environmentPath: environmentPath
+        )
         let tab = makeTab(content: .session(session))
         insertNextToSelected(tab)
         selectedTabID = tab.id
@@ -145,13 +155,18 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
     /// it in a tab — shared by new tabs and splits. `restoredHistory` seeds the
     /// scrollback when reopening a saved session.
     private func makeSession(
-        directory: String? = nil, restoredHistory: String? = nil
+        directory: String? = nil,
+        restoredHistory: String? = nil,
+        commandArguments: [String]? = nil,
+        environmentPath: String? = nil
     ) -> TerminalSession {
         let session = TerminalSession(
             initialDirectory: directory
                 ?? selectedSession?.currentDirectoryPath
                 ?? customDirectory,
-            restoredHistory: restoredHistory
+            restoredHistory: restoredHistory,
+            commandArguments: commandArguments,
+            environmentPath: environmentPath
         )
         session.onExited = { [weak self] session in
             // Already dead — just drop its pane, no second terminate.
@@ -259,6 +274,59 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
         return nil
     }
 
+    // MARK: - Browser
+
+    /// Opens a native browser as a new tab beside the current selection.
+    @discardableResult
+    func newBrowserTab(
+        initialURL: String? = nil,
+        initialFocus: BrowserTab.InitialFocus = .addressBar
+    ) -> BrowserTab {
+        let context = selectedSession
+        let browser = makeBrowser(
+            initialURL: initialURL,
+            initialFocus: initialFocus
+        )
+        let tab = makeTab(content: .browser(browser))
+        tab.contextSession = context
+        insertNextToSelected(tab)
+        selectedTabID = tab.id
+        return browser
+    }
+
+    /// Opens a native browser to the right of the focused pane in the current
+    /// tab. Unlike a normal terminal split, the new pane owns a WKWebView.
+    @discardableResult
+    func newBrowserPane(
+        toward edge: PaneDropEdge = .right,
+        initialURL: String? = nil,
+        initialFocus: BrowserTab.InitialFocus = .addressBar
+    ) -> BrowserTab? {
+        guard let tab = selectedTab, tab.canSplit else { return nil }
+        let browser = makeBrowser(
+            initialURL: initialURL,
+            initialFocus: initialFocus
+        )
+        tab.split(Pane(content: .browser(browser)), toward: edge)
+        return browser
+    }
+
+    private func makeBrowser(
+        initialURL: String?,
+        initialFocus: BrowserTab.InitialFocus
+    ) -> BrowserTab {
+        let browser = BrowserTab(
+            initialURL: initialURL,
+            initialFocus: initialFocus
+        )
+        browserObservations[browser.id] = browser.objectWillChange.sink { [weak self] _ in
+            self?.objectWillChange.send()
+        }
+        return browser
+    }
+
+    // MARK: - File paths
+
     /// After a rename on disk, re-points any open file pane at its new path —
     /// the renamed file itself, or any file beneath a renamed directory.
     func updateFilePaths(from oldPath: String, to newPath: String) {
@@ -336,6 +404,8 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
             Task { @MainActor in
                 _ = await confirmCloseUnsaved(file, in: window)
             }
+        case .browser:
+            removePaneWithContent(content.id)
         case .diff:
             removePaneWithContent(content.id)
         }
@@ -385,13 +455,16 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
     private func confirmCloseUnsaved(_ file: FileTab, in window: NSWindow?) async -> Bool {
         let alert = NSAlert()
         alert.alertStyle = .warning
-        alert.messageText = "Do you want to save the changes you made to \(file.name)?"
-        alert.informativeText = "Your changes will be lost if you don't save them."
-        alert.addButton(withTitle: "Save")
-        let dontSave = alert.addButton(withTitle: "Don't Save")
+        alert.messageText = String(
+            localized: "Do you want to save the changes you made to \(file.name)?",
+            comment: "Unsaved file confirmation. The placeholder is a file name."
+        )
+        alert.informativeText = String(localized: "Your changes will be lost if you don't save them.")
+        alert.addButton(withTitle: String(localized: "Save"))
+        let dontSave = alert.addButton(withTitle: String(localized: "Don’t Save"))
         dontSave.keyEquivalent = "d"
         dontSave.keyEquivalentModifierMask = .command
-        let cancel = alert.addButton(withTitle: "Cancel")
+        let cancel = alert.addButton(withTitle: String(localized: "Cancel"))
         cancel.keyEquivalent = "\u{1b}"
 
         let response: NSApplication.ModalResponse
@@ -538,6 +611,8 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
             let file = FileTab(path: path)
             if let editorState { file.editorState = editorState }
             return .file(file)
+        case .browser(let url):
+            return .browser(makeBrowser(initialURL: url, initialFocus: .none))
         case .diff(let repoRoot, let path, let staged, let untracked, let origPath):
             return .diff(DiffTab(
                 repoRoot: repoRoot, path: path, staged: staged,
@@ -572,8 +647,9 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
     private func removePaneWithContent(_ contentID: UUID) {
         for tab in tabs {
             guard let paneID = tab.paneID(forContent: contentID) else { continue }
-            // Keyed by session id; a no-op for files and diffs.
+            // Keyed by content id; no-ops for the other content kinds.
             sessionObservations[contentID] = nil
+            browserObservations[contentID] = nil
             if !tab.removePane(paneID) {
                 remove(tabID: tab.id)
             }
@@ -586,6 +662,9 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
         let tab = tabs[index]
         for session in tab.sessions {
             sessionObservations[session.id] = nil
+        }
+        for browser in tab.browsers {
+            browserObservations[browser.id] = nil
         }
         tabObservations[tabID] = nil
         tabs.remove(at: index)

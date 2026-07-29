@@ -28,14 +28,14 @@ use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant};
 
 use alacritty_terminal::event::{Event, EventListener, Notify, OnResize, WindowSize};
-use alacritty_terminal::grid::{Dimensions, Scroll};
+use alacritty_terminal::grid::{BidirectionalIterator, Dimensions, Scroll};
 use alacritty_terminal::index::Direction;
-use alacritty_terminal::index::{Column, Line, Point, Side};
+use alacritty_terminal::index::{Boundary, Column, Line, Point, Side};
 use alacritty_terminal::selection::{Selection, SelectionType};
 use alacritty_terminal::sync::FairMutex;
 use alacritty_terminal::term::cell::{Cell, Flags};
 use alacritty_terminal::term::color::Colors;
-use alacritty_terminal::term::search::{RegexIter, RegexSearch};
+use alacritty_terminal::term::search::{Match, RegexIter, RegexSearch};
 use alacritty_terminal::term::{Config, Osc52, Term, TermDamage, TermMode};
 use alacritty_terminal::tty::{self, EventedPty, EventedReadWrite};
 use alacritty_terminal::vte::ansi::{Color, CursorShape, CursorStyle, NamedColor, Rgb};
@@ -109,6 +109,17 @@ pub struct KeroCell {
     pub text_offset: u32,
     pub text_len: u16,
     pub flags: u16,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct KeroURLRange {
+    /// Inclusive viewport-relative cell bounds. Lines can be outside the
+    /// viewport when a soft-wrapped URL begins or ends in scrollback.
+    pub start_line: i32,
+    pub start_column: usize,
+    pub end_line: i32,
+    pub end_column: usize,
 }
 
 /// A theme in the form the bridge resolves colors against. Kero owns the
@@ -377,6 +388,14 @@ enum SyncUpdateEvent {
 }
 
 const SYNCHRONIZED_UPDATE_TIMEOUT: Duration = Duration::from_millis(150);
+
+/// Alacritty's default URL hint, kept in sync with the app's built-in config.
+#[rustfmt::skip]
+const URL_REGEX: &str = "(ipfs:|ipns:|magnet:|mailto:|gemini://|gopher://|https://|http://|news:|file:|git://|ssh:|ftp://)\
+                         [^\u{0000}-\u{001F}\u{007F}-\u{009F}<>\"\\s{-}\\^⟨⟩`\\\\]+";
+
+/// Avoid walking an effectively unbounded soft-wrapped logical line on hover.
+const MAX_URL_SEARCH_LINES: i32 = 100;
 
 impl SyncUpdateTracker {
     fn process(&mut self, input: &[u8]) -> Vec<SyncUpdateEvent> {
@@ -842,6 +861,9 @@ pub struct KeroTerminal {
     /// selected. Collected up front so the host can show a total.
     matches: Vec<(Point, Point)>,
     match_index: usize,
+    /// Alacritty's URL hint DFA is reused because this lookup runs on every
+    /// mouse move while the pointer is over the terminal.
+    url_regex: RegexSearch,
     /// Reused per frame so damage reporting does not allocate.
     dirty_rows: Vec<usize>,
     kitty_placements: Vec<KeroKittyPlacement>,
@@ -935,6 +957,9 @@ pub unsafe extern "C" fn kero_alacritty_new(
     if config.is_null() || theme.is_null() {
         return std::ptr::null_mut();
     }
+    let Ok(url_regex) = RegexSearch::new(URL_REGEX) else {
+        return std::ptr::null_mut();
+    };
     let config = &*config;
     let columns = config.columns.max(1) as usize;
     let screen_lines = config.rows.max(1) as usize;
@@ -1039,6 +1064,7 @@ pub unsafe extern "C" fn kero_alacritty_new(
         master_fd,
         matches: Vec::new(),
         match_index: 0,
+        url_regex,
         dirty_rows: Vec::new(),
         kitty_placements: Vec::new(),
         kitty_images: Vec::new(),
@@ -1684,31 +1710,163 @@ pub unsafe extern "C" fn kero_alacritty_buffer_text(
     bytes.len()
 }
 
-/// Returns the OSC 8 hyperlink under a viewport cell.
+/// Apply the same URL delimiter heuristics as Alacritty's hint system.
+fn post_process_url_match<T: EventListener>(term: &Term<T>, regex_match: &Match) -> Option<Match> {
+    let mut iter = term.grid().iter_from(*regex_match.start());
+    let mut c = iter.cell().c;
+
+    // A URL inside prose commonly ends immediately before an unmatched
+    // closing bracket, while balanced brackets can legitimately be in a URL.
+    let end = *regex_match.end();
+    let mut open_parens = 0;
+    let mut open_brackets = 0;
+    loop {
+        match c {
+            '(' => open_parens += 1,
+            '[' => open_brackets += 1,
+            ')' if open_parens == 0 => {
+                iter.prev();
+                break;
+            }
+            ')' => open_parens -= 1,
+            ']' if open_brackets == 0 => {
+                iter.prev();
+                break;
+            }
+            ']' => open_brackets -= 1,
+            _ => {}
+        }
+
+        if iter.point() == end {
+            break;
+        }
+
+        let Some(indexed) = iter.next() else {
+            break;
+        };
+        c = indexed.cell.c;
+    }
+
+    let start = *regex_match.start();
+    while iter.point() != start {
+        if !matches!(c, '.' | ',' | ':' | ';' | '?' | '!' | '(' | '[' | '\'') {
+            break;
+        }
+
+        let Some(indexed) = iter.prev() else {
+            break;
+        };
+        c = indexed.cell.c;
+    }
+
+    (start <= iter.point()).then(|| start..=iter.point())
+}
+
+/// Finds Alacritty's default plain-text URL hint under a grid point.
+fn plain_url_at<T: EventListener>(
+    term: &Term<T>,
+    regex: &mut RegexSearch,
+    point: Point,
+) -> Option<(String, Match)> {
+    let mut start = term.line_search_left(point);
+    let mut end = term.line_search_right(point);
+    start.line = start.line.max(point.line - MAX_URL_SEARCH_LINES);
+    end.line = end.line.min(point.line + MAX_URL_SEARCH_LINES);
+
+    let raw_match =
+        RegexIter::new(start, end, Direction::Right, term, regex).find(|rm| rm.contains(&point))?;
+    let raw_end = *raw_match.end();
+    let mut next_match = Some(raw_match);
+
+    // Post-processing can split a greedy regex match at an unmatched closing
+    // bracket. Keep searching inside the original range so a later URL remains
+    // clickable, matching Alacritty's hint behavior.
+    while let Some(regex_match) = next_match {
+        let processed = post_process_url_match(term, &regex_match);
+        if processed.as_ref().is_some_and(|rm| rm.contains(&point)) {
+            let bounds = processed.unwrap();
+            let url = term.bounds_to_string(*bounds.start(), *bounds.end());
+            return Some((url, bounds));
+        }
+
+        let next_start = processed
+            .as_ref()
+            .map_or_else(|| *regex_match.start(), |rm| *rm.end())
+            .add(term, Boundary::Grid, 1);
+        if next_start > raw_end {
+            return None;
+        }
+        next_match = term.regex_search_right(regex, next_start, raw_end);
+    }
+
+    None
+}
+
+/// Finds the contiguous OSC 8 hyperlink under a grid point.
+fn hyperlink_url_at<T: EventListener>(term: &Term<T>, point: Point) -> Option<(String, Match)> {
+    let hyperlink = term.grid()[point].hyperlink()?;
+    let grid = term.grid();
+
+    let mut end = point;
+    for cell in grid.iter_from(point) {
+        if cell.hyperlink().as_ref() == Some(&hyperlink) {
+            end = cell.point;
+        } else {
+            break;
+        }
+    }
+
+    let mut start = point;
+    let mut iter = grid.iter_from(point);
+    while let Some(cell) = iter.prev() {
+        if cell.hyperlink().as_ref() == Some(&hyperlink) {
+            start = cell.point;
+        } else {
+            break;
+        }
+    }
+
+    Some((hyperlink.uri().to_owned(), start..=end))
+}
+
+/// Returns the OSC 8 hyperlink or plain-text URL under a viewport cell.
 ///
 /// # Safety
-/// `handle` must be live and `buffer` valid for `capacity` bytes.
+/// `handle` must be live; `range` must be null or valid; and `buffer` must be
+/// null or valid for `capacity` bytes.
 #[no_mangle]
-pub unsafe extern "C" fn kero_alacritty_hyperlink_at(
+pub unsafe extern "C" fn kero_alacritty_url_at(
     handle: *mut KeroTerminal,
     line: i32,
     column: usize,
+    range: *mut KeroURLRange,
     buffer: *mut u8,
     capacity: usize,
 ) -> usize {
     if handle.is_null() {
         return 0;
     }
-    let term = (*handle).term.lock();
+    let terminal = &mut *handle;
+    let term = terminal.term.lock();
     if line < 0 || line as usize >= term.screen_lines() || column >= term.columns() {
         return 0;
     }
     let offset = term.grid().display_offset();
     let point = Point::new(Line(line - offset as i32), Column(column));
-    let Some(link) = term.grid()[point].hyperlink() else {
+    let Some((url, bounds)) = hyperlink_url_at(&term, point)
+        .or_else(|| plain_url_at(&term, &mut terminal.url_regex, point))
+    else {
         return 0;
     };
-    let bytes = link.uri().as_bytes();
+    if !range.is_null() {
+        *range = KeroURLRange {
+            start_line: bounds.start().line.0 + offset as i32,
+            start_column: bounds.start().column.0,
+            end_line: bounds.end().line.0 + offset as i32,
+            end_column: bounds.end().column.0,
+        };
+    }
+    let bytes = url.as_bytes();
     if buffer.is_null() || capacity < bytes.len() {
         return bytes.len();
     }
@@ -1827,6 +1985,55 @@ mod tests {
         term
     }
 
+    fn url_in(term: &Term<VoidListener>, point: Point) -> Option<String> {
+        let mut regex = RegexSearch::new(URL_REGEX).unwrap();
+        plain_url_at(term, &mut regex, point).map(|(url, _)| url)
+    }
+
+    fn url_match_in(term: &Term<VoidListener>, point: Point) -> Option<(String, Match)> {
+        let mut regex = RegexSearch::new(URL_REGEX).unwrap();
+        plain_url_at(term, &mut regex, point)
+    }
+
+    fn ascii_point(content: &str, needle: &str) -> Point {
+        let offset = content.find(needle).unwrap();
+        Point::new(Line((offset / 40) as i32), Column(offset % 40))
+    }
+
+    #[test]
+    fn plain_url_lookup_uses_alacritty_hint_delimiters() {
+        let content = "visit (https://example.com/docs). next";
+        let term = parse(content.as_bytes());
+
+        assert_eq!(
+            url_in(&term, ascii_point(content, "example")),
+            Some("https://example.com/docs".to_owned())
+        );
+        assert_eq!(url_in(&term, ascii_point(content, ").")), None);
+    }
+
+    #[test]
+    fn plain_url_lookup_follows_soft_wrapped_lines() {
+        let content = "prefix https://example.com/a/very/long/path/that/wraps suffix";
+        let term = parse(content.as_bytes());
+
+        let (url, bounds) = url_match_in(&term, ascii_point(content, "that")).unwrap();
+        assert_eq!(url, "https://example.com/a/very/long/path/that/wraps");
+        assert_eq!(*bounds.start(), ascii_point(content, "https"));
+        assert_eq!(bounds.end().line, Line(1));
+    }
+
+    #[test]
+    fn plain_url_lookup_keeps_balanced_parentheses() {
+        let content = "https://example.com/a_(balanced)";
+        let term = parse(content.as_bytes());
+
+        assert_eq!(
+            url_in(&term, ascii_point(content, "balanced")),
+            Some(content.to_owned())
+        );
+    }
+
     #[test]
     fn history_export_preserves_style_and_combining_marks() {
         let term = parse(b"\x1b[1;3;38;2;12;34;56mCafe\xcc\x81\x1b[0m");
@@ -1847,6 +2054,18 @@ mod tests {
         assert!(text.contains("\x1b]8;;https://kero.sh\x1b\\"));
         assert!(text.contains("Kero"));
         assert!(text.contains("\x1b]8;;\x1b\\"));
+    }
+
+    #[test]
+    fn osc8_url_lookup_returns_visible_cell_bounds() {
+        let term = parse(b"x\x1b]8;;https://kero.sh\x1b\\Kero\x1b]8;;\x1b\\ y");
+        let (url, bounds) = hyperlink_url_at(&term, Point::new(Line(0), Column(2))).unwrap();
+
+        assert_eq!(url, "https://kero.sh");
+        assert_eq!(
+            bounds,
+            Point::new(Line(0), Column(1))..=Point::new(Line(0), Column(4))
+        );
     }
 
     #[test]

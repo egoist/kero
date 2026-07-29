@@ -5,7 +5,6 @@
 
 import SwiftUI
 
-@main
 struct keroApp: App {
     @NSApplicationDelegateAdaptor(KeroApplicationDelegate.self)
     private var applicationDelegate
@@ -83,6 +82,11 @@ private struct KeroCommands: Commands {
                 manager?.newSession()
             }
             .keyboardShortcut("t", modifiers: .command)
+            .disabled(manager == nil)
+
+            Button("New Browser Tab") {
+                manager?.newBrowserTab()
+            }
             .disabled(manager == nil)
 
             Button("New Window") {
@@ -226,6 +230,32 @@ private struct KeroCommands: Commands {
             }
         }
 
+        CommandMenu("Browser") {
+            Button("Focus Address Bar") {
+                manager?.focusBrowserAddressBar()
+            }
+            .keyboardShortcut("l", modifiers: .command)
+            .disabled(manager?.hasSelectedBrowser != true)
+
+            Button("Reload Page") {
+                manager?.reloadSelectedBrowser()
+            }
+            .keyboardShortcut("r", modifiers: .command)
+            .disabled(manager?.hasSelectedBrowser != true)
+
+            Button("Stop Loading") {
+                manager?.stopSelectedBrowser()
+            }
+            .disabled(manager?.hasSelectedBrowser != true)
+
+            Divider()
+
+            Button("Open in Default Browser") {
+                manager?.openSelectedPageInDefaultBrowser()
+            }
+            .disabled(manager?.hasSelectedBrowser != true)
+        }
+
         CommandMenu("Tabs") {
             Button("Split Right") {
                 manager?.splitRight()
@@ -344,7 +374,7 @@ private struct KeroCommands: Commands {
             Divider()
 
             ForEach(Array((manager?.selectedProject?.tabs ?? []).prefix(9).enumerated()), id: \.element.id) { index, tab in
-                Button(tab.displayTitle ?? "Tab \(index + 1)") {
+                Button(tab.displayTitle ?? String(localized: "Tab \(index + 1)")) {
                     manager?.selectTab(index: index)
                 }
                 .keyboardShortcut(KeyEquivalent(Character("\(index + 1)")), modifiers: [.control, .shift])

@@ -10,6 +10,7 @@ import SwiftUI
 /// its sessions show as horizontal tabs in the main header.
 struct SidebarView: View {
     @ObservedObject var manager: TerminalManager
+    @ObservedObject private var settings = AppSettings.shared
     @ObservedObject private var themeChanges = Theme.changes
     @Environment(\.openSettings) private var openSettings
     @Environment(\.colorScheme) private var colorScheme
@@ -45,7 +46,8 @@ struct SidebarView: View {
                             close: { manager.close(project) },
                             isDragging: draggedProjectID == project.id,
                             onDrag: { updateProjectDrag(source: project.id, location: $0) },
-                            onDragEnded: endProjectDrag
+                            onDragEnded: endProjectDrag,
+                            fontSize: settings.sidebarFontSize
                         )
                         .background {
                             GeometryReader { proxy in
@@ -144,7 +146,7 @@ struct SidebarView: View {
 
 struct ChromeIconButton: View {
     let systemImage: String
-    let tooltip: String
+    let tooltip: LocalizedStringKey
     var font: Font = .system(size: 12, weight: .medium)
     var iconSize: CGFloat = 16
     var tooltipEdge: TooltipEdge = .below
@@ -174,7 +176,7 @@ struct ChromeIconButton: View {
 
 private struct SidebarFooterButton: View {
     let systemImage: String
-    let tooltip: String
+    let tooltip: LocalizedStringKey
     /// Buttons near the sidebar's right edge anchor `.trailing` so the label
     /// grows inward instead of off-panel.
     var tooltipAlignment: HorizontalAlignment = .leading
@@ -209,6 +211,7 @@ private struct SidebarProjectRow: View {
     let isDragging: Bool
     let onDrag: (CGPoint) -> Void
     let onDragEnded: () -> Void
+    let fontSize: Double
 
     @State private var isHovering = false
     @State private var isRenaming = false
@@ -269,8 +272,11 @@ private struct SidebarProjectRow: View {
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = false
-        panel.prompt = "Choose"
-        panel.message = "Choose the directory for “\(project.name)”."
+        panel.prompt = String(localized: "Choose", comment: "Button in the project directory picker.")
+        panel.message = String(
+            localized: "Choose the directory for “\(project.name)”.",
+            comment: "Message in the project directory picker. The placeholder is a project name."
+        )
         if let current = project.customDirectory
             ?? project.selectedSession?.currentDirectoryPath {
             panel.directoryURL = URL(fileURLWithPath: current, isDirectory: true)
@@ -296,7 +302,7 @@ private struct SidebarProjectRow: View {
                 if isRenaming {
                     TextField("", text: $renameDraft)
                         .textFieldStyle(.plain)
-                        .font(.system(size: 12, weight: .medium))
+                        .font(.system(size: fontSize, weight: .medium))
                         .focused($renameFocused)
                         .onSubmit(commitRename)
                         .onExitCommand { isRenaming = false }
@@ -307,7 +313,7 @@ private struct SidebarProjectRow: View {
                         }
                 } else {
                     Text(project.name)
-                        .font(.system(size: 12))
+                        .font(.system(size: fontSize))
                         .foregroundStyle(isSelected ? .primary : .secondary)
                         .lineLimit(1)
                 }
@@ -326,8 +332,8 @@ private struct SidebarProjectRow: View {
                 }
                 .buttonStyle(.plain)
             } else if index < 9, !isRenaming {
-                Text("⌘\(index + 1)")
-                    .font(.system(size: 10))
+                Text(verbatim: "⌘\(index + 1)")
+                    .font(.system(size: supportingFontSize))
                     .foregroundStyle(.tertiary)
             }
         }
@@ -354,12 +360,16 @@ private struct SidebarProjectRow: View {
     private var subtitle: some View {
         if project.sessions.count > 1 {
             Text("\(project.sessions.count) sessions")
-                .font(.system(size: 10))
+                .font(.system(size: supportingFontSize))
                 .foregroundStyle(.tertiary)
                 .lineLimit(1)
         } else if let session = project.selectedSession {
-            SessionDirectoryLabel(session: session)
+            SessionDirectoryLabel(session: session, fontSize: supportingFontSize)
         }
+    }
+
+    private var supportingFontSize: Double {
+        max(fontSize - 2, AppSettings.sidebarFontSizeRange.lowerBound - 1)
     }
 }
 
@@ -367,11 +377,12 @@ private struct SidebarProjectRow: View {
 /// it observes the session's own published working directory.
 private struct SessionDirectoryLabel: View {
     @ObservedObject var session: TerminalSession
+    let fontSize: Double
 
     var body: some View {
         if let dir = session.directoryLabel {
             Text(dir)
-                .font(.system(size: 10))
+                .font(.system(size: fontSize))
                 .foregroundStyle(.tertiary)
                 .lineLimit(1)
         }

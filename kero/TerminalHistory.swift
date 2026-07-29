@@ -114,7 +114,11 @@ enum TerminalHistorySerializer {
     }
 
     /// Label shown in the restored-history divider.
-    static let restoredBannerLabel = "Session Contents Restored"
+    private static let restoredBannerSourceLabel = "Session Contents Restored"
+    static let restoredBannerLabel = String(
+        localized: "Session Contents Restored",
+        comment: "Divider between restored terminal scrollback and a new live shell."
+    )
 
     /// The rule that brackets the label on each side of the divider.
     private static let restoredBannerRule = String(repeating: "\u{2500}", count: 4)
@@ -122,9 +126,30 @@ enum TerminalHistorySerializer {
     /// The divider's plain, unstyled text — `<rule> <label> <rule>`. `visibleText`
     /// yields exactly this for a divider row, so recognizing one is an equality
     /// check against it.
-    private static var restoredBannerText: String {
-        "\(restoredBannerRule) \(restoredBannerLabel) \(restoredBannerRule)"
+    private static func restoredBannerText(label: String) -> String {
+        "\(restoredBannerRule) \(label) \(restoredBannerRule)"
     }
+
+    /// A saved capture may have been written under a different app language.
+    /// Recognize every bundled translation so changing languages never replays
+    /// an old divider as terminal output.
+    private static let restoredBannerTexts: Set<String> = {
+        var labels = Set([restoredBannerSourceLabel, restoredBannerLabel])
+        for localization in Bundle.main.localizations {
+            guard let path = Bundle.main.path(
+                forResource: localization,
+                ofType: "lproj"
+            ), let bundle = Bundle(path: path) else { continue }
+            labels.insert(
+                bundle.localizedString(
+                    forKey: restoredBannerSourceLabel,
+                    value: restoredBannerSourceLabel,
+                    table: "Localizable"
+                )
+            )
+        }
+        return Set(labels.map(restoredBannerText))
+    }()
 
     /// A single-line divider fed into the terminal directly beneath replayed
     /// scrollback, marking where the restored output ends and the live shell
@@ -259,7 +284,9 @@ enum TerminalHistorySerializer {
     }
 
     private static func isRestoredBanner(_ line: String) -> Bool {
-        visibleText(in: line).trimmingCharacters(in: .whitespaces) == restoredBannerText
+        restoredBannerTexts.contains(
+            visibleText(in: line).trimmingCharacters(in: .whitespaces)
+        )
     }
 
     private static func isVisiblyBlank(_ line: String) -> Bool {

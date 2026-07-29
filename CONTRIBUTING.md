@@ -25,3 +25,13 @@ xcodebuild -project kero.xcodeproj -scheme kero -configuration Debug -destinatio
 ```
 
 Add `DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer` if you only have Xcode beta.
+
+## Localization
+
+Kero’s development language is English, with Simplified Chinese and Japanese
+translations maintained in Xcode String Catalogs. See
+[LOCALIZATION.md](LOCALIZATION.md) for translating existing text, adding a
+language, testing a localization, and writing localizable Swift.
+
+Translation-only pull requests are welcome. Xcode’s catalog editor and XLIFF
+export/import workflow both work; contributors do not need to edit Swift.

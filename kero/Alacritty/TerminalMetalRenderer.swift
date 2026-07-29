@@ -35,6 +35,11 @@ final class TerminalMetalRenderer {
         var padding: UInt32 = 0
     }
 
+    private struct RowInstances {
+        var instances: [Instance]
+        var backgroundCount: Int
+    }
+
     private let device: MTLDevice
     private let queue: MTLCommandQueue
     private let pipeline: MTLRenderPipelineState
@@ -52,7 +57,7 @@ final class TerminalMetalRenderer {
     /// per cell — the bulk of a frame's CPU cost. Almost every change touches
     /// one row (a prompt redraw, a cursor blink), so rows the emulator did not
     /// damage are reused verbatim and only the dirty ones are rebuilt.
-    private var rowInstances: [[Instance]] = []
+    private var rowInstances: [RowInstances] = []
     /// Rebuilt rows are only valid for the geometry they were built at.
     private var cachedColumns = 0
     private var cachedRows = 0
@@ -314,9 +319,14 @@ final class TerminalMetalRenderer {
         let rows = snapshot.rows
 
         // A geometry change invalidates every cached row: positions are baked
-        // into the instances.
-        if cachedColumns != columns || cachedRows != rows {
-            rowInstances = Array(repeating: [], count: rows)
+        // into the instances. Rebuild every row even if the emulator only
+        // reported partial damage for this frame.
+        let geometryChanged = cachedColumns != columns || cachedRows != rows
+        if geometryChanged {
+            rowInstances = Array(
+                repeating: RowInstances(instances: [], backgroundCount: 0),
+                count: rows
+            )
             cachedColumns = columns
             cachedRows = rows
         }
@@ -324,7 +334,9 @@ final class TerminalMetalRenderer {
         // nil means rebuild everything — a full-damage frame, or a host-side
         // change the emulator never saw.
         let rowsToBuild: [Int]
-        if let dirtyRows {
+        if geometryChanged {
+            rowsToBuild = Array(0..<rows)
+        } else if let dirtyRows {
             rowsToBuild = dirtyRows.filter { $0 >= 0 && $0 < rows }
         } else {
             rowsToBuild = Array(0..<rows)
@@ -337,8 +349,12 @@ final class TerminalMetalRenderer {
             )
         }
 
-        instances.reserveCapacity(rowInstances.reduce(0) { $0 + $1.count } + 1)
-        for row in rowInstances { instances.append(contentsOf: row) }
+        instances.reserveCapacity(
+            rowInstances.reduce(0) { $0 + $1.instances.count } + 1
+        )
+        for row in rowInstances {
+            instances.append(contentsOf: row.instances)
+        }
         appendCursor(
             snapshot: snapshot,
             metrics: metrics,
@@ -356,7 +372,7 @@ final class TerminalMetalRenderer {
         padding: CGPoint,
         atlas: TerminalGlyphAtlas,
         viewportSize: CGSize
-    ) -> [Instance] {
+    ) -> RowInstances {
         var instances: [Instance] = []
         let cellWidth = Float(metrics.cellWidth)
         let cellHeight = Float(metrics.cellHeight)
@@ -402,6 +418,7 @@ final class TerminalMetalRenderer {
             }
             column += span
         }
+        let backgroundCount = instances.count
 
         for column in 0..<columns {
             let cell = cells[row * columns + column]
@@ -474,7 +491,10 @@ final class TerminalMetalRenderer {
             }
         }
 
-        return instances
+        return RowInstances(
+            instances: instances,
+            backgroundCount: backgroundCount
+        )
     }
 
     /// Places a block cursor after its row backgrounds but before its glyphs,
@@ -531,38 +551,21 @@ final class TerminalMetalRenderer {
         }
     }
 
-    /// Row instances are backgrounds followed by glyphs and decorations. Find
-    /// the boundary for the cursor row so a styled background cannot cover the
-    /// block cursor, while its recoloured glyph still renders above the fill.
+    /// Row instances are backgrounds followed by glyphs and decorations. Use
+    /// the boundary captured with the cached row so partial damage cannot mix
+    /// current snapshot backgrounds with stale instance counts.
     private func blockCursorInsertionIndex(snapshot: KeroSnapshot) -> Int? {
-        guard let cells = snapshot.cells else { return nil }
         let row = snapshot.cursor_line
         let column = snapshot.cursor_column
         guard row >= 0, row < snapshot.rows,
+              row < rowInstances.count,
               column >= 0, column < snapshot.columns
         else { return nil }
 
-        var insertionIndex = rowInstances[..<row].reduce(0) { $0 + $1.count }
-        var currentColumn = 0
-        while currentColumn < snapshot.columns {
-            let background = AlacrittyRenderer.background(
-                of: cells[row * snapshot.columns + currentColumn],
-                default: snapshot.background
-            )
-            var span = 1
-            while currentColumn + span < snapshot.columns {
-                let next = cells[row * snapshot.columns + currentColumn + span]
-                guard AlacrittyRenderer.background(
-                    of: next, default: snapshot.background
-                ) == background else { break }
-                span += 1
-            }
-            if background != snapshot.background {
-                insertionIndex += 1
-            }
-            currentColumn += span
+        let precedingInstances = rowInstances[..<row].reduce(0) {
+            $0 + $1.instances.count
         }
-        return insertionIndex
+        return precedingInstances + rowInstances[row].backgroundCount
     }
 
     private static func color(_ packed: UInt32) -> SIMD4<Float> {

@@ -7,6 +7,79 @@ import AppKit
 import Combine
 import Foundation
 
+/// The app-specific language macOS should use when Kero next launches.
+///
+/// `AppleLanguages` is stored in Kero's own defaults domain, matching the
+/// per-app language preference managed by System Settings. Removing it returns
+/// control to the user's system language order.
+enum AppLanguage: String, CaseIterable, Identifiable {
+    case system
+    case english = "en"
+    case simplifiedChinese = "zh-Hans"
+    case japanese = "ja"
+
+    var id: String { rawValue }
+
+    /// Language names are autonyms so the picker stays usable even when the
+    /// current app language is unfamiliar to the user.
+    var title: String {
+        switch self {
+        case .system:
+            String(
+                localized: "System Default",
+                comment: "Language choice that follows the macOS setting."
+            )
+        case .english:
+            "English"
+        case .simplifiedChinese:
+            "简体中文"
+        case .japanese:
+            "日本語"
+        }
+    }
+
+    static var saved: AppLanguage {
+        guard
+            let bundleIdentifier = Bundle.main.bundleIdentifier,
+            let domain = UserDefaults.standard.persistentDomain(
+                forName: bundleIdentifier
+            ),
+            let identifiers = domain["AppleLanguages"] as? [String],
+            let identifier = identifiers.first
+        else {
+            return .system
+        }
+
+        return from(identifier: identifier) ?? .system
+    }
+
+    private static func from(identifier: String) -> AppLanguage? {
+        let normalized = identifier.replacingOccurrences(of: "_", with: "-")
+        if normalized == "zh-Hans"
+            || normalized.hasPrefix("zh-Hans-")
+            || normalized.hasPrefix("zh-CN")
+            || normalized.hasPrefix("zh-SG") {
+            return .simplifiedChinese
+        }
+        if normalized == "ja" || normalized.hasPrefix("ja-") {
+            return .japanese
+        }
+        if normalized == "en" || normalized.hasPrefix("en-") {
+            return .english
+        }
+        return nil
+    }
+
+    func persist() {
+        switch self {
+        case .system:
+            UserDefaults.standard.removeObject(forKey: "AppleLanguages")
+        case .english, .simplifiedChinese, .japanese:
+            UserDefaults.standard.set([rawValue], forKey: "AppleLanguages")
+        }
+    }
+}
+
 /// User-configurable settings, persisted to `$HOME/.config/kero/config.toml`.
 /// Views observe this directly; `TerminalManager` re-themes live sessions on
 /// any change.
@@ -31,6 +104,20 @@ final class AppSettings: nonisolated ObservableObject {
 
     static let defaultFontSize: Double = 13
     static let fontSizeRange: ClosedRange<Double> = 8...32
+    static let defaultSidebarFontSize: Double = 13
+    static let sidebarFontSizeRange: ClosedRange<Double> = 9...18
+
+    /// The language this process launched with, kept separate from the pending
+    /// selection so Settings can explain when a relaunch is required.
+    let activeLanguage: AppLanguage
+
+    @Published var language: AppLanguage {
+        didSet { language.persist() }
+    }
+
+    var languageRequiresRelaunch: Bool {
+        language != activeLanguage
+    }
 
     /// Light/dark appearance override; `system` follows macOS.
     @Published var theme: AppTheme {
@@ -67,11 +154,24 @@ final class AppSettings: nonisolated ObservableObject {
         didSet { save() }
     }
 
+    /// Base text size for both sidebars. Each panel preserves its relative
+    /// hierarchy for section labels, content, metadata, and controls.
+    @Published var sidebarFontSize: Double {
+        didSet { save() }
+    }
+
     /// Render terminal glyphs with slightly heavier strokes, like classic
     /// macOS font smoothing. Each backend maps this to its own rasterizer.
     /// Persisted as `terminal.font-thicken`; off by default so Kero's text
     /// matches a stock Ghostty install.
     @Published var fontThicken: Bool {
+        didSet { save() }
+    }
+
+    /// Send Option-key chords to terminal programs as Alt/Meta instead of
+    /// letting the active macOS input source produce text. Off by default so
+    /// layouts such as Polish Pro can type their Option-composed characters.
+    @Published var macosOptionAsAlt: Bool {
         didSet { save() }
     }
 
@@ -97,6 +197,10 @@ final class AppSettings: nonisolated ObservableObject {
     }
 
     private init() {
+        let savedLanguage = AppLanguage.saved
+        activeLanguage = savedLanguage
+        language = savedLanguage
+
         let existing = TOML.parse(at: Self.configURL)
         let toml = existing ?? Self.legacyDefaults()
         theme = toml["theme"]?.string.flatMap(AppTheme.init(rawValue:)) ?? .system
@@ -113,9 +217,15 @@ final class AppSettings: nonisolated ObservableObject {
         fontFamily = toml["font-family"]?.string ?? ""
         let size = toml["font-size"]?.double ?? Self.defaultFontSize
         fontSize = Self.fontSizeRange.contains(size) ? size : Self.defaultFontSize
+        let sidebarSize = toml["sidebar.font-size"]?.double
+            ?? Self.defaultSidebarFontSize
+        sidebarFontSize = Self.sidebarFontSizeRange.contains(sidebarSize)
+            ? sidebarSize
+            : Self.defaultSidebarFontSize
         fontThicken = toml["terminal.font-thicken"]?.bool
             ?? toml["font-thicken"]?.bool
             ?? false
+        macosOptionAsAlt = toml["terminal.macos-option-as-alt"]?.bool ?? false
         wrapLines = toml["editor.wrap-lines"]?.bool ?? false
         restoreTerminalHistory = toml["terminal.restore-history"]?.bool ?? false
         terminalBackend = TerminalBackend(persisted: toml["terminal.backend"]?.string)
@@ -152,14 +262,17 @@ final class AppSettings: nonisolated ObservableObject {
     func resetFont() {
         fontFamily = ""
         fontSize = Self.defaultFontSize
+        sidebarFontSize = Self.defaultSidebarFontSize
         fontThicken = false
     }
 
     func resetToDefaults() {
         resetFont()
+        language = .system
         theme = .system
         themeDark = Theme.defaultDarkThemeName
         themeLight = Theme.defaultLightThemeName
+        macosOptionAsAlt = false
         wrapLines = false
         restoreTerminalHistory = false
         terminalBackend = .fallback
@@ -182,8 +295,14 @@ final class AppSettings: nonisolated ObservableObject {
             lines.append("font-family = \(TOML.quote(fontFamily))")
         }
         lines.append("font-size = \(TOML.number(fontSize))")
+        if sidebarFontSize != Self.defaultSidebarFontSize {
+            lines.append("sidebar.font-size = \(TOML.number(sidebarFontSize))")
+        }
         if fontThicken {
             lines.append("terminal.font-thicken = true")
+        }
+        if macosOptionAsAlt {
+            lines.append("terminal.macos-option-as-alt = true")
         }
         if wrapLines {
             lines.append("editor.wrap-lines = true")
