@@ -7,6 +7,7 @@ import AppKit
 import Combine
 import Foundation
 import SwiftUI
+import WebKit
 
 /// Panels available in the right sidebar. Raw values are stable names
 /// persisted in `SessionSnapshot`.
@@ -65,12 +66,21 @@ final class TerminalManager: nonisolated ObservableObject {
     /// Live managers in window-creation order; the persisted snapshot is
     /// one entry per registered manager.
     private static var registry: [TerminalManager] = []
+    private struct CLIProjectLaunch {
+        let arguments: [String]
+        let directory: String
+        let path: String?
+    }
     /// Folder requests can arrive while macOS is still launching Kero, before
     /// a WindowGroup has produced a manager/window to receive them.
     private static var pendingDirectories: [String] = []
     /// Captured from SwiftUI's openWindow environment so a Finder request can
     /// reopen Kero after the user has closed its last window.
     private static var windowOpener: (() -> Void)?
+    /// Coalesces launch-time service requests while SwiftUI is still deciding
+    /// whether it will create the initial WindowGroup window itself.
+    private static var windowRequestScheduled = false
+    private static var isOpeningWindow = false
     /// Window snapshots loaded from disk that no window has claimed yet.
     /// Each new manager claims the next; extras beyond the saved count
     /// start fresh.
@@ -109,12 +119,12 @@ final class TerminalManager: nonisolated ObservableObject {
         for directory in queuedDirectories {
             newProject(directory: directory)
         }
-        // Re-theme live sessions only when font, appearance, or terminal
-        // theme settings change. Delivery is scheduled onto the main queue
-        // because @Published emits in willSet — by then `didSet` has pushed
-        // the theme onto NSApp (and the selection into `Theme`), so
+        // Reconfigure live sessions only when font, appearance, theme, or
+        // terminal input settings change. Delivery is scheduled onto the main
+        // queue because @Published emits in willSet — by then `didSet` has
+        // pushed the theme onto NSApp (and the selection into `Theme`), so
         // `refreshAppearance` reads the new state.
-        settingsObservation = Publishers.CombineLatest(
+        settingsObservation = Publishers.CombineLatest3(
             Publishers.CombineLatest4(
                 AppSettings.shared.$fontFamily.removeDuplicates(),
                 AppSettings.shared.$fontSize.removeDuplicates(),
@@ -124,7 +134,8 @@ final class TerminalManager: nonisolated ObservableObject {
             Publishers.CombineLatest(
                 AppSettings.shared.$themeDark.removeDuplicates(),
                 AppSettings.shared.$themeLight.removeDuplicates()
-            )
+            ),
+            AppSettings.shared.$macosOptionAsAlt.removeDuplicates()
         )
             .dropFirst()
             .receive(on: DispatchQueue.main)
@@ -180,6 +191,19 @@ final class TerminalManager: nonisolated ObservableObject {
         insert(project)
     }
 
+    /// Creates a CLI-requested project. An empty argv
+    /// starts the normal login shell; otherwise the terminal directly execs
+    /// the preserved argument vector with the caller's PATH.
+    private func newProject(cliLaunch: CLIProjectLaunch) {
+        let project = makeProject(createInitialSession: false)
+        project.newSession(
+            directory: cliLaunch.directory,
+            commandArguments: cliLaunch.arguments.isEmpty ? nil : cliLaunch.arguments,
+            environmentPath: cliLaunch.path
+        )
+        insert(project)
+    }
+
     private func insert(_ project: Project) {
         // Open the new project next to the current one rather than at the end.
         // Falls back to appending when nothing is selected yet.
@@ -201,9 +225,7 @@ final class TerminalManager: nonisolated ObservableObject {
             ?? registry.last { $0.window != nil }
         guard let manager else {
             pendingDirectories.append(contentsOf: directories)
-            if registry.isEmpty {
-                windowOpener?()
-            }
+            requestWindowForPendingDirectories()
             return
         }
 
@@ -217,6 +239,7 @@ final class TerminalManager: nonisolated ObservableObject {
     /// launch-time Finder request may have been queued before that happened.
     func attach(to window: NSWindow) {
         self.window = window
+        Self.isOpeningWindow = false
         let directories = Self.takePendingDirectories()
         if !directories.isEmpty, let startupProjectID,
            let startupProject = projects.first(where: { $0.id == startupProjectID }) {
@@ -236,6 +259,63 @@ final class TerminalManager: nonisolated ObservableObject {
         let directories = pendingDirectories
         pendingDirectories = []
         return directories
+    }
+
+    /// Creates a fresh project beside the current one for the bundled CLI.
+    static func openCLIProject(
+        arguments: [String],
+        directory: String,
+        path: String?
+    ) {
+        let manager = registry.first { $0.window === NSApp.keyWindow }
+            ?? registry.first { $0.window === NSApp.mainWindow }
+            ?? registry.last { $0.window != nil }
+        guard let manager else { return }
+        manager.newProject(
+            cliLaunch: CLIProjectLaunch(
+                arguments: arguments,
+                directory: directory,
+                path: path
+            )
+        )
+        manager.window?.makeKeyAndOrderFront(nil)
+    }
+
+    /// Installs SwiftUI's WindowGroup opener before any window needs to appear.
+    /// Commands are constructed during app launch even when macOS starts Kero
+    /// solely to handle a service request.
+    static func registerWindowOpener(_ open: @escaping () -> Void) {
+        windowOpener = open
+        requestWindowForPendingDirectories()
+    }
+
+    private static func requestWindowForPendingDirectories() {
+        guard !pendingDirectories.isEmpty,
+              !registry.contains(where: { $0.window != nil }),
+              !windowRequestScheduled,
+              !isOpeningWindow
+        else { return }
+
+        windowRequestScheduled = true
+        // Give SwiftUI's normal cold-launch window one turn to attach first.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            windowRequestScheduled = false
+            guard !pendingDirectories.isEmpty,
+                  !registry.contains(where: { $0.window != nil }),
+                  !isOpeningWindow
+            else { return }
+
+            isOpeningWindow = true
+            if let window = NSApp.windows.first(where: {
+                $0.identifier?.rawValue.hasPrefix("main") == true
+            }) {
+                window.makeKeyAndOrderFront(nil)
+            } else if let windowOpener {
+                windowOpener()
+            } else {
+                isOpeningWindow = false
+            }
+        }
     }
 
     private func makeProject(createInitialSession: Bool = true) -> Project {
@@ -316,6 +396,29 @@ final class TerminalManager: nonisolated ObservableObject {
         project.newSession()
     }
 
+    /// Opens a browser tab in the current project. Kero remains
+    /// project-oriented, so invoking it from the no-project state first creates
+    /// the normal project shell and places the browser beside it.
+    func newBrowserTab(initialURL: String? = nil) {
+        let project = selectedProject ?? newProject()
+        project.newBrowserTab(
+            initialURL: initialURL,
+            initialFocus: initialURL == nil ? .addressBar : .webContent
+        )
+    }
+
+    /// Opens a browser beside the focused pane in the current tab.
+    func newBrowserPane(
+        toward edge: PaneDropEdge = .right,
+        initialURL: String? = nil
+    ) {
+        selectedProject?.newBrowserPane(
+            toward: edge,
+            initialURL: initialURL,
+            initialFocus: initialURL == nil ? .addressBar : .webContent
+        )
+    }
+
     /// Brings `session` to the foreground: selects its project and tab, then
     /// focuses its pane. Backs the command palette's session switcher; a no-op
     /// if the session is no longer open anywhere.
@@ -331,8 +434,8 @@ final class TerminalManager: nonisolated ObservableObject {
         }
     }
 
-    /// Clears the terminal in the focused pane. No-op while a file or diff pane
-    /// is focused, so ⌘K never wipes an off-screen terminal.
+    /// Clears the terminal in the focused pane. No-op while another content
+    /// kind is focused, so ⌘K never wipes an off-screen terminal.
     func clearActiveTerminal() {
         if case .session(let session)? = selectedProject?.focusedContent {
             session.clear()
@@ -352,7 +455,7 @@ final class TerminalManager: nonisolated ObservableObject {
         switch selectedProject?.focusedContent {
         case .session(let session): session.find.perform(action)
         case .file(let file): file.performFindAction(action)
-        case .diff, .none: break
+        case .browser, .diff, .none: break
         }
     }
 
@@ -361,7 +464,7 @@ final class TerminalManager: nonisolated ObservableObject {
     var canFind: Bool {
         switch selectedProject?.focusedContent {
         case .session, .file: return true
-        case .diff, .none: return false
+        case .browser, .diff, .none: return false
         }
     }
 
@@ -429,6 +532,35 @@ final class TerminalManager: nonisolated ObservableObject {
         selectedProject?.select(index: index)
     }
 
+    // MARK: - Browser
+
+    private var selectedBrowser: BrowserTab? {
+        if case .browser(let browser)? = selectedProject?.focusedContent {
+            return browser
+        }
+        return nil
+    }
+
+    var hasSelectedBrowser: Bool {
+        selectedBrowser != nil
+    }
+
+    func focusBrowserAddressBar() {
+        selectedBrowser?.requestAddressFocus()
+    }
+
+    func reloadSelectedBrowser() {
+        selectedBrowser?.reload()
+    }
+
+    func stopSelectedBrowser() {
+        selectedBrowser?.stopLoading()
+    }
+
+    func openSelectedPageInDefaultBrowser() {
+        selectedBrowser?.openInDefaultBrowser()
+    }
+
     // MARK: - Files
 
     /// Opens `path` as a file tab in the current project.
@@ -483,7 +615,7 @@ final class TerminalManager: nonisolated ObservableObject {
         } else {
             commandPaletteWindow = NSApp.keyWindow
             if let responder = commandPaletteWindow?.firstResponder,
-               responder is KeroTerminalView || responder is FocusReportingTextView {
+               isStableWorkspaceResponder(responder) {
                 commandPalettePreviousResponder = responder
             } else {
                 commandPalettePreviousResponder = nil
@@ -513,11 +645,27 @@ final class TerminalManager: nonisolated ObservableObject {
             // editor. Never let restoration race that newer focus and win.
             if let current = window.firstResponder,
                current !== responder,
-               current is KeroTerminalView || current is FocusReportingTextView {
+               self.isStableWorkspaceResponder(current) {
                 return
             }
             window.makeFirstResponder(responder)
         }
+    }
+
+    /// Terminal and editor responders are public host views. WebKit instead
+    /// makes a private descendant of WKWebView first responder, so walk its
+    /// AppKit ancestry before deciding whether palette dismissal can restore
+    /// the page's keyboard focus.
+    private func isStableWorkspaceResponder(_ responder: NSResponder) -> Bool {
+        if responder is any TerminalBackendSurface || responder is FocusReportingTextView {
+            return true
+        }
+        var view = responder as? NSView
+        while let current = view {
+            if current is WKWebView { return true }
+            view = current.superview
+        }
+        return false
     }
 
     /// Shows the sidebar on `panel`, or hides it if already showing that panel.
@@ -539,12 +687,26 @@ final class TerminalManager: nonisolated ObservableObject {
         }
     }
 
+    /// Re-themes every open window for app-wide changes that do not mutate an
+    /// `AppSettings` publisher, such as a transient CLI theme preview.
+    static func refreshAllAppearances() {
+        for manager in registry {
+            manager.refreshAppearance()
+        }
+    }
+
+    /// Flushes the complete multi-window snapshot before Settings starts a
+    /// replacement app instance for a language change.
+    static func saveForRelaunch() {
+        saveAll(captureTerminalHistory: true)
+    }
+
     /// After the first window appears, reopen one window per unclaimed
     /// saved snapshot; each new window's manager claims the next one.
     /// Deferred a runloop tick so windows the system itself restores can
     /// claim theirs first.
     static func openRestoredWindows(_ open: @escaping () -> Void) {
-        windowOpener = open
+        registerWindowOpener(open)
         guard !didReopenWindows else { return }
         didReopenWindows = true
         DispatchQueue.main.async {
@@ -659,6 +821,8 @@ final class TerminalManager: nonisolated ObservableObject {
             return .session(workingDirectory: session.currentDirectoryPath)
         case .file(let file):
             return .file(path: file.path, editorState: file.editorState)
+        case .browser(let browser):
+            return .browser(url: browser.snapshotURL)
         case .diff(let diff):
             return .diff(
                 repoRoot: diff.repoRoot, path: diff.path, staged: diff.staged,

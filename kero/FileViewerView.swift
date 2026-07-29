@@ -22,7 +22,7 @@ final class FileTab: nonisolated ObservableObject, nonisolated Identifiable {
         case unavailable(String)
     }
 
-    let content: Content
+    private(set) var content: Content
     /// Current editor text, written back by the editor on every edit. Not
     /// published: the editor owns display, this is only read back for saves.
     var text: String
@@ -39,44 +39,37 @@ final class FileTab: nonisolated ObservableObject, nonisolated Identifiable {
 
     @Published private(set) var isDirty = false
     @Published var saveError: String?
+    /// Changes only when a clean tab picks up different bytes from disk. Text
+    /// editors use this as their identity so an already-mounted pane is rebuilt
+    /// with the new content while preserving its stored cursor/scroll state.
+    @Published private(set) var reloadRevision: UInt = 0
 
     /// The editor's scroll view while this file is on screen, so a pane-move
     /// drag can snapshot it for the drag thumbnail. Weak — owned by the mounted
     /// editor, nils out when the pane unmounts.
     weak var editorView: NSView?
 
-    private static let maxTextBytes = 5 << 20
-    private static let imageExtensions: Set<String> = [
+    private nonisolated static let maxTextBytes = 5 << 20
+    private nonisolated static let imageExtensions: Set<String> = [
         "png", "jpg", "jpeg", "gif", "heic", "webp", "tiff", "bmp", "icns",
     ]
+    private var imageFingerprint: Int?
+    private var reloadGeneration: UInt = 0
+    private var reloadTask: Task<Void, Never>?
+
+    private struct LoadedContent {
+        let content: Content
+        let text: String
+        let imageFingerprint: Int?
+    }
 
     init(path: String) {
         self.path = path
-        let url = URL(fileURLWithPath: path)
-        if Self.imageExtensions.contains(url.pathExtension.lowercased()),
-           let image = NSImage(contentsOf: url) {
-            content = .image(image)
-            text = ""
-            return
-        }
-        guard let data = try? Data(contentsOf: url) else {
-            content = .unavailable("Could not read file")
-            text = ""
-            return
-        }
-        guard data.count <= Self.maxTextBytes else {
-            content = .unavailable("File is too large to open")
-            text = ""
-            return
-        }
-        guard let string = String(data: data, encoding: .utf8) else {
-            content = .unavailable("Binary file")
-            text = ""
-            return
-        }
-        content = .text
-        text = string
-        savedText = string
+        let loaded = Self.load(path: path)
+        content = loaded.content
+        text = loaded.text
+        savedText = loaded.text
+        imageFingerprint = loaded.imageFingerprint
     }
 
     var name: String {
@@ -88,6 +81,7 @@ final class FileTab: nonisolated ObservableObject, nonisolated Identifiable {
     /// reloads; subsequent saves write to the new path.
     func updatePath(_ newPath: String) {
         guard newPath != path else { return }
+        invalidateReload()
         path = newPath
     }
 
@@ -103,11 +97,17 @@ final class FileTab: nonisolated ObservableObject, nonisolated Identifiable {
         }
         if isDirty != dirty {
             isDirty = dirty
+            if dirty {
+                // A read started while the buffer was clean must never replace
+                // an edit that happened before that read completed.
+                invalidateReload()
+            }
         }
     }
 
     func save() {
         guard case .text = content, isDirty else { return }
+        invalidateReload()
         do {
             try text.write(toFile: path, atomically: true, encoding: .utf8)
             savedText = text
@@ -116,6 +116,99 @@ final class FileTab: nonisolated ObservableObject, nonisolated Identifiable {
         } catch {
             saveError = error.localizedDescription
         }
+    }
+
+    /// Re-read a clean preview when it returns on screen. Disk I/O happens off
+    /// the main actor; generation/path/dirty guards keep an older read from
+    /// winning over a rename, save, or edit performed while it was in flight.
+    func reloadFromDiskIfClean() {
+        guard !isDirty else { return }
+        reloadTask?.cancel()
+        reloadGeneration &+= 1
+        let generation = reloadGeneration
+        let expectedPath = path
+
+        reloadTask = Task { [weak self] in
+            let data = await Task.detached(priority: .userInitiated) {
+                Self.readData(path: expectedPath)
+            }.value
+            guard !Task.isCancelled,
+                  let self,
+                  self.reloadGeneration == generation,
+                  self.path == expectedPath,
+                  !self.isDirty
+            else { return }
+
+            let loaded = Self.loadedContent(path: expectedPath, data: data)
+            guard !self.matches(loaded) else { return }
+            self.content = loaded.content
+            self.text = loaded.text
+            self.savedText = loaded.text
+            self.imageFingerprint = loaded.imageFingerprint
+            self.saveError = nil
+            self.reloadRevision &+= 1
+        }
+    }
+
+    private func invalidateReload() {
+        reloadTask?.cancel()
+        reloadTask = nil
+        reloadGeneration &+= 1
+    }
+
+    private func matches(_ loaded: LoadedContent) -> Bool {
+        switch (content, loaded.content) {
+        case (.text, .text):
+            return savedText == loaded.text
+        case (.image, .image):
+            return imageFingerprint == loaded.imageFingerprint
+        case (.unavailable(let current), .unavailable(let new)):
+            return current == new
+        default:
+            return false
+        }
+    }
+
+    private static func load(path: String) -> LoadedContent {
+        loadedContent(path: path, data: readData(path: path))
+    }
+
+    private nonisolated static func readData(path: String) -> Data? {
+        try? Data(contentsOf: URL(fileURLWithPath: path))
+    }
+
+    private static func loadedContent(path: String, data: Data?) -> LoadedContent {
+        let url = URL(fileURLWithPath: path)
+        guard let data else {
+            return LoadedContent(
+                content: .unavailable(String(localized: "Could not read file")),
+                text: "",
+                imageFingerprint: nil
+            )
+        }
+        if imageExtensions.contains(url.pathExtension.lowercased()),
+           let image = NSImage(data: data) {
+            return LoadedContent(
+                content: .image(image),
+                text: "",
+                imageFingerprint: data.hashValue
+            )
+        }
+        guard data.count <= maxTextBytes else {
+            return LoadedContent(
+                content: .unavailable(String(localized: "File is too large to open")),
+                text: "",
+                imageFingerprint: nil
+            )
+        }
+        guard let string = String(data: data, encoding: .utf8) else {
+            return LoadedContent(
+                content: .unavailable(String(localized: "Binary file")),
+                text: "",
+                imageFingerprint: nil
+            )
+        }
+        return LoadedContent(content: .text, text: string, imageFingerprint: nil)
     }
 }
 
@@ -131,42 +224,66 @@ struct FileViewerView: View {
     var onFocused: () -> Void = {}
     /// Splits this pane on the given edge — wired to the context-menu items.
     var onSplit: (PaneDropEdge) -> Void = { _ in }
+    var onNewBrowserTab: (String?) -> Void = { _ in }
+    var onNewBrowserPane: (String?) -> Void = { _ in }
 
     @ObservedObject private var settings = AppSettings.shared
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        switch file.content {
-        case .text:
-            VStack(spacing: 0) {
-                if let error = file.saveError {
-                    saveErrorBar(error)
+        Group {
+            switch file.content {
+            case .text:
+                VStack(spacing: 0) {
+                    if let error = file.saveError {
+                        saveErrorBar(error)
+                    }
+                    SourceTextEditor(
+                        file: file,
+                        font: TerminalFont.current(),
+                        palette: .theme(dark: colorScheme == .dark),
+                        wrapLines: settings.wrapLines,
+                        isFocused: isFocused,
+                        onFocused: onFocused,
+                        onSplit: onSplit,
+                        onNewBrowserTab: onNewBrowserTab,
+                        onNewBrowserPane: onNewBrowserPane
+                    )
+                    .id(file.reloadRevision)
                 }
-                SourceTextEditor(
-                    file: file,
-                    font: TerminalFont.current(),
-                    palette: .theme(dark: colorScheme == .dark),
-                    wrapLines: settings.wrapLines,
-                    isFocused: isFocused,
-                    onFocused: onFocused,
-                    onSplit: onSplit
-                )
+            case .image(let image):
+                ScrollView([.horizontal, .vertical]) {
+                    Image(nsImage: image)
+                        .padding(16)
+                }
+            case .unavailable(let reason):
+                VStack(spacing: 8) {
+                    Image(systemName: "doc")
+                        .font(.system(size: 24, weight: .light))
+                        .foregroundStyle(.quaternary)
+                    Text(reason)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.tertiary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-        case .image(let image):
-            ScrollView([.horizontal, .vertical]) {
-                Image(nsImage: image)
-                    .padding(16)
-            }
-        case .unavailable(let reason):
-            VStack(spacing: 8) {
-                Image(systemName: "doc")
-                    .font(.system(size: 24, weight: .light))
-                    .foregroundStyle(.quaternary)
-                Text(reason)
-                    .font(.system(size: 11))
-                    .foregroundStyle(.tertiary)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .onAppear {
+            file.reloadFromDiskIfClean()
+        }
+        // The selected file view stays mounted while Kero is inactive, so
+        // returning from an external editor does not trigger `onAppear`.
+        .onReceive(NotificationCenter.default.publisher(
+            for: NSApplication.didBecomeActiveNotification
+        )) { _ in
+            file.reloadFromDiskIfClean()
+        }
+        // A window can become key without the app itself transitioning from
+        // inactive (for example when moving between Kero windows).
+        .onReceive(NotificationCenter.default.publisher(
+            for: NSWindow.didBecomeKeyNotification
+        )) { _ in
+            file.reloadFromDiskIfClean()
         }
     }
 

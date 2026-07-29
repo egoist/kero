@@ -35,6 +35,10 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
     /// Tabs publish layout changes (splits, focus, resize); re-publish them so
     /// the strip re-renders and autosave fires.
     private var tabObservations: [UUID: AnyCancellable] = [:]
+    /// Browser navigation changes the tab's automatic title and persisted URL.
+    /// Re-publish it through the project just like a terminal's live title and
+    /// working directory.
+    private var browserObservations: [UUID: AnyCancellable] = [:]
 
     /// Pass `createInitialSession: false` when restoring a saved project;
     /// the caller then rebuilds the tabs itself.
@@ -62,14 +66,14 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
         return Self.terminalTitleParts(title).activity
     }
 
-    /// Text to seed the inline rename field. Prefer a custom name or the
-    /// current directory label so a live spinner frame is not copied into
-    /// `customName` and frozen.
+    /// Text to seed the inline rename field. Keep the displayed project name
+    /// but omit a live spinner frame so it is not copied into `customName`
+    /// and frozen.
     var renameDraftName: String {
         if let customName = Self.normalizedCustomName(customName) {
             return customName
         }
-        return selectedSession?.directoryLabel ?? name
+        return name
     }
 
     /// Trims a user-assigned project name and strips a leading terminal
@@ -123,13 +127,11 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
         tabs.flatMap { tab in tab.diffs.map { (diff: $0, tabID: tab.id) } }
     }
 
-    /// The focused terminal session; while a file (or diff) pane is focused it
-    /// has no directory of its own, so panels that need a working directory
-    /// (file tree, git, info) track a terminal that does: one sharing the
-    /// file's tab (a split), else the session the file was opened from (the
-    /// tab's `contextSession`), else the project's first session. The last two
-    /// fallbacks are why opening a file from one tab kept showing another tab's
-    /// directory when it landed on `sessions.first`.
+    /// The focused terminal session; while a file, browser, or diff pane is
+    /// focused it has no directory of its own, so panels that need a working
+    /// directory (file tree, git, info) track a terminal that does: one sharing
+    /// the tab (a split), else the session the content was opened from (the
+    /// tab's `contextSession`), else the project's first session.
     var selectedSession: TerminalSession? {
         if case .session(let session)? = focusedContent {
             return session
@@ -146,19 +148,57 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
 
     // MARK: - Project directory
 
+    /// Which rule produced the panel root, so labels can describe it
+    /// truthfully instead of just saying "automatic".
+    enum PanelRootSource: Equatable {
+        /// The directory pinned on the project row.
+        case pinned
+        /// The repository the shell itself sits in.
+        case shell
+        /// The repository the terminal's foreground job sits in — a coding
+        /// agent that moved to another checkout of the same project. Whether
+        /// that checkout is a linked worktree is resolved here, once per
+        /// refresh, so views can label it without touching the disk.
+        case foreground(isWorktree: Bool)
+    }
+
     /// Root for the file tree and git panels: the pinned directory when the
-    /// user set one (and it still exists on disk), else the closest git
-    /// repository containing `cwd`, else `cwd` itself — the
+    /// user set one (and it still exists on disk), else the repository the
+    /// terminal's foreground job moved to (an agent's worktree), else the
+    /// closest git repository containing `cwd`, else `cwd` itself — the
     /// follow-the-terminal behavior used before projects had a directory.
-    /// The automatic repository root is re-derived on every call, so it
-    /// tracks the session in and out of repositories without sticking.
-    /// `isAutomatic` reports which branch produced the root, so labels can
-    /// say "(AUTO)" truthfully even when a vanished pin forced the fallback.
-    func panelRoot(followingSessionAt cwd: String) -> (root: String, isAutomatic: Bool) {
+    /// Everything but the pin is re-derived on every call, so the panels
+    /// track the session in and out of repositories without sticking.
+    func panelRoot(
+        followingSessionAt cwd: String, foregroundAt foregroundCwd: String? = nil
+    ) -> (root: String, source: PanelRootSource) {
         if let pinned = customDirectory, FileManager.default.fileExists(atPath: pinned) {
-            return (pinned, false)
+            return (pinned, .pinned)
         }
-        return (Self.closestGitRepository(containing: cwd) ?? cwd, true)
+        let shellRoot = Self.closestGitRepository(containing: cwd) ?? cwd
+        // Only a *different repository* re-roots the panels. A foreground job
+        // running in a subdirectory of the shell's own checkout resolves to
+        // the same root and is ignored, which keeps the file tree from
+        // collapsing its expanded rows every time a command runs.
+        if let foregroundCwd,
+           let foregroundRoot = Self.closestGitRepository(containing: foregroundCwd),
+           foregroundRoot != shellRoot {
+            return (foregroundRoot, .foreground(isWorktree: Self.isLinkedWorktree(foregroundRoot)))
+        }
+        return (shellRoot, .shell)
+    }
+
+    /// Whether `root` is a linked worktree rather than a normal checkout: its
+    /// `.git` is a file pointing into the main repository's `worktrees`
+    /// directory (a submodule's points into `modules` instead).
+    private static func isLinkedWorktree(_ root: String) -> Bool {
+        let gitPath = (root as NSString).appendingPathComponent(".git")
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: gitPath, isDirectory: &isDirectory),
+              !isDirectory.boolValue,
+              let contents = try? String(contentsOfFile: gitPath, encoding: .utf8)
+        else { return false }
+        return contents.contains("/worktrees/")
     }
 
     /// The directory of the nearest enclosing git repository: walks up from
@@ -184,8 +224,16 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
     /// session's working directory, then the pinned project directory
     /// (home when neither is known).
     @discardableResult
-    func newSession(directory: String? = nil) -> TerminalSession {
-        let session = makeSession(directory: directory)
+    func newSession(
+        directory: String? = nil,
+        commandArguments: [String]? = nil,
+        environmentPath: String? = nil
+    ) -> TerminalSession {
+        let session = makeSession(
+            directory: directory,
+            commandArguments: commandArguments,
+            environmentPath: environmentPath
+        )
         let tab = makeTab(content: .session(session))
         insertNextToSelected(tab)
         selectedTabID = tab.id
@@ -196,13 +244,18 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
     /// it in a tab — shared by new tabs and splits. `restoredHistory` seeds the
     /// scrollback when reopening a saved session.
     private func makeSession(
-        directory: String? = nil, restoredHistory: String? = nil
+        directory: String? = nil,
+        restoredHistory: String? = nil,
+        commandArguments: [String]? = nil,
+        environmentPath: String? = nil
     ) -> TerminalSession {
         let session = TerminalSession(
             initialDirectory: directory
                 ?? selectedSession?.currentDirectoryPath
                 ?? customDirectory,
-            restoredHistory: restoredHistory
+            restoredHistory: restoredHistory,
+            commandArguments: commandArguments,
+            environmentPath: environmentPath
         )
         session.onExited = { [weak self] session in
             // Already dead — just drop its pane, no second terminate.
@@ -310,6 +363,59 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
         return nil
     }
 
+    // MARK: - Browser
+
+    /// Opens a native browser as a new tab beside the current selection.
+    @discardableResult
+    func newBrowserTab(
+        initialURL: String? = nil,
+        initialFocus: BrowserTab.InitialFocus = .addressBar
+    ) -> BrowserTab {
+        let context = selectedSession
+        let browser = makeBrowser(
+            initialURL: initialURL,
+            initialFocus: initialFocus
+        )
+        let tab = makeTab(content: .browser(browser))
+        tab.contextSession = context
+        insertNextToSelected(tab)
+        selectedTabID = tab.id
+        return browser
+    }
+
+    /// Opens a native browser to the right of the focused pane in the current
+    /// tab. Unlike a normal terminal split, the new pane owns a WKWebView.
+    @discardableResult
+    func newBrowserPane(
+        toward edge: PaneDropEdge = .right,
+        initialURL: String? = nil,
+        initialFocus: BrowserTab.InitialFocus = .addressBar
+    ) -> BrowserTab? {
+        guard let tab = selectedTab, tab.canSplit else { return nil }
+        let browser = makeBrowser(
+            initialURL: initialURL,
+            initialFocus: initialFocus
+        )
+        tab.split(Pane(content: .browser(browser)), toward: edge)
+        return browser
+    }
+
+    private func makeBrowser(
+        initialURL: String?,
+        initialFocus: BrowserTab.InitialFocus
+    ) -> BrowserTab {
+        let browser = BrowserTab(
+            initialURL: initialURL,
+            initialFocus: initialFocus
+        )
+        browserObservations[browser.id] = browser.objectWillChange.sink { [weak self] _ in
+            self?.objectWillChange.send()
+        }
+        return browser
+    }
+
+    // MARK: - File paths
+
     /// After a rename on disk, re-points any open file pane at its new path —
     /// the renamed file itself, or any file beneath a renamed directory.
     func updateFilePaths(from oldPath: String, to newPath: String) {
@@ -387,6 +493,8 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
             Task { @MainActor in
                 _ = await confirmCloseUnsaved(file, in: window)
             }
+        case .browser:
+            removePaneWithContent(content.id)
         case .diff:
             removePaneWithContent(content.id)
         }
@@ -436,13 +544,16 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
     private func confirmCloseUnsaved(_ file: FileTab, in window: NSWindow?) async -> Bool {
         let alert = NSAlert()
         alert.alertStyle = .warning
-        alert.messageText = "Do you want to save the changes you made to \(file.name)?"
-        alert.informativeText = "Your changes will be lost if you don't save them."
-        alert.addButton(withTitle: "Save")
-        let dontSave = alert.addButton(withTitle: "Don't Save")
+        alert.messageText = String(
+            localized: "Do you want to save the changes you made to \(file.name)?",
+            comment: "Unsaved file confirmation. The placeholder is a file name."
+        )
+        alert.informativeText = String(localized: "Your changes will be lost if you don't save them.")
+        alert.addButton(withTitle: String(localized: "Save"))
+        let dontSave = alert.addButton(withTitle: String(localized: "Don’t Save"))
         dontSave.keyEquivalent = "d"
         dontSave.keyEquivalentModifierMask = .command
-        let cancel = alert.addButton(withTitle: "Cancel")
+        let cancel = alert.addButton(withTitle: String(localized: "Cancel"))
         cancel.keyEquivalent = "\u{1b}"
 
         let response: NSApplication.ModalResponse
@@ -589,6 +700,8 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
             let file = FileTab(path: path)
             if let editorState { file.editorState = editorState }
             return .file(file)
+        case .browser(let url):
+            return .browser(makeBrowser(initialURL: url, initialFocus: .none))
         case .diff(let repoRoot, let path, let staged, let untracked, let origPath):
             return .diff(DiffTab(
                 repoRoot: repoRoot, path: path, staged: staged,
@@ -623,8 +736,9 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
     private func removePaneWithContent(_ contentID: UUID) {
         for tab in tabs {
             guard let paneID = tab.paneID(forContent: contentID) else { continue }
-            // Keyed by session id; a no-op for files and diffs.
+            // Keyed by content id; no-ops for the other content kinds.
             sessionObservations[contentID] = nil
+            browserObservations[contentID] = nil
             if !tab.removePane(paneID) {
                 remove(tabID: tab.id)
             }
@@ -637,6 +751,9 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
         let tab = tabs[index]
         for session in tab.sessions {
             sessionObservations[session.id] = nil
+        }
+        for browser in tab.browsers {
+            browserObservations[browser.id] = nil
         }
         tabObservations[tabID] = nil
         tabs.remove(at: index)

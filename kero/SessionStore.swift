@@ -13,12 +13,13 @@ import Foundation
 /// from disk.
 struct SessionSnapshot: Codable {
     struct ProjectSnapshot: Codable {
-        /// A single pane's content — the terminal/file/diff it holds. The case
-        /// shapes match the pre-split format exactly, so old saved tabs (which
-        /// were one of these directly) still decode; see `TabSnapshot`.
+        /// A single pane's content — the terminal, file, browser, or diff it
+        /// holds. The original case shapes stay unchanged, so old saved tabs
+        /// still decode; see `TabSnapshot`.
         enum PaneContentSnapshot: Codable {
             case session(workingDirectory: String)
             case file(path: String, editorState: EditorState?)
+            case browser(url: String?)
             case diff(repoRoot: String, path: String, staged: Bool, untracked: Bool, origPath: String?)
         }
 
@@ -26,8 +27,8 @@ struct SessionSnapshot: Codable {
             var content: PaneContentSnapshot
             var weight: Double
             /// Key into the sidecar terminal-history store for a session pane;
-            /// nil for files, diffs, or when history restore is off. Optional so
-            /// snapshots written before this feature still decode.
+            /// nil for files, browsers, diffs, or when history restore is off.
+            /// Optional so snapshots written before this feature still decode.
             var historyKey: String?
         }
 

@@ -15,6 +15,9 @@ struct PaneLayoutView: View {
     @ObservedObject private var themeChanges = Theme.changes
     /// Splits the focused pane on the given edge — from a pane's context menu.
     var onSplit: (PaneDropEdge) -> Void = { _ in }
+    /// Browser creation actions exposed by terminal and file-editor menus.
+    var onNewBrowserTab: (String?) -> Void = { _ in }
+    var onNewBrowserPane: (String?) -> Void = { _ in }
 
     /// Gap between tiles, which doubles as the divider hit area. The same
     /// value insets the whole grid from the parent, so the spacing around the
@@ -76,7 +79,9 @@ struct PaneLayoutView: View {
                     dropEdge: nil,
                     onMove: { _ in },
                     onMoveEnded: {},
-                    onSplit: onSplit
+                    onSplit: onSplit,
+                    onNewBrowserTab: onNewBrowserTab,
+                    onNewBrowserPane: onNewBrowserPane
                 )
             } else {
                 grid
@@ -163,7 +168,9 @@ struct PaneLayoutView: View {
                     dropEdge: paneDrag?.targetID == pane.id ? paneDrag?.edge : nil,
                     onMove: { updateDropTarget(source: pane.id, location: $0) },
                     onMoveEnded: { commitPaneMove() },
-                    onSplit: onSplit
+                    onSplit: onSplit,
+                    onNewBrowserTab: onNewBrowserTab,
+                    onNewBrowserPane: onNewBrowserPane
                 )
                 .frame(width: width, height: heights[paneIndex])
                 if paneIndex < column.panes.count - 1 {
@@ -312,8 +319,9 @@ struct PaneLayoutView: View {
     private func thumbnail(for sourceID: UUID) -> NSImage? {
         switch tab.allPanes.first(where: { $0.id == sourceID })?.content {
         case .session(let session):
-            return session.terminalView.paneSnapshot()
+            return session.surface.paneSnapshot()
         case .file(let file): return file.editorView?.paneSnapshot()
+        case .browser(let browser): return browser.webView.paneSnapshot()
         default: return nil
         }
     }
@@ -424,6 +432,8 @@ private struct PaneView: View {
     /// Splits the focused pane on the given edge (from the content's context
     /// menu).
     let onSplit: (PaneDropEdge) -> Void
+    let onNewBrowserTab: (String?) -> Void
+    let onNewBrowserPane: (String?) -> Void
 
     /// Height of the grab strip at the pane's top.
     private let handleHeight: CGFloat = 8
@@ -469,17 +479,50 @@ private struct PaneView: View {
         onSplit(edge)
     }
 
+    private func newBrowserTabFromMenu(initialURL: String?) {
+        focus()
+        onNewBrowserTab(initialURL)
+    }
+
+    private func newBrowserPaneFromMenu(initialURL: String?) {
+        focus()
+        onNewBrowserPane(initialURL)
+    }
+
     @ViewBuilder
     private var content: some View {
         switch pane.content {
         case .session(let session):
-            TerminalHostView(session: session, isFocused: isFocused, onFocused: focus, onSplit: splitFromMenu)
+            TerminalHostView(
+                session: session,
+                isFocused: isFocused,
+                onFocused: focus,
+                onSplit: splitFromMenu,
+                onNewBrowserTab: newBrowserTabFromMenu,
+                onNewBrowserPane: newBrowserPaneFromMenu
+            )
                 .background(Color(nsColor: Theme.background))
                 .overlay(alignment: .topTrailing) {
                     TerminalFindOverlay(find: session.find)
                 }
         case .file(let file):
-            FileViewerView(file: file, isFocused: isFocused, onFocused: focus, onSplit: splitFromMenu)
+            FileViewerView(
+                file: file,
+                isFocused: isFocused,
+                onFocused: focus,
+                onSplit: splitFromMenu,
+                onNewBrowserTab: newBrowserTabFromMenu,
+                onNewBrowserPane: newBrowserPaneFromMenu
+            )
+                .background(Color(nsColor: Theme.background))
+        case .browser(let browser):
+            BrowserView(
+                browser: browser,
+                isFocused: isFocused,
+                onFocused: focus,
+                onNewBrowserTab: newBrowserTabFromMenu,
+                onNewBrowserPane: newBrowserPaneFromMenu
+            )
                 .background(Color(nsColor: Theme.background))
         case .diff:
             // Rendered by the always-mounted diff stack behind the layout; stay

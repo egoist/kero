@@ -4,11 +4,16 @@
 # Bun / node deps
 /node_modules/
 
+# Rust build output for the Alacritty backend's bridge. Cargo.lock IS tracked:
+# the Xcode build phase passes --locked so a build is reproducible.
+/Vendor/alacritty-bridge/target/
+
 # macOS
 .DS_Store
 
 ## User settings
 xcuserdata/
+/Config/Local.xcconfig
 
 ## Obj-C/Swift specific
 *.hmap

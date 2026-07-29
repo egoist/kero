@@ -24,9 +24,10 @@ final class SessionInfoModel: nonisolated ObservableObject {
         let memoryKB: Int
 
         var memoryLabel: String {
-            memoryKB >= 1024
-                ? String(format: "%.0f MB", Double(memoryKB) / 1024)
-                : "\(memoryKB) KB"
+            ByteCountFormatter.string(
+                fromByteCount: Int64(memoryKB) * 1024,
+                countStyle: .memory
+            )
         }
     }
 
@@ -43,9 +44,9 @@ final class SessionInfoModel: nonisolated ObservableObject {
     /// The project directory the file tree and git panels anchor to —
     /// shown alongside the live cwd so both are visible at a glance.
     @Published private(set) var projectRootPath = ""
-    /// Whether that directory was derived (closest git repository / cwd)
-    /// rather than pinned by the user.
-    @Published private(set) var projectRootIsAutomatic = true
+    /// Which rule produced that directory — pinned, the shell's repository,
+    /// or the repository the foreground job moved to.
+    @Published private(set) var projectRootSource = Project.PanelRootSource.shell
     @Published private(set) var shellName = ""
     @Published private(set) var shellPid: pid_t = 0
     @Published private(set) var processes: [ProcessItem] = []
@@ -56,14 +57,14 @@ final class SessionInfoModel: nonisolated ObservableObject {
     func sync(
         root: String,
         projectRoot: String,
-        projectRootIsAutomatic: Bool,
+        projectRootSource: Project.PanelRootSource,
         shellName: String,
         shellPid: pid_t?
     ) {
         if rootPath != root { rootPath = root }
         if projectRootPath != projectRoot { projectRootPath = projectRoot }
-        if self.projectRootIsAutomatic != projectRootIsAutomatic {
-            self.projectRootIsAutomatic = projectRootIsAutomatic
+        if self.projectRootSource != projectRootSource {
+            self.projectRootSource = projectRootSource
         }
         if self.shellName != shellName { self.shellName = shellName }
         let pid = shellPid ?? 0
@@ -110,23 +111,29 @@ final class SessionInfoModel: nonisolated ObservableObject {
     ) -> ([ProcessItem], [PortItem]) {
         // `comm` is the executable path with no arguments, so the only
         // free-form field is the last one and column parsing stays safe.
-        let psOut = run("/bin/ps", ["-axo", "pid=,ppid=,pcpu=,rss=,comm="])
+        let psOut = run("/bin/ps", ["-axo", "pid=,ppid=,stat=,pcpu=,rss=,comm="])
         var itemsByPid: [pid_t: ProcessItem] = [:]
         var childPids: [pid_t: [pid_t]] = [:]
         for line in psOut.split(separator: "\n") {
-            let fields = line.split(separator: " ", maxSplits: 4, omittingEmptySubsequences: true)
-            guard fields.count == 5,
+            let fields = line.split(separator: " ", maxSplits: 5, omittingEmptySubsequences: true)
+            guard fields.count == 6,
                   let pid = pid_t(fields[0]),
                   let ppid = pid_t(fields[1]) else { continue }
-            let executable = String(fields[4])
+            // Recorded before the zombie check so the descendant walk below
+            // still traverses the tree through anything we skip.
+            childPids[ppid, default: []].append(pid)
+            // Zombies are children that already exited and are waiting to be
+            // reaped: `ps` names them "<defunct>", they hold no CPU or memory,
+            // and no signal can touch them. Nothing to show or act on.
+            guard !fields[2].hasPrefix("Z") else { continue }
+            let executable = String(fields[5])
             itemsByPid[pid] = ProcessItem(
                 pid: pid,
                 name: (executable as NSString).lastPathComponent,
                 executable: executable,
-                cpu: Double(fields[2]) ?? 0,
-                memoryKB: Int(fields[3]) ?? 0
+                cpu: Double(fields[3]) ?? 0,
+                memoryKB: Int(fields[4]) ?? 0
             )
-            childPids[ppid, default: []].append(pid)
         }
 
         // Descendants breadth-first: the commands the user ran come before

@@ -11,11 +11,15 @@
 //   • Developer ID cert + notary profile    — `xcrun notarytool store-credentials`
 //   • rclone remote for R2                   — `rclone config`  (S3-compatible)
 //   • Fill in scripts/ExportOptions.plist (teamID)
+//   • Push access to the Homebrew tap over SSH (for the cask bump)
 //
 // Usage:
 //   bun scripts/release.ts            # release the version currently in the project
+//   bun scripts/release.ts --local     # build signed artifacts without publishing
 //   FORCE=1 bun scripts/release.ts    # re-release even if that version exists
+//   NO_TAP=1 bun scripts/release.ts   # skip bumping the Homebrew cask
 //   NO_HISTORY=1 bun scripts/release.ts   # skip pulling old archives (no deltas)
+//   HISTORY_COUNT=3 bun scripts/release.ts   # use fewer prior archives for deltas
 //
 // Bump MARKETING_VERSION (CFBundleShortVersionString) and CURRENT_PROJECT_VERSION
 // (CFBundleVersion) in the project before running — Sparkle compares the build
@@ -26,9 +30,15 @@ import { join } from "node:path";
 import { die, need, say } from "./lib";
 import { generateAppcast } from "./generate-appcast";
 import { extractReleaseNotes } from "./changelog";
+import { bumpCask, checkMinimumSystemVersion } from "./bump-cask";
 
 // Run from the repo root regardless of where we were invoked.
 process.chdir(join(import.meta.dir, ".."));
+
+const args = process.argv.slice(2).filter((arg) => arg !== "--");
+const unknownArg = args.find((arg) => arg !== "--local");
+if (unknownArg) die(`unknown option: ${unknownArg}`);
+const localBuild = args.includes("--local");
 
 // ---- config (override via env) -------------------------------------------
 const PROJECT = "kero.xcodeproj";
@@ -47,6 +57,12 @@ const DOWNLOAD_URL_PREFIX = process.env.DOWNLOAD_URL_PREFIX ?? "https://releases
 const R2_REMOTE = process.env.R2_REMOTE ?? "r2";
 const R2_BUCKET = process.env.R2_BUCKET ?? "kero-releases";
 const R2_DEST = `${R2_REMOTE}:${R2_BUCKET}`;
+// Keep a broader recent window available for delta generation. Override to
+// trade delta coverage for less download/storage.
+const HISTORY_COUNT = Number(process.env.HISTORY_COUNT ?? "15");
+if (!Number.isSafeInteger(HISTORY_COUNT) || HISTORY_COUNT < 0) {
+  die("HISTORY_COUNT must be a non-negative integer.");
+}
 
 // A bucket-scoped R2 API token (Object Read & Write) can't create buckets, and
 // rclone otherwise tries to check/create the bucket before uploading. The
@@ -57,9 +73,12 @@ process.env.DEVELOPER_DIR ??= "/Applications/Xcode-beta.app/Contents/Developer";
 
 need("xcodebuild");
 need("ditto");
-need("xcrun");
+if (!localBuild) need("xcrun");
 need("plutil");
-need("rclone");
+if (!localBuild) need("rclone");
+// Checked up front: the cask bump runs after publishing, too late to be useful
+// as a prerequisite failure.
+if (!localBuild && process.env.NO_TAP !== "1") need("git");
 need("create-dmg"); // brew install create-dmg
 if (!existsSync(EXPORT_OPTIONS)) {
   die(`export options not found: ${EXPORT_OPTIONS} (see RELEASING.md)`);
@@ -88,7 +107,7 @@ const dmgName = `kero-${version}.dmg`; // notarized download
 say(`Releasing kero ${version} (build ${build})`);
 
 // Don't clobber an already-published version unless forced.
-if (process.env.FORCE !== "1") {
+if (!localBuild && process.env.FORCE !== "1") {
   let existing = "";
   try {
     existing = await $`rclone lsf ${R2_DEST} ${RCLONE_FLAGS}`.text();
@@ -123,6 +142,12 @@ await $`create-dmg \
   ${dmgPath} ${dmgStaging}`.nothrow();
 if (!existsSync(dmgPath)) die("create-dmg did not produce a disk image");
 await $`codesign --force --sign ${SIGN_IDENTITY} ${dmgPath}`;
+if (localBuild) {
+  say(`Done. Built and signed kero ${version} locally; nothing was notarized or published:`);
+  console.log(`     app      : ${app}`);
+  console.log(`     download : ${dmgPath}`);
+  process.exit(0);
+}
 
 // ---- 5. notarize + staple ------------------------------------------------
 // Notarizing the DMG also notarizes the app's code hash, so we can staple both
@@ -135,14 +160,48 @@ await $`xcrun stapler staple ${app}`;
 
 // ---- 6. package the Sparkle update (pull history first for deltas) --------
 // The DMG is the download; Sparkle updates from this zip so it can build small
-// binary deltas. Only zips live in UPDATES_DIR, so generate_appcast makes one
-// appcast item per version.
+// binary deltas. UPDATES_DIR is a clean staging directory containing only the
+// current archive and the recent history needed for those deltas.
+rmSync(UPDATES_DIR, { recursive: true, force: true });
 mkdirSync(UPDATES_DIR, { recursive: true });
 if (process.env.NO_HISTORY !== "1") {
-  say("Pulling existing archives from R2 (for deltas)…");
-  // copy is additive — it never deletes local or remote files. Pull the old
-  // appcast too so generate_appcast preserves any hand-added release notes.
-  await $`rclone copy ${R2_DEST} ${UPDATES_DIR} ${RCLONE_FLAGS} --include ${"*.zip"} --include ${"*.delta"} --include ${"*.md"} --include ${"*.html"} --include ${"appcast.xml"}`;
+  say(`Selecting the ${HISTORY_COUNT} most recent archives from R2 (for deltas)…`);
+  type RemoteFile = { Name: string; IsDir: boolean };
+  const remoteFiles = JSON.parse(
+    await $`rclone lsjson ${R2_DEST} ${RCLONE_FLAGS} --files-only --include ${"*.zip"} --include ${"appcast.xml"}`.text(),
+  ) as RemoteFile[];
+  const archiveVersion = (name: string) =>
+    name.slice("kero-".length, -".zip".length);
+  const versionOrder = new Intl.Collator("en", { numeric: true });
+  const recentArchives = remoteFiles
+    .filter(
+      ({ Name, IsDir }) =>
+        !IsDir && /^kero-.+\.zip$/.test(Name) && Name !== zipName,
+    )
+    .sort((a, b) =>
+      versionOrder.compare(archiveVersion(b.Name), archiveVersion(a.Name)),
+    )
+    .slice(0, HISTORY_COUNT)
+    .map(({ Name }) => Name);
+  const historyFiles = [
+    ...(remoteFiles.some(({ Name }) => Name === "appcast.xml")
+      ? ["appcast.xml"]
+      : []),
+    ...recentArchives,
+  ];
+
+  if (historyFiles.length > 0) {
+    const includeFlags = historyFiles.flatMap((name) => [
+      "--include",
+      `/${name}`,
+    ]);
+    await $`rclone copy ${R2_DEST} ${UPDATES_DIR} ${RCLONE_FLAGS} ${includeFlags}`;
+  }
+  say(
+    recentArchives.length > 0
+      ? `Pulled ${recentArchives.join(", ")}`
+      : "No prior archives found",
+  );
 }
 say(`Packaging ${zipName}…`);
 await $`ditto -c -k --keepParent ${app} ${join(UPDATES_DIR, zipName)}`;
@@ -173,9 +232,26 @@ await generateAppcast(UPDATES_DIR, DOWNLOAD_URL_PREFIX);
 say(`Uploading the DMG to ${R2_DEST}…`);
 await $`rclone copyto ${dmgPath} ${`${R2_DEST}/${dmgName}`} ${RCLONE_FLAGS} --header-upload ${"Cache-Control: public, max-age=31536000, immutable"} --progress`;
 say(`Uploading update archives to ${R2_DEST}…`);
-await $`rclone copy ${UPDATES_DIR} ${R2_DEST} ${RCLONE_FLAGS} --exclude ${"appcast.xml"} --header-upload ${"Cache-Control: public, max-age=31536000, immutable"} --progress`;
+await $`rclone copy ${UPDATES_DIR} ${R2_DEST} ${RCLONE_FLAGS} --exclude ${"appcast.xml"} --exclude ${"old_updates/**"} --header-upload ${"Cache-Control: public, max-age=31536000, immutable"} --progress`;
 say("Uploading appcast.xml…");
 await $`rclone copyto ${join(UPDATES_DIR, "appcast.xml")} ${`${R2_DEST}/appcast.xml`} ${RCLONE_FLAGS} --header-upload ${"Cache-Control: public, max-age=300, must-revalidate"}`;
+
+// ---- 9. bump the Homebrew cask -------------------------------------------
+// Last, because the cask's sha256 covers a DMG that must already be fetchable.
+// The release is live at this point, so a failure here is a warning with a
+// retry command, not a failed release.
+if (process.env.NO_TAP !== "1") {
+  say("Bumping the Homebrew cask…");
+  try {
+    await bumpCask(version, dmgPath);
+    await checkMinimumSystemVersion(appPlist);
+  } catch (error) {
+    console.warn(
+      `\x1b[1;33mwarning:\x1b[0m could not bump the cask: ${error instanceof Error ? error.message : error}\n` +
+        `         retry with: bun scripts/bump-cask.ts ${version}`,
+    );
+  }
+}
 
 say(`Done. kero ${version} is live:`);
 console.log(`     download : ${DOWNLOAD_URL_PREFIX}${dmgName}`);

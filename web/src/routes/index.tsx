@@ -1,5 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
-import type { ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { SiteLayout } from '@/components/site-layout'
+import { cn } from '@/lib/utils'
 
 export const Route = createFileRoute('/')({
   component: Home,
@@ -12,8 +14,10 @@ type Release = { version: string; minSystem: string; dmg: string }
 
 const RELEASES_ORIGIN = 'https://releases.kero.sh'
 const APPCAST_URL = `${RELEASES_ORIGIN}/appcast.xml`
-const X_URL = 'https://x.com/localhost_4173'
 const GITHUB_URL = 'https://github.com/egoist/kero'
+// Cask lives in egoist/homebrew-tap, so the tap has to be named explicitly.
+// `--cask` is optional — brew falls back to casks, and the tap has no `kero` formula.
+const BREW_COMMAND = 'brew install egoist/tap/kero'
 
 // Shown only if the appcast can't be reached; kept current so downloads still work.
 const FALLBACK: Release = {
@@ -171,13 +175,19 @@ const FEATURES: { group: string; rows: Row[] }[] = [
 const SHORTCUTS: Row[] = [
   { name: 'Cmd+N', detail: 'new project' },
   { name: 'Cmd+T', detail: 'new session' },
+  { name: 'Cmd+W', detail: 'close the focused pane' },
   { name: 'Cmd+1–9', detail: 'switch project' },
   { name: 'Ctrl+Shift+1–9', detail: 'switch tab' },
+  { name: 'Ctrl+Tab', detail: 'open the tab switcher' },
   { name: 'Cmd+P', detail: 'command palette' },
   { name: 'Cmd+D / Cmd+Shift+D', detail: 'split right / split down' },
   { name: 'Opt+Cmd+arrows', detail: 'focus the pane in that direction' },
+  { name: 'Cmd+[ / Cmd+]', detail: 'cycle pane focus' },
+  { name: 'Cmd+Shift+Return', detail: 'zoom the focused pane' },
+  { name: 'Ctrl+Cmd+arrows / =', detail: 'resize / equalize panes' },
   { name: 'Cmd+B / Cmd+Shift+B', detail: 'toggle the left / right sidebar' },
   { name: 'Cmd+Shift+G / E / I', detail: 'git / files / info panel' },
+  { name: 'Cmd+F / Cmd+G', detail: 'find / find next' },
   { name: 'Cmd+K', detail: 'clear the terminal' },
   { name: 'Cmd+S', detail: 'save the open file' },
 ]
@@ -210,33 +220,26 @@ const FAQ: { q: string; a: ReactNode }[] = [
 function Home() {
   const latest = Route.useLoaderData()
   return (
-    <main className="mx-auto flex max-w-[680px] flex-col gap-11 px-6 pt-[12vh] pb-[14vh] font-mono text-[14px] leading-[1.6]">
-      <header className="flex flex-col gap-3">
-        <h1 className="flex items-center gap-2.5 text-2xl font-bold tracking-[0.02em]">
-          <img
-            src="/kero-icon.png"
-            alt=""
-            width={100}
-            height={100}
-            className="block size-12 border border-zinc-600 rounded-md"
-          />
-          kero
-        </h1>
-        <p className="text-foreground/70">
-          Your terminal, with the <span className="text-brand">whole project</span> around it.
-          <span
-            aria-hidden
-            className="ml-[5px] inline-block h-[1.05em] w-[7px] animate-caret rounded-[1px] bg-brand align-[-0.15em] motion-reduce:animate-none"
-          />
-        </p>
-        <p className="mt-3.5 text-muted-foreground">
-          A native macOS workspace built around the terminal — projects, persistent
-          sessions, files, and git in one window.
-          <br />
-          Free, no telemetry, no subscription.
-        </p>
-      </header>
-
+    <SiteLayout
+      headerContent={
+        <>
+          <p className="text-foreground/70">
+            Your terminal, with the{' '}
+            <span className="text-brand">whole project</span> around it.
+            <span
+              aria-hidden
+              className="ml-[5px] inline-block h-[1.05em] w-[7px] animate-caret rounded-[1px] bg-brand align-[-0.15em] motion-reduce:animate-none"
+            />
+          </p>
+          <p className="mt-3.5 text-muted-foreground">
+            A native macOS workspace built around the terminal — projects, persistent
+            sessions, files, and git in one window.
+            <br />
+            Free, no telemetry, no subscription.
+          </p>
+        </>
+      }
+    >
       <section className="flex flex-col gap-3.5">
         <div className="flex flex-wrap items-center gap-2.5">
           <a
@@ -257,6 +260,7 @@ function Home() {
             GitHub
           </a>
         </div>
+        <CopyCommand command={BREW_COMMAND} />
         <div className="flex flex-wrap items-center gap-2 text-[13px] text-muted-foreground">
           <Pill>v{latest.version}</Pill>
           <Pill>macOS {latest.minSystem}+</Pill>
@@ -322,29 +326,7 @@ function Home() {
           ))}
         </div>
       </section>
-
-      <footer className="text-[13px] text-muted-foreground">
-        Built by{' '}
-        <a
-          href={X_URL}
-          target="_blank"
-          rel="noreferrer"
-          className="text-foreground transition-colors hover:text-brand"
-        >
-          @localhost_4173
-        </a>{' '}
-        ·{' '}
-        <a
-          href={GITHUB_URL}
-          target="_blank"
-          rel="noreferrer"
-          className="text-foreground transition-colors hover:text-brand"
-        >
-          GitHub
-        </a>{' '}
-        · © 2026
-      </footer>
-    </main>
+    </SiteLayout>
   )
 }
 
@@ -355,6 +337,67 @@ function SectionHeading({ children }: { children: ReactNode }) {
     <h2 className="text-[13px] font-normal tracking-[0.04em] text-muted-foreground">
       {children}
     </h2>
+  )
+}
+
+/**
+ * The Homebrew one-liner with a copy button, sharing the download button's
+ * chrome. The command stays selectable so it's still usable if the Clipboard
+ * API isn't available (insecure context, denied permission).
+ */
+function CopyCommand({ command }: { command: string }) {
+  const [copied, setCopied] = useState(false)
+  const commandRef = useRef<HTMLSpanElement>(null)
+
+  useEffect(() => {
+    if (!copied) return
+    const timer = setTimeout(() => setCopied(false), 2000)
+    return () => clearTimeout(timer)
+  }, [copied])
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(command)
+      setCopied(true)
+    } catch {
+      // Clipboard denied (insecure context, permissions policy). Select the
+      // command so ⌘C still works — a button that does nothing reads as broken.
+      const node = commandRef.current
+      if (!node) return
+      const range = document.createRange()
+      range.selectNodeContents(node)
+      const selection = window.getSelection()
+      selection?.removeAllRanges()
+      selection?.addRange(range)
+    }
+  }
+
+  return (
+    <div className="flex max-w-full items-stretch self-start overflow-hidden rounded-[9px] border border-border bg-card">
+      <code className="flex min-w-0 items-center gap-2 overflow-x-auto px-4 py-[7px] whitespace-pre">
+        <span aria-hidden className="shrink-0 text-muted-foreground select-none">
+          $
+        </span>
+        <span ref={commandRef}>{command}</span>
+      </code>
+      <button
+        type="button"
+        onClick={copy}
+        aria-label={`Copy "${command}" to the clipboard`}
+        className="inline-flex shrink-0 items-center gap-2 border-l border-border px-3.5 text-muted-foreground transition-colors hover:bg-brand/8 hover:text-brand"
+      >
+        <span
+          aria-hidden
+          className={cn(
+            'size-4 shrink-0',
+            copied ? 'i-mingcute-check-line' : 'i-mingcute-copy-2-line',
+          )}
+        />
+        <span aria-live="polite" className="max-[420px]:sr-only">
+          {copied ? 'Copied' : 'Copy'}
+        </span>
+      </button>
+    </div>
   )
 }
 
