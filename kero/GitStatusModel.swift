@@ -7,7 +7,7 @@ import Combine
 import Dispatch
 import Foundation
 
-/// Polls repository state for the active terminal directory and performs
+/// Loads repository state in response to explicit UI events and performs
 /// source-control operations without blocking the UI.
 @MainActor
 final class GitStatusModel: nonisolated ObservableObject {
@@ -52,7 +52,11 @@ final class GitStatusModel: nonisolated ObservableObject {
         let shortHash: String
         let subject: String
         let author: String
-        let relativeDate: String
+        let date: Date
+
+        var relativeDate: String {
+            date.formatted(.relative(presentation: .named, unitsStyle: .abbreviated))
+        }
     }
 
     nonisolated struct Operation: Identifiable, Equatable, Sendable {
@@ -74,9 +78,12 @@ final class GitStatusModel: nonisolated ObservableObject {
 
         var statusLabel: String {
             switch state {
-            case .running: return label + "…"
-            case .succeeded: return label + " completed"
-            case .failed: return label + " failed"
+            case .running:
+                return String(localized: "\(label)…", comment: "A Git operation that is still running.")
+            case .succeeded:
+                return String(localized: "\(label) completed", comment: "A Git operation that completed successfully.")
+            case .failed:
+                return String(localized: "\(label) failed", comment: "A Git operation that failed.")
             }
         }
     }
@@ -103,12 +110,11 @@ final class GitStatusModel: nonisolated ObservableObject {
     @Published private(set) var stashCount = 0
     @Published private(set) var isRefreshing = false
     /// True once a status load has completed for the current `rootPath`. The
-    /// UI keeps showing resolved content (the repo view or the "no repository"
-    /// state) during routine background polls instead of flashing a loading
-    /// placeholder every two-second refresh tick.
+    /// UI keeps showing resolved content during later event-driven refreshes
+    /// instead of flashing a loading placeholder.
     @Published private(set) var hasResolvedStatus = false
     @Published private(set) var statusError: String?
-    /// True while a user-initiated Git operation (not a status poll) runs.
+    /// True while a user-initiated Git operation runs.
     @Published private(set) var isBusy = false
     @Published private(set) var operation: Operation?
     @Published var lastError: String?
@@ -118,24 +124,23 @@ final class GitStatusModel: nonisolated ObservableObject {
     private var topLevel = ""
     /// Invalidates async refreshes and operations after the terminal changes cwd.
     private var contextGeneration: UInt = 0
-    /// Invalidates an in-flight status poll when a mutation begins, so its
+    /// Invalidates an in-flight status refresh when a mutation begins, so its
     /// pre-operation snapshot cannot overwrite the post-operation state.
     private var statusRequestID: UInt = 0
+    /// Coalesces an event that arrives while another refresh or mutation is
+    /// running. Without polling, dropping that event could leave the snapshot
+    /// stale indefinitely.
+    private var refreshPending = false
     /// Keeps a mutation globally exclusive even if the terminal changes cwd
     /// while its Git process is still running.
     private var runningOperationID: UUID?
-    /// Branch lists, history, remotes, and stash state do not need the same
-    /// two-second cadence as the working-tree status.
-    private var lastDetailsRefresh = Date.distantPast
-
     var totalChangeCount: Int {
         mergeEntries.count + stagedEntries.count + changedEntries.count
     }
 
     /// True while the first status load for the current directory is still in
-    /// flight. Distinguishes the initial "finding repository" phase from the
-    /// fast background polls that follow, so the UI can show progress for the
-    /// former without flickering a spinner on every two-second tick.
+    /// flight, so later event-driven refreshes do not replace resolved content
+    /// with a loading state.
     var isResolvingInitialStatus: Bool {
         isRefreshing && !hasResolvedStatus
     }
@@ -166,20 +171,19 @@ final class GitStatusModel: nonisolated ObservableObject {
     func refresh() {
         let root = rootPath
         let generation = contextGeneration
-        guard !root.isEmpty, !isRefreshing, !isBusy else { return }
-        let knownTopLevel = topLevel
-        let includeDetails = Date().timeIntervalSince(lastDetailsRefresh) >= 8
+        guard !root.isEmpty else { return }
+        guard !isRefreshing, !isBusy else {
+            refreshPending = true
+            return
+        }
+        refreshPending = false
         statusRequestID &+= 1
         let requestID = statusRequestID
         isRefreshing = true
 
         Task { [weak self] in
             let result = await Task.detached(priority: .utility) {
-                Self.runGitStatus(
-                    in: root,
-                    previousTopLevel: knownTopLevel,
-                    includeDetails: includeDetails
-                )
+                Self.runGitStatus(in: root)
             }.value
             guard let self, self.contextGeneration == generation,
                   self.statusRequestID == requestID,
@@ -187,8 +191,9 @@ final class GitStatusModel: nonisolated ObservableObject {
             self.isRefreshing = false
             self.apply(result)
             self.hasResolvedStatus = true
-            if case .repository(let snapshot) = result, snapshot.loadedDetails {
-                self.lastDetailsRefresh = Date()
+            if self.refreshPending {
+                self.refreshPending = false
+                self.refresh()
             }
         }
     }
@@ -206,7 +211,7 @@ final class GitStatusModel: nonisolated ObservableObject {
         let original = entry.unstaged == "R" ? entry.origPath.map { [$0] } ?? [] : []
         let paths = [entry.path] + original
         perform(
-            label: "Stage \(entry.fileName)",
+            label: String(localized: "Stage \(entry.fileName)"),
             commands: [["--literal-pathspecs", "add", "--"] + paths]
         )
     }
@@ -218,18 +223,18 @@ final class GitStatusModel: nonisolated ObservableObject {
         let args = hasHead
             ? ["--literal-pathspecs", "restore", "--staged", "--"] + paths
             : ["--literal-pathspecs", "rm", "--cached", "-f", "--"] + paths
-        perform(label: "Unstage \(entry.fileName)", commands: [args])
+        perform(label: String(localized: "Unstage \(entry.fileName)"), commands: [args])
     }
 
     func stageAll() {
-        perform(label: "Stage all changes", commands: [["add", "-A"]])
+        perform(label: String(localized: "Stage all changes"), commands: [["add", "-A"]])
     }
 
     func unstageAll() {
         let args = hasHead
             ? ["restore", "--staged", "--", "."]
             : ["rm", "--cached", "-r", "-f", "--", "."]
-        perform(label: "Unstage all changes", commands: [args])
+        perform(label: String(localized: "Unstage all changes"), commands: [args])
     }
 
     /// Restores a tracked file from the index, or moves an untracked file to
@@ -238,7 +243,7 @@ final class GitStatusModel: nonisolated ObservableObject {
         guard validate(entry) else { return }
         if entry.isIntentToAdd {
             perform(
-                label: "Remove intent-to-add for \(entry.fileName)",
+                label: String(localized: "Remove intent-to-add for \(entry.fileName)"),
                 commands: [[
                     "--literal-pathspecs", "rm", "--cached", "-f", "--", entry.path,
                 ]]
@@ -246,27 +251,30 @@ final class GitStatusModel: nonisolated ObservableObject {
                 guard success else { return }
                 self?.trash(
                     paths: [entry.path],
-                    label: "Move \(entry.fileName) to Trash",
-                    completedBefore: "Removed the intent-to-add index entry."
+                    label: String(localized: "Move \(entry.fileName) to Trash"),
+                    completedBefore: String(localized: "Removed the intent-to-add index entry.")
                 )
             }
         } else if entry.isUntracked || entry.isWorktreeCopy {
-            trash(paths: [entry.path], label: "Move \(entry.fileName) to Trash")
+            trash(
+                paths: [entry.path],
+                label: String(localized: "Move \(entry.fileName) to Trash")
+            )
         } else if entry.isWorktreeRename, let original = entry.origPath {
             perform(
-                label: "Restore \((original as NSString).lastPathComponent)",
+                label: String(localized: "Restore \((original as NSString).lastPathComponent)"),
                 commands: [["--literal-pathspecs", "restore", "--worktree", "--", original]]
             ) { [weak self] success in
                 guard success else { return }
                 self?.trash(
                     paths: [entry.path],
-                    label: "Move \(entry.fileName) to Trash",
-                    completedBefore: "Restored \((original as NSString).lastPathComponent)."
+                    label: String(localized: "Move \(entry.fileName) to Trash"),
+                    completedBefore: String(localized: "Restored \((original as NSString).lastPathComponent).")
                 )
             }
         } else {
             perform(
-                label: "Discard changes in \(entry.fileName)",
+                label: String(localized: "Discard changes in \(entry.fileName)"),
                 commands: [["--literal-pathspecs", "restore", "--worktree", "--", entry.path]]
             )
         }
@@ -306,24 +314,24 @@ final class GitStatusModel: nonisolated ObservableObject {
         guard !commands.isEmpty || !untracked.isEmpty else { return }
 
         if commands.isEmpty {
-            trash(paths: untracked, label: "Move untracked files to Trash")
+            trash(paths: untracked, label: String(localized: "Move untracked files to Trash"))
         } else {
             var completedSteps: [String] = []
             if !tracked.isEmpty {
                 completedSteps.append(
-                    "Restored \(tracked.count) tracked path\(tracked.count == 1 ? "" : "s")."
+                    String(localized: "Restored \(tracked.count) tracked paths.")
                 )
             }
             if !intentToAdd.isEmpty {
                 completedSteps.append(
-                    "Removed \(intentToAdd.count) intent-to-add index entr\(intentToAdd.count == 1 ? "y" : "ies")."
+                    String(localized: "Removed \(intentToAdd.count) intent-to-add index entries.")
                 )
             }
-            perform(label: "Discard all changes", commands: commands) { [weak self] success in
+            perform(label: String(localized: "Discard all changes"), commands: commands) { [weak self] success in
                 guard success, !untracked.isEmpty else { return }
                 self?.trash(
                     paths: untracked,
-                    label: "Finish discarding all changes",
+                    label: String(localized: "Finish discarding all changes"),
                     completedBefore: completedSteps.joined(separator: "\n")
                 )
             }
@@ -331,7 +339,7 @@ final class GitStatusModel: nonisolated ObservableObject {
     }
 
     func cancelStaleDiscard() {
-        failImmediately("Files changed while the confirmation was open. Review them and try again.")
+        failImmediately(String(localized: "Files changed while the confirmation was open. Review them and try again."))
     }
 
     // MARK: - Commit and remote operations
@@ -345,11 +353,11 @@ final class GitStatusModel: nonisolated ObservableObject {
     ) {
         let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
-            failImmediately("Enter a commit message", completion: completion)
+            failImmediately(String(localized: "Enter a commit message"), completion: completion)
             return
         }
         guard includeAll || !stagedEntries.isEmpty || amend else {
-            failImmediately("Stage changes before committing", completion: completion)
+            failImmediately(String(localized: "Stage changes before committing"), completion: completion)
             return
         }
 
@@ -359,7 +367,11 @@ final class GitStatusModel: nonisolated ObservableObject {
         if amend { commitArgs.append("--amend") }
         commitArgs += ["-m", trimmed]
         commands.append(commitArgs)
-        let label = amend ? "Amend commit" : (includeAll ? "Stage all and commit" : "Commit staged changes")
+        let label = amend
+            ? String(localized: "Amend commit")
+            : (includeAll
+                ? String(localized: "Stage all and commit")
+                : String(localized: "Commit staged changes"))
         perform(label: label, commands: commands, completion: completion)
     }
 
@@ -371,11 +383,11 @@ final class GitStatusModel: nonisolated ObservableObject {
 
     func fetch() {
         guard !remotes.isEmpty else {
-            failImmediately("No Git remote is configured")
+            failImmediately(String(localized: "No Git remote is configured"))
             return
         }
         perform(
-            label: "Fetch",
+            label: String(localized: "Fetch"),
             commands: [["fetch", "--all", "--prune"]],
             requiresStableHead: false
         )
@@ -383,11 +395,11 @@ final class GitStatusModel: nonisolated ObservableObject {
 
     func pull() {
         guard hasUpstream else {
-            failImmediately("This branch has no upstream to pull from")
+            failImmediately(String(localized: "This branch has no upstream to pull from"))
             return
         }
         perform(
-            label: "Pull",
+            label: String(localized: "Pull"),
             commands: [["pull", "--ff-only"]],
             requiresStableUpstream: true
         )
@@ -395,56 +407,56 @@ final class GitStatusModel: nonisolated ObservableObject {
 
     func push() {
         guard branch != "detached HEAD" || hasUpstream else {
-            failImmediately("Create or switch to a branch before publishing detached HEAD")
+            failImmediately(String(localized: "Create or switch to a branch before publishing detached HEAD"))
             return
         }
         if hasUpstream {
-            perform(label: "Push", commands: [["push"]], requiresStableUpstream: true)
+            perform(label: String(localized: "Push"), commands: [["push"]], requiresStableUpstream: true)
             return
         }
         guard let remote = unambiguousRemote else {
             failImmediately(remotes.isEmpty
-                ? "Add a Git remote before publishing this branch"
-                : "Choose which remote should receive this branch")
+                ? String(localized: "Add a Git remote before publishing this branch")
+                : String(localized: "Choose which remote should receive this branch"))
             return
         }
-        perform(label: "Publish branch", commands: [["push", "-u", remote, "HEAD"]])
+        perform(label: String(localized: "Publish branch"), commands: [["push", "-u", remote, "HEAD"]])
     }
 
     func publish(to remote: String) {
         guard branch != "detached HEAD" else {
-            failImmediately("Create or switch to a branch before publishing detached HEAD")
+            failImmediately(String(localized: "Create or switch to a branch before publishing detached HEAD"))
             return
         }
         guard remotes.contains(remote) else {
-            failImmediately("The selected Git remote is no longer available")
+            failImmediately(String(localized: "The selected Git remote is no longer available"))
             return
         }
         perform(
-            label: "Publish branch to \(remote)",
+            label: String(localized: "Publish branch to \(remote)"),
             commands: [["push", "-u", remote, "HEAD"]]
         )
     }
 
     func syncChanges() {
         guard branch != "detached HEAD" || hasUpstream else {
-            failImmediately("Create or switch to a branch before publishing detached HEAD")
+            failImmediately(String(localized: "Create or switch to a branch before publishing detached HEAD"))
             return
         }
         if hasUpstream {
             perform(
-                label: "Sync changes",
+                label: String(localized: "Sync changes"),
                 commands: [["pull", "--ff-only"], ["push"]],
                 requiresStableUpstream: true
             )
         } else {
             guard let remote = unambiguousRemote else {
                 failImmediately(remotes.isEmpty
-                    ? "Add a Git remote before publishing this branch"
-                    : "Choose which remote should receive this branch")
+                    ? String(localized: "Add a Git remote before publishing this branch")
+                    : String(localized: "Choose which remote should receive this branch"))
                 return
             }
-            perform(label: "Publish branch", commands: [["push", "-u", remote, "HEAD"]])
+            perform(label: String(localized: "Publish branch"), commands: [["push", "-u", remote, "HEAD"]])
         }
     }
 
@@ -455,17 +467,21 @@ final class GitStatusModel: nonisolated ObservableObject {
             completion?(name == branch)
             return
         }
-        perform(label: "Switch to \(name)", commands: [["switch", name]], completion: completion)
+        perform(
+            label: String(localized: "Switch to \(name)"),
+            commands: [["switch", name]],
+            completion: completion
+        )
     }
 
     func createBranch(named name: String, completion: (@MainActor (Bool) -> Void)? = nil) {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
-            failImmediately("Enter a branch name", completion: completion)
+            failImmediately(String(localized: "Enter a branch name"), completion: completion)
             return
         }
         perform(
-            label: "Create branch \(trimmed)",
+            label: String(localized: "Create branch \(trimmed)"),
             commands: [["switch", "-c", trimmed]],
             completion: completion
         )
@@ -473,29 +489,29 @@ final class GitStatusModel: nonisolated ObservableObject {
 
     func stash(includeUntracked: Bool = true) {
         guard totalChangeCount > 0 else {
-            failImmediately("There are no changes to stash")
+            failImmediately(String(localized: "There are no changes to stash"))
             return
         }
         var args = ["stash", "push"]
         if includeUntracked { args.append("--include-untracked") }
-        perform(label: "Stash changes", commands: [args])
+        perform(label: String(localized: "Stash changes"), commands: [args])
     }
 
     func stashPop() {
         guard stashCount > 0 else {
-            failImmediately("There are no stashes to pop")
+            failImmediately(String(localized: "There are no stashes to pop"))
             return
         }
-        perform(label: "Pop stash", commands: [["stash", "pop"]])
+        perform(label: String(localized: "Pop stash"), commands: [["stash", "pop"]])
     }
 
     func initializeRepository(completion: (@MainActor (Bool) -> Void)? = nil) {
         guard !rootPath.isEmpty else {
-            failImmediately("Open a terminal directory first", completion: completion)
+            failImmediately(String(localized: "Open a terminal directory first"), completion: completion)
             return
         }
         perform(
-            label: "Initialize repository",
+            label: String(localized: "Initialize repository"),
             commands: [["init"]],
             directory: rootPath,
             completion: completion
@@ -510,7 +526,7 @@ final class GitStatusModel: nonisolated ObservableObject {
 
     private func validate(_ entry: Entry) -> Bool {
         guard isCurrent(entry) else {
-            failImmediately("Repository changed; refresh and try the Git action again")
+            failImmediately(String(localized: "Repository changed; refresh and try the Git action again"))
             return false
         }
         return true
@@ -526,7 +542,7 @@ final class GitStatusModel: nonisolated ObservableObject {
     ) {
         if directory == nil && !isRepo {
             failImmediately(
-                "Repository changed; review the current directory and try the Git action again.",
+                String(localized: "Repository changed; review the current directory and try the Git action again."),
                 completion: completion
             )
             return
@@ -562,7 +578,7 @@ final class GitStatusModel: nonisolated ObservableObject {
 
                 if let expectedRepositoryRoot {
                     guard Self.resolveRepositoryRoot(in: validationRoot) == expectedRepositoryRoot else {
-                        let message = "Repository changed before the Git action could run. Review the current changes and try again."
+                        let message = String(localized: "Repository changed before the Git action could run. Review the current changes and try again.")
                         return CommandBatchResult(
                             output: message, failureCode: -1, failureMessage: message
                         )
@@ -579,10 +595,9 @@ final class GitStatusModel: nonisolated ObservableObject {
                               live.headOID == expectedHeadOID,
                               live.branch == expectedBranch,
                               !requiresStableUpstream || live.upstream == expectedUpstream else {
-                            let changedState = requiresStableUpstream
-                                ? "Branch, HEAD, or upstream"
-                                : "Branch or HEAD"
-                            let message = "\(changedState) changed before the Git action could run. Review the current changes and try again."
+                            let message = requiresStableUpstream
+                                ? String(localized: "Branch, HEAD, or upstream changed before the Git action could run. Review the current changes and try again.")
+                                : String(localized: "Branch or HEAD changed before the Git action could run. Review the current changes and try again.")
                             return CommandBatchResult(
                                 output: message, failureCode: -1, failureMessage: message
                             )
@@ -599,7 +614,7 @@ final class GitStatusModel: nonisolated ObservableObject {
                         .joined(separator: "\n")
                     if !text.isEmpty { transcript.append(text) }
                     if run.status != 0 {
-                        let fallback = "git \(args.first ?? "command") failed"
+                        let fallback = String(localized: "Git command failed")
                         failureCode = run.status
                         failureMessage = text.isEmpty ? fallback : text
                         break
@@ -621,7 +636,6 @@ final class GitStatusModel: nonisolated ObservableObject {
                 // success-only follow-ups (for example moving a renamed file
                 // to Trash) must never continue in the newly selected context.
                 completion?(false)
-                self.lastDetailsRefresh = .distantPast
                 self.refresh()
                 return
             }
@@ -643,13 +657,14 @@ final class GitStatusModel: nonisolated ObservableObject {
                     id: operationID,
                     label: label,
                     state: .succeeded,
-                    output: batch.output.isEmpty ? "Completed successfully." : batch.output,
+                    output: batch.output.isEmpty
+                        ? String(localized: "Completed successfully.")
+                        : batch.output,
                     startedAt: self.operation?.startedAt ?? finishedAt,
                     finishedAt: finishedAt
                 )
                 completion?(true)
             }
-            self.lastDetailsRefresh = .distantPast
             self.refresh()
         }
     }
@@ -665,7 +680,7 @@ final class GitStatusModel: nonisolated ObservableObject {
         lastError = message
         operation = Operation(
             id: UUID(),
-            label: "Git action",
+            label: String(localized: "Git action"),
             state: .failed(exitCode: -1),
             output: message,
             startedAt: Date(),
@@ -697,7 +712,7 @@ final class GitStatusModel: nonisolated ObservableObject {
                 guard Self.resolveRepositoryRoot(in: validationRoot) == expectedRepositoryRoot else {
                     return TrashResult(
                         moved: [],
-                        failure: "Repository changed before the file action could run. Review the current changes and try again."
+                        failure: String(localized: "Repository changed before the file action could run. Review the current changes and try again.")
                     )
                 }
                 let liveStatus = Self.runGit(
@@ -710,7 +725,7 @@ final class GitStatusModel: nonisolated ObservableObject {
                       live.branch == expectedBranch else {
                     return TrashResult(
                         moved: [],
-                        failure: "Branch or HEAD changed before the file action could run. Review the current changes and try again."
+                        failure: String(localized: "Branch or HEAD changed before the file action could run. Review the current changes and try again.")
                     )
                 }
                 var moved: [String] = []
@@ -734,7 +749,6 @@ final class GitStatusModel: nonisolated ObservableObject {
             self.isBusy = false
             guard self.contextGeneration == generation,
                   self.operation?.id == operationID else {
-                self.lastDetailsRefresh = .distantPast
                 self.refresh()
                 return
             }
@@ -743,11 +757,14 @@ final class GitStatusModel: nonisolated ObservableObject {
                 let completedResult = completedBefore.map { $0 + "\n" } ?? ""
                 let partialResult = result.moved.isEmpty
                     ? ""
-                    : "\n\nMoved to Trash before the failure:\n" + result.moved.joined(separator: "\n")
+                    : "\n\n" + String(localized: "Moved to Trash before the failure:") + "\n"
+                        + result.moved.joined(separator: "\n")
                 let output = completedResult + failure + partialResult
                 self.lastError = result.moved.isEmpty
                     ? completedResult + failure
-                    : completedResult + "\(failure) (\(result.moved.count) item\(result.moved.count == 1 ? " was" : "s were") already moved to Trash.)"
+                    : completedResult + String(
+                        localized: "\(failure) (\(result.moved.count) items were already moved to Trash.)"
+                    )
                 self.operation = Operation(
                     id: operationID, label: label, state: .failed(exitCode: -1),
                     output: output, startedAt: self.operation?.startedAt ?? finishedAt,
@@ -756,7 +773,8 @@ final class GitStatusModel: nonisolated ObservableObject {
             } else {
                 let output = [
                     completedBefore,
-                    "Moved to Trash:\n" + result.moved.joined(separator: "\n"),
+                    String(localized: "Moved to Trash:") + "\n"
+                        + result.moved.joined(separator: "\n"),
                 ].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: "\n")
                 self.operation = Operation(
                     id: operationID, label: label, state: .succeeded,
@@ -765,7 +783,6 @@ final class GitStatusModel: nonisolated ObservableObject {
                     finishedAt: finishedAt
                 )
             }
-            self.lastDetailsRefresh = .distantPast
             self.refresh()
         }
     }
@@ -788,6 +805,7 @@ final class GitStatusModel: nonisolated ObservableObject {
     private func invalidateStatusRefresh() {
         statusRequestID &+= 1
         isRefreshing = false
+        refreshPending = false
     }
 
     private nonisolated static func displayCommand(_ args: [String]) -> String {
@@ -832,7 +850,6 @@ final class GitStatusModel: nonisolated ObservableObject {
         operation = failedOperation
         lastError = failedError
         statusError = nil
-        lastDetailsRefresh = .distantPast
         statusRequestID &+= 1
         if !preserveIdentity { repositoryIdentity = "" }
     }
@@ -981,14 +998,13 @@ final class GitStatusModel: nonisolated ObservableObject {
 
     /// Resolves the active repository and distinguishes a normal non-repo
     /// directory from an actual Git failure that the UI should surface.
-    private nonisolated static func runGitStatus(
-        in root: String,
-        previousTopLevel: String,
-        includeDetails: Bool
-    ) -> StatusLoadResult {
+    private nonisolated static func runGitStatus(in root: String) -> StatusLoadResult {
         let top = runGit(["rev-parse", "--show-toplevel"], in: root)
         guard top.status == 0 else {
-            let failure = gitFailureMessage(top, fallback: "Unable to locate the Git repository.")
+            let failure = gitFailureMessage(
+                top,
+                fallback: String(localized: "Unable to locate the Git repository.")
+            )
             if top.status == 128,
                failure.localizedCaseInsensitiveContains("not a git repository"),
                !containsGitMetadata(atOrAbove: root) {
@@ -998,21 +1014,23 @@ final class GitStatusModel: nonisolated ObservableObject {
         }
         let resolvedRoot = strippingTrailingLineEnding(top.stdout)
         guard !resolvedRoot.isEmpty else {
-            return .failed("Git returned an empty repository path.")
+            return .failed(String(localized: "Git returned an empty repository path."))
         }
         let status = runGit(
             ["status", "--porcelain=v2", "--branch", "-z", "--untracked-files=all"],
             in: resolvedRoot
         )
         guard status.status == 0 else {
-            return .failed(gitFailureMessage(status, fallback: "Unable to read Git status."))
+            return .failed(
+                gitFailureMessage(
+                    status,
+                    fallback: String(localized: "Unable to read Git status.")
+                )
+            )
         }
         var result = parseStatus(status.stdout)
         result.topLevel = resolvedRoot
 
-        guard includeDetails || resolvedRoot != previousTopLevel else {
-            return .repository(result)
-        }
         result.loadedDetails = true
         let repoRoot = resolvedRoot
 
@@ -1029,7 +1047,7 @@ final class GitStatusModel: nonisolated ObservableObject {
         }
 
         let log = runGit(
-            ["log", "-n", "8", "--pretty=format:%H%x1f%h%x1f%s%x1f%an%x1f%ar%x1e"],
+            ["log", "-n", "8", "--pretty=format:%H%x1f%h%x1f%s%x1f%an%x1f%ct%x1e"],
             in: repoRoot
         )
         if log.status == 0 { result.recentCommits = parseRecentCommits(log.stdout) }
@@ -1156,11 +1174,13 @@ final class GitStatusModel: nonisolated ObservableObject {
         output.split(separator: "\u{1e}").compactMap { record in
             let clean = record.trimmingCharacters(in: .newlines)
             let fields = clean.split(separator: "\u{1f}", omittingEmptySubsequences: false)
-            guard fields.count == 5 else { return nil }
+            guard fields.count == 5, let timestamp = TimeInterval(fields[4]) else {
+                return nil
+            }
             return RecentCommit(
                 hash: String(fields[0]), shortHash: String(fields[1]),
                 subject: String(fields[2]), author: String(fields[3]),
-                relativeDate: String(fields[4])
+                date: Date(timeIntervalSince1970: timestamp)
             )
         }
     }
@@ -1172,11 +1192,21 @@ final class GitStatusModel: nonisolated ObservableObject {
             fm.fileExists(atPath: git.appendingPathComponent(name).path)
         }
 
-        if exists("rebase-merge") || exists("rebase-apply") { return "Rebase in progress" }
-        if exists("MERGE_HEAD") { return "Merge in progress" }
-        if exists("CHERRY_PICK_HEAD") { return "Cherry-pick in progress" }
-        if exists("REVERT_HEAD") { return "Revert in progress" }
-        if exists("BISECT_LOG") { return "Bisect in progress" }
+        if exists("rebase-merge") || exists("rebase-apply") {
+            return String(localized: "Rebase in progress")
+        }
+        if exists("MERGE_HEAD") {
+            return String(localized: "Merge in progress")
+        }
+        if exists("CHERRY_PICK_HEAD") {
+            return String(localized: "Cherry-pick in progress")
+        }
+        if exists("REVERT_HEAD") {
+            return String(localized: "Revert in progress")
+        }
+        if exists("BISECT_LOG") {
+            return String(localized: "Bisect in progress")
+        }
         return nil
     }
 }

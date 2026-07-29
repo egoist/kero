@@ -1,4 +1,4 @@
-import { createRouter } from '@tanstack/react-router'
+import { createRouter, Link } from '@tanstack/react-router'
 import { routeTree } from './routeTree.gen'
 
 export function getRouter() {
@@ -9,9 +9,9 @@ export function getRouter() {
     defaultNotFoundComponent: () => (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4 font-mono text-sm">
         <p className="text-muted-foreground">404 — not found</p>
-        <a href="/" className="underline underline-offset-4 hover:text-foreground">
+        <Link to="/" className="underline underline-offset-4 hover:text-foreground">
           ← back to kero
-        </a>
+        </Link>
       </div>
     ),
   })

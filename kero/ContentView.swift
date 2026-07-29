@@ -9,6 +9,7 @@ struct ContentView: View {
     @ObservedObject var manager: TerminalManager
     @ObservedObject private var themeChanges = Theme.changes
     @Environment(\.colorScheme) private var colorScheme
+    @StateObject private var tabSwitcher = TabSwitcherController()
 
     var body: some View {
         HStack(spacing: 0) {
@@ -43,7 +44,16 @@ struct ContentView: View {
                     }
                     Group {
                         if let tab = manager.selectedProject?.selectedTab {
-                            PaneLayoutView(tab: tab, onSplit: { manager.split(toward: $0) })
+                            PaneLayoutView(
+                                tab: tab,
+                                onSplit: { manager.split(toward: $0) },
+                                onNewBrowserTab: {
+                                    manager.newBrowserTab(initialURL: $0)
+                                },
+                                onNewBrowserPane: {
+                                    manager.newBrowserPane(initialURL: $0)
+                                }
+                            )
                         } else {
                             emptyState
                         }
@@ -59,7 +69,12 @@ struct ContentView: View {
             }
             .background(Color(nsColor: Theme.background))
 
-            RightSidebarView(manager: manager)
+            // Dropping the hidden sidebar also drops any expanded file tree,
+            // git snapshot and process snapshot it owned instead of retaining
+            // them for the rest of the window's lifetime.
+            if manager.isPanelVisible {
+                RightSidebarView(manager: manager)
+            }
         }
         .ignoresSafeArea()
         .overlay(alignment: .topLeading) {
@@ -72,6 +87,16 @@ struct ContentView: View {
             if manager.isCommandPaletteVisible {
                 CommandPaletteView(manager: manager)
             }
+        }
+        .overlay {
+            if tabSwitcher.isPresented, let project = manager.selectedProject {
+                TabSwitcherOverlay(project: project, controller: tabSwitcher)
+                    .zIndex(10)
+            }
+        }
+        .background {
+            TabSwitcherEventMonitor(manager: manager, controller: tabSwitcher)
+                .frame(width: 0, height: 0)
         }
         .background(WindowChromeAccessor { manager.attach(to: $0) })
         .onChange(of: colorScheme) {
@@ -118,7 +143,9 @@ struct ContentView: View {
     }
 
     private func emptyStatePrompt(
-        title: String, buttonTitle: String, action: @escaping () -> Void
+        title: LocalizedStringKey,
+        buttonTitle: LocalizedStringKey,
+        action: @escaping () -> Void
     ) -> some View {
         VStack(spacing: 12) {
             Image(systemName: "terminal")
@@ -179,17 +206,12 @@ private struct MainHeaderView: View {
                 // No project means the sidebar has nothing to show, so drop
                 // its toggle too — matching the panel collapsing itself.
                 if manager.selectedProject != nil {
-                    Button {
+                    ChromeIconButton(
+                        systemImage: "sidebar.right",
+                        tooltip: "Toggle Right Sidebar (⇧⌘B)"
+                    ) {
                         manager.toggleSidebar()
-                    } label: {
-                        Image(systemName: "sidebar.right")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundStyle(manager.isPanelVisible ? Color(nsColor: Theme.accent) : .secondary)
-                            .frame(width: 24, height: 24)
-                            .contentShape(RoundedRectangle(cornerRadius: 6))
                     }
-                    .buttonStyle(.plain)
-                    .tooltip("Toggle Right Sidebar (⇧⌘B)", edge: .below, alignment: .trailing)
                 }
             }
             .padding(.leading, leadingInset)
@@ -213,6 +235,7 @@ private struct SessionTabsView: View {
     @State private var overflow = StripOverflow()
     @State private var draggedTabID: UUID?
     @State private var tabFrames: [UUID: CGRect] = [:]
+    @State private var tabSizes: [UUID: CGSize] = [:]
     /// Tab currently showing the inline rename field, if any.
     @State private var renamingTabID: UUID?
 
@@ -274,10 +297,24 @@ private struct SessionTabsView: View {
                     proxy.scrollTo(id)
                 }
             }
+            // Selection is not the only thing that can hide the active tab.
+            // Keep it visible when the window/sidebar changes the viewport,
+            // tabs are inserted or reordered, or a live title/rename changes
+            // the width of content before it.
+            .onChange(of: maxStripWidth) {
+                scrollToSelectedTab(using: proxy)
+            }
+            .onChange(of: project.tabs.map(\.id)) {
+                scrollToSelectedTab(using: proxy)
+            }
+            .onChange(of: tabSizes) {
+                scrollToSelectedTab(using: proxy)
+            }
             .onAppear {
                 // Restored sessions may open with an off-screen active tab.
-                guard let id = project.selectedTabID else { return }
-                DispatchQueue.main.async { proxy.scrollTo(id) }
+                DispatchQueue.main.async {
+                    scrollToSelectedTab(using: proxy)
+                }
             }
             .mask {
                 HStack(spacing: 0) {
@@ -299,19 +336,31 @@ private struct SessionTabsView: View {
             .fixedSize(horizontal: true, vertical: false)
             }
 
-            Button {
+            ChromeIconButton(
+                systemImage: "plus",
+                tooltip: "New Session (⌘T)",
+                font: .system(size: 10, weight: .semibold),
+                iconSize: 14,
+                tooltipAlignment: .leading
+            ) {
                 project.newSession()
-            } label: {
-                Image(systemName: "plus")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 22, height: 22)
-                    .contentShape(RoundedRectangle(cornerRadius: 6))
             }
-            .buttonStyle(.plain)
-            .tooltip("New Session (⌘T)", edge: .below)
         }
-        .onPreferenceChange(TabFramePreferenceKey.self) { tabFrames = $0 }
+        .onPreferenceChange(TabFramePreferenceKey.self) { frames in
+            tabFrames = frames
+            let sizes = frames.mapValues(\.size)
+            if sizes != tabSizes {
+                tabSizes = sizes
+            }
+        }
+    }
+
+    /// `anchor: nil` moves only as far as needed and is a no-op when the
+    /// selected tab is already fully inside the strip.
+    private func scrollToSelectedTab(using proxy: ScrollViewProxy) {
+        guard let id = project.selectedTabID,
+              project.tabs.contains(where: { $0.id == id }) else { return }
+        proxy.scrollTo(id)
     }
 
     /// Reorders immediately as the pointer crosses another tab. This direct
@@ -347,6 +396,18 @@ private struct SessionTabsView: View {
             Button("Copy Absolute Path") {
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(file.path, forType: .string)
+            }
+            Divider()
+        }
+        if case .browser(let browser) = tab.focusedContent,
+           !browser.urlString.isEmpty {
+            Button("Open in Default Browser") {
+                browser.openInDefaultBrowser()
+            }
+            .disabled(browser.shareURL == nil)
+            Button("Copy Address") {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(browser.urlString, forType: .string)
             }
             Divider()
         }
@@ -386,6 +447,7 @@ private struct PaneTabItem: View {
         if renamingTabID == tab.id {
             TabRenameChrome(
                 systemImage: tab.focusedContent?.systemImage ?? "terminal",
+                browserIcon: focusedBrowser,
                 initialValue: tab.displayTitle ?? "",
                 commit: { name in
                     let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -399,6 +461,8 @@ private struct PaneTabItem: View {
                 SessionTabLabel(session: session, customTitle: tab.customName, paneCount: paneCount, isSelected: isSelected, select: select, close: close)
             case .file(let file):
                 FileTabLabel(file: file, customTitle: tab.customName, paneCount: paneCount, isSelected: isSelected, select: select, close: close)
+            case .browser(let browser):
+                BrowserTabLabel(browser: browser, customTitle: tab.customName, paneCount: paneCount, isSelected: isSelected, select: select, close: close)
             case .diff(let diff):
                 TabItemChrome(
                     systemImage: "plus.forwardslash.minus",
@@ -414,6 +478,14 @@ private struct PaneTabItem: View {
             }
         }
     }
+
+    private var focusedBrowser: BrowserTab? {
+        if case .browser(let browser) = tab.focusedContent {
+            browser
+        } else {
+            nil
+        }
+    }
 }
 
 /// Inline editor shown in place of a tab while it's renamed — the same
@@ -422,6 +494,7 @@ private struct PaneTabItem: View {
 private struct TabRenameChrome: View {
     @ObservedObject private var themeChanges = Theme.changes
     let systemImage: String
+    let browserIcon: BrowserTab?
     let commit: (String) -> Void
     let end: () -> Void
 
@@ -433,11 +506,13 @@ private struct TabRenameChrome: View {
 
     init(
         systemImage: String,
+        browserIcon: BrowserTab?,
         initialValue: String,
         commit: @escaping (String) -> Void,
         end: @escaping () -> Void
     ) {
         self.systemImage = systemImage
+        self.browserIcon = browserIcon
         self.commit = commit
         self.end = end
         _draft = State(initialValue: initialValue)
@@ -445,9 +520,15 @@ private struct TabRenameChrome: View {
 
     var body: some View {
         HStack(spacing: 5) {
-            Image(systemName: systemImage)
-                .font(.system(size: 9, weight: .medium))
-                .foregroundStyle(Color(nsColor: Theme.accent))
+            if let browserIcon {
+                BrowserFaviconView(browser: browserIcon, size: 11)
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundStyle(Color(nsColor: Theme.accent))
+            } else {
+                Image(systemName: systemImage)
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundStyle(Color(nsColor: Theme.accent))
+            }
             TextField("", text: $draft)
                 .textFieldStyle(.plain)
                 .font(.system(size: 11.5))
@@ -523,9 +604,33 @@ private struct FileTabLabel: View {
     }
 }
 
+private struct BrowserTabLabel: View {
+    @ObservedObject var browser: BrowserTab
+    /// User-assigned tab name overriding the webpage title.
+    var customTitle: String?
+    let paneCount: Int
+    let isSelected: Bool
+    let select: () -> Void
+    let close: () -> Void
+
+    var body: some View {
+        TabItemChrome(
+            systemImage: "globe",
+            browserIcon: browser,
+            title: customTitle ?? browser.title,
+            paneCount: paneCount,
+            isSelected: isSelected,
+            select: select,
+            close: close
+        )
+        .help(browser.urlString)
+    }
+}
+
 private struct TabItemChrome: View {
     @ObservedObject private var themeChanges = Theme.changes
     let systemImage: String
+    var browserIcon: BrowserTab? = nil
     let title: String
     var paneCount: Int = 1
     let isSelected: Bool
@@ -538,10 +643,25 @@ private struct TabItemChrome: View {
     var body: some View {
         Button(action: select) {
             HStack(spacing: 5) {
-                Image(systemName: systemImage)
-                    .font(.system(size: 9, weight: .medium))
-                    .foregroundStyle(isSelected ? AnyShapeStyle(Color(nsColor: Theme.accent)) : AnyShapeStyle(.tertiary))
-                Text(title)
+                if let browserIcon {
+                    BrowserFaviconView(browser: browserIcon, size: 11)
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundStyle(
+                            isSelected
+                                ? AnyShapeStyle(Color(nsColor: Theme.accent))
+                                : AnyShapeStyle(.tertiary)
+                        )
+                        .opacity(isSelected ? 1 : 0.78)
+                } else {
+                    Image(systemName: systemImage)
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundStyle(
+                            isSelected
+                                ? AnyShapeStyle(Color(nsColor: Theme.accent))
+                                : AnyShapeStyle(.tertiary)
+                        )
+                }
+                Text(verbatim: title)
                     .font(.system(size: 11.5))
                     .foregroundStyle(isSelected ? .primary : .secondary)
                     .lineLimit(1)
@@ -549,7 +669,7 @@ private struct TabItemChrome: View {
                     HStack(spacing: 2) {
                         Image(systemName: "square.split.2x1")
                             .font(.system(size: 7.5, weight: .semibold))
-                        Text("\(paneCount)")
+                        Text(verbatim: "\(paneCount)")
                             .font(.system(size: 9, weight: .semibold))
                     }
                     .foregroundStyle(.tertiary)

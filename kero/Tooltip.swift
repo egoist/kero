@@ -21,7 +21,7 @@ extension View {
     /// to overhang its container, so a trailing button anchored `.leading`
     /// would spill outside the window.
     func tooltip(
-        _ text: String,
+        _ text: LocalizedStringKey,
         edge: TooltipEdge = .above,
         alignment: HorizontalAlignment = .leading
     ) -> some View {
@@ -30,7 +30,7 @@ extension View {
 }
 
 private struct TooltipModifier: ViewModifier {
-    let text: String
+    let text: LocalizedStringKey
     let edge: TooltipEdge
     let alignment: HorizontalAlignment
 

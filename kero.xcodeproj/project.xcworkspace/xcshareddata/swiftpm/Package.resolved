@@ -1,5 +1,5 @@
 {
-  "originHash" : "36787017e6e98334a2a42da6e9aa31abf57e6fb967eca0e9ff4c129c47644a28",
+  "originHash" : "944056b7ed6438af06aa572f2d570efbf9437d68d4617a21b3148e00642fb307",
   "pins" : [
     {
       "identity" : "coretextswift",
@@ -8,6 +8,15 @@
       "state" : {
         "revision" : "833177201d6421e6322296f39fce6ff6ae52618a",
         "version" : "0.2.0"
+      }
+    },
+    {
+      "identity" : "fuzzymatch",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/ordo-one/FuzzyMatch",
+      "state" : {
+        "revision" : "ea09aa7faa3c1832716d1ccdb81dcb83bea89774",
+        "version" : "1.4.0"
       }
     },
     {
@@ -33,8 +42,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/egoist-labs/PierreDiffsSwift",
       "state" : {
-        "revision" : "865f93f45e3d1c5d1ab98b201206e67d9dcd169f",
-        "version" : "1.3.1"
+        "revision" : "4455eaf4683558c019ade29bb8403fb1d81f9f23",
+        "version" : "1.4.1"
       }
     },
     {
