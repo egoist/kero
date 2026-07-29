@@ -334,9 +334,13 @@ final class TerminalSession: NSObject, nonisolated ObservableObject, nonisolated
         pidFileURL: URL?,
         replayFileURL: URL?
     ) -> String {
-        var commands = ["umask 077"]
+        var commands: [String] = []
         if let pidFileURL {
-            commands.append("printf '%s\\n' \"$$\" > \(shellQuote(pidFileURL.path))")
+            // Keep the launch artifact private without leaking a restrictive
+            // umask into the user's login shell and every process it starts.
+            commands.append(
+                "(umask 077; printf '%s\\n' \"$$\" > \(shellQuote(pidFileURL.path)))"
+            )
         }
         if let replayFileURL {
             let path = shellQuote(replayFileURL.path)

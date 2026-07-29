@@ -16,6 +16,8 @@ the original feature bullet instead of adding separate entries for them.
 
 ## [unrelease]
 
+- Preserve the user's file-creation permissions in terminal sessions instead of forcing private-only files and directories
+
 ## [0.1.32]
 
 - Add native English, Simplified Chinese, and Japanese localization throughout the app, with a language picker in Settings
