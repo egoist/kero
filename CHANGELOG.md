@@ -16,6 +16,8 @@ the original feature bullet instead of adding separate entries for them.
 
 ## [unrelease]
 
+- Optionally keep terminal sessions running locally when Kero closes, then reconnect their live processes and output when Kero reopens
+
 ## [0.1.34]
 
 - Show terminal titles verbatim while keeping sidebar project rows stable as titles update or hover controls appear

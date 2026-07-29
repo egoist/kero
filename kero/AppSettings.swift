@@ -188,6 +188,13 @@ final class AppSettings: nonisolated ObservableObject {
         didSet { save() }
     }
 
+    /// Let the local Kero multiplexer own PTYs created after this is enabled,
+    /// so closing windows or quitting the app detaches rather than stopping
+    /// their shells. Existing terminals keep their current lifecycle.
+    @Published var durableTerminalSessions: Bool {
+        didSet { save() }
+    }
+
     /// Which emulator drives terminal panes. Only ever holds a backend this
     /// build ships a surface for — see `TerminalBackend` — and a session binds
     /// its backend at creation, so a change here reaches terminals opened
@@ -228,6 +235,7 @@ final class AppSettings: nonisolated ObservableObject {
         macosOptionAsAlt = toml["terminal.macos-option-as-alt"]?.bool ?? false
         wrapLines = toml["editor.wrap-lines"]?.bool ?? false
         restoreTerminalHistory = toml["terminal.restore-history"]?.bool ?? false
+        durableTerminalSessions = toml["terminal.durable-sessions"]?.bool ?? false
         terminalBackend = TerminalBackend(persisted: toml["terminal.backend"]?.string)
         applyAppearance()
         reloadThemeSelection()
@@ -275,6 +283,7 @@ final class AppSettings: nonisolated ObservableObject {
         macosOptionAsAlt = false
         wrapLines = false
         restoreTerminalHistory = false
+        durableTerminalSessions = false
         terminalBackend = .fallback
     }
 
@@ -309,6 +318,9 @@ final class AppSettings: nonisolated ObservableObject {
         }
         if restoreTerminalHistory {
             lines.append("terminal.restore-history = true")
+        }
+        if durableTerminalSessions {
+            lines.append("terminal.durable-sessions = true")
         }
         if terminalBackend != .fallback {
             lines.append("terminal.backend = \(TOML.quote(terminalBackend.rawValue))")

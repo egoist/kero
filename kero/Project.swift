@@ -209,7 +209,9 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
         directory: String? = nil,
         restoredHistory: String? = nil,
         commandArguments: [String]? = nil,
-        environmentPath: String? = nil
+        environmentPath: String? = nil,
+        restoredMuxSessionID: UUID? = nil,
+        restoredBackend: TerminalBackend? = nil
     ) -> TerminalSession {
         let session = TerminalSession(
             initialDirectory: directory
@@ -217,7 +219,9 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
                 ?? customDirectory,
             restoredHistory: restoredHistory,
             commandArguments: commandArguments,
-            environmentPath: environmentPath
+            environmentPath: environmentPath,
+            restoredMuxSessionID: restoredMuxSessionID,
+            restoredBackend: restoredBackend
         )
         session.onExited = { [weak self] session in
             // Already dead — just drop its pane, no second terminate.
@@ -233,6 +237,26 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
         for session in sessions {
             session.terminate()
         }
+    }
+
+    /// Window/app lifecycle closure detaches durable sessions while preserving
+    /// the longstanding stop behavior for ordinary terminals.
+    func closeSessionsForAppLifecycle() {
+        for session in sessions {
+            session.closeForAppLifecycle()
+        }
+    }
+
+    /// Surfaces a daemon session that no saved pane references. This commonly
+    /// follows an app crash between creating a terminal and saving its layout.
+    func recoverMuxSession(_ info: KeroMuxSessionInfo) {
+        let session = makeSession(
+            directory: info.workingDirectory,
+            restoredMuxSessionID: info.id,
+            restoredBackend: TerminalBackend(persisted: info.backend)
+        )
+        let tab = makeTab(content: .session(session))
+        append(tab)
     }
 
     // MARK: - Splits
@@ -636,7 +660,7 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
             for paneSnap in columnSnap.panes {
                 let restoredHistory = paneSnap.historyKey.flatMap { histories[$0] }
                 panes.append(Pane(
-                    content: makeContent(from: paneSnap.content, restoredHistory: restoredHistory),
+                    content: makeContent(from: paneSnap, restoredHistory: restoredHistory),
                     weight: CGFloat(paneSnap.weight)
                 ))
             }
@@ -652,12 +676,19 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
     }
 
     private func makeContent(
-        from snap: SessionSnapshot.ProjectSnapshot.PaneContentSnapshot,
+        from pane: SessionSnapshot.ProjectSnapshot.PaneSnapshot,
         restoredHistory: String? = nil
     ) -> PaneContent {
-        switch snap {
+        switch pane.content {
         case .session(let workingDirectory):
-            return .session(makeSession(directory: workingDirectory, restoredHistory: restoredHistory))
+            return .session(makeSession(
+                directory: workingDirectory,
+                restoredHistory: restoredHistory,
+                restoredMuxSessionID: pane.muxSessionID,
+                restoredBackend: pane.terminalBackend.map {
+                    TerminalBackend(persisted: $0)
+                }
+            ))
         case .file(let path, let editorState):
             let file = FileTab(path: path)
             if let editorState { file.editorState = editorState }

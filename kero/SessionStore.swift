@@ -6,11 +6,10 @@
 import Foundation
 
 /// Snapshot of open projects and tabs, saved so a relaunch restores the
-/// previous layout. Terminal sessions restore as fresh shells started in
-/// their last known working directory — with their previous scrollback
-/// replayed above the prompt when the "Restore session history" setting is on
-/// (see `historyKey` and `TerminalHistoryStore`); file and diff panes reload
-/// from disk.
+/// previous layout. Durable terminal sessions reconnect to their daemon-owned
+/// PTY; ordinary terminals restore as fresh shells started in their last known
+/// working directory, with previous scrollback replayed when "Restore session
+/// history" is on. File and diff panes reload from disk.
 struct SessionSnapshot: Codable {
     struct ProjectSnapshot: Codable {
         /// A single pane's content — the terminal, file, browser, or diff it
@@ -29,7 +28,13 @@ struct SessionSnapshot: Codable {
             /// Key into the sidecar terminal-history store for a session pane;
             /// nil for files, browsers, diffs, or when history restore is off.
             /// Optional so snapshots written before this feature still decode.
-            var historyKey: String?
+            var historyKey: String? = nil
+            /// Live daemon session to reconnect, when this terminal opted into
+            /// durable sessions. Optional keeps older snapshots compatible.
+            var muxSessionID: UUID? = nil
+            /// Renderer fixed when the durable session was created. A later
+            /// Settings change applies only to newly created terminals.
+            var terminalBackend: String? = nil
         }
 
         struct ColumnSnapshot: Codable {

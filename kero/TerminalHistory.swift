@@ -35,6 +35,19 @@ enum TerminalHistorySerializer {
         return .captured(normalizedHistory(from: capturedVT, maxLines: maxLines))
     }
 
+    /// Backend-neutral VT checkpoint for a durable session. Unlike relaunch
+    /// history this is not normalized, capped by lines, or decorated: the mux
+    /// will prepend it to output received while Kero is detached, rebuilding
+    /// the exact emulator state on the next attachment.
+    @MainActor
+    static func captureRaw(from surface: any TerminalBackendSurface) -> Data? {
+        guard let captureFile = validatedCaptureFile(for: surface.exportScreenFile()) else {
+            return nil
+        }
+        defer { removeCaptureFile(captureFile) }
+        return try? Data(contentsOf: captureFile.fileURL)
+    }
+
     /// Plain visible rows for the Ctrl-Tab thumbnail. This uses the backend's
     /// screen export instead of AppKit bitmap caching because a framebuffer-
     /// only Metal layer cannot be captured reliably. Only the tail of a large

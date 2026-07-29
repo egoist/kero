@@ -177,6 +177,14 @@ struct SettingsView: View {
                 Text("Reopened terminals show their previous scrollback above a fresh shell.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
+
+                Toggle(
+                    "Keep terminal sessions running when Kero closes",
+                    isOn: $settings.durableTerminalSessions
+                )
+                Text("New terminals continue running locally and reconnect when Kero reopens.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
             }
 
             Section("Text Editing") {
@@ -212,6 +220,7 @@ struct SettingsView: View {
                         && settings.themeLight == Theme.defaultLightThemeName
                         && !settings.wrapLines
                         && !settings.restoreTerminalHistory
+                        && !settings.durableTerminalSessions
                         && settings.terminalBackend == .fallback)
                 }
             }
