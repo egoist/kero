@@ -1244,7 +1244,8 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
         if let bytes = AlacrittyKeyMap.bytes(
             for: event,
             mode: terminalMode,
-            optionAsAlt: AppSettings.shared.macosOptionAsAlt
+            optionAsAlt: AppSettings.shared.macosOptionAsAlt,
+            shiftEnterNewline: AppSettings.shared.shiftEnterNewline
         ) {
             write(bytes)
             return

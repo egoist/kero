@@ -16,6 +16,8 @@ the original feature bullet instead of adding separate entries for them.
 
 ## [unrelease]
 
+- Shift+Enter now inserts a newline for coding agents running in the terminal, while Enter still submits. On by default; turn it off in Settings.
+
 ## [0.1.35]
 
 - Add per-pane live titles and split controls in split layouts
