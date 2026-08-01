@@ -171,6 +171,14 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
 
                 Toggle(
+                    "Shift+Enter inserts a newline",
+                    isOn: $settings.shiftEnterNewline
+                )
+                Text("Lets coding agents insert a new line with Shift+Enter while Enter still submits the prompt.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+
+                Toggle(
                     "Restore session history on relaunch",
                     isOn: $settings.restoreTerminalHistory
                 )
@@ -206,6 +214,7 @@ struct SettingsView: View {
                         && settings.sidebarFontSize == AppSettings.defaultSidebarFontSize
                         && !settings.fontThicken
                         && !settings.macosOptionAsAlt
+                        && settings.shiftEnterNewline
                         && settings.language == .system
                         && settings.theme == .system
                         && settings.themeDark == Theme.defaultDarkThemeName

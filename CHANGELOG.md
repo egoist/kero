@@ -26,6 +26,8 @@ the original feature bullet instead of adding separate entries for them.
 - The Files panel now shows repository status with colored filenames and badges, including dimmed Git-ignored files
 - Switch directly to tabs with Ctrl+1–9, without also holding Shift
 
+- Shift+Enter now inserts a newline for coding agents running in the terminal, while Enter still submits. On by default; turn it off in Settings.
+
 ## [0.1.35]
 
 - Add per-pane live titles and split controls in split layouts

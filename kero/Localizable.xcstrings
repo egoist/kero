@@ -3261,6 +3261,22 @@
         }
       }
     },
+    "Lets coding agents insert a new line with Shift+Enter while Enter still submits the prompt." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shift+Enter でコーディングエージェントに改行を挿入します。Enter は引き続きプロンプトを送信します。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用 Shift+Enter 为编程智能体插入换行，而 Enter 仍用于提交提示。"
+          }
+        }
+      }
+    },
     "Light" : {
       "comment" : "Light app appearance.",
       "localizations" : {
@@ -5597,6 +5613,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "共享"
+          }
+        }
+      }
+    },
+    "Shift+Enter inserts a newline" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shift+Enter で改行を挿入"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shift+Enter 插入换行"
           }
         }
       }

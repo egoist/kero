@@ -36,7 +36,8 @@ enum AlacrittyKeyMap {
     static func bytes(
         for event: NSEvent,
         mode: AlacrittyTerminalMode,
-        optionAsAlt: Bool
+        optionAsAlt: Bool,
+        shiftEnterNewline: Bool
     ) -> [UInt8]? {
         let flags = event.modifierFlags
         if flags.contains(.command) {
@@ -56,7 +57,7 @@ enum AlacrittyKeyMap {
         let alt = optionAsAlt && flags.contains(.option)
         let shift = flags.contains(.shift)
 
-        if let special = specialKey(event, mode: mode, shift: shift, control: control, alt: alt) {
+        if let special = specialKey(event, mode: mode, shift: shift, control: control, alt: alt, shiftEnterNewline: shiftEnterNewline) {
             return special
         }
 
@@ -121,7 +122,8 @@ enum AlacrittyKeyMap {
         mode: AlacrittyTerminalMode,
         shift: Bool,
         control: Bool,
-        alt: Bool
+        alt: Bool,
+        shiftEnterNewline: Bool
     ) -> [UInt8]? {
         // The CSI parameter xterm uses to carry modifiers: 1 + a bitmask of
         // shift/alt/control. Only emitted when something is actually held.
@@ -156,7 +158,10 @@ enum AlacrittyKeyMap {
 
         switch Int(event.keyCode) {
         case 36, 76: // Return, keypad Enter
-            return [0x0d]
+            // Shift+Enter sends a line feed (LF) so coding agents running in
+            // the terminal insert a newline instead of submitting the prompt.
+            // They read LF as a literal newline and CR as submit.
+            return (shift && shiftEnterNewline) ? [0x0a] : [0x0d]
         case 48: // Tab
             return shift ? Array("\u{1b}[Z".utf8) : [0x09]
         case 51: // Delete (backspace)

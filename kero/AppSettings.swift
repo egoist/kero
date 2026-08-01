@@ -175,6 +175,15 @@ final class AppSettings: nonisolated ObservableObject {
         didSet { save() }
     }
 
+    /// Send Shift+Enter as a line feed (LF) so coding agents running in the
+    /// terminal insert a newline instead of submitting the prompt. On by
+    /// default: Enter still submits, only Shift+Enter changes. These agents
+    /// read LF as a literal newline and CR as submit, so this needs no agent
+    /// changes. Persisted as `terminal.shift-enter-newline`.
+    @Published var shiftEnterNewline: Bool {
+        didSet { save() }
+    }
+
     /// Soft-wrap file editor lines to the viewport width. Off by default so
     /// long lines scroll horizontally.
     @Published var wrapLines: Bool {
@@ -226,6 +235,7 @@ final class AppSettings: nonisolated ObservableObject {
             ?? toml["font-thicken"]?.bool
             ?? false
         macosOptionAsAlt = toml["terminal.macos-option-as-alt"]?.bool ?? false
+        shiftEnterNewline = toml["terminal.shift-enter-newline"]?.bool ?? true
         wrapLines = toml["editor.wrap-lines"]?.bool ?? false
         restoreTerminalHistory = toml["terminal.restore-history"]?.bool ?? false
         terminalBackend = TerminalBackend(persisted: toml["terminal.backend"]?.string)
@@ -273,6 +283,7 @@ final class AppSettings: nonisolated ObservableObject {
         themeDark = Theme.defaultDarkThemeName
         themeLight = Theme.defaultLightThemeName
         macosOptionAsAlt = false
+        shiftEnterNewline = true
         wrapLines = false
         restoreTerminalHistory = false
         terminalBackend = .fallback
@@ -303,6 +314,9 @@ final class AppSettings: nonisolated ObservableObject {
         }
         if macosOptionAsAlt {
             lines.append("terminal.macos-option-as-alt = true")
+        }
+        if !shiftEnterNewline {
+            lines.append("terminal.shift-enter-newline = false")
         }
         if wrapLines {
             lines.append("editor.wrap-lines = true")

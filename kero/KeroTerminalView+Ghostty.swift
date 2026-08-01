@@ -112,6 +112,22 @@ extension KeroTerminalView {
             ] {
                 builder.withCustom("keybind", keybind)
             }
+            // Shift+Enter sends a line feed (LF) so coding agents running in
+            // the terminal insert a newline instead of submitting the prompt.
+            // They read LF as a literal newline and CR as submit, so this
+            // needs no agent changes. Gated by `shiftEnterNewline` so a user
+            // who wants the default macOS behavior can turn it off.
+            //
+            // Both triggers are bound: `enter` is the main Return key and
+            // `numpad_enter` is the keypad Enter key. Ghostty (W3C key-code
+            // spec) treats them as distinct triggers, and in legacy/XTerm
+            // encoding both default to CR, so each needs its own binding for
+            // parity with the Alacritty backend, which handles macOS keyCodes
+            // 36 (Return) and 76 (keypad Enter).
+            if settings.shiftEnterNewline {
+                builder.withCustom("keybind", "shift+enter=text:\\x0a")
+                builder.withCustom("keybind", "shift+numpad_enter=text:\\x0a")
+            }
             builder.withCustom("command", "shell:\(command)")
             builder.withCustom("term", "xterm-256color")
             builder.withCustom("shell-integration", "none")
