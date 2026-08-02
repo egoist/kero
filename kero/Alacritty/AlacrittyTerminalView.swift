@@ -39,6 +39,10 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
     /// The candidate window is anchored at this caret, not at the start of the
     /// composition.
     private var markedTextSelectedRange = NSRange(location: 0, length: 0)
+    /// Anchor last handed to the input method. macOS caches whatever
+    /// `firstRect` returned and will not ask again on its own, so the anchor has
+    /// to be invalidated whenever it moves.
+    private var reportedIMEAnchor: CGPoint?
     private let markedTextField = NSTextField(labelWithString: "")
     private var isSurfaceVisible = false
     /// Covers Metal while a parked surface is moving back into a real pane.
@@ -809,6 +813,7 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
               snapshot.cursor_column >= 0
         else {
             markedTextField.isHidden = true
+            reportedIMEAnchor = nil
             return
         }
         let attributes: [NSAttributedString.Key: Any] = [
@@ -824,14 +829,31 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
             dark: NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
         ).backgroundNSColor
         let geometry = preeditGeometry(cursorColumn: snapshot.cursor_column)
+        let originY = bounds.height - Self.padding.y
+            - CGFloat(snapshot.cursor_line + 1) * metrics.cellHeight
         markedTextField.frame = NSRect(
             x: geometry.originX,
-            y: bounds.height - Self.padding.y
-                - CGFloat(snapshot.cursor_line + 1) * metrics.cellHeight,
+            y: originY,
             width: geometry.width,
             height: metrics.cellHeight
         )
         markedTextField.isHidden = false
+        reportIMEAnchor(CGPoint(x: geometry.caretX, y: originY))
+    }
+
+    /// Alacritty re-reports the IME cursor area every frame, and winit's
+    /// `set_ime_cursor_area` invalidates the cached coordinates each time. Without
+    /// that the candidate window keeps the position it was first given, so it
+    /// drifts away from the caret and can end up clipped against a screen edge.
+    private func reportIMEAnchor(_ anchor: CGPoint) {
+        guard reportedIMEAnchor != anchor else { return }
+        reportedIMEAnchor = anchor
+        // The input method answers by calling `firstRect` synchronously, which
+        // takes another snapshot and rebuilds the buffers the in-flight frame
+        // still points at. Let this pass finish first.
+        DispatchQueue.main.async { [weak self] in
+            self?.inputContext?.invalidateCharacterCoordinates()
+        }
     }
 
     private func updateCursorBlinking(_ blinking: Bool) {
