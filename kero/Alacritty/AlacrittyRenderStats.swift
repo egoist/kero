@@ -20,6 +20,7 @@ final class AlacrittyRenderStats: @unchecked Sendable {
     private let lock = NSLock()
     private var frames = 0
     private var skippedFrames = 0
+    private var deferredFrames = 0
     private var rebuiltRows = 0
     private var totalSeconds: Double = 0
     private var worstSeconds: Double = 0
@@ -52,15 +53,27 @@ final class AlacrittyRenderStats: @unchecked Sendable {
         lock.unlock()
     }
 
+    /// Frames dropped because the GPU had not caught up. Their damage is still
+    /// waiting in the emulator, so a high count means output arrived faster than
+    /// the display could show it, not that anything was lost.
+    func deferred() {
+        guard Self.isEnabled else { return }
+        lock.lock()
+        deferredFrames += 1
+        lock.unlock()
+    }
+
     private func report() {
         lock.lock()
         let drawn = frames
         let skipped = skippedFrames
+        let deferred = deferredFrames
         let rows = rebuiltRows
         let mean = drawn > 0 ? totalSeconds / Double(drawn) * 1000 : 0
         let worst = worstSeconds * 1000
         frames = 0
         skippedFrames = 0
+        deferredFrames = 0
         rebuiltRows = 0
         totalSeconds = 0
         worstSeconds = 0
@@ -68,8 +81,8 @@ final class AlacrittyRenderStats: @unchecked Sendable {
         lock.unlock()
 
         NSLog(String(
-            format: "kero-render drawn=%d skipped=%d rows=%d mean=%.3fms worst=%.3fms",
-            drawn, skipped, rows, mean, worst
+            format: "kero-render drawn=%d skipped=%d deferred=%d rows=%d mean=%.3fms worst=%.3fms",
+            drawn, skipped, deferred, rows, mean, worst
         ))
     }
 }

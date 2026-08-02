@@ -119,6 +119,7 @@ final class TerminalMetalRenderer {
         in drawable: CAMetalDrawable,
         viewportSize: CGSize,
         onPresented: (@Sendable () -> Void)? = nil,
+        onCompleted: (@Sendable () -> Void)? = nil,
         waitUntilCompleted: Bool = false
     ) -> Bool {
         if atlas == nil {
@@ -196,6 +197,12 @@ final class TerminalMetalRenderer {
         encoder.endEncoding()
         if let onPresented {
             drawable.addPresentedHandler { _ in onPresented() }
+        }
+        // On the command buffer rather than the drawable: this one is guaranteed
+        // to run, including when the frame errors, so a caller can use it to
+        // track how many frames the GPU still owes.
+        if let onCompleted {
+            commands.addCompletedHandler { _ in onCompleted() }
         }
         commands.present(drawable)
         commands.commit()

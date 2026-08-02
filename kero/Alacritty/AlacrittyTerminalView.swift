@@ -92,6 +92,16 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
     /// the emulator knows nothing about — a resize, a new theme or font, a
     /// selection drag, focus — since those move pixels without touching a cell.
     private var needsUnconditionalRedraw = true
+    /// Frames handed to the GPU that have not completed yet.
+    ///
+    /// A program printing quickly wakes the host far more often than the display
+    /// refreshes. Submitting a frame per wakeup exhausts the drawable pool and
+    /// then blocks the main thread inside `nextDrawable()` — which is felt as
+    /// stutter, since that is the thread handling keystrokes. Damage accumulates
+    /// in the emulator either way, so intermediate frames are simply dropped.
+    private var framesInFlight = 0
+    private var renderDeferredUntilFrameCompletes = false
+    private static let maxFramesInFlight = 2
     private var metalRenderer: TerminalMetalRenderer?
     private var kittyPlacements: [AlacrittyKittyPlacement] = []
     private var kittyImageData: [AlacrittyKittyImageKey: Data] = [:]
@@ -251,7 +261,7 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
         if !renderedInactive, !cursorWasVisible {
             addInactiveCursorOverlay(to: frozenLayer)
         }
-        metalRenderer = nil
+        discardMetalRenderer()
         replaceBackingLayer(with: frozenLayer)
     }
 
@@ -382,7 +392,7 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
             updateHoveredURL(nil)
             // Drop the glyph atlas and row/instance buffers while parked,
             // matching Ghostty's occluded-surface GPU memory behavior.
-            metalRenderer = nil
+            discardMetalRenderer()
             // CAMetalLayer retains its current display drawable even after
             // `device` becomes nil. Replace the layer entirely so Core
             // Animation releases that drawable and its pool. A 1800×1600
@@ -564,6 +574,14 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
         if !waitUntilCompleted, kero_alacritty_synchronized_update(handle) {
             return true
         }
+        // Before any per-frame work, and before damage is taken: taking damage is
+        // destructive, so a frame that is not going to be drawn must not consume
+        // it.
+        if !waitUntilCompleted, framesInFlight >= Self.maxFramesInFlight {
+            renderDeferredUntilFrameCompletes = true
+            AlacrittyRenderStats.shared.deferred()
+            return true
+        }
         revalidateURLHoverForRender()
         if metalRenderer == nil, let metalDevice {
             metalRenderer = TerminalMetalRenderer(device: metalDevice)
@@ -600,11 +618,20 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
         metalLayer.device = metalDevice
         metalLayer.contentsScale = scale
         let size = bounds.size
-        guard size.width > 0, size.height > 0 else { return false }
+        // The damage above has already been consumed, so anything that gives up
+        // on this frame has to ask for a full rebuild rather than leave those
+        // rows stale until the program happens to touch them again.
+        guard size.width > 0, size.height > 0 else {
+            needsUnconditionalRedraw = true
+            return false
+        }
         metalLayer.drawableSize = CGSize(
             width: size.width * scale, height: size.height * scale
         )
-        guard let drawable = metalLayer.nextDrawable() else { return false }
+        guard let drawable = metalLayer.nextDrawable() else {
+            needsUnconditionalRedraw = true
+            return false
+        }
         // Keep the IOSurface before render schedules this drawable for
         // presentation. Accessing drawable.texture afterward is invalid.
         let drawableSurface = drawable.texture.iosurface
@@ -644,6 +671,20 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
         } else {
             onPresented = nil
         }
+        // The synchronous path has nothing left in flight by the time it returns,
+        // so only asynchronous frames take a slot.
+        let countsInFlight = !waitUntilCompleted
+        let onCompleted: (@Sendable () -> Void)?
+        if countsInFlight {
+            onCompleted = {
+                DispatchQueue.main.async {
+                    AlacrittyRegistry.shared.view(for: presentationToken)?.didCompleteFrame()
+                }
+            }
+            framesInFlight += 1
+        } else {
+            onCompleted = nil
+        }
         let submitted = renderer.render(
             snapshot: snapshot,
             kittyPlacements: kittyPlacements,
@@ -654,10 +695,15 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
             in: drawable,
             viewportSize: size,
             onPresented: onPresented,
+            onCompleted: onCompleted,
             waitUntilCompleted: waitUntilCompleted
         )
         if submitted {
             lastPresentedSurface = drawableSurface
+        } else {
+            // Nothing was committed, so no completion is coming.
+            if countsInFlight { framesInFlight = max(framesInFlight - 1, 0) }
+            needsUnconditionalRedraw = true
         }
         if submitted, waitUntilCompleted {
             lastPresentedSize = size
@@ -731,6 +777,24 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
             return AlacrittyKittyPlacement(placement, png: png)
         }
         kittyImageData = kittyImageData.filter { activeImageKeys.contains($0.key) }
+    }
+
+    /// Frames submitted through the old renderer still complete, but their slots
+    /// belong to a layer that is gone. Clearing the count keeps a dropped
+    /// completion from wedging the gate shut.
+    private func discardMetalRenderer() {
+        metalRenderer = nil
+        framesInFlight = 0
+        renderDeferredUntilFrameCompletes = false
+    }
+
+    /// Releases the in-flight slot and draws the output that arrived while the
+    /// GPU was busy.
+    private func didCompleteFrame() {
+        framesInFlight = max(framesInFlight - 1, 0)
+        guard renderDeferredUntilFrameCompletes else { return }
+        renderDeferredUntilFrameCompletes = false
+        scheduleRender()
     }
 
     private func didPresentFrame(
