@@ -572,6 +572,7 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
         // Full-screen TUIs use DEC mode 2026 to replace a frame atomically.
         // A host cursor tick must not expose the cleared intermediate grid.
         if !waitUntilCompleted, kero_alacritty_synchronized_update(handle) {
+            AlacrittyRenderStats.shared.suppressed()
             return true
         }
         // Before any per-frame work, and before damage is taken: taking damage is
@@ -637,7 +638,11 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
         let drawableSurface = drawable.texture.iosurface
 
         var snapshot = KeroSnapshot()
+        let snapshotStart = CFAbsoluteTimeGetCurrent()
         kero_alacritty_snapshot(handle, &snapshot)
+        AlacrittyRenderStats.shared.snapshot(
+            seconds: CFAbsoluteTimeGetCurrent() - snapshotStart
+        )
         applyHoveredURLUnderline(to: &snapshot)
         updateKittyGraphics(handle: handle)
         updateMarkedTextOverlay(snapshot: snapshot)
@@ -948,6 +953,7 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
 
         switch kind {
         case KERO_EVENT_WAKEUP:
+            AlacrittyRenderStats.shared.wakeup()
             updateFocusReport()
             if isPointerInside, isCommandPressed {
                 refreshURLHover(modifierFlags: NSEvent.modifierFlags)

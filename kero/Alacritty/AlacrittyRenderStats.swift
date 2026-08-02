@@ -21,9 +21,14 @@ final class AlacrittyRenderStats: @unchecked Sendable {
     private var frames = 0
     private var skippedFrames = 0
     private var deferredFrames = 0
+    private var suppressedFrames = 0
+    private var wakeups = 0
     private var rebuiltRows = 0
     private var totalSeconds: Double = 0
     private var worstSeconds: Double = 0
+    private var snapshotSeconds: Double = 0
+    private var worstSnapshotSeconds: Double = 0
+    private var snapshots = 0
     private var lastReport = Date()
 
     func frame(seconds: Double) {
@@ -63,26 +68,71 @@ final class AlacrittyRenderStats: @unchecked Sendable {
         lock.unlock()
     }
 
+    /// Frames withheld because the program was mid-synchronized-update. Counted
+    /// because they are otherwise invisible: a screen that only refreshes a few
+    /// times a second looks like slow rendering, when the terminal is in fact
+    /// being told not to draw yet.
+    func suppressed() {
+        guard Self.isEnabled else { return }
+        lock.lock()
+        suppressedFrames += 1
+        lock.unlock()
+    }
+
+    /// Wakeups the emulator sent. Compared against `drawn`, this separates "the
+    /// program is not producing output" from "output is not reaching the screen".
+    func wakeup() {
+        guard Self.isEnabled else { return }
+        lock.lock()
+        wakeups += 1
+        lock.unlock()
+    }
+
+    /// Time inside `kero_alacritty_snapshot`, which both exports the grid and
+    /// waits for the terminal lock the PTY thread parses under. Tracked apart
+    /// from the frame total so contention is distinguishable from draw cost.
+    func snapshot(seconds: Double) {
+        guard Self.isEnabled else { return }
+        lock.lock()
+        snapshots += 1
+        snapshotSeconds += seconds
+        worstSnapshotSeconds = max(worstSnapshotSeconds, seconds)
+        lock.unlock()
+    }
+
     private func report() {
         lock.lock()
         let drawn = frames
         let skipped = skippedFrames
         let deferred = deferredFrames
+        let suppressed = suppressedFrames
+        let woke = wakeups
         let rows = rebuiltRows
         let mean = drawn > 0 ? totalSeconds / Double(drawn) * 1000 : 0
         let worst = worstSeconds * 1000
+        let snapshotMean = snapshots > 0 ? snapshotSeconds / Double(snapshots) * 1000 : 0
+        let snapshotWorst = worstSnapshotSeconds * 1000
         frames = 0
         skippedFrames = 0
         deferredFrames = 0
+        suppressedFrames = 0
+        wakeups = 0
         rebuiltRows = 0
         totalSeconds = 0
         worstSeconds = 0
+        snapshots = 0
+        snapshotSeconds = 0
+        worstSnapshotSeconds = 0
         lastReport = Date()
         lock.unlock()
 
         NSLog(String(
-            format: "kero-render drawn=%d skipped=%d deferred=%d rows=%d mean=%.3fms worst=%.3fms",
-            drawn, skipped, deferred, rows, mean, worst
+            format: """
+                kero-render woke=%d drawn=%d skipped=%d deferred=%d suppressed=%d rows=%d \
+                mean=%.3fms worst=%.3fms snapshot=%.3fms/%.3fms
+                """,
+            woke, drawn, skipped, deferred, suppressed, rows, mean, worst,
+            snapshotMean, snapshotWorst
         ))
     }
 }
