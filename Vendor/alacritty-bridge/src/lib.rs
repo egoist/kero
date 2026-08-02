@@ -40,6 +40,7 @@ use alacritty_terminal::term::{point_to_viewport, Config, Osc52, Term, TermDamag
 use alacritty_terminal::tty::{self, EventedPty, EventedReadWrite};
 use alacritty_terminal::vte::ansi::{Color, CursorShape, CursorStyle, NamedColor, Rgb};
 use polling::{Event as PollingEvent, PollMode, Poller};
+use unicode_width::UnicodeWidthChar;
 
 use graphics_event_loop::{
     GraphicsEventLoop, GraphicsEventLoopSender, GraphicsMsg, GraphicsNotifier,
@@ -876,9 +877,22 @@ pub struct KeroTerminal {
     /// Retains each placement's PNG while C pointers are visible to Swift.
     kitty_images: Vec<Arc<[u8]>>,
     last_kitty_damage_revision: u64,
+    /// Uncommitted IME composition, drawn into the grid at the cursor.
+    preedit: Option<Preedit>,
     /// Set once the shell has exited, so teardown does not wait on a loop that
     /// has already stopped.
     exited: bool,
+}
+
+/// Text an input method is still composing.
+///
+/// Kept here rather than in the host so it is drawn as grid cells, the way
+/// Alacritty's `draw_ime_preview` does: an overlay measured in points cannot
+/// line up with the cell grid, and its own clipping cuts the composition off.
+struct Preedit {
+    text: String,
+    /// Byte offset of the composition caret within `text`.
+    caret: usize,
 }
 
 fn pack(rgb: Rgb) -> u32 {
@@ -1075,6 +1089,7 @@ pub unsafe extern "C" fn kero_alacritty_new(
         kitty_placements: Vec::new(),
         kitty_images: Vec::new(),
         last_kitty_damage_revision: 0,
+        preedit: None,
         exited: false,
     }))
 }
@@ -2062,6 +2077,114 @@ mod tests {
         assert!(text.contains("\x1b]8;;\x1b\\"));
     }
 
+    fn preedit_row(columns: usize) -> Vec<KeroCell> {
+        vec![
+            KeroCell {
+                ch: u32::from(' '),
+                fg: 0,
+                bg: 0,
+                text_offset: 0,
+                text_len: 0,
+                flags: 0,
+            };
+            columns
+        ]
+    }
+
+    fn row_text(row: &[KeroCell]) -> String {
+        row.iter()
+            .filter(|cell| cell.flags & KERO_CELL_WIDE_SPACER == 0)
+            .map(|cell| char::from_u32(cell.ch).unwrap_or(' '))
+            .collect()
+    }
+
+    #[test]
+    fn preedit_is_drawn_underlined_at_the_cursor() {
+        let mut row = preedit_row(10);
+        let preedit = Preedit {
+            text: "ni".to_owned(),
+            caret: 2,
+        };
+
+        let anchor = overlay_preedit(&mut row, 3, &preedit, 0, 0);
+
+        assert_eq!(row_text(&row), "   ni     ");
+        assert!(row[3].flags & KERO_CELL_UNDERLINE != 0);
+        assert!(row[4].flags & KERO_CELL_UNDERLINE != 0);
+        // The caret sits just past the composition.
+        assert_eq!(anchor, 5);
+    }
+
+    #[test]
+    fn preedit_anchor_follows_the_caret_inside_the_composition() {
+        let mut row = preedit_row(10);
+        let preedit = Preedit {
+            text: "nihao".to_owned(),
+            caret: 2,
+        };
+
+        assert_eq!(overlay_preedit(&mut row, 0, &preedit, 0, 0), 2);
+    }
+
+    #[test]
+    fn preedit_reserves_two_cells_per_wide_character() {
+        let mut row = preedit_row(10);
+        let preedit = Preedit {
+            text: "你好".to_owned(),
+            caret: "你好".len(),
+        };
+
+        let anchor = overlay_preedit(&mut row, 0, &preedit, 0, 0);
+
+        assert!(row[0].flags & KERO_CELL_WIDE != 0);
+        assert!(row[1].flags & KERO_CELL_WIDE_SPACER != 0);
+        assert!(row[2].flags & KERO_CELL_WIDE != 0);
+        assert!(row[3].flags & KERO_CELL_WIDE_SPACER != 0);
+        assert_eq!(anchor, 4);
+    }
+
+    #[test]
+    fn preedit_slides_left_instead_of_running_off_the_row() {
+        let mut row = preedit_row(8);
+        let preedit = Preedit {
+            text: "nihao".to_owned(),
+            caret: 5,
+        };
+
+        // Anchored at column 6 the composition would need columns 6..11.
+        let anchor = overlay_preedit(&mut row, 6, &preedit, 0, 0);
+
+        assert_eq!(row_text(&row), "   nihao");
+        assert_eq!(anchor, 8);
+    }
+
+    #[test]
+    fn preedit_longer_than_the_row_keeps_its_tail() {
+        let mut row = preedit_row(4);
+        let preedit = Preedit {
+            text: "nihaoma".to_owned(),
+            caret: 7,
+        };
+
+        let anchor = overlay_preedit(&mut row, 0, &preedit, 0, 0);
+
+        assert_eq!(row_text(&row), "…oma");
+        assert_eq!(anchor, 4);
+    }
+
+    #[test]
+    fn preedit_with_the_caret_past_the_row_keeps_its_head() {
+        let mut row = preedit_row(4);
+        let preedit = Preedit {
+            text: "nihaoma".to_owned(),
+            caret: 0,
+        };
+
+        overlay_preedit(&mut row, 0, &preedit, 0, 0);
+
+        assert_eq!(row_text(&row), "nih…");
+    }
+
     #[test]
     fn ime_anchor_follows_the_grid_cursor_into_the_viewport() {
         assert_eq!(ime_anchor(0, 24, Point::new(Line(3), Column(5))), (3, 5));
@@ -2242,6 +2365,119 @@ pub unsafe extern "C" fn kero_alacritty_take_damage(
     };
 }
 
+/// The shortener Alacritty puts in place of the part of a composition that does
+/// not fit the row.
+const PREEDIT_SHORTENER: char = '…';
+
+fn char_cells(c: char) -> usize {
+    c.width().unwrap_or(1)
+}
+
+fn str_cells(text: &str) -> usize {
+    text.chars().map(char_cells).sum()
+}
+
+/// The part of `text` that fits in `columns` cells, shortened with `…`.
+///
+/// `from_start` keeps the beginning and marks the dropped tail, which is what
+/// Alacritty does once the caret itself is past the end of the row; otherwise
+/// the tail is kept so the caret stays visible.
+fn shorten_preedit(text: &str, columns: usize, from_start: bool) -> String {
+    if columns == 0 {
+        return String::new();
+    }
+    if str_cells(text) <= columns {
+        return text.to_owned();
+    }
+
+    let budget = columns - char_cells(PREEDIT_SHORTENER);
+    let mut kept: Vec<char> = Vec::new();
+    let mut cells = 0;
+    let source: Box<dyn Iterator<Item = char>> = if from_start {
+        Box::new(text.chars())
+    } else {
+        Box::new(text.chars().rev())
+    };
+    for c in source {
+        let width = char_cells(c);
+        if cells + width > budget {
+            break;
+        }
+        cells += width;
+        kept.push(c);
+    }
+
+    if from_start {
+        kept.push(PREEDIT_SHORTENER);
+        kept.into_iter().collect()
+    } else {
+        kept.push(PREEDIT_SHORTENER);
+        kept.into_iter().rev().collect()
+    }
+}
+
+/// Draws `preedit` into `row` and returns the column an input method should
+/// anchor its candidate window at.
+///
+/// Mirrors Alacritty's `draw_ime_preview`: the composition is underlined, it
+/// slides left so its tail never runs past the last column, and the anchor
+/// follows the composition caret rather than the start of the text.
+fn overlay_preedit(
+    row: &mut [KeroCell],
+    anchor_column: usize,
+    preedit: &Preedit,
+    foreground: u32,
+    background: u32,
+) -> usize {
+    let columns = row.len();
+    if columns == 0 {
+        return anchor_column;
+    }
+
+    let caret = preedit.caret.min(preedit.text.len());
+    let caret_to_end = str_cells(&preedit.text[caret..]);
+    let visible = if caret_to_end > columns {
+        shorten_preedit(&preedit.text[caret..], columns, true)
+    } else {
+        shorten_preedit(&preedit.text, columns, false)
+    };
+
+    let visible_cells = str_cells(&visible);
+    let end = (anchor_column + visible_cells).min(columns);
+    let mut column = end.saturating_sub(visible_cells);
+
+    for c in visible.chars() {
+        let width = char_cells(c);
+        if width == 0 || column >= columns {
+            continue;
+        }
+        row[column] = KeroCell {
+            ch: u32::from(c),
+            fg: foreground,
+            bg: background,
+            text_offset: 0,
+            text_len: 0,
+            flags: KERO_CELL_UNDERLINE | if width > 1 { KERO_CELL_WIDE } else { 0 },
+        };
+        for spacer in 1..width {
+            let Some(cell) = row.get_mut(column + spacer) else {
+                break;
+            };
+            *cell = KeroCell {
+                ch: 0,
+                fg: foreground,
+                bg: background,
+                text_offset: 0,
+                text_len: 0,
+                flags: KERO_CELL_UNDERLINE | KERO_CELL_WIDE_SPACER,
+            };
+        }
+        column += width;
+    }
+
+    end.saturating_sub(caret_to_end)
+}
+
 /// Viewport-relative cursor an input method should compose at, or `(-1, -1)`
 /// once it scrolls out of view.
 ///
@@ -2254,6 +2490,44 @@ fn ime_anchor(display_offset: usize, screen_lines: usize, cursor: Point) -> (isi
         Some(point) if point.line < screen_lines => (point.line as isize, point.column.0 as isize),
         _ => (-1, -1),
     }
+}
+
+/// Sets the uncommitted IME composition drawn at the cursor, or clears it when
+/// `text` is null or empty.
+///
+/// `caret` is a byte offset into `text` and decides where the candidate window
+/// is anchored.
+///
+/// # Safety
+/// `handle` must be live and `text`, when non-null, must be a NUL-terminated
+/// UTF-8 string.
+#[no_mangle]
+pub unsafe extern "C" fn kero_alacritty_set_preedit(
+    handle: *mut KeroTerminal,
+    text: *const c_char,
+    caret: usize,
+) {
+    if handle.is_null() {
+        return;
+    }
+    let terminal = &mut *handle;
+    let text = if text.is_null() {
+        String::new()
+    } else {
+        CStr::from_ptr(text).to_string_lossy().into_owned()
+    };
+
+    terminal.preedit = if text.is_empty() {
+        None
+    } else {
+        // A caret landing inside a multi-byte character would panic when the
+        // text is sliced, so snap it to a boundary.
+        let mut caret = caret.min(text.len());
+        while caret > 0 && !text.is_char_boundary(caret) {
+            caret -= 1;
+        }
+        Some(Preedit { text, caret })
+    };
 }
 
 /// Fills `out` with the visible grid.
@@ -2386,7 +2660,17 @@ pub unsafe extern "C" fn kero_alacritty_snapshot(
     } else {
         (cursor.point.line.0 as isize, cursor.point.column.0 as isize)
     };
-    let (ime_line, ime_column) = ime_anchor(content.display_offset, screen_lines, cursor.point);
+    let (ime_line, mut ime_column) = ime_anchor(content.display_offset, screen_lines, cursor.point);
+    if let (Some(preedit), true) = (terminal.preedit.as_ref(), ime_line >= 0) {
+        let row = ime_line as usize * columns..(ime_line as usize + 1) * columns;
+        ime_column = overlay_preedit(
+            &mut terminal.cells[row],
+            ime_column.max(0) as usize,
+            preedit,
+            theme.foreground,
+            background,
+        ) as isize;
+    }
 
     *out = KeroSnapshot {
         cells: terminal.cells.as_ptr(),

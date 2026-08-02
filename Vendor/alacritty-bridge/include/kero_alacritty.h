@@ -260,6 +260,11 @@ void kero_alacritty_take_damage(KeroTerminal *handle, KeroDamage *out);
 /// Whether a DEC synchronized update is still being buffered.
 bool kero_alacritty_synchronized_update(KeroTerminal *handle);
 
+/// Sets the uncommitted IME composition drawn at the cursor, or clears it when
+/// `text` is NULL or empty. `caret` is a byte offset into `text` and decides
+/// where the candidate window is anchored.
+void kero_alacritty_set_preedit(KeroTerminal *handle, const char *text, size_t caret);
+
 /// Fills `out` with the visible grid.
 void kero_alacritty_snapshot(KeroTerminal *handle, KeroSnapshot *out);
 

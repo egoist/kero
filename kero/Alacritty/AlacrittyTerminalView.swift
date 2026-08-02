@@ -35,15 +35,10 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
     private var metrics: AlacrittyMetrics
     private var gridSize = (columns: 0, rows: 0)
     private var markedText = ""
-    /// Selection within `markedText` (UTF-16) as the IME last reported it.
-    /// The candidate window is anchored at this caret, not at the start of the
-    /// composition.
-    private var markedTextSelectedRange = NSRange(location: 0, length: 0)
-    /// Anchor last handed to the input method. macOS caches whatever
+    /// Grid anchor last handed to the input method. macOS caches whatever
     /// `firstRect` returned and will not ask again on its own, so the anchor has
     /// to be invalidated whenever it moves.
     private var reportedIMEAnchor: CGPoint?
-    private let markedTextField = NSTextField(labelWithString: "")
     private var isSurfaceVisible = false
     /// Covers Metal while a parked surface is moving back into a real pane.
     /// The cover lives above the drawable so the GPU can acquire and present
@@ -114,13 +109,6 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
         wantsLayer = true
         layerContentsRedrawPolicy = .onSetNeedsDisplay
         registerForDraggedTypes([.fileURL])
-        markedTextField.isHidden = true
-        markedTextField.isBezeled = false
-        markedTextField.drawsBackground = true
-        // The field is sized to the composition and slid left to fit, so this
-        // only kicks in when the composition is wider than a whole row.
-        markedTextField.lineBreakMode = .byTruncatingTail
-        addSubview(markedTextField)
         addSubview(progressBar)
         AlacrittyRegistry.shared.register(self, for: token)
         NotificationCenter.default.addObserver(
@@ -623,7 +611,7 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
         kero_alacritty_snapshot(handle, &snapshot)
         applyHoveredURLUnderline(to: &snapshot)
         updateKittyGraphics(handle: handle)
-        updateMarkedTextOverlay(snapshot: snapshot)
+        reportIMEAnchor(snapshot: snapshot)
         updateCursorBlinking(snapshot.cursor_blinking)
         if cursorBlinking, !cursorVisible {
             snapshot.cursor_line = -1
@@ -773,82 +761,16 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
         CATransaction.commit()
     }
 
-    /// Where the inline composition sits, following Alacritty's
-    /// `draw_ime_preview`: the preedit slides left so its tail stays inside the
-    /// row instead of running off the right edge, and the candidate window is
-    /// anchored at the composition caret rather than at the terminal cursor.
-    private struct PreeditGeometry {
-        var originX: CGFloat
-        var caretX: CGFloat
-        var width: CGFloat
-    }
-
-    private func preeditGeometry(cursorColumn: Int) -> PreeditGeometry {
-        let rowStart = Self.padding.x
-        let rowEnd = max(bounds.width - Self.padding.x, rowStart + metrics.cellWidth)
-        let cursorX = rowStart + CGFloat(max(cursorColumn, 0)) * metrics.cellWidth
-        // The extra couple of points keep the trailing glyph off the field edge.
-        let width = min(
-            max(measuredPreeditWidth(markedText) + 2, metrics.cellWidth),
-            rowEnd - rowStart
-        )
-        let originX = min(max(cursorX, rowStart), rowEnd - width)
-        let caretPrefix = (markedText as NSString)
-            .substring(to: min(markedTextSelectedRange.location, markedText.utf16.count))
-        let caretX = originX + min(measuredPreeditWidth(caretPrefix), width)
-        return PreeditGeometry(originX: originX, caretX: caretX, width: width)
-    }
-
-    private func measuredPreeditWidth(_ text: String) -> CGFloat {
-        guard !text.isEmpty else { return 0 }
-        return (text as NSString)
-            .size(withAttributes: [.font: metrics.regular])
-            .width
-            .rounded(.up)
-    }
-
-    private func updateMarkedTextOverlay(snapshot: KeroSnapshot) {
-        // `ime_line`/`ime_column`, not the drawn cursor: a full-screen TUI hides
-        // the cursor and draws its own caret, and composition still belongs at
-        // the grid cursor.
-        guard !markedText.isEmpty,
-              snapshot.ime_line >= 0,
-              snapshot.ime_column >= 0
-        else {
-            markedTextField.isHidden = true
-            reportedIMEAnchor = nil
-            return
-        }
-        let attributes: [NSAttributedString.Key: Any] = [
-            .font: metrics.regular,
-            .foregroundColor: Theme.terminal(
-                dark: NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-            ).foregroundNSColor,
-            .underlineStyle: NSUnderlineStyle.single.rawValue,
-        ]
-        let attributed = NSAttributedString(string: markedText, attributes: attributes)
-        markedTextField.attributedStringValue = attributed
-        markedTextField.backgroundColor = Theme.terminal(
-            dark: NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-        ).backgroundNSColor
-        let geometry = preeditGeometry(cursorColumn: snapshot.ime_column)
-        let originY = bounds.height - Self.padding.y
-            - CGFloat(snapshot.ime_line + 1) * metrics.cellHeight
-        markedTextField.frame = NSRect(
-            x: geometry.originX,
-            y: originY,
-            width: geometry.width,
-            height: metrics.cellHeight
-        )
-        markedTextField.isHidden = false
-        reportIMEAnchor(CGPoint(x: geometry.caretX, y: originY))
-    }
-
     /// Alacritty re-reports the IME cursor area every frame, and winit's
     /// `set_ime_cursor_area` invalidates the cached coordinates each time. Without
     /// that the candidate window keeps the position it was first given, so it
     /// drifts away from the caret and can end up clipped against a screen edge.
-    private func reportIMEAnchor(_ anchor: CGPoint) {
+    private func reportIMEAnchor(snapshot: KeroSnapshot) {
+        guard !markedText.isEmpty, snapshot.ime_line >= 0, snapshot.ime_column >= 0 else {
+            reportedIMEAnchor = nil
+            return
+        }
+        let anchor = CGPoint(x: snapshot.ime_column, y: snapshot.ime_line)
         guard reportedIMEAnchor != anchor else { return }
         reportedIMEAnchor = anchor
         // The input method answers by calling `firstRect` synchronously, which
@@ -1770,8 +1692,9 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
 
 // MARK: - Text input
 
-/// Enough of `NSTextInputClient` for IME: composition is shown inline at the
-/// cursor and only committed text reaches the PTY.
+/// Enough of `NSTextInputClient` for IME: only committed text reaches the PTY,
+/// and the composition is handed to the terminal to be drawn as grid cells the
+/// way Alacritty's `draw_ime_preview` does.
 ///
 /// Mark-rect geometry follows Alacritty's `Window::update_ime_position`: the
 /// rect covers a fixed two cells at the composition caret. Reporting the whole
@@ -1780,8 +1703,7 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
 /// off — the same trap Alacritty documents for other platforms' popups.
 extension AlacrittyTerminalView: NSTextInputClient {
     func insertText(_ string: Any, replacementRange: NSRange) {
-        markedText = ""
-        markedTextSelectedRange = NSRange(location: 0, length: 0)
+        setPreedit("", caret: 0)
         let text = (string as? NSAttributedString)?.string ?? (string as? String) ?? ""
         guard !text.isEmpty else { return }
         write(Array(text.utf8))
@@ -1790,15 +1712,32 @@ extension AlacrittyTerminalView: NSTextInputClient {
 
     func setMarkedText(_ string: Any, selectedRange: NSRange, replacementRange: NSRange) {
         let text = (string as? NSAttributedString)?.string ?? (string as? String) ?? ""
-        markedText = text
-        markedTextSelectedRange = Self.clampedIMERange(selectedRange, in: text)
+        let clamped = Self.clampedIMERange(selectedRange, in: text)
+        setPreedit(text, caret: Self.utf8Offset(ofUTF16: clamped.location, in: text))
         scheduleRender(force: true)
     }
 
     func unmarkText() {
-        markedText = ""
-        markedTextSelectedRange = NSRange(location: 0, length: 0)
+        setPreedit("", caret: 0)
         scheduleRender(force: true)
+    }
+
+    /// Hands the composition to the terminal so it is drawn as grid cells, the
+    /// way Alacritty draws its preedit. Nothing about it is rendered here.
+    private func setPreedit(_ text: String, caret: Int) {
+        markedText = text
+        guard let handle else { return }
+        if text.isEmpty {
+            kero_alacritty_set_preedit(handle, nil, 0)
+        } else {
+            text.withCString { kero_alacritty_set_preedit(handle, $0, caret) }
+        }
+    }
+
+    private static func utf8Offset(ofUTF16 offset: Int, in text: String) -> Int {
+        let index = String.Index(utf16Offset: offset, in: text)
+        guard let utf8Index = index.samePosition(in: text.utf8) else { return text.utf8.count }
+        return text.utf8.distance(from: text.utf8.startIndex, to: utf8Index)
     }
 
     func selectedRange() -> NSRange {
@@ -1827,12 +1766,12 @@ extension AlacrittyTerminalView: NSTextInputClient {
         guard let handle, let window else { return .zero }
         var snapshot = KeroSnapshot()
         kero_alacritty_snapshot(handle, &snapshot)
-        // A hidden cursor still has a grid position, and anchoring at the
-        // pane's top-left corner instead pushes the panel into the screen edge.
+        // `ime_*`, not the drawn cursor: a full-screen application that hides the
+        // cursor still composes at the grid cursor, and anchoring at the pane's
+        // top-left corner instead pushes the panel into the screen edge. While
+        // composing this column is the caret inside the preedit.
         let line = CGFloat(max(snapshot.ime_line, 0))
-        let caretX: CGFloat = markedText.isEmpty
-            ? Self.padding.x + CGFloat(max(snapshot.ime_column, 0)) * metrics.cellWidth
-            : preeditGeometry(cursorColumn: max(snapshot.ime_column, 0)).caretX
+        let caretX = Self.padding.x + CGFloat(max(snapshot.ime_column, 0)) * metrics.cellWidth
         // Exclude a full-width character so the panel neither covers the caret
         // nor gets pushed past the end of the row.
         let width = metrics.cellWidth * 2
