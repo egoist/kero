@@ -36,7 +36,7 @@ use alacritty_terminal::sync::FairMutex;
 use alacritty_terminal::term::cell::{Cell, Flags};
 use alacritty_terminal::term::color::Colors;
 use alacritty_terminal::term::search::{Match, RegexIter, RegexSearch};
-use alacritty_terminal::term::{Config, Osc52, Term, TermDamage, TermMode};
+use alacritty_terminal::term::{point_to_viewport, Config, Osc52, Term, TermDamage, TermMode};
 use alacritty_terminal::tty::{self, EventedPty, EventedReadWrite};
 use alacritty_terminal::vte::ansi::{Color, CursorShape, CursorStyle, NamedColor, Rgb};
 use polling::{Event as PollingEvent, PollMode, Poller};
@@ -155,6 +155,12 @@ pub struct KeroSnapshot {
     pub display_offset: usize,
     pub total_lines: usize,
     pub screen_lines: usize,
+    /// Viewport-relative cursor for IME anchoring, or -1 when it is scrolled
+    /// out of the viewport. Unlike `cursor_line`/`cursor_column` this ignores
+    /// cursor visibility: a full-screen application that hides the cursor and
+    /// draws its own caret still composes at the grid cursor.
+    pub ime_line: isize,
+    pub ime_column: isize,
 }
 
 #[repr(C)]
@@ -2057,6 +2063,21 @@ mod tests {
     }
 
     #[test]
+    fn ime_anchor_follows_the_grid_cursor_into_the_viewport() {
+        assert_eq!(ime_anchor(0, 24, Point::new(Line(3), Column(5))), (3, 5));
+        // Scrolled back by five rows: the same cell is five rows further down.
+        assert_eq!(ime_anchor(5, 24, Point::new(Line(3), Column(5))), (8, 5));
+    }
+
+    #[test]
+    fn ime_anchor_is_dropped_once_the_cursor_leaves_the_viewport() {
+        // Scrolled far enough that the cursor sits below the visible rows.
+        assert_eq!(ime_anchor(24, 24, Point::new(Line(3), Column(5))), (-1, -1));
+        // Cursor still in scrollback while the viewport shows the live prompt.
+        assert_eq!(ime_anchor(0, 24, Point::new(Line(-2), Column(5))), (-1, -1));
+    }
+
+    #[test]
     fn osc8_url_lookup_returns_visible_cell_bounds() {
         let term = parse(b"x\x1b]8;;https://kero.sh\x1b\\Kero\x1b]8;;\x1b\\ y");
         let (url, bounds) = hyperlink_url_at(&term, Point::new(Line(0), Column(2))).unwrap();
@@ -2221,6 +2242,20 @@ pub unsafe extern "C" fn kero_alacritty_take_damage(
     };
 }
 
+/// Viewport-relative cursor an input method should compose at, or `(-1, -1)`
+/// once it scrolls out of view.
+///
+/// Mirrors Alacritty's `ime_position`: the grid cursor is mapped through the
+/// display offset and only dropped when it leaves the viewport. Cursor
+/// visibility deliberately plays no part — an application that hides the cursor
+/// and draws its own caret still composes at the grid cursor.
+fn ime_anchor(display_offset: usize, screen_lines: usize, cursor: Point) -> (isize, isize) {
+    match point_to_viewport(display_offset, cursor) {
+        Some(point) if point.line < screen_lines => (point.line as isize, point.column.0 as isize),
+        _ => (-1, -1),
+    }
+}
+
 /// Fills `out` with the visible grid.
 ///
 /// The cell array belongs to the handle and stays valid only until the next
@@ -2351,6 +2386,7 @@ pub unsafe extern "C" fn kero_alacritty_snapshot(
     } else {
         (cursor.point.line.0 as isize, cursor.point.column.0 as isize)
     };
+    let (ime_line, ime_column) = ime_anchor(content.display_offset, screen_lines, cursor.point);
 
     *out = KeroSnapshot {
         cells: terminal.cells.as_ptr(),
@@ -2375,6 +2411,8 @@ pub unsafe extern "C" fn kero_alacritty_snapshot(
         display_offset: content.display_offset,
         total_lines: term.total_lines(),
         screen_lines,
+        ime_line,
+        ime_column,
     };
 }
 

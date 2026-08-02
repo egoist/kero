@@ -808,9 +808,12 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
     }
 
     private func updateMarkedTextOverlay(snapshot: KeroSnapshot) {
+        // `ime_line`/`ime_column`, not the drawn cursor: a full-screen TUI hides
+        // the cursor and draws its own caret, and composition still belongs at
+        // the grid cursor.
         guard !markedText.isEmpty,
-              snapshot.cursor_line >= 0,
-              snapshot.cursor_column >= 0
+              snapshot.ime_line >= 0,
+              snapshot.ime_column >= 0
         else {
             markedTextField.isHidden = true
             reportedIMEAnchor = nil
@@ -828,9 +831,9 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
         markedTextField.backgroundColor = Theme.terminal(
             dark: NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
         ).backgroundNSColor
-        let geometry = preeditGeometry(cursorColumn: snapshot.cursor_column)
+        let geometry = preeditGeometry(cursorColumn: snapshot.ime_column)
         let originY = bounds.height - Self.padding.y
-            - CGFloat(snapshot.cursor_line + 1) * metrics.cellHeight
+            - CGFloat(snapshot.ime_line + 1) * metrics.cellHeight
         markedTextField.frame = NSRect(
             x: geometry.originX,
             y: originY,
@@ -1824,10 +1827,12 @@ extension AlacrittyTerminalView: NSTextInputClient {
         guard let handle, let window else { return .zero }
         var snapshot = KeroSnapshot()
         kero_alacritty_snapshot(handle, &snapshot)
-        let line = CGFloat(max(snapshot.cursor_line, 0))
+        // A hidden cursor still has a grid position, and anchoring at the
+        // pane's top-left corner instead pushes the panel into the screen edge.
+        let line = CGFloat(max(snapshot.ime_line, 0))
         let caretX: CGFloat = markedText.isEmpty
-            ? Self.padding.x + CGFloat(max(snapshot.cursor_column, 0)) * metrics.cellWidth
-            : preeditGeometry(cursorColumn: snapshot.cursor_column).caretX
+            ? Self.padding.x + CGFloat(max(snapshot.ime_column, 0)) * metrics.cellWidth
+            : preeditGeometry(cursorColumn: max(snapshot.ime_column, 0)).caretX
         // Exclude a full-width character so the panel neither covers the caret
         // nor gets pushed past the end of the row.
         let width = metrics.cellWidth * 2

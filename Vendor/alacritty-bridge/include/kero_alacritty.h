@@ -113,6 +113,12 @@ typedef struct {
   size_t display_offset;
   size_t total_lines;
   size_t screen_lines;
+  /// Viewport-relative cursor for IME anchoring, or -1 when scrolled out of the
+  /// viewport. Unlike `cursor_line`/`cursor_column` this ignores cursor
+  /// visibility, so an application that hides the cursor and draws its own
+  /// caret still composes at the grid cursor.
+  intptr_t ime_line;
+  intptr_t ime_column;
 } KeroSnapshot;
 
 typedef struct {
