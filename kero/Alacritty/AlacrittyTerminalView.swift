@@ -35,6 +35,10 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
     private var metrics: AlacrittyMetrics
     private var gridSize = (columns: 0, rows: 0)
     private var markedText = ""
+    /// Selection within `markedText` (UTF-16), matching what the IME last
+    /// passed to `setMarkedText`. Needed so `selectedRange` / substring
+    /// queries stay consistent while composing.
+    private var markedTextSelectedRange = NSRange(location: 0, length: 0)
     private let markedTextField = NSTextField(labelWithString: "")
     private var isSurfaceVisible = false
     /// Covers Metal while a parked surface is moving back into a real pane.
@@ -109,7 +113,10 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
         markedTextField.isHidden = true
         markedTextField.isBezeled = false
         markedTextField.drawsBackground = true
-        markedTextField.lineBreakMode = .byClipping
+        // Prefer fitting the field to the text; if the pane edge forces a
+        // clamp, show a tail ellipsis instead of a hard clip that looks like
+        // a broken IME candidate.
+        markedTextField.lineBreakMode = .byTruncatingTail
         addSubview(markedTextField)
         addSubview(progressBar)
         AlacrittyRegistry.shared.register(self, for: token)
@@ -783,12 +790,14 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
         markedTextField.backgroundColor = Theme.terminal(
             dark: NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
         ).backgroundNSColor
-        let width = max(
-            attributed.size().width.rounded(.up) + 2,
-            metrics.cellWidth
+        let x = Self.padding.x + CGFloat(snapshot.cursor_column) * metrics.cellWidth
+        let maxWidth = max(bounds.width - Self.padding.x - x, metrics.cellWidth)
+        let width = min(
+            max(attributed.size().width.rounded(.up) + 2, metrics.cellWidth),
+            maxWidth
         )
         markedTextField.frame = NSRect(
-            x: Self.padding.x + CGFloat(snapshot.cursor_column) * metrics.cellWidth,
+            x: x,
             y: bounds.height - Self.padding.y
                 - CGFloat(snapshot.cursor_line + 1) * metrics.cellHeight,
             width: width,
@@ -1709,10 +1718,13 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
 // MARK: - Text input
 
 /// Enough of `NSTextInputClient` for IME: composition is shown inline at the
-/// cursor and only committed text reaches the PTY.
+/// cursor and only committed text reaches the PTY. Mark-rect geometry mirrors
+/// Ghostty's `imePoint` so the system candidate window anchors under the full
+/// preedit, not a single cell.
 extension AlacrittyTerminalView: NSTextInputClient {
     func insertText(_ string: Any, replacementRange: NSRange) {
         markedText = ""
+        markedTextSelectedRange = NSRange(location: 0, length: 0)
         let text = (string as? NSAttributedString)?.string ?? (string as? String) ?? ""
         guard !text.isEmpty else { return }
         write(Array(text.utf8))
@@ -1720,19 +1732,25 @@ extension AlacrittyTerminalView: NSTextInputClient {
     }
 
     func setMarkedText(_ string: Any, selectedRange: NSRange, replacementRange: NSRange) {
-        markedText = (string as? NSAttributedString)?.string ?? (string as? String) ?? ""
+        let text = (string as? NSAttributedString)?.string ?? (string as? String) ?? ""
+        markedText = text
+        markedTextSelectedRange = Self.clampedIMERange(selectedRange, in: text)
         scheduleRender(force: true)
     }
 
     func unmarkText() {
         markedText = ""
+        markedTextSelectedRange = NSRange(location: 0, length: 0)
         scheduleRender(force: true)
     }
 
     func selectedRange() -> NSRange {
+        if !markedText.isEmpty {
+            return markedTextSelectedRange
+        }
         // Insertion point with no selection. `NSNotFound` makes some IMEs
         // refuse to begin composition against this client.
-        NSRange(location: 0, length: 0)
+        return NSRange(location: 0, length: 0)
     }
 
     func markedRange() -> NSRange {
@@ -1745,21 +1763,44 @@ extension AlacrittyTerminalView: NSTextInputClient {
 
     func attributedSubstring(
         forProposedRange range: NSRange, actualRange: NSRangePointer?
-    ) -> NSAttributedString? { nil }
+    ) -> NSAttributedString? {
+        guard !markedText.isEmpty else { return nil }
+        let clamped = Self.clampedIMERange(range, in: markedText)
+        actualRange?.pointee = clamped
+        let nsText = markedText as NSString
+        return NSAttributedString(string: nsText.substring(with: clamped))
+    }
 
     func validAttributesForMarkedText() -> [NSAttributedString.Key] { [] }
 
-    /// Places the IME candidate window under the cursor.
+    /// Places the IME candidate window under the preedit, matching Ghostty's
+    /// mark rect (preedit-aware width, clamped to the remaining row).
     func firstRect(forCharacterRange range: NSRange, actualRange: NSRangePointer?) -> NSRect {
         guard let handle, let window else { return .zero }
         var snapshot = KeroSnapshot()
         kero_alacritty_snapshot(handle, &snapshot)
         let column = CGFloat(max(snapshot.cursor_column, 0))
         let line = CGFloat(max(snapshot.cursor_line, 0))
+        let x = Self.padding.x + column * metrics.cellWidth
+        let y = bounds.maxY - Self.padding.y - (line + 1) * metrics.cellHeight
+        let remainingWidth = max(bounds.width - Self.padding.x - x, metrics.cellWidth)
+        let preeditWidth: CGFloat = {
+            guard !markedText.isEmpty else { return metrics.cellWidth }
+            let measured = (markedText as NSString)
+                .size(withAttributes: [.font: metrics.regular])
+                .width
+                .rounded(.up)
+            return min(max(measured, metrics.cellWidth), remainingWidth)
+        }()
+        if let actualRange {
+            actualRange.pointee = markedText.isEmpty
+                ? range
+                : Self.clampedIMERange(range, in: markedText)
+        }
         let local = NSRect(
-            x: Self.padding.x + column * metrics.cellWidth,
-            y: bounds.maxY - Self.padding.y - (line + 1) * metrics.cellHeight,
-            width: metrics.cellWidth,
+            x: x,
+            y: y,
+            width: preeditWidth,
             height: metrics.cellHeight
         )
         return window.convertToScreen(convert(local, to: nil))
@@ -1770,6 +1811,13 @@ extension AlacrittyTerminalView: NSTextInputClient {
     override func doCommand(by selector: Selector) {
         // Key encoding is handled in `keyDown`; anything reaching here would
         // otherwise beep.
+    }
+
+    private static func clampedIMERange(_ range: NSRange, in text: String) -> NSRange {
+        let length = text.utf16.count
+        let location = min(max(range.location, 0), length)
+        let end = min(max(range.location + range.length, location), length)
+        return NSRange(location: location, length: end - location)
     }
 }
 
