@@ -842,14 +842,17 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
     /// AppKit abandon it part-way, leaving stale rows on screen.
     private func reportScroll() {
         guard let handle else { return }
-        var snapshot = KeroSnapshot()
-        kero_alacritty_snapshot(handle, &snapshot)
+        // Deliberately not `kero_alacritty_snapshot`: this runs on every wakeup,
+        // and exporting the whole grid to read three integers is the most
+        // expensive thing a frame can do without drawing anything.
+        var state = KeroScrollState()
+        kero_alacritty_scroll_state(handle, &state)
 
-        let total = UInt64(snapshot.total_lines)
-        let viewport = UInt64(snapshot.screen_lines)
+        let total = UInt64(state.total_lines)
+        let viewport = UInt64(state.screen_lines)
         // `display_offset` counts up as the viewport moves back through the
         // scrollback; Kero's scrollbar measures down from the oldest row.
-        let scrolledBack = UInt64(snapshot.display_offset)
+        let scrolledBack = UInt64(state.display_offset)
         let top = total > viewport
             ? (total - viewport) - min(scrolledBack, total - viewport) : 0
         let position = TerminalScrollPosition(
@@ -1015,10 +1018,10 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
 
     func scroll(toFraction fraction: Double) {
         guard let handle else { return }
-        var snapshot = KeroSnapshot()
-        kero_alacritty_snapshot(handle, &snapshot)
-        let history = snapshot.total_lines > snapshot.screen_lines
-            ? snapshot.total_lines - snapshot.screen_lines : 0
+        var state = KeroScrollState()
+        kero_alacritty_scroll_state(handle, &state)
+        let history = state.total_lines > state.screen_lines
+            ? state.total_lines - state.screen_lines : 0
         // The scrollbar runs oldest-to-newest; display offset runs the other way.
         let fromTop = Int((Double(history) * fraction).rounded())
         kero_alacritty_scroll_to_offset(handle, history - min(fromTop, history))
@@ -1207,10 +1210,10 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
         if event.modifierFlags.contains(.command), let handle {
             switch Int(event.keyCode) {
             case 115: // Command-Home
-                var snapshot = KeroSnapshot()
-                kero_alacritty_snapshot(handle, &snapshot)
-                let history = snapshot.total_lines > snapshot.screen_lines
-                    ? snapshot.total_lines - snapshot.screen_lines : 0
+                var state = KeroScrollState()
+                kero_alacritty_scroll_state(handle, &state)
+                let history = state.total_lines > state.screen_lines
+                    ? state.total_lines - state.screen_lines : 0
                 kero_alacritty_scroll_to_offset(handle, history)
                 scheduleRender(force: true)
                 reportScroll()

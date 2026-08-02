@@ -93,6 +93,15 @@ typedef struct {
   uint32_t cursor;
 } KeroTheme;
 
+/// The scrollbar's view of the grid, without any cell contents.
+typedef struct {
+  /// Rows scrolled back from the live prompt.
+  size_t display_offset;
+  /// Rows in the viewport plus the scrollback behind it.
+  size_t total_lines;
+  size_t screen_lines;
+} KeroScrollState;
+
 typedef struct {
   /// `columns * rows` cells in row-major order. Owned by the handle and valid
   /// only until the next call on it.
@@ -225,6 +234,10 @@ size_t kero_alacritty_find(KeroTerminal *handle, const char *needle);
 intptr_t kero_alacritty_find_step(KeroTerminal *handle, bool forward);
 
 void kero_alacritty_find_end(KeroTerminal *handle);
+
+/// Fills `out` with just the numbers the scrollbar needs. Runs on every wakeup,
+/// so it deliberately avoids exporting any cells.
+void kero_alacritty_scroll_state(KeroTerminal *handle, KeroScrollState *out);
 
 /// Whether the primary screen has rows above the viewport.
 bool kero_alacritty_has_scrollback(KeroTerminal *handle);

@@ -133,6 +133,16 @@ pub struct KeroTheme {
     pub cursor: u32,
 }
 
+/// The scrollbar's view of the grid, without any cell contents.
+#[repr(C)]
+pub struct KeroScrollState {
+    /// Rows scrolled back from the live prompt.
+    pub display_offset: usize,
+    /// Rows in the viewport plus the scrollback behind it.
+    pub total_lines: usize,
+    pub screen_lines: usize,
+}
+
 #[repr(C)]
 pub struct KeroSnapshot {
     /// `columns * rows` cells in row-major order, owned by the handle and
@@ -1872,6 +1882,31 @@ pub unsafe extern "C" fn kero_alacritty_url_at(
     }
     std::ptr::copy_nonoverlapping(bytes.as_ptr(), buffer, bytes.len());
     bytes.len()
+}
+
+/// Fills `out` with just the numbers Kero's scrollbar needs.
+///
+/// Separate from `kero_alacritty_snapshot` because this runs on every wakeup: a
+/// program printing quickly wakes the host many times per second, and exporting
+/// the whole grid to read three integers is the most expensive thing a frame can
+/// do without drawing anything.
+///
+/// # Safety
+/// `handle` must be live and `out` must be a valid `KeroScrollState`.
+#[no_mangle]
+pub unsafe extern "C" fn kero_alacritty_scroll_state(
+    handle: *mut KeroTerminal,
+    out: *mut KeroScrollState,
+) {
+    if handle.is_null() || out.is_null() {
+        return;
+    }
+    let term = (*handle).term.lock();
+    *out = KeroScrollState {
+        display_offset: term.grid().display_offset(),
+        total_lines: term.total_lines(),
+        screen_lines: term.screen_lines(),
+    };
 }
 
 /// Whether the primary screen has rows above the viewport — Kero uses this to
