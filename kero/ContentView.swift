@@ -1067,6 +1067,11 @@ private struct SessionTabsView: View {
         Button("Close Tabs to the Right") { project.closeToRight(of: tab) }
             .disabled(project.tabs.last?.id == tab.id)
         Divider()
+        Button("Close Files") { project.closeFiles() }
+            .disabled(!project.hasFiles)
+        Button("Close Diffs") { project.closeDiffs() }
+            .disabled(!project.hasDiffs)
+        Divider()
         Button("Close All") { project.closeAll() }
     }
 }

@@ -26,6 +26,15 @@ enum TerminalBackend: String, CaseIterable, Identifiable, Sendable {
 
     var id: String { rawValue }
 
+    /// Kero's real surface identity, distinct from `TERM_PROGRAM`, which is a
+    /// compatibility hint for terminal protocols.
+    var environmentName: String {
+        switch self {
+        case .libghostty: "ghostty"
+        case .alacritty: "alacritty"
+        }
+    }
+
     var displayName: String {
         switch self {
         case .libghostty: "Ghostty"
@@ -77,13 +86,13 @@ enum TerminalBackend: String, CaseIterable, Identifiable, Sendable {
     }
 
     /// What the shell reports as `TERM_PROGRAM`, and the version beside it.
-    /// Tools treat this as a capability identity: Ghostty reports its embedded
-    /// version, while the Alacritty backend advertises WezTerm so tools select
-    /// the OSC 9 notification path that Kero implements.
+    /// Tools treat this as a capability identity. Both surfaces advertise the
+    /// Ghostty protocols Kero implements, including OSC 777 notifications and
+    /// OSC 9;4 progress reports.
     var termProgram: (name: String, version: String) {
         switch self {
         case .libghostty: ("ghostty", "1.3.2-dev")
-        case .alacritty: ("WezTerm", "")
+        case .alacritty: ("ghostty", "1.3.2-dev")
         }
     }
 

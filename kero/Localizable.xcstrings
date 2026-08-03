@@ -1110,6 +1110,38 @@
         }
       }
     },
+    "Close Diffs" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "差分を閉じる"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "关闭差异"
+          }
+        }
+      }
+    },
+    "Close Files" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ファイルを閉じる"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "关闭文件"
+          }
+        }
+      }
+    },
     "Close find bar" : {
       "localizations" : {
         "ja" : {

@@ -120,6 +120,14 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
         selectedTab?.focusedContent
     }
 
+    var hasFiles: Bool {
+        tabs.contains { $0.allContents.contains { $0.isFile } }
+    }
+
+    var hasDiffs: Bool {
+        tabs.contains { $0.allContents.contains { $0.isDiff } }
+    }
+
     /// Every diff shown anywhere, paired with the id of its containing tab so
     /// the content view can tell which one is currently on screen.
     var diffPlacements: [(diff: DiffTab, tabID: UUID)] {
@@ -523,6 +531,16 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
     func closeToRight(of tab: PaneTab) {
         guard let index = tabs.firstIndex(where: { $0.id == tab.id }) else { return }
         closeBatch(Array(tabs[(index + 1)...]).flatMap(\.allContents))
+    }
+
+    /// Closes every file pane while leaving other content in split tabs open.
+    func closeFiles() {
+        closeBatch(tabs.flatMap(\.allContents).filter { $0.isFile })
+    }
+
+    /// Closes every diff pane while leaving other content in split tabs open.
+    func closeDiffs() {
+        closeBatch(tabs.flatMap(\.allContents).filter { $0.isDiff })
     }
 
     /// Closes every tab, leaving the project open but empty.
