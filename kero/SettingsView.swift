@@ -232,7 +232,7 @@ struct SettingsView: View {
                     .font(.callout)
                     .foregroundStyle(.secondary)
 
-                if settings.reduceTransparency, settings.terminalBackgroundIsTranslucent {
+                if settings.reduceTransparency, settings.terminalBackgroundOpacity < 1 {
                     Text("Reduce Transparency is on in System Settings, so the terminal stays opaque.")
                         .font(.callout)
                         .foregroundStyle(.secondary)
