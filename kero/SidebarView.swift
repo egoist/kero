@@ -217,6 +217,7 @@ private struct SidebarProjectRow: View {
     @State private var isHovering = false
     @State private var isRenaming = false
     @State private var renameDraft = ""
+    @State private var renameInitialValue = ""
     @FocusState private var renameFocused: Bool
 
     var body: some View {
@@ -228,6 +229,11 @@ private struct SidebarProjectRow: View {
                     rowContent
                 }
                 .buttonStyle(.plain)
+                // Double-click renames in place — same affordance as Finder
+                // list rows and browser tabs; the context-menu Rename… stays.
+                .simultaneousGesture(
+                    TapGesture(count: 2).onEnded { beginRename() }
+                )
                 .highPriorityGesture(
                     DragGesture(minimumDistance: 4, coordinateSpace: .global)
                         .onChanged { onDrag($0.location) }
@@ -240,6 +246,12 @@ private struct SidebarProjectRow: View {
             RoundedRectangle(cornerRadius: 6)
                 .fill(isSelected ? Color.primary.opacity(0.09) : (isHovering ? Color.primary.opacity(0.04) : .clear))
         )
+        // Middle-click closes, matching browser tabs and the session strip.
+        .overlay {
+            if !isRenaming {
+                MiddleClickCatcher(action: close)
+            }
+        }
         .onHover { isHovering = $0 }
         .contextMenu {
             Button("Rename…") {
@@ -349,10 +361,19 @@ private struct SidebarProjectRow: View {
         .padding(.horizontal, 8)
         .padding(.vertical, 6)
         .contentShape(RoundedRectangle(cornerRadius: 6))
+        .background {
+            if isRenaming {
+                OutsideClickMonitor {
+                    commitRename()
+                }
+            }
+        }
     }
 
     private func beginRename() {
-        renameDraft = project.name
+        let initialValue = project.name
+        renameDraft = initialValue
+        renameInitialValue = initialValue
         isRenaming = true
         DispatchQueue.main.async {
             renameFocused = true
@@ -360,7 +381,14 @@ private struct SidebarProjectRow: View {
     }
 
     private func commitRename() {
-        project.customName = Project.normalizedCustomName(renameDraft)
+        guard isRenaming else { return }
+        let trimmed = renameDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        let initial = renameInitialValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        // If the selected session changes its title while the field is open,
+        // an untouched draft must not freeze the old value as a custom name.
+        if trimmed != initial {
+            project.customName = trimmed.isEmpty ? nil : Project.normalizedCustomName(renameDraft)
+        }
         isRenaming = false
     }
 

@@ -64,6 +64,12 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
         if let customName = Self.normalizedCustomName(customName) {
             return customName
         }
+        return automaticName
+    }
+
+    /// Sidebar title ignoring any user override: the selected session's
+    /// title verbatim, else the fallback.
+    var automaticName: String {
         guard let title = selectedSession?.title,
               !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         else {
@@ -78,6 +84,8 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
         guard let name else { return nil }
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
+
+
     }
 
     /// Every terminal session across every pane in every tab.

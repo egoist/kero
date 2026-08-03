@@ -906,6 +906,7 @@ private struct SessionTabsView: View {
                             isSelected: tab.id == project.selectedTabID,
                             select: { project.selectedTabID = tab.id },
                             close: { project.close(tab) },
+                            initialRenameWidth: tabFrames[tab.id]?.width,
                             renamingTabID: $renamingTabID
                         )
                         .contextMenu { tabContextMenu(for: tab) }
@@ -1090,6 +1091,9 @@ private struct PaneTabItem: View {
     let isSelected: Bool
     let select: () -> Void
     let close: () -> Void
+    /// Width of the rendered tab before editing starts. The rename field
+    /// captures this so long tabs do not collapse to its intrinsic width.
+    let initialRenameWidth: CGFloat?
     @Binding var renamingTabID: UUID?
 
     var body: some View {
@@ -1099,33 +1103,46 @@ private struct PaneTabItem: View {
                 systemImage: tab.focusedContent?.systemImage ?? "terminal",
                 browserIcon: focusedBrowser,
                 initialValue: tab.displayTitle ?? "",
-                commit: { name in
+                initialWidth: initialRenameWidth,
+                commit: { name, changed in
+                    // An untouched field is not a rename. In particular, do
+                    // not pin the title if OSC updates it while this editor is
+                    // open; TabRenameChrome compares against its captured
+                    // initial value rather than the latest live title.
+                    guard changed else { return }
                     let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
                     tab.customName = trimmed.isEmpty ? nil : trimmed
                 },
                 end: { renamingTabID = nil }
             )
         } else {
-            switch tab.focusedContent {
-            case .session(let session):
-                SessionTabLabel(session: session, customTitle: tab.customName, paneCount: paneCount, isSelected: isSelected, select: select, close: close)
-            case .file(let file):
-                FileTabLabel(file: file, customTitle: tab.customName, paneCount: paneCount, isSelected: isSelected, select: select, close: close)
-            case .browser(let browser):
-                BrowserTabLabel(browser: browser, customTitle: tab.customName, paneCount: paneCount, isSelected: isSelected, select: select, close: close)
-            case .diff(let diff):
-                TabItemChrome(
-                    systemImage: "plus.forwardslash.minus",
-                    title: tab.customName ?? diff.title,
-                    paneCount: paneCount,
-                    isSelected: isSelected,
-                    select: select,
-                    close: close
-                )
-                .help(diff.path)
-            case nil:
-                EmptyView()
+            Group {
+                switch tab.focusedContent {
+                case .session(let session):
+                    SessionTabLabel(session: session, customTitle: tab.customName, paneCount: paneCount, isSelected: isSelected, select: select, close: close)
+                case .file(let file):
+                    FileTabLabel(file: file, customTitle: tab.customName, paneCount: paneCount, isSelected: isSelected, select: select, close: close)
+                case .browser(let browser):
+                    BrowserTabLabel(browser: browser, customTitle: tab.customName, paneCount: paneCount, isSelected: isSelected, select: select, close: close)
+                case .diff(let diff):
+                    TabItemChrome(
+                        systemImage: "plus.forwardslash.minus",
+                        title: tab.customName ?? diff.title,
+                        paneCount: paneCount,
+                        isSelected: isSelected,
+                        select: select,
+                        close: close
+                    )
+                    .help(diff.path)
+                case nil:
+                    EmptyView()
+                }
             }
+            // Double-click renames in place — same affordance as the left
+            // sidebar and the context-menu Rename… item.
+            .simultaneousGesture(
+                TapGesture(count: 2).onEnded { renamingTabID = tab.id }
+            )
         }
     }
 
@@ -1140,15 +1157,25 @@ private struct PaneTabItem: View {
 
 /// Inline editor shown in place of a tab while it's renamed — the same
 /// affordance as the project row's rename. Commits on Return or focus loss,
-/// cancels on Escape; an empty name returns the tab to its automatic title.
+/// cancels on Escape. An untouched field leaves the current automatic/custom
+/// mode alone; an empty edited field returns the tab to its automatic title.
 private struct TabRenameChrome: View {
+    private static let minimumWidth: CGFloat = 140
+
     @ObservedObject private var themeChanges = Theme.changes
     let systemImage: String
     let browserIcon: BrowserTab?
-    let commit: (String) -> Void
+    let commit: (String, Bool) -> Void
     let end: () -> Void
 
     @State private var draft: String
+    /// Frozen when editing starts. The live terminal title may change while
+    /// the field is open, but that must not turn an untouched draft into a
+    /// user rename.
+    @State private var initialValue: String
+    /// Lower bound captured from the non-editing tab. Short tabs may grow to
+    /// fit the 110 pt field, while long tabs retain their previous width.
+    @State private var initialWidth: CGFloat
     /// Set by the first commit/cancel so the focus-loss handler that fires
     /// while the field is being torn down doesn't commit a second time.
     @State private var finished = false
@@ -1158,7 +1185,8 @@ private struct TabRenameChrome: View {
         systemImage: String,
         browserIcon: BrowserTab?,
         initialValue: String,
-        commit: @escaping (String) -> Void,
+        initialWidth: CGFloat?,
+        commit: @escaping (String, Bool) -> Void,
         end: @escaping () -> Void
     ) {
         self.systemImage = systemImage
@@ -1166,6 +1194,8 @@ private struct TabRenameChrome: View {
         self.commit = commit
         self.end = end
         _draft = State(initialValue: initialValue)
+        _initialValue = State(initialValue: initialValue)
+        _initialWidth = State(initialValue: initialWidth ?? 0)
     }
 
     var body: some View {
@@ -1182,7 +1212,7 @@ private struct TabRenameChrome: View {
             TextField("", text: $draft)
                 .textFieldStyle(.plain)
                 .font(.system(size: 11.5))
-                .frame(width: 110)
+                .frame(minWidth: 110, maxWidth: .infinity)
                 .focused($focused)
                 .onSubmit { finish(apply: true) }
                 .onExitCommand { finish(apply: false) }
@@ -1193,10 +1223,16 @@ private struct TabRenameChrome: View {
         .padding(.leading, 9)
         .padding(.trailing, 5)
         .padding(.vertical, 4)
+        .frame(width: max(initialWidth, Self.minimumWidth))
         .background(
             RoundedRectangle(cornerRadius: 6)
                 .fill(Color.primary.opacity(0.09))
         )
+        .background {
+            OutsideClickMonitor {
+                finish(apply: true)
+            }
+        }
         .onAppear {
             DispatchQueue.main.async { focused = true }
         }
@@ -1205,7 +1241,11 @@ private struct TabRenameChrome: View {
     private func finish(apply: Bool) {
         guard !finished else { return }
         finished = true
-        if apply { commit(draft) }
+        if apply {
+            let normalizedDraft = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+            let normalizedInitial = initialValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            commit(draft, normalizedDraft != normalizedInitial)
+        }
         end()
     }
 }
@@ -1356,6 +1396,7 @@ private struct TabItemChrome: View {
             RoundedRectangle(cornerRadius: 6)
                 .fill(isSelected ? Color.primary.opacity(0.09) : (isHovering ? Color.primary.opacity(0.04) : .clear))
         )
+        .overlay { MiddleClickCatcher(action: close) }
         .onHover { isHovering = $0 }
     }
 }
