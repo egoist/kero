@@ -206,6 +206,37 @@ struct SettingsView: View {
                     )
                     .labelsHidden()
                 }
+
+                HStack {
+                    Text("Background opacity")
+                    Slider(
+                        value: $settings.terminalBackgroundOpacity,
+                        in: AppSettings.backgroundOpacityRange
+                    )
+                    .accessibilityLabel("Terminal background opacity")
+                    Text("\(Int((settings.terminalBackgroundOpacity * 100).rounded()))%")
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                        .frame(width: 40, alignment: .trailing)
+                }
+                Text("Makes the terminal background translucent so the desktop shows through. Text and other panels stay opaque.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+
+                Toggle(
+                    "Blur behind translucent background",
+                    isOn: $settings.terminalBackgroundBlur
+                )
+                .disabled(!settings.terminalBackgroundIsTranslucent)
+                Text("Frosts the desktop behind the terminal, like frosted glass. Needs background opacity below 100%.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+
+                if settings.reduceTransparency, settings.terminalBackgroundIsTranslucent {
+                    Text("Reduce Transparency is on in System Settings, so the terminal stays opaque.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
             }
 
             Section("Text Editing") {
@@ -240,6 +271,8 @@ struct SettingsView: View {
                         && settings.themeDark == Theme.defaultDarkThemeName
                         && settings.themeLight == Theme.defaultLightThemeName
                         && settings.toolbarVisibility == AppSettings.defaultToolbarVisibility
+                        && settings.terminalBackgroundOpacity == AppSettings.defaultBackgroundOpacity
+                        && !settings.terminalBackgroundBlur
                         && !settings.wrapLines
                         && !settings.restoreTerminalHistory
                         && settings.terminalBackend == .fallback)

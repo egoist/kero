@@ -340,6 +340,7 @@ private struct ResizableDivider: View {
 private struct PaneView: View {
     @ObservedObject var tab: PaneTab
     @ObservedObject private var themeChanges = Theme.changes
+    @ObservedObject private var settings = AppSettings.shared
     let pane: Pane
     let showFocusRing: Bool
     /// Whether the header can be grabbed — false while zoomed, where there is
@@ -432,7 +433,13 @@ private struct PaneView: View {
                 onNewBrowserTab: newBrowserTabFromMenu,
                 onNewBrowserPane: newBrowserPaneFromMenu
             )
-                .background(Color(nsColor: Theme.background))
+                // Terminal panes drop their opaque fill when translucency is
+                // on so the window backdrop shows through; the emulator paints
+                // its own background at the configured opacity. Text, cursor,
+                // and selection keep full alpha inside the surface.
+                .background(settings.terminalBackgroundIsTranslucent
+                    ? AnyShapeStyle(Color.clear)
+                    : AnyShapeStyle(Color(nsColor: Theme.background)))
                 .overlay(alignment: .topTrailing) {
                     TerminalFindOverlay(find: session.find)
                 }

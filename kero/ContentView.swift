@@ -23,6 +23,7 @@ struct ContentView: View {
     @ObservedObject var manager: TerminalManager
     @ObservedObject private var settings = AppSettings.shared
     @ObservedObject private var themeChanges = Theme.changes
+    @ObservedObject private var settings = AppSettings.shared
     @Environment(\.colorScheme) private var colorScheme
     @StateObject private var tabSwitcher = TabSwitcherController()
     @StateObject private var git = GitStatusModel()
@@ -54,6 +55,7 @@ struct ContentView: View {
                 // Above the pane stack so header tooltips, which hang down
                 // into the terminal area, aren't covered by it.
                 MainHeaderView(manager: manager)
+                    .background(Color(nsColor: Theme.background))
                     .zIndex(1)
 
                 ZStack {
@@ -93,12 +95,17 @@ struct ContentView: View {
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     // Opaque so the pane gaps hide the unselected diffs behind,
-                    // except while a diff tab is up — then stay clear so its
-                    // web view shows through from the stack below.
-                    .background(paneLayerIsOpaque ? AnyShapeStyle(Color(nsColor: Theme.background)) : AnyShapeStyle(Color.clear))
+                    // except while a diff tab is up (then stay clear so its web
+                    // view shows through) or while the terminal is translucent
+                    // (then the frosted/desktop backdrop below shows through).
+                    .background(paneLayerIsTranslucent ? AnyShapeStyle(Color.clear) : AnyShapeStyle(Color(nsColor: Theme.background)))
                     .zIndex(2)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                // Backdrop for the whole pane region (below the header): the
+                // frosted blur or bare desktop that translucent terminal panes
+                // composite against, or the plain opaque fill by default.
+                .background(terminalBackdrop)
 
                 if manager.selectedProject != nil
                     && settings.toolbarVisibility != .hide
@@ -111,7 +118,12 @@ struct ContentView: View {
                     )
                 }
             }
-            .background(Color(nsColor: Theme.background))
+            // The header stays opaque even when terminals are translucent, so
+            // it keeps its own fill; the pane region's fill moves to the
+            // ZStack backdrop above.
+            .background(settings.terminalBackgroundIsTranslucent
+                ? AnyShapeStyle(Color.clear)
+                : AnyShapeStyle(Color(nsColor: Theme.background)))
 
             // Dropping the hidden sidebar also drops its expanded file tree
             // and process snapshot. Git stays window-owned because the toolbar
@@ -143,6 +155,12 @@ struct ContentView: View {
                 .frame(width: 0, height: 0)
         }
         .background(WindowChromeAccessor { manager.attach(to: $0) })
+        .background(
+            WindowTranslucencyController(
+                isTranslucent: settings.terminalBackgroundIsTranslucent
+            )
+            .frame(width: 0, height: 0)
+        )
         .onAppear { syncGit() }
         .onReceive(NotificationCenter.default.publisher(
             for: NSApplication.didBecomeActiveNotification
@@ -158,6 +176,27 @@ struct ContentView: View {
         .onChange(of: colorScheme) {
             manager.refreshAppearance()
         }
+    }
+
+    /// Backdrop painted behind the whole pane region (below the header):
+    /// frosted behind-window blur when opted in, the bare desktop when merely
+    /// translucent, otherwise the plain opaque theme fill.
+    @ViewBuilder
+    private var terminalBackdrop: some View {
+        if settings.terminalBackgroundBlurActive {
+            VisualEffectView(material: .underWindowBackground, state: .active)
+        } else if settings.terminalBackgroundIsTranslucent {
+            Color.clear
+        } else {
+            Color(nsColor: Theme.background)
+        }
+    }
+
+    /// The pane layer drops its opaque fill either for a diff tab (its web view
+    /// shows through) or while the terminal is translucent (the backdrop shows
+    /// through).
+    private var paneLayerIsTranslucent: Bool {
+        !paneLayerIsOpaque || settings.terminalBackgroundIsTranslucent
     }
 
     /// Sessions in the visible tab are owned by `TerminalHostView`; every
