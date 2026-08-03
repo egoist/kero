@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "release": "bun run scripts/release.ts",
+    "release:ios": "bun run scripts/release-ios-testflight.ts",
     "appcast": "bun run scripts/generate-appcast.ts"
   },
   "devDependencies": {

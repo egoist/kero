@@ -27,6 +27,12 @@ brew install egoist/tap/kero
 
 [CONTRIBUTING.md](CONTRIBUTING.md)
 
+## iOS
+
+The repository also contains [Kero for iOS](KeroMobile/README.md), a separate native
+Xcode project for the Kero SSH client. Open `KeroMobile.xcodeproj` to build it for
+iPhone or iPad; it is independent of the macOS app target.
+
 ## License
 
 GPLv3

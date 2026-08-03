@@ -31,6 +31,20 @@ export function SiteFooter() {
       >
         Changelog
       </Link>{' '}
+      ·{' '}
+      <Link
+        to="/support"
+        className="text-foreground transition-colors hover:text-brand"
+      >
+        Support
+      </Link>{' '}
+      ·{' '}
+      <Link
+        to="/privacy"
+        className="text-foreground transition-colors hover:text-brand"
+      >
+        Privacy
+      </Link>{' '}
       · © 2026
     </footer>
   )
