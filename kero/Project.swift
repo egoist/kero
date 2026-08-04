@@ -723,17 +723,19 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
     /// Rebuilds a saved tab's pane layout — recreating its sessions (wired for
     /// exit + observation), files and diffs — then registers and appends it.
     /// Skips panes whose content can't be rebuilt; a tab with none is dropped.
+    @discardableResult
     func restoreTab(
         from snap: SessionSnapshot.ProjectSnapshot.TabSnapshot,
         histories: [String: String] = [:]
-    ) {
+    ) -> PaneTab? {
         let layout = restoreLayout(from: snap.layout, histories: histories)
         let panes = layout.allPanes
-        guard !panes.isEmpty else { return }
+        guard !panes.isEmpty else { return nil }
         let focusedIndex = min(max(0, snap.focusedPaneIndex), panes.count - 1)
         let tab = PaneTab(layout: layout, focusedPaneID: panes[focusedIndex].id)
         tab.customName = snap.customName
         append(tab)
+        return tab
     }
 
     private func restoreLayout(

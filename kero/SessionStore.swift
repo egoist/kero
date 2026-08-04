@@ -67,18 +67,23 @@ struct SessionSnapshot: Codable {
             /// User-assigned tab name; nil when the title is automatic.
             /// Optional so older snapshots still decode.
             var customName: String?
+            /// Position of the terminal this non-terminal tab was opened
+            /// from in the project's flattened session list. Optional so
+            /// snapshots written before context persistence still decode.
+            var contextSessionIndex: Int?
 
             init(
                 layout: LayoutSnapshot, focusedPaneIndex: Int,
-                customName: String? = nil
+                customName: String? = nil, contextSessionIndex: Int? = nil
             ) {
                 self.layout = layout
                 self.focusedPaneIndex = focusedPaneIndex
                 self.customName = customName
+                self.contextSessionIndex = contextSessionIndex
             }
 
             enum CodingKeys: String, CodingKey {
-                case layout, focusedPaneIndex, customName
+                case layout, focusedPaneIndex, customName, contextSessionIndex
                 case columns, focusedColumn, focusedRow
             }
 
@@ -89,6 +94,9 @@ struct SessionSnapshot: Codable {
                     focusedPaneIndex =
                         (try? container.decode(Int.self, forKey: .focusedPaneIndex)) ?? 0
                     customName = try? container.decode(String.self, forKey: .customName)
+                    contextSessionIndex = try? container.decode(
+                        Int.self, forKey: .contextSessionIndex
+                    )
                     return
                 }
                 if let container = try? decoder.container(keyedBy: CodingKeys.self),
@@ -116,6 +124,7 @@ struct SessionSnapshot: Codable {
                             max(0, columns[clampedColumn].panes.count - 1)
                         )
                     customName = try? container.decode(String.self, forKey: .customName)
+                    contextSessionIndex = nil
                     return
                 }
                 // Legacy: the tab was a single content enum. Wrap it in a
@@ -124,6 +133,7 @@ struct SessionSnapshot: Codable {
                 layout = .pane(PaneSnapshot(content: content, weight: 1))
                 focusedPaneIndex = 0
                 customName = nil
+                contextSessionIndex = nil
             }
 
             func encode(to encoder: any Encoder) throws {
@@ -131,6 +141,9 @@ struct SessionSnapshot: Codable {
                 try container.encode(layout, forKey: .layout)
                 try container.encode(focusedPaneIndex, forKey: .focusedPaneIndex)
                 try container.encodeIfPresent(customName, forKey: .customName)
+                try container.encodeIfPresent(
+                    contextSessionIndex, forKey: .contextSessionIndex
+                )
             }
 
             /// Converts the former row-of-columns layout to an equivalent

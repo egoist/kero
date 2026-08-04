@@ -833,6 +833,7 @@ final class TerminalManager: nonisolated ObservableObject {
         let snapshot = SessionSnapshot(
             projects: projects.compactMap { project in
                 guard !project.tabs.isEmpty else { return nil }
+                let projectSessions = project.sessions
                 let tabs = project.tabs.map { tab -> ProjectSnapshot.TabSnapshot in
                     let layout = Self.layoutSnapshot(
                         tab.layout,
@@ -844,7 +845,10 @@ final class TerminalManager: nonisolated ObservableObject {
                     } ?? 0
                     return ProjectSnapshot.TabSnapshot(
                         layout: layout, focusedPaneIndex: focusedPaneIndex,
-                        customName: tab.customName
+                        customName: tab.customName,
+                        contextSessionIndex: tab.contextSession.flatMap { context in
+                            projectSessions.firstIndex { $0.id == context.id }
+                        }
                     )
                 }
                 return ProjectSnapshot(
@@ -941,8 +945,19 @@ final class TerminalManager: nonisolated ObservableObject {
             let project = makeProject(createInitialSession: false)
             project.customName = Project.normalizedCustomName(saved.customName)
             project.customDirectory = saved.customDirectory
-            for tab in saved.tabs {
-                project.restoreTab(from: tab, histories: Self.pendingHistories)
+            var restoredContexts: [(tab: PaneTab, sessionIndex: Int)] = []
+            for savedTab in saved.tabs {
+                guard let tab = project.restoreTab(
+                    from: savedTab, histories: Self.pendingHistories
+                ) else { continue }
+                if let sessionIndex = savedTab.contextSessionIndex {
+                    restoredContexts.append((tab, sessionIndex))
+                }
+            }
+            let restoredSessions = project.sessions
+            for context in restoredContexts
+            where restoredSessions.indices.contains(context.sessionIndex) {
+                context.tab.contextSession = restoredSessions[context.sessionIndex]
             }
             guard !project.tabs.isEmpty else {
                 projectObservations[project.id] = nil
