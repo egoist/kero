@@ -69,6 +69,7 @@ the original feature bullet instead of adding separate entries for them.
 - Settings font preview now reflects “Thicken font strokes”
 - Prevent terminal tabs from crashing after switching sessions or resizing during a partial redraw
 - Files created in a terminal now use your system's default permissions instead of being made private to your user
+- Clicking a highlighted file path in the terminal now opens it with its default macOS app (absolute, relative, and `~/…` paths)
 
 ## [0.1.33]
 

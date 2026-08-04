@@ -485,8 +485,19 @@ extension TerminalSession: TerminalBackendEvents {
     }
 
     func terminalDidRequestOpenURL(_ url: String) {
-        guard let target = URL(string: url) else { return }
-        NSWorkspace.shared.open(target)
+        // Ghostty sends detected filesystem links as plain paths, not
+        // `file://` URLs. A schemeless `URL(string:)` is not a file URL and
+        // Launch Services rejects it, so convert paths explicitly — same fix
+        // as ghostty-org/ghostty#8764.
+        let target: URL
+        if let parsed = URL(string: url), parsed.scheme != nil {
+            target = parsed
+        } else {
+            target = URL(filePath: (url as NSString).standardizingPath)
+        }
+        if !NSWorkspace.shared.open(target) {
+            NSLog("kero: failed to open terminal link %@", target.absoluteString)
+        }
     }
 
     func terminalDidScroll(_ position: TerminalScrollPosition) {
