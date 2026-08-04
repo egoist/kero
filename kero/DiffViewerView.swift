@@ -97,9 +97,10 @@ final class DiffTab: nonisolated ObservableObject, nonisolated Identifiable {
     /// The web view lives on the tab (not in the SwiftUI view) so switching
     /// tabs re-parents the same rendered view instead of booting a fresh
     /// WKWebView — same pattern as `TerminalSession.terminalView`.
-    private(set) lazy var webHostView: NSView = NSHostingView(
-        rootView: DiffWebRoot(model: web)
-    )
+    ///
+    /// It starts nil so project selection can commit its skeleton before the
+    /// selected diff creates WebKit's AppKit hierarchy on the main actor.
+    @Published private(set) var webHostView: NSView?
 
     private nonisolated static let maxBytes = 5 << 20
     private var savedNewContent = ""
@@ -243,6 +244,17 @@ final class DiffTab: nonisolated ObservableObject, nonisolated Identifiable {
     func refreshWhenSelected() {
         guard commitHash == nil, !isLoading else { return }
         reload()
+    }
+
+    /// WebKit views are main-actor objects, but their creation does not need to
+    /// be part of the project-selection transaction. Yielding lets SwiftUI
+    /// display the existing skeleton first and avoids materializing every
+    /// hidden diff in a project at once.
+    func materializeWebHostView() async {
+        guard webHostView == nil else { return }
+        await Task.yield()
+        guard !Task.isCancelled, webHostView == nil else { return }
+        webHostView = NSHostingView(rootView: DiffWebRoot(model: web))
     }
 
     /// Accepts the updated side emitted by Pierre's editor. The web view owns
@@ -630,7 +642,7 @@ struct DiffViewerView: View {
                     placeholder(icon: "exclamationmark.triangle", text: error)
                 } else if web.oldContent == web.newContent {
                     if diff.isLoading {
-                        DiffSkeletonView()
+                        initialLoadingSkeleton
                     } else if diff.isUnmerged {
                         placeholder(
                             icon: "arrow.triangle.merge",
@@ -642,17 +654,25 @@ struct DiffViewerView: View {
                 } else {
                     VStack(spacing: 0) {
                         controlBar
-                        DiffWebHostView(view: diff.webHostView)
-                            // Cover (never hide) the webview while it boots:
-                            // making it invisible lets WebKit throttle rendering
-                            // and the initial diff render can be dropped entirely.
-                            .overlay {
-                                if !web.isReady {
-                                    DiffSkeletonView()
-                                        .background(Color(nsColor: Theme.background))
-                                        .transition(.opacity)
+                        if let webHostView = diff.webHostView {
+                            DiffWebHostView(view: webHostView)
+                                // Cover (never hide) the webview while it boots:
+                                // making it invisible lets WebKit throttle rendering
+                                // and the initial diff render can be dropped entirely.
+                                .overlay {
+                                    if !web.isReady {
+                                        DiffSkeletonView()
+                                            .background(Color(nsColor: Theme.background))
+                                            .transition(.opacity)
+                                    }
                                 }
-                            }
+                        } else {
+                            DiffSkeletonView()
+                                .task(id: isSelected) {
+                                    guard isSelected else { return }
+                                    await diff.materializeWebHostView()
+                                }
+                        }
                     }
                 }
             }
@@ -704,7 +724,20 @@ struct DiffViewerView: View {
             ),
             canEdit: diff.isEditable
         )
-        .frame(height: 37)
+        .frame(height: DiffViewerLayout.controlsHeight)
+    }
+
+    /// The WebKit skeleton later sits below the real controls. Reserve that
+    /// exact toolbar row during the file load too, so the code-shaped lines do
+    /// not jump down when the diff contents become available.
+    private var initialLoadingSkeleton: some View {
+        VStack(spacing: 0) {
+            DiffControlsSkeletonBar(
+                showsModePlaceholder: diff.commitHash == nil && !diff.staged
+            )
+            .frame(height: DiffViewerLayout.controlsHeight)
+            DiffSkeletonView()
+        }
     }
 
     private func placeholder(icon: String, text: String) -> some View {
@@ -737,6 +770,10 @@ struct DiffViewerView: View {
     }
 }
 
+private enum DiffViewerLayout {
+    static let controlsHeight: CGFloat = 37
+}
+
 /// Native controls for the materially changed diff toolbar. The surrounding
 /// diff view is legacy SwiftUI, but new interaction stays in AppKit.
 private struct DiffControlsBar: NSViewRepresentable {
@@ -756,6 +793,75 @@ private struct DiffControlsBar: NSViewRepresentable {
             onDiffStyleChange: { diffStyle = $0 },
             onEditingChange: { isEditing = $0 }
         )
+    }
+}
+
+/// Matches the native controls row while the diff metadata is still loading.
+/// Keeping this in AppKit gives the placeholder the same sizing and divider
+/// behavior as the toolbar that replaces it.
+private struct DiffControlsSkeletonBar: NSViewRepresentable {
+    let showsModePlaceholder: Bool
+
+    func makeNSView(context: Context) -> DiffControlsSkeletonNSView {
+        DiffControlsSkeletonNSView()
+    }
+
+    func updateNSView(_ view: DiffControlsSkeletonNSView, context: Context) {
+        view.update(showsModePlaceholder: showsModePlaceholder)
+    }
+}
+
+private final class DiffControlsSkeletonNSView: NSView {
+    private let modePlaceholder = NSView()
+    private let layoutPlaceholder = NSView()
+    private let divider = NSView()
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        wantsLayer = true
+        setAccessibilityElement(false)
+
+        for placeholder in [modePlaceholder, layoutPlaceholder] {
+            placeholder.wantsLayer = true
+            placeholder.layer?.cornerRadius = 5
+            placeholder.translatesAutoresizingMaskIntoConstraints = false
+            addSubview(placeholder)
+        }
+
+        divider.wantsLayer = true
+        divider.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(divider)
+
+        NSLayoutConstraint.activate([
+            layoutPlaceholder.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -10),
+            layoutPlaceholder.centerYAnchor.constraint(equalTo: centerYAnchor),
+            layoutPlaceholder.widthAnchor.constraint(equalToConstant: 111),
+            layoutPlaceholder.heightAnchor.constraint(equalToConstant: 20),
+            modePlaceholder.trailingAnchor.constraint(
+                equalTo: layoutPlaceholder.leadingAnchor, constant: -8
+            ),
+            modePlaceholder.centerYAnchor.constraint(equalTo: centerYAnchor),
+            modePlaceholder.widthAnchor.constraint(equalToConstant: 93),
+            modePlaceholder.heightAnchor.constraint(equalToConstant: 20),
+            divider.leadingAnchor.constraint(equalTo: leadingAnchor),
+            divider.trailingAnchor.constraint(equalTo: trailingAnchor),
+            divider.bottomAnchor.constraint(equalTo: bottomAnchor),
+            divider.heightAnchor.constraint(equalToConstant: 1),
+        ])
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    func update(showsModePlaceholder: Bool) {
+        layer?.backgroundColor = Theme.background.cgColor
+        divider.layer?.backgroundColor = Theme.divider.cgColor
+        let fill = NSColor.labelColor.withAlphaComponent(0.05).cgColor
+        modePlaceholder.layer?.backgroundColor = fill
+        layoutPlaceholder.layer?.backgroundColor = fill
+        modePlaceholder.isHidden = !showsModePlaceholder
     }
 }
 
