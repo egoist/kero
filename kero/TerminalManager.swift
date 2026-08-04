@@ -980,13 +980,33 @@ final class TerminalManager: nonisolated ObservableObject {
     private func recoverUnreferencedMuxSessions() -> Bool {
         guard !Self.didRecoverMuxSessions else { return false }
         Self.didRecoverMuxSessions = true
-        // Restoring a legacy snapshot while the setting is enabled can create
-        // fresh durable sessions before recovery runs. They are already owned
-        // by panes even though the old on-disk snapshot has no mux IDs yet.
-        let claimedNow = Set(projects.flatMap { project in
-            project.sessions.compactMap(\.muxSessionID)
+        switch KeroMuxControl.listOutcome() {
+        case .notRunning:
+            return false
+        case .sessions(let sessions):
+            return integrateUnreferencedMuxSessions(sessions)
+        case .unreachable:
+            // A daemon exists but did not answer, so what it owns is unknown
+            // — not empty. Giving up here would hide its sessions until the
+            // next launch; keep asking in the background instead.
+            Self.scheduleMuxRecoveryRetry(attemptsRemaining: 5)
+            return false
+        }
+    }
+
+    private func integrateUnreferencedMuxSessions(
+        _ all: [KeroMuxSessionInfo]
+    ) -> Bool {
+        // Sessions already owned by a pane in any window are not orphans.
+        // This covers panes restored from the snapshot, fresh durable panes
+        // created before a delayed recovery ran, and — for legacy snapshots
+        // with no mux IDs — sessions the restore itself just created.
+        let claimedNow = Set(Self.registry.flatMap { manager in
+            manager.projects.flatMap { project in
+                project.sessions.compactMap(\.muxSessionID)
+            }
         })
-        let sessions = KeroMuxControl.list()
+        let sessions = all
             .filter {
                 !Self.savedMuxSessionIDs.contains($0.id)
                     && !claimedNow.contains($0.id)
@@ -1001,6 +1021,30 @@ final class TerminalManager: nonisolated ObservableObject {
         projects.append(project)
         selectedProjectID = project.id
         return true
+    }
+
+    /// Bounded so a daemon that never answers cannot poll forever; the next
+    /// launch's recovery is the backstop for anything still unaccounted.
+    private static func scheduleMuxRecoveryRetry(attemptsRemaining: Int) {
+        guard attemptsRemaining > 0 else { return }
+        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 5) {
+            let outcome = KeroMuxControl.listOutcome()
+            Task { @MainActor in
+                guard !isQuitting else { return }
+                switch outcome {
+                case .notRunning:
+                    break
+                case .unreachable:
+                    scheduleMuxRecoveryRetry(attemptsRemaining: attemptsRemaining - 1)
+                case .sessions(let sessions):
+                    // Integrate into whichever window still exists; with none
+                    // open there is nowhere to show a recovered project, and
+                    // the next launch picks these sessions up instead.
+                    guard let manager = registry.first else { return }
+                    _ = manager.integrateUnreferencedMuxSessions(sessions)
+                }
+            }
+        }
     }
 
     /// Rebuilds projects and tabs from a saved window snapshot. Returns

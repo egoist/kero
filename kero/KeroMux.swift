@@ -390,12 +390,33 @@ enum KeroMuxControl {
         qos: .utility
     )
 
-    static func list() -> [KeroMuxSessionInfo] {
+    enum ListOutcome {
+        case sessions([KeroMuxSessionInfo])
+        /// No daemon exists — the ordinary state, with nothing to track.
+        case notRunning
+        /// A daemon exists but did not answer. Callers responsible for
+        /// accounting (launch-time recovery) must treat this as "unknown"
+        /// and try again, never as "empty": conflating the two is how live
+        /// sessions would silently fall off the books.
+        case unreachable
+    }
+
+    static func listOutcome() -> ListOutcome {
         let message = KeroMuxMessage(type: "list")
-        guard let response = try? request(message, startServer: false),
-              response.type == "sessions"
-        else { return [] }
-        return response.sessions ?? []
+        do {
+            let response = try request(message, startServer: false)
+            guard response.type == "sessions" else { return .unreachable }
+            return .sessions(response.sessions ?? [])
+        } catch KeroMuxError.message(let text) where text == notRunningMessage {
+            return .notRunning
+        } catch {
+            return .unreachable
+        }
+    }
+
+    static func list() -> [KeroMuxSessionInfo] {
+        guard case .sessions(let sessions) = listOutcome() else { return [] }
+        return sessions
     }
 
     static func checkpoint(_ data: Data, sessionID: UUID) {
@@ -417,10 +438,30 @@ enum KeroMuxControl {
         _ = try? request(message, startServer: false)
     }
 
+    /// Fire-and-forget with bounded retries. This runs off the caller's
+    /// thread — pane close must not stall on a slow daemon — but a close is
+    /// also a promise that the process is going away, so a request lost to a
+    /// momentary stall is retried rather than dropped. If every attempt
+    /// fails, the session is not lost: its ID leaves the saved layout when
+    /// the pane does, so the next launch surfaces it under Recovered
+    /// Sessions instead of leaking it silently.
     static func terminate(_ id: UUID) {
+        requestQueue.async { terminate(id, attemptsRemaining: 3) }
+    }
+
+    private static func terminate(_ id: UUID, attemptsRemaining: Int) {
         var message = KeroMuxMessage(type: "terminate")
         message.sessionID = id
-        _ = try? request(message, startServer: false)
+        do {
+            _ = try request(message, startServer: false)
+        } catch KeroMuxError.message(let text) where text == notRunningMessage {
+            // No daemon means no session to stop.
+        } catch {
+            guard attemptsRemaining > 1 else { return }
+            requestQueue.asyncAfter(deadline: .now() + 2) {
+                terminate(id, attemptsRemaining: attemptsRemaining - 1)
+            }
+        }
     }
 
     enum StopOutcome {
@@ -1299,9 +1340,18 @@ private final class KeroMuxDaemon {
             .asyncAfter(deadline: .now() + Self.idleShutdownDelay) { [weak self] in
                 guard let self else { return }
                 self.lock.lock()
-                let stillIdle = self.sessions.isEmpty
-                self.lock.unlock()
-                guard stillIdle else { return }
+                // Exit while still holding the lock. `create` inserts under
+                // the same lock, so a request racing this check either lands
+                // before it (not idle, no exit) or blocks here and dies with
+                // the process — its client sees the connection drop and falls
+                // back to a local PTY. Checking, unlocking, and then exiting
+                // would let that create be told "created" by a daemon that is
+                // about to disappear, leaving the app tracking a session that
+                // no longer exists.
+                guard self.sessions.isEmpty else {
+                    self.lock.unlock()
+                    return
+                }
                 KeroMuxServer.exitNow()
             }
     }
