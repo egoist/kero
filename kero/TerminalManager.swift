@@ -364,11 +364,11 @@ final class TerminalManager: nonisolated ObservableObject {
         guard let index = projects.firstIndex(where: { $0.id == project.id }) else { return }
         projects.remove(at: index)
         projectObservations[project.id] = nil
-        retainedDiffProjectIDs.remove(project.id)
         if selectedProjectID == project.id {
             let neighbor = min(index, projects.count - 1)
             selectedProjectID = neighbor >= 0 ? projects[neighbor].id : nil
         }
+        retainedDiffProjectIDs.remove(project.id)
         // Nothing left to inspect once the last project is gone, so collapse
         // the right sidebar — its panels all track the selected session.
         if projects.isEmpty {
