@@ -235,6 +235,16 @@ final class DiffTab: nonisolated ObservableObject, nonisolated Identifiable {
         }
     }
 
+    /// Refreshes a live diff when navigation brings it back on screen.
+    /// Historical blobs are immutable and already loaded by `init`; rerunning
+    /// four Git processes and republishing both files on every project switch
+    /// only makes WebKit render the same diff again. An initial live load also
+    /// stays in flight rather than being duplicated by the view's first mount.
+    func refreshWhenSelected() {
+        guard commitHash == nil, !isLoading else { return }
+        reload()
+    }
+
     /// Accepts the updated side emitted by Pierre's editor. The web view owns
     /// the live document; this mirrored value drives dirty state and saving.
     func updateEditedContent(fileID: String, contents: String) {
@@ -648,10 +658,14 @@ struct DiffViewerView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .onAppear { diff.reload() }
+        .onAppear {
+            if isSelected {
+                diff.refreshWhenSelected()
+            }
+        }
         .onChange(of: isSelected) {
             if isSelected {
-                diff.reload()
+                diff.refreshWhenSelected()
             }
         }
     }

@@ -57,22 +57,23 @@ struct ContentView: View {
                     .zIndex(1)
 
                 ZStack {
-                    // Diff panes stay mounted while unselected: removing one
-                    // would pull its NSHostingView out of the window, which
-                    // tears down and re-creates the WKWebView inside (losing
-                    // the rendered diff and scroll position). Unselected ones
-                    // just sit covered by the active tab's opaque pane layer.
-                    // Diffs are always their own single-pane tab, so a selected
-                    // diff fills the whole content area, unchanged.
-                    if let project = manager.selectedProject {
+                    // Diff panes stay mounted after their project has been
+                    // visited: removing a project's stack pulls every
+                    // NSHostingView out of the window at once, making project
+                    // switching block while WebKit tears down and reattaches
+                    // the rendered diffs. Unvisited restored projects remain
+                    // lazy; inactive stacks sit beneath the active opaque pane.
+                    ForEach(manager.projectsWithMountedDiffs) { project in
                         ForEach(project.diffPlacements, id: \.diff.id) { placement in
+                            let isSelected = manager.selectedProjectID == project.id
+                                && project.selectedTabID == placement.tabID
                             DiffViewerView(
                                 diff: placement.diff,
-                                isSelected: project.selectedTabID == placement.tabID
+                                isSelected: isSelected
                             )
                             .background(Color(nsColor: Theme.background))
-                            .allowsHitTesting(project.selectedTabID == placement.tabID)
-                            .zIndex(project.selectedTabID == placement.tabID ? 1 : 0)
+                            .allowsHitTesting(isSelected)
+                            .zIndex(isSelected ? 1 : 0)
                         }
                     }
                     Group {
