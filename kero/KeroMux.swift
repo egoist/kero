@@ -114,6 +114,40 @@ private enum KeroMuxPaths {
     }
 }
 
+/// Turns a signal into something `poll` can wait on. The write end is
+/// non-blocking so a burst of signals can never stall the handler.
+private final class SelfPipe {
+    let readEnd: Int32
+    let writeEnd: Int32
+
+    init() throws {
+        var fds: [Int32] = [-1, -1]
+        guard pipe(&fds) == 0 else {
+            throw KeroMuxError.message(
+                "could not create the resize pipe: " + String(cString: strerror(errno))
+            )
+        }
+        readEnd = fds[0]
+        writeEnd = fds[1]
+        for fd in fds {
+            _ = fcntl(fd, F_SETFL, fcntl(fd, F_GETFL, 0) | O_NONBLOCK)
+            _ = fcntl(fd, F_SETFD, FD_CLOEXEC)
+        }
+    }
+
+    /// Collapses however many signals arrived into the single check the
+    /// caller is about to make.
+    func drain() {
+        var scratch = [UInt8](repeating: 0, count: 64)
+        while Darwin.read(readEnd, &scratch, scratch.count) > 0 {}
+    }
+
+    func close() {
+        _ = Darwin.close(readEnd)
+        _ = Darwin.close(writeEnd)
+    }
+}
+
 private enum KeroMuxLock {
     /// `O_CLOEXEC` is the whole point of this helper. A lock descriptor that
     /// survives `exec` is inherited by the daemon and then by every shell it
@@ -615,26 +649,41 @@ enum KeroMuxClientProcess {
             force: true
         )
 
+        // One of these runs per durable pane for as long as the pane is open.
+        // Waiting on SIGWINCH through a self-pipe instead of re-reading the
+        // window size on a timer keeps an idle pane at zero wakeups, and makes
+        // a resize take effect immediately rather than up to a tick later.
+        let resizeSignal = try SelfPipe()
+        defer { resizeSignal.close() }
+        Self.resizeSignalPipe = resizeSignal.writeEnd
+        _ = Darwin.signal(SIGWINCH, { _ in
+            var byte: UInt8 = 0
+            _ = Darwin.write(KeroMuxClientProcess.resizeSignalPipe, &byte, 1)
+        })
+
         var descriptors = [
             pollfd(fd: STDIN_FILENO, events: Int16(POLLIN), revents: 0),
             pollfd(fd: fd, events: Int16(POLLIN), revents: 0),
+            pollfd(fd: resizeSignal.readEnd, events: Int16(POLLIN), revents: 0),
         ]
         var input = [UInt8](repeating: 0, count: 64 * 1024)
 
         while true {
-            descriptors[0].revents = 0
-            descriptors[1].revents = 0
-            let result = Darwin.poll(&descriptors, nfds_t(descriptors.count), 100)
+            for index in descriptors.indices { descriptors[index].revents = 0 }
+            let result = Darwin.poll(&descriptors, nfds_t(descriptors.count), -1)
             if result < 0 {
                 if errno == EINTR { continue }
                 throw KeroMuxError.message("multiplexer attach poll failed")
             }
 
-            sendSizeIfChanged(
-                connection: connection,
-                previous: &lastSize,
-                force: false
-            )
+            if descriptors[2].revents & Int16(POLLIN) != 0 {
+                resizeSignal.drain()
+                sendSizeIfChanged(
+                    connection: connection,
+                    previous: &lastSize,
+                    force: false
+                )
+            }
 
             if descriptors[0].revents & Int16(POLLIN) != 0 {
                 let count = Darwin.read(STDIN_FILENO, &input, input.count)
@@ -669,6 +718,12 @@ enum KeroMuxClientProcess {
             }
         }
     }
+
+    /// Written to from the `SIGWINCH` handler, which may only call
+    /// async-signal-safe functions. `nonisolated(unsafe)` because a signal
+    /// handler cannot participate in actor isolation; it is assigned once
+    /// before the handler is installed and only ever read from there.
+    nonisolated(unsafe) fileprivate static var resizeSignalPipe: Int32 = -1
 
     private static func sendSizeIfChanged(
         connection: KeroMuxConnection,
