@@ -17,6 +17,7 @@ the original feature bullet instead of adding separate entries for them.
 ## [unreleased]
 
 - Edit live worktree changes directly in the diff view, with remembered Review/Edit and Unified/Split controls plus normal save/discard handling
+- Fix modified special keys and application-keypad input in Alacritty terminals, including Shift-Enter for multiline prompts in Claude Code
 - Fix: Show a green Clean status for unchanged repositories and include untracked files in the toolbar's added-line count
 - Clicking a terminal notification activates Kero and jumps to the session that posted it
 - Fix desktop notifications from Grok and other OSC 777 clients when using the Alacritty terminal backend

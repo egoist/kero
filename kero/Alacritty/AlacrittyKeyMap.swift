@@ -51,12 +51,20 @@ enum AlacrittyKeyMap {
         }
 
         let control = flags.contains(.control)
+        let option = flags.contains(.option)
         // When Option-as-Alt is disabled, leave Option-modified text to
         // NSTextInputClient so the active macOS input source can compose it.
-        let alt = optionAsAlt && flags.contains(.option)
+        let alt = optionAsAlt && option
         let shift = flags.contains(.shift)
 
-        if let special = specialKey(event, mode: mode, shift: shift, control: control, alt: alt) {
+        if let special = specialKey(
+            event,
+            mode: mode,
+            shift: shift,
+            control: control,
+            alt: alt,
+            option: option
+        ) {
             return special
         }
 
@@ -97,20 +105,22 @@ enum AlacrittyKeyMap {
             return [UInt8(scalar.value - 0x60)]
         case "A"..."Z":
             return [UInt8(scalar.value - 0x40)]
-        case "@", " ":
+        case "@", " ", "2":
             return [0x00]
-        case "[":
+        case "[", "3":
             return [0x1b]
-        case "\\":
+        case "\\", "4":
             return [0x1c]
-        case "]":
+        case "]", "5":
             return [0x1d]
-        case "^":
+        case "^", "6":
             return [0x1e]
-        case "_", "/":
+        case "_", "/", "7":
             return [0x1f]
-        case "?":
+        case "?", "8":
             return [0x7f]
+        case "0", "1", "9":
+            return [UInt8(scalar.value)]
         default:
             return nil
         }
@@ -121,7 +131,8 @@ enum AlacrittyKeyMap {
         mode: AlacrittyTerminalMode,
         shift: Bool,
         control: Bool,
-        alt: Bool
+        alt: Bool,
+        option: Bool
     ) -> [UInt8]? {
         // The CSI parameter xterm uses to carry modifiers: 1 + a bitmask of
         // shift/alt/control. Only emitted when something is actually held.
@@ -130,7 +141,7 @@ enum AlacrittyKeyMap {
 
         // Match Ghostty's explicit Option-arrow word movement bindings rather
         // than relying on each shell to understand xterm modifier parameters.
-        if alt, !shift, !control {
+        if option, !shift, !control {
             switch Int(event.keyCode) {
             case 123: return [0x1b, UInt8(ascii: "b")]
             case 124: return [0x1b, UInt8(ascii: "f")]
@@ -154,17 +165,35 @@ enum AlacrittyKeyMap {
                 : Array("\u{1b}[\(number)~".utf8)
         }
 
+        func modifyOtherKeys(_ codepoint: Int) -> [UInt8] {
+            Array("\u{1b}[27;\(modifier);\(codepoint)~".utf8)
+        }
+
+        if mode.contains(.applicationKeypad),
+           let suffix = applicationKeypadSuffix(keyCode: Int(event.keyCode)) {
+            return modified
+                ? Array("\u{1b}O\(modifier)\(suffix)".utf8)
+                : Array("\u{1b}O\(suffix)".utf8)
+        }
+
         switch Int(event.keyCode) {
         case 36, 76: // Return, keypad Enter
-            return [0x0d]
+            // Ghostty distinguishes modified Return with xterm's
+            // modifyOtherKeys encoding. TUIs such as Claude use this to make
+            // Shift-Return insert a newline without changing plain Return.
+            return modified ? modifyOtherKeys(13) : [0x0d]
         case 48: // Tab
-            return shift ? Array("\u{1b}[Z".utf8) : [0x09]
+            if shift, !control, !alt { return Array("\u{1b}[Z".utf8) }
+            if alt, !shift, !control { return [0x1b, 0x09] }
+            return modified ? modifyOtherKeys(9) : [0x09]
         case 51: // Delete (backspace)
             // Terminals send DEL, and Ctrl-Backspace is conventionally the
             // "delete previous word" BS.
-            return control ? [0x08] : (alt ? [0x1b, 0x7f] : [0x7f])
+            let byte: UInt8 = control ? 0x08 : 0x7f
+            return alt ? [0x1b, byte] : [byte]
         case 53: // Escape
-            return [0x1b]
+            if alt, !shift, !control { return [0x1b, 0x1b] }
+            return modified ? modifyOtherKeys(27) : [0x1b]
         case 117: // Forward delete
             return tilde(3)
         case 115: // Home
@@ -206,6 +235,29 @@ enum AlacrittyKeyMap {
         }
 
         return nil
+    }
+
+    private static func applicationKeypadSuffix(keyCode: Int) -> String? {
+        switch keyCode {
+        case 65: "n" // Decimal.
+        case 67: "j" // Multiply.
+        case 69: "k" // Add.
+        case 75: "o" // Divide.
+        case 76: "M" // Enter.
+        case 78: "m" // Subtract.
+        case 81: "X" // Equal.
+        case 82: "p" // 0.
+        case 83: "q" // 1.
+        case 84: "r" // 2.
+        case 85: "s" // 3.
+        case 86: "t" // 4.
+        case 87: "u" // 5.
+        case 88: "v" // 6.
+        case 89: "w" // 7.
+        case 91: "x" // 8.
+        case 92: "y" // 9.
+        default: nil
+        }
     }
 
     private static func functionKey(keyCode: Int) -> Int? {
