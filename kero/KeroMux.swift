@@ -18,8 +18,19 @@ struct KeroMuxSessionInfo: Codable, Sendable {
     let foregroundPID: pid_t?
 }
 
+enum KeroMuxProtocol {
+    /// Bump only when a change would make an older peer misread a frame.
+    /// The app can be replaced underneath a running daemon — Sparkle swaps
+    /// the bundle in place, and the daemon goes on running the code it was
+    /// launched from — so both sides stamp every frame and refuse a peer
+    /// they cannot speak to, rather than misinterpreting its fields.
+    static let version = 1
+}
+
 private struct KeroMuxMessage: Codable {
     var type: String
+    /// Absent on frames from a build that predates versioning.
+    var protocolVersion: Int?
     var sessionID: UUID?
     var program: String?
     var arguments: [String]?
@@ -71,8 +82,17 @@ private enum KeroMuxPaths {
         directory.appendingPathComponent("mux.sock")
     }
 
-    static var lock: URL {
-        directory.appendingPathComponent("mux.lock")
+    /// Held briefly by whichever client is spawning the daemon, so several
+    /// windows opening at once start exactly one.
+    static var startupLock: URL {
+        directory.appendingPathComponent("startup.lock")
+    }
+
+    /// Held by the daemon for its whole life. Deliberately a different file
+    /// from ``startupLock``: the daemon takes this the moment it starts, which
+    /// is while the spawning client still holds the startup lock.
+    static var daemonLock: URL {
+        directory.appendingPathComponent("daemon.lock")
     }
 
     static var executable: URL {
@@ -94,10 +114,42 @@ private enum KeroMuxPaths {
     }
 }
 
+private enum KeroMuxLock {
+    /// `O_CLOEXEC` is the whole point of this helper. A lock descriptor that
+    /// survives `exec` is inherited by the daemon and then by every shell it
+    /// spawns, and an `flock` belongs to the open file description, so one
+    /// durable shell outliving the app would hold the lock for its own
+    /// lifetime and wedge every later launch.
+    static func open(_ url: URL) throws -> Int32 {
+        let fd = Darwin.open(url.path, O_CREAT | O_RDWR | O_CLOEXEC, 0o600)
+        guard fd >= 0 else {
+            throw KeroMuxError.message(
+                "could not open \(url.lastPathComponent): "
+                    + String(cString: strerror(errno))
+            )
+        }
+        return fd
+    }
+
+    /// Polls instead of blocking in `flock(LOCK_EX)` so a caller can never
+    /// wait longer than it asked to.
+    static func acquire(_ fd: Int32, timeout: TimeInterval) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        repeat {
+            if flock(fd, LOCK_EX | LOCK_NB) == 0 { return true }
+            if errno != EWOULDBLOCK { return false }
+            usleep(20_000)
+        } while Date() < deadline
+        return false
+    }
+}
+
 private enum KeroMuxWire {
     static let maximumFrameSize = 32 * 1024 * 1024
 
     static func send(_ message: KeroMuxMessage, to fd: Int32) throws {
+        var message = message
+        message.protocolVersion = KeroMuxProtocol.version
         let payload = try JSONEncoder().encode(message)
         guard payload.count <= maximumFrameSize else {
             throw KeroMuxError.message("multiplexer message is too large")
@@ -192,6 +244,33 @@ private final class KeroMuxConnection {
         )
     }
 
+    /// Bounds writes on this connection. A peer that stops draining its
+    /// socket must not be able to block the writer forever: on the daemon
+    /// side that writer is the PTY reader thread, so an undrained client
+    /// would otherwise stall the shell itself.
+    func setSendTimeout(_ seconds: TimeInterval) {
+        setTimeout(seconds, option: SO_SNDTIMEO)
+    }
+
+    /// Only for one-shot request/response exchanges. An attach connection
+    /// blocks on `receive` by design while it waits for the next keystroke,
+    /// so it must never carry a receive timeout.
+    func setReceiveTimeout(_ seconds: TimeInterval) {
+        setTimeout(seconds, option: SO_RCVTIMEO)
+    }
+
+    private func setTimeout(_ seconds: TimeInterval, option: Int32) {
+        let whole = seconds.rounded(.down)
+        var timeout = timeval(
+            tv_sec: Int(whole),
+            tv_usec: Int32((seconds - whole) * 1_000_000)
+        )
+        _ = setsockopt(
+            fd, SOL_SOCKET, option, &timeout,
+            socklen_t(MemoryLayout<timeval>.size)
+        )
+    }
+
     deinit {
         close()
     }
@@ -248,6 +327,35 @@ enum KeroMuxControl {
         return response.session
     }
 
+    /// Off-main variants. `TerminalSession` is `@MainActor` and some of its
+    /// properties are read while SwiftUI evaluates a body, so nothing on that
+    /// path may perform a socket round trip.
+    static func info(
+        _ id: UUID,
+        completion: @escaping @Sendable (KeroMuxSessionInfo?) -> Void
+    ) {
+        requestQueue.async { completion(info(id)) }
+    }
+
+    static func updateMetadataAsync(
+        sessionID: UUID,
+        title: String? = nil,
+        workingDirectory: String? = nil
+    ) {
+        requestQueue.async {
+            updateMetadata(
+                sessionID: sessionID,
+                title: title,
+                workingDirectory: workingDirectory
+            )
+        }
+    }
+
+    private static let requestQueue = DispatchQueue(
+        label: "sh.kero.mux.control",
+        qos: .utility
+    )
+
     static func list() -> [KeroMuxSessionInfo] {
         let message = KeroMuxMessage(type: "list")
         guard let response = try? request(message, startServer: false),
@@ -281,6 +389,28 @@ enum KeroMuxControl {
         _ = try? request(message, startServer: false)
     }
 
+    enum StopOutcome {
+        case notRunning
+        case stopped(Int)
+        case failed(String)
+    }
+
+    static func stop() -> StopOutcome {
+        let message = KeroMuxMessage(type: "shutdown")
+        do {
+            let response = try request(message, startServer: false)
+            guard response.type == "stopped" else {
+                return .failed(response.message ?? "The multiplexer refused to stop.")
+            }
+            return .stopped(response.sessions?.count ?? 0)
+        } catch KeroMuxError.message(let text)
+            where text == Self.notRunningMessage {
+            return .notRunning
+        } catch {
+            return .failed(String(describing: error))
+        }
+    }
+
     static func attachmentLaunch(
         sessionID: UUID,
         workingDirectory: String,
@@ -300,15 +430,40 @@ enum KeroMuxControl {
         )
     }
 
+    /// Control requests are one-shot: connect, send, read one reply. They are
+    /// bounded so that a wedged daemon degrades to a failed request instead of
+    /// blocking the caller — app teardown issues the final checkpoint through
+    /// here and must still be able to quit.
+    private static let requestTimeout: TimeInterval = 2
+
+    /// Distinguishes "no daemon" from a real failure, so callers can treat a
+    /// missing multiplexer as the ordinary state it usually is.
+    fileprivate static let notRunningMessage = "multiplexer is not running"
+
     private static func request(
         _ message: KeroMuxMessage,
         startServer: Bool
     ) throws -> KeroMuxMessage {
         let fd = try connect(startServer: startServer)
         let connection = KeroMuxConnection(fd: fd)
+        connection.setSendTimeout(requestTimeout)
+        connection.setReceiveTimeout(requestTimeout)
         try connection.send(message)
         guard let response = try connection.receive() else {
             throw KeroMuxError.message("multiplexer closed the connection")
+        }
+        // Either side can be the stale one: a daemon launched from a bundle
+        // Sparkle has since replaced answers with its own version, and a
+        // daemon predating versioning answers with none at all.
+        guard response.protocolVersion == KeroMuxProtocol.version,
+              response.type != "versionMismatch"
+        else {
+            throw KeroMuxError.message(
+                response.message ?? """
+                    The running terminal multiplexer speaks a different \
+                    protocol than this copy of Kero.
+                    """
+            )
         }
         return response
     }
@@ -317,32 +472,21 @@ enum KeroMuxControl {
         try KeroMuxPaths.prepareDirectory()
         if let fd = tryConnect() { return fd }
         guard startServer else {
-            throw KeroMuxError.message("multiplexer is not running")
+            throw KeroMuxError.message(notRunningMessage)
         }
 
-        let lockFD = Darwin.open(KeroMuxPaths.lock.path, O_CREAT | O_RDWR, 0o600)
-        guard lockFD >= 0 else {
-            throw KeroMuxError.message("could not open the multiplexer lock")
-        }
+        let lockFD = try KeroMuxLock.open(KeroMuxPaths.startupLock)
         defer { Darwin.close(lockFD) }
-        guard flock(lockFD, LOCK_EX) == 0 else {
+        guard KeroMuxLock.acquire(lockFD, timeout: startupLockTimeout) else {
             throw KeroMuxError.message("could not lock multiplexer startup")
         }
+        defer { _ = flock(lockFD, LOCK_UN) }
 
-        if let fd = tryConnect() {
-            _ = flock(lockFD, LOCK_UN)
-            return fd
-        }
+        // Another client may have won the race and started the daemon while
+        // this one waited for the lock.
+        if let fd = tryConnect() { return fd }
         _ = Darwin.unlink(KeroMuxPaths.socket.path)
-        do {
-            try startDaemon()
-        } catch {
-            _ = flock(lockFD, LOCK_UN)
-            throw error
-        }
-        // The daemon holds this lock for its lifetime. Release the startup
-        // claim before polling so the freshly spawned process can acquire it.
-        _ = flock(lockFD, LOCK_UN)
+        try startDaemon()
 
         for _ in 0..<100 {
             if let fd = tryConnect() { return fd }
@@ -350,6 +494,12 @@ enum KeroMuxControl {
         }
         throw KeroMuxError.message("multiplexer did not start")
     }
+
+    /// The startup lock is only ever held across a spawn, so waiting on it
+    /// should be brief. It is bounded anyway because `connect` runs on the
+    /// main thread when a pane is created, and no lock-holder bug may be
+    /// allowed to turn into an unkillable app hang.
+    private static let startupLockTimeout: TimeInterval = 3
 
     private static func tryConnect() -> Int32? {
         let fd = socket(AF_UNIX, SOCK_STREAM, 0)
@@ -607,6 +757,19 @@ private final class KeroMuxServerSession {
             envp.withUnsafeMutableBufferPointer { envBuffer in
                 spawnedPID = forkpty(&master, nil, nil, &initialSize)
                 if spawnedPID == 0 {
+                    // Only async-signal-safe calls are legal between fork and
+                    // exec. `forkpty` has already wired the PTY onto the
+                    // standard descriptors; everything above them belongs to
+                    // the daemon — the listening socket, live client
+                    // connections, other sessions' PTY masters — and would
+                    // otherwise be inherited by the user's shell and by every
+                    // process it spawns.
+                    var fd = Int32(3)
+                    let limit = min(Int32(getdtablesize()), 4096)
+                    while fd < limit {
+                        _ = Darwin.close(fd)
+                        fd += 1
+                    }
                     guard Darwin.chdir(directoryCopy) == 0 else { _exit(126) }
                     Darwin.execve(programCopy, argvBuffer.baseAddress, envBuffer.baseAddress)
                     _exit(127)
@@ -660,6 +823,9 @@ private final class KeroMuxServerSession {
         var message = KeroMuxMessage(type: "attached")
         message.session = infoWithoutLock()
         try connection.send(message)
+        // Unlike the streaming path this writes under the lock on purpose:
+        // it keeps live output from interleaving ahead of the replay it is
+        // supposed to follow. The send timeout bounds how long that costs.
         if !replay.isEmpty {
             var output = KeroMuxMessage(type: "output")
             output.data = replay
@@ -776,17 +942,24 @@ private final class KeroMuxServerSession {
             replay.removeFirst(replay.count - Self.replayLimit)
         }
         let connection = attached
-        if let connection {
-            var message = KeroMuxMessage(type: "output")
-            message.data = data
-            do {
-                try connection.send(message)
-            } catch {
-                attached = nil
-                connection.close()
-            }
-        }
         lock.unlock()
+
+        // Deliberately outside the lock. This runs on the PTY reader thread,
+        // so holding the lock across a socket write would let a client that
+        // stopped draining block both the shell's output and every control
+        // request for this session.
+        guard let connection else { return }
+        var message = KeroMuxMessage(type: "output")
+        message.data = data
+        do {
+            try connection.send(message)
+        } catch {
+            // The write timed out or the peer went away. Drop the client
+            // rather than wait for it: the replay buffer already holds
+            // everything it missed, so reattaching recovers the screen.
+            detach(connection)
+            connection.close()
+        }
     }
 
     private func infoWithoutLock() -> KeroMuxSessionInfo {
@@ -804,6 +977,17 @@ private final class KeroMuxServerSession {
 }
 
 enum KeroMuxServer {
+    /// How long a single write to an attached client may block the PTY
+    /// reader thread before that client is treated as gone.
+    static let clientWriteTimeout: TimeInterval = 5
+
+    /// Leaves no socket behind for the next daemon to trip over. `run`'s
+    /// cleanup is a `defer`, which `exit` would skip.
+    static func exitNow() -> Never {
+        _ = Darwin.unlink(KeroMuxPaths.socket.path)
+        exit(0)
+    }
+
     static func run() throws {
         // The server owns PTYs beyond the launching app's lifetime. Give it a
         // separate process session and do not inherit a terminal hangup from
@@ -813,9 +997,11 @@ enum KeroMuxServer {
         _ = Darwin.signal(SIGPIPE, SIG_IGN)
         try KeroMuxPaths.prepareDirectory()
 
-        let lockFD = Darwin.open(KeroMuxPaths.lock.path, O_CREAT | O_RDWR, 0o600)
-        guard lockFD >= 0, flock(lockFD, LOCK_EX | LOCK_NB) == 0 else {
-            if lockFD >= 0 { Darwin.close(lockFD) }
+        // Taken immediately and held for this process's life. Losing it means
+        // another daemon is already serving, so this one is redundant.
+        let lockFD = try KeroMuxLock.open(KeroMuxPaths.daemonLock)
+        guard flock(lockFD, LOCK_EX | LOCK_NB) == 0 else {
+            Darwin.close(lockFD)
             return
         }
         defer {
@@ -867,6 +1053,10 @@ enum KeroMuxServer {
                 continue
             }
             let connection = KeroMuxConnection(fd: fd)
+            // Writes are bounded so no client can pin a daemon thread, but
+            // reads are not: an attached client blocks here between
+            // keystrokes for as long as its pane is open.
+            connection.setSendTimeout(Self.clientWriteTimeout)
             Thread.detachNewThread {
                 daemon.handle(connection)
             }
@@ -878,10 +1068,29 @@ private final class KeroMuxDaemon {
     private let lock = NSLock()
     private var sessions: [UUID: KeroMuxServerSession] = [:]
 
+    init() {
+        // A daemon spawned for a create that then failed would otherwise
+        // linger with nothing to own.
+        scheduleIdleShutdown()
+    }
+
     func handle(_ connection: KeroMuxConnection) {
         defer { connection.close() }
         do {
             guard let request = try connection.receive() else { return }
+            // A peer speaking a different dialect is refused before any of
+            // its fields are trusted. The reply still carries this daemon's
+            // version, so the caller can say which side is stale.
+            guard request.protocolVersion == KeroMuxProtocol.version else {
+                var response = KeroMuxMessage(type: "versionMismatch")
+                response.message = """
+                    This terminal multiplexer is running an older version of \
+                    Kero. Quit Kero and run `kero +mux-stop` once no durable \
+                    terminals are needed, or restart your Mac.
+                    """
+                try connection.send(response)
+                return
+            }
             switch request.type {
             case "create":
                 try create(request, connection: connection)
@@ -925,6 +1134,14 @@ private final class KeroMuxDaemon {
                 }
                 session.terminate()
                 try connection.send(KeroMuxMessage(type: "ok"))
+            case "shutdown":
+                let running = allSessions()
+                var response = KeroMuxMessage(type: "stopped")
+                response.sessions = running.map { $0.info() }
+                try? connection.send(response)
+                running.forEach { $0.terminate() }
+                // Reply first: the caller is waiting, and this never returns.
+                KeroMuxServer.exitNow()
             default:
                 try sendError("Unknown multiplexer request.", to: connection)
             }
@@ -1013,8 +1230,28 @@ private final class KeroMuxDaemon {
     private func remove(_ id: UUID) {
         lock.lock()
         sessions[id] = nil
+        let isIdle = sessions.isEmpty
         lock.unlock()
+        guard isIdle else { return }
+        scheduleIdleShutdown()
     }
+
+    /// Nothing else stops this process, so an idle daemon would linger for the
+    /// rest of the login session. The delay keeps closing the last durable
+    /// pane and opening another from paying for a fresh daemon launch.
+    private func scheduleIdleShutdown() {
+        DispatchQueue.global(qos: .utility)
+            .asyncAfter(deadline: .now() + Self.idleShutdownDelay) { [weak self] in
+                guard let self else { return }
+                self.lock.lock()
+                let stillIdle = self.sessions.isEmpty
+                self.lock.unlock()
+                guard stillIdle else { return }
+                KeroMuxServer.exitNow()
+            }
+    }
+
+    private static let idleShutdownDelay: TimeInterval = 60
 
     private func sendError(
         _ text: String,

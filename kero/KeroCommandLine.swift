@@ -534,6 +534,8 @@ private func printHelp() {
           kero <command> [arguments...]
           kero +themes [--dark | --light]
           kero +themes --list [--dark | --light]
+          kero +mux-list
+          kero +mux-stop
           kero +help
 
         With no arguments, kero creates a project with a normal login shell.
@@ -542,8 +544,39 @@ private func printHelp() {
         +themes browses Kero's themes in the terminal. Moving through the list
         previews the theme across the whole app; Return saves it and Esc
         restores the previous theme.
+
+        +mux-list shows terminals still running under "Keep terminal sessions
+        running when Kero closes". +mux-stop ends all of them and shuts the
+        multiplexer down.
         """)
     )
+}
+
+/// Durable sessions outlive every Kero window, so they need a way to be seen
+/// and stopped without a running app — otherwise a shell nothing references
+/// is only discoverable in Activity Monitor.
+private func printDurableSessions() {
+    let sessions = KeroMuxControl.list()
+    guard !sessions.isEmpty else {
+        print(String(localized: "No terminal sessions are running."))
+        return
+    }
+    for session in sessions {
+        print("\(session.id)  pid \(session.shellPID)  \(session.shellName)  \(session.workingDirectory)")
+    }
+}
+
+private func stopMultiplexer() throws {
+    switch KeroMuxControl.stop() {
+    case .notRunning:
+        print(String(localized: "No terminal sessions are running."))
+    case .stopped(let count):
+        print(count == 1
+            ? String(localized: "Stopped 1 terminal session.")
+            : String(localized: "Stopped \(count) terminal sessions."))
+    case .failed(let message):
+        throw CLIError.message(message)
+    }
 }
 
 private func run() throws {
@@ -556,6 +589,14 @@ private func run() throws {
        arguments.first == "+mux-client",
        let sessionID = UUID(uuidString: arguments[1]) {
         try KeroMuxClientProcess.run(sessionID: sessionID)
+        return
+    }
+    if arguments == ["+mux-list"] {
+        printDurableSessions()
+        return
+    }
+    if arguments == ["+mux-stop"] {
+        try stopMultiplexer()
         return
     }
     if arguments == ["+help"] {

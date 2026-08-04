@@ -48,6 +48,14 @@ final class TerminalSession: NSObject, nonisolated ObservableObject, nonisolated
     private var lastHistorySnapshot: String?
     private var isTerminating = false
     private var commandExecutionStartedAtNanos: UInt64?
+    /// The daemon's shell PID never changes for the life of a session, so it
+    /// is captured once at create or reconnect and never re-queried.
+    private let muxShellPID: pid_t?
+    /// The daemon's foreground PID does change, but reading it costs a socket
+    /// round trip and callers sit on paths that must not block — see
+    /// ``refreshMuxForegroundPID()`` for when this is renewed.
+    private var muxForegroundPID: pid_t?
+    private var isRefreshingMuxForegroundPID = false
 
     init(
         initialDirectory: String? = nil,
@@ -112,6 +120,8 @@ final class TerminalSession: NSObject, nonisolated ObservableObject, nonisolated
         self.shellPath = shellPath
         self.backend = backend
         self.muxSessionID = muxSessionID
+        muxShellPID = muxInfo?.shellPID
+        muxForegroundPID = muxInfo?.foregroundPID
         launchWorkingDirectory = directory
         launchDirectoryURL = artifacts.directoryURL
         shellPidFileURL = artifacts.pidFileURL
@@ -281,12 +291,33 @@ final class TerminalSession: NSObject, nonisolated ObservableObject, nonisolated
     /// keeps describing the old tree. This is deliberately a separate fact:
     /// `currentDirectoryPath` must stay true to the shell.
     var foregroundDirectoryPath: String? {
-        let foreground = muxSessionID.flatMap { KeroMuxControl.info($0)?.foregroundPID }
-            ?? surface.foregroundPid
-        guard let foreground, foreground > 0,
+        guard let foreground = foregroundPid, foreground > 0,
               foreground != shellPid
         else { return nil }
         return processWorkingDirectory(pid: foreground)
+    }
+
+    /// Foreground job of the terminal, whoever owns the PTY. Reading the
+    /// daemon's copy would mean a socket round trip, and this is read while
+    /// SwiftUI evaluates a body, so durable sessions serve the cached value
+    /// that ``refreshMuxForegroundPID()`` renews on shell-integration events.
+    private var foregroundPid: pid_t? {
+        muxSessionID == nil ? surface.foregroundPid : muxForegroundPID
+    }
+
+    /// The daemon's foreground process changes when a command starts or ends,
+    /// which is exactly what shell integration reports, so this is renewed
+    /// from those events rather than polled.
+    private func refreshMuxForegroundPID() {
+        guard let muxSessionID, !isRefreshingMuxForegroundPID else { return }
+        isRefreshingMuxForegroundPID = true
+        KeroMuxControl.info(muxSessionID) { [weak self] info in
+            Task { @MainActor in
+                guard let self else { return }
+                self.isRefreshingMuxForegroundPID = false
+                self.muxForegroundPID = info?.foregroundPID
+            }
+        }
     }
 
     func sendCommand(_ text: String) {
@@ -306,11 +337,8 @@ final class TerminalSession: NSObject, nonisolated ObservableObject, nonisolated
         guard AppSettings.shared.restoreTerminalHistory else { return nil }
         guard captureLive else { return lastHistorySnapshot }
 
-        let foregroundPID = muxSessionID.flatMap {
-            KeroMuxControl.info($0)?.foregroundPID
-        } ?? surface.foregroundPid
         let rootShellIsForeground = shellPid != nil
-            && foregroundPID == shellPid
+            && foregroundPid == shellPid
         if !rootShellIsForeground,
            !TerminalHistorySerializer.hasPrimaryScrollback(surface) {
             // A primary screen with no rows above the viewport and an
@@ -338,9 +366,7 @@ final class TerminalSession: NSObject, nonisolated ObservableObject, nonisolated
     /// before `exec`, so this remains stable while a shell's foreground PID
     /// moves to child jobs and back.
     var shellPid: pid_t? {
-        if let muxSessionID {
-            return KeroMuxControl.info(muxSessionID)?.shellPID
-        }
+        if muxSessionID != nil { return muxShellPID }
         if let cachedShellPid, cachedShellPid > 0 { return cachedShellPid }
         guard !hasExited, let shellPidFileURL,
               let text = try? String(contentsOf: shellPidFileURL, encoding: .utf8),
@@ -496,7 +522,7 @@ extension TerminalSession: TerminalBackendEvents {
         guard !title.isEmpty else { return }
         self.title = title
         if let muxSessionID {
-            KeroMuxControl.updateMetadata(sessionID: muxSessionID, title: title)
+            KeroMuxControl.updateMetadataAsync(sessionID: muxSessionID, title: title)
         }
     }
 
@@ -505,7 +531,7 @@ extension TerminalSession: TerminalBackendEvents {
         workingDirectory = path.hasPrefix("/")
             ? URL(fileURLWithPath: path).absoluteString : path
         if let muxSessionID {
-            KeroMuxControl.updateMetadata(
+            KeroMuxControl.updateMetadataAsync(
                 sessionID: muxSessionID,
                 workingDirectory: path
             )
@@ -552,6 +578,9 @@ extension TerminalSession: TerminalBackendEvents {
             commandExecutionStartedAtNanos = nil
         }
         commandLifecycle = lifecycle
+        // A command starting or ending is precisely when the daemon's
+        // foreground process group moves.
+        refreshMuxForegroundPID()
     }
 
     func terminalDidClose(processAlive: Bool) {
