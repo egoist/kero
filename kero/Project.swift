@@ -707,6 +707,45 @@ final class Project: nonisolated ObservableObject, nonisolated Identifiable {
         tabs = reorderedTabs
     }
 
+    /// Moves a tab into another tab's pane tree at the indicated drop edge.
+    /// The source layout is grafted intact, so dragging a tab that already has
+    /// splits preserves those panes and their proportions. Diff tabs stay
+    /// standalone, matching the same constraint as every other split path.
+    @discardableResult
+    func moveTab(
+        _ draggedID: UUID,
+        into targetTabID: UUID,
+        toward edge: PaneDropEdge,
+        beside targetPaneID: UUID
+    ) -> Bool {
+        guard draggedID != targetTabID,
+              let draggedIndex = tabs.firstIndex(where: { $0.id == draggedID }),
+              let draggedTab = tabs.first(where: { $0.id == draggedID }),
+              let targetTab = tabs.first(where: { $0.id == targetTabID }),
+              !draggedTab.allContents.contains(where: \.isDiff),
+              let targetPane = targetTab.allPanes.first(where: { $0.id == targetPaneID }),
+              !targetPane.content.isDiff
+        else { return false }
+
+        targetTab.insert(
+            draggedTab.layout,
+            focusedPaneID: draggedTab.focusedPaneID,
+            toward: edge,
+            beside: targetPaneID
+        )
+        if targetTab.contextSession == nil {
+            targetTab.contextSession = draggedTab.contextSession
+        }
+
+        // Contents remain alive and keep their project-level observations;
+        // only the now-empty source tab's forwarding observation is removed.
+        tabObservations[draggedID] = nil
+        recentTabIDs.removeAll { $0 == draggedID }
+        tabs.remove(at: draggedIndex)
+        selectedTabID = targetTabID
+        return true
+    }
+
     func select(index: Int) {
         guard tabs.indices.contains(index) else { return }
         selectedTabID = tabs[index].id

@@ -153,12 +153,18 @@ Test by running an **older** build and choosing **Check for Updates…**.
 | `EXPORT_OPTIONS` | `scripts/ExportOptions.plist` | export config |
 | `DOWNLOAD_URL_PREFIX` | `https://releases.kero.sh/` | base URL in the appcast |
 | `HISTORY_COUNT` | `15` | number of recent archives to pull for delta generation |
+| `BUILD_JOBS` | half of logical CPUs (min 1) | max concurrent `xcodebuild` tasks during archive (limits parallel `swift-frontend` work) |
+| `BUILD_NICE=1` | — | archive under utility QoS (`taskpolicy`) so interactive work keeps priority |
 | `TAP_REPO` | `egoist/homebrew-tap` | tap holding the Homebrew cask |
 | `TAP_CASK` | `Casks/kero.rb` | cask path within the tap |
 | `TAP_DIR` | `build/homebrew-tap` | local checkout of the tap |
 | `FORCE=1` | — | re-release a version that already exists |
 | `NO_TAP=1` | — | skip bumping the Homebrew cask |
 | `NO_HISTORY=1` | — | skip pulling old archives (full updates, no deltas) |
+
+Release builds use whole-module Swift optimization, so a single `swift-frontend`
+can still use multiple cores even with a low `BUILD_JOBS`. Use `BUILD_JOBS=2`
+(and optionally `BUILD_NICE=1`) if the archive step makes the machine lag.
 
 ---
 

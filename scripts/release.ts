@@ -20,12 +20,15 @@
 //   NO_TAP=1 bun scripts/release.ts   # skip bumping the Homebrew cask
 //   NO_HISTORY=1 bun scripts/release.ts   # skip pulling old archives (no deltas)
 //   HISTORY_COUNT=3 bun scripts/release.ts   # use fewer prior archives for deltas
+//   BUILD_JOBS=2 bun scripts/release.ts   # limit concurrent xcodebuild tasks
+//   BUILD_NICE=1 bun scripts/release.ts   # archive under utility scheduling
 //
 // Bump MARKETING_VERSION (CFBundleShortVersionString) and CURRENT_PROJECT_VERSION
 // (CFBundleVersion) in the project before running — Sparkle compares the build
 // number to decide what's newer.
 import { $ } from "bun";
 import { existsSync, mkdirSync, rmSync } from "node:fs";
+import { cpus } from "node:os";
 import { join } from "node:path";
 import { die, need, say } from "./lib";
 import { generateAppcast } from "./generate-appcast";
@@ -63,6 +66,15 @@ const HISTORY_COUNT = Number(process.env.HISTORY_COUNT ?? "15");
 if (!Number.isSafeInteger(HISTORY_COUNT) || HISTORY_COUNT < 0) {
   die("HISTORY_COUNT must be a non-negative integer.");
 }
+// Cap concurrent xcodebuild tasks so Release whole-module compiles don't pin
+// every core. Default is half the logical CPUs (min 1).
+const defaultBuildJobs = Math.max(1, Math.floor(cpus().length / 2));
+const BUILD_JOBS = Number(process.env.BUILD_JOBS ?? defaultBuildJobs);
+if (!Number.isSafeInteger(BUILD_JOBS) || BUILD_JOBS < 1) {
+  die("BUILD_JOBS must be a positive integer.");
+}
+// When set, archive under utility QoS so interactive work keeps priority.
+const BUILD_NICE = process.env.BUILD_NICE === "1";
 
 // A bucket-scoped R2 API token (Object Read & Write) can't create buckets, and
 // rclone otherwise tries to check/create the bucket before uploading. The
@@ -80,15 +92,36 @@ if (!localBuild) need("rclone");
 // as a prerequisite failure.
 if (!localBuild && process.env.NO_TAP !== "1") need("git");
 need("create-dmg"); // brew install create-dmg
+if (BUILD_NICE) need("taskpolicy");
 if (!existsSync(EXPORT_OPTIONS)) {
   die(`export options not found: ${EXPORT_OPTIONS} (see RELEASING.md)`);
 }
 
 // ---- 1. archive ----------------------------------------------------------
-say(`Archiving (${CONFIGURATION})…`);
+const niceNote = BUILD_NICE ? ", utility QoS" : "";
+say(`Archiving (${CONFIGURATION}, -jobs ${BUILD_JOBS}${niceNote})…`);
 rmSync(ARCHIVE_PATH, { recursive: true, force: true });
 rmSync(EXPORT_DIR, { recursive: true, force: true });
-await $`xcodebuild -project ${PROJECT} -scheme ${SCHEME} -configuration ${CONFIGURATION} -archivePath ${ARCHIVE_PATH} archive`;
+// -jobs limits concurrent build tasks (including swift-frontend). BUILD_NICE
+// deprioritizes the whole archive so the machine stays responsive.
+const archiveArgs = [
+  "-project",
+  PROJECT,
+  "-scheme",
+  SCHEME,
+  "-configuration",
+  CONFIGURATION,
+  "-archivePath",
+  ARCHIVE_PATH,
+  "-jobs",
+  String(BUILD_JOBS),
+  "archive",
+];
+if (BUILD_NICE) {
+  await $`taskpolicy -c utility xcodebuild ${archiveArgs}`;
+} else {
+  await $`xcodebuild ${archiveArgs}`;
+}
 
 // ---- 2. export a Developer ID-signed app ---------------------------------
 say("Exporting Developer ID app…");
