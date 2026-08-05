@@ -16,6 +16,8 @@ the original feature bullet instead of adding separate entries for them.
 
 ## [unreleased]
 
+- Optionally keep terminal sessions running locally when Kero closes, then reconnect their live processes and output when Kero reopens
+
 ## [0.1.44]
 
 - Prevent a rare crash while using the Ctrl-Tab switcher
@@ -69,8 +71,6 @@ the original feature bullet instead of adding separate entries for them.
 - Add per-pane live titles and split controls in split layouts
 - Splitting a pane now divides only the focused pane, preserving the size of neighboring panes in nested layouts
 - The Ctrl-Tab switcher now lists tabs in the order you last used them and opens already pointing at the previous tab, so a quick Ctrl-Tab flips between the two tabs you're working in
-
-- Optionally keep terminal sessions running locally when Kero closes, then reconnect their live processes and output when Kero reopens
 
 ## [0.1.34]
 
