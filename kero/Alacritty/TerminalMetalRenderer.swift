@@ -116,6 +116,7 @@ final class TerminalMetalRenderer {
         padding: CGPoint,
         scale: CGFloat,
         dirtyRows: [Int]?,
+        backgroundOpacity: Double = 1,
         in drawable: CAMetalDrawable,
         viewportSize: CGSize,
         onPresented: (@Sendable () -> Void)? = nil,
@@ -151,11 +152,17 @@ final class TerminalMetalRenderer {
         pass.colorAttachments[0].loadAction = .clear
         pass.colorAttachments[0].storeAction = .store
         let background = Self.color(snapshot.background)
+        // Only the default-background region is painted by this clear; cells
+        // with an explicit background emit opaque quads. Fading the clear
+        // alpha therefore translucates exactly the terminal's "empty"
+        // background — matching ghostty's background-opacity — while text and
+        // coloured backgrounds stay solid. Premultiply so the blended output
+        // keeps straight-alpha colour.
         pass.colorAttachments[0].clearColor = MTLClearColor(
-            red: Double(background.x),
-            green: Double(background.y),
-            blue: Double(background.z),
-            alpha: 1
+            red: Double(background.x) * backgroundOpacity,
+            green: Double(background.y) * backgroundOpacity,
+            blue: Double(background.z) * backgroundOpacity,
+            alpha: backgroundOpacity
         )
 
         guard let commands = queue.makeCommandBuffer(),

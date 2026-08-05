@@ -243,8 +243,8 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
 
         presentationCoverLayer.removeFromSuperlayer()
         let frozenLayer = CALayer()
-        frozenLayer.isOpaque = true
-        frozenLayer.backgroundColor = Theme.background.cgColor
+        frozenLayer.isOpaque = Self.backdropLayerIsOpaque
+        frozenLayer.backgroundColor = Self.backdropLayerColor
         frozenLayer.contents = lastPresentedSurface
         frozenLayer.contentsScale = lastPresentedScale
             ?? window?.backingScaleFactor
@@ -393,8 +393,8 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
             // multi-tab memory.
             presentationCoverLayer.removeFromSuperlayer()
             let parkedLayer = CALayer()
-            parkedLayer.isOpaque = true
-            parkedLayer.backgroundColor = Theme.background.cgColor
+            parkedLayer.isOpaque = Self.backdropLayerIsOpaque
+            parkedLayer.backgroundColor = Self.backdropLayerColor
             parkedLayer.autoresizingMask = [.layerWidthSizable, .layerHeightSizable]
             replaceBackingLayer(with: parkedLayer)
             lastPresentedSize = nil
@@ -416,7 +416,10 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
             size: CGFloat(AppSettings.shared.fontSize),
             fontThicken: AppSettings.shared.fontThicken
         )
-        presentationCoverLayer.backgroundColor = Theme.background.cgColor
+        // Opacity may have just changed; re-assert the view/layer opacity so a
+        // live toggle reaches the placeholder layers too.
+        layer?.isOpaque = Self.backdropLayerIsOpaque
+        presentationCoverLayer.backgroundColor = Self.backdropLayerColor
         var theme = AlacrittyTheme.current()
         if let handle {
             withUnsafePointer(to: &theme) { kero_alacritty_set_theme(handle, $0) }
@@ -485,7 +488,20 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
 
     override var isFlipped: Bool { false }
 
-    override var isOpaque: Bool { true }
+    override var isOpaque: Bool { !AppSettings.shared.terminalBackgroundIsTranslucent }
+
+    /// Fill colour for the placeholder layers (cover before the first frame,
+    /// frozen while inactive, parked while off-screen). Tracks the configured
+    /// background opacity so those transitions match the live surface instead
+    /// of flashing an opaque fill.
+    private static var backdropLayerColor: CGColor {
+        let opacity = AppSettings.shared.resolvedTerminalBackgroundOpacity
+        return Theme.background.withAlphaComponent(opacity).cgColor
+    }
+
+    private static var backdropLayerIsOpaque: Bool {
+        !AppSettings.shared.terminalBackgroundIsTranslucent
+    }
 
     // MARK: - Drawing
 
@@ -498,7 +514,7 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
         layer.device = metalDevice
         layer.pixelFormat = .bgra8Unorm
         layer.framebufferOnly = true
-        layer.isOpaque = true
+        layer.isOpaque = Self.backdropLayerIsOpaque
         // Terminal frames are cheap enough to keep up with the display link;
         // a third full-window drawable only adds one pane-sized IOSurface
         // (~15 MiB on a large Retina window) without improving throughput.
@@ -510,7 +526,8 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
         layer.contentsGravity = .topLeft
         layer.autoresizingMask = [.layerWidthSizable, .layerHeightSizable]
         layer.needsDisplayOnBoundsChange = true
-        presentationCoverLayer.backgroundColor = Theme.background.cgColor
+        layer.isOpaque = Self.backdropLayerIsOpaque
+        presentationCoverLayer.backgroundColor = Self.backdropLayerColor
         presentationCoverLayer.frame = layer.bounds
         presentationCoverLayer.autoresizingMask = [.layerWidthSizable, .layerHeightSizable]
         presentationCoverLayer.isHidden = false
@@ -654,6 +671,7 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
             padding: Self.padding,
             scale: scale,
             dirtyRows: dirtyRows,
+            backgroundOpacity: AppSettings.shared.resolvedTerminalBackgroundOpacity,
             in: drawable,
             viewportSize: size,
             onPresented: onPresented,

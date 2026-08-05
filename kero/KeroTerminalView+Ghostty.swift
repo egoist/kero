@@ -73,6 +73,13 @@ extension KeroTerminalView {
             // config injects the package default `font-thicken = true`, and
             // only a later entry in the rendered config overrides it.
             builder.withFontThicken(settings.fontThicken)
+            // Libghostty's Metal surface is already non-opaque (see
+            // AppTerminalView); Kero paints the opaque pane background behind
+            // it. Passing an opacity below 1 makes ghostty render its own
+            // background fill translucent, and TerminalHostView drops the
+            // opaque backdrop so the window's blur/desktop shows through.
+            // Text, cursor, and selection keep their own full alpha.
+            builder.withBackgroundOpacity(settings.resolvedTerminalBackgroundOpacity)
             builder.withCursorStyle(.block)
             builder.withCursorStyleBlink(true)
             // Kero's insets around the grid live inside ghostty as

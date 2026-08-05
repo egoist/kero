@@ -16,6 +16,8 @@ the original feature bullet instead of adding separate entries for them.
 
 ## [unreleased]
 
+- Make the terminal background translucent, with an optional frosted blur behind it, while text and other panels stay opaque
+
 ## [0.1.44]
 
 - Prevent a rare crash while using the Ctrl-Tab switcher

@@ -116,6 +116,10 @@ final class AppSettings: nonisolated ObservableObject {
     static let defaultSidebarFontSize: Double = 14
     static let sidebarFontSizeRange: ClosedRange<Double> = 9...18
     static let defaultToolbarVisibility: ToolbarVisibility = .hide
+    static let defaultBackgroundOpacity: Double = 1
+    /// Floored above zero so the terminal never becomes fully invisible; the
+    /// opaque text and chrome stay readable across the whole range.
+    static let backgroundOpacityRange: ClosedRange<Double> = 0.2...1
 
     /// The language this process launched with, kept separate from the pending
     /// selection so Settings can explain when a relaunch is required.
@@ -204,6 +208,49 @@ final class AppSettings: nonisolated ObservableObject {
         didSet { save() }
     }
 
+    /// Opacity of the terminal's background fill, `0.2...1`. Below `1` the
+    /// pane's background becomes translucent so the window backdrop (desktop,
+    /// or the blur below) shows through, while text, cursor, and every other
+    /// surface stay fully opaque. `1` (the default) keeps Kero's original
+    /// fully opaque look with no window-level compositing changes.
+    @Published var terminalBackgroundOpacity: Double {
+        didSet { save() }
+    }
+
+    /// Frost the area behind translucent terminal panes with a native
+    /// behind-window blur (`NSVisualEffectView`). Off by default; only has a
+    /// visible effect while `terminalBackgroundOpacity` is below `1`.
+    @Published var terminalBackgroundBlur: Bool {
+        didSet { save() }
+    }
+
+    /// macOS "Reduce Transparency" accessibility switch. When on, Kero keeps
+    /// the terminal fully opaque regardless of the opacity/blur settings, the
+    /// standard contract for translucency features.
+    var reduceTransparency: Bool {
+        NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency
+    }
+
+    /// Background opacity actually applied, after honoring Reduce Transparency.
+    /// The terminal backend and the pane backdrops all read this rather than
+    /// the raw stored value.
+    var resolvedTerminalBackgroundOpacity: Double {
+        reduceTransparency ? 1 : terminalBackgroundOpacity
+    }
+
+    /// Whether terminal panes should paint themselves translucent. Drives the
+    /// window-level opacity and the backdrop behind terminal panes; when this
+    /// is off nothing about the window's compositing changes.
+    var terminalBackgroundIsTranslucent: Bool {
+        resolvedTerminalBackgroundOpacity < 1
+    }
+
+    /// Whether the behind-window blur should be drawn: opted in, translucent,
+    /// and not suppressed by Reduce Transparency.
+    var terminalBackgroundBlurActive: Bool {
+        terminalBackgroundIsTranslucent && terminalBackgroundBlur
+    }
+
     /// Which emulator drives terminal panes. Only ever holds a backend this
     /// build ships a surface for — see `TerminalBackend` — and a session binds
     /// its backend at creation, so a change here reaches terminals opened
@@ -245,6 +292,12 @@ final class AppSettings: nonisolated ObservableObject {
             ?? toml["font-thicken"]?.bool
             ?? false
         macosOptionAsAlt = toml["terminal.macos-option-as-alt"]?.bool ?? false
+        let opacity = toml["terminal.background-opacity"]?.double
+            ?? Self.defaultBackgroundOpacity
+        terminalBackgroundOpacity = Self.backgroundOpacityRange.contains(opacity)
+            ? opacity
+            : Self.defaultBackgroundOpacity
+        terminalBackgroundBlur = toml["terminal.background-blur"]?.bool ?? false
         wrapLines = toml["editor.wrap-lines"]?.bool ?? false
         restoreTerminalHistory = toml["terminal.restore-history"]?.bool ?? false
         terminalBackend = TerminalBackend(persisted: toml["terminal.backend"]?.string)
@@ -293,6 +346,8 @@ final class AppSettings: nonisolated ObservableObject {
         themeLight = Theme.defaultLightThemeName
         toolbarVisibility = Self.defaultToolbarVisibility
         macosOptionAsAlt = false
+        terminalBackgroundOpacity = Self.defaultBackgroundOpacity
+        terminalBackgroundBlur = false
         wrapLines = false
         restoreTerminalHistory = false
         terminalBackend = .fallback
@@ -326,6 +381,14 @@ final class AppSettings: nonisolated ObservableObject {
         }
         if macosOptionAsAlt {
             lines.append("terminal.macos-option-as-alt = true")
+        }
+        if terminalBackgroundOpacity != Self.defaultBackgroundOpacity {
+            lines.append(
+                "terminal.background-opacity = \(TOML.number(terminalBackgroundOpacity))"
+            )
+        }
+        if terminalBackgroundBlur {
+            lines.append("terminal.background-blur = true")
         }
         if wrapLines {
             lines.append("editor.wrap-lines = true")

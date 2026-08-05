@@ -153,7 +153,14 @@ final class TerminalManager: nonisolated ObservableObject {
                 AppSettings.shared.$themeDark.removeDuplicates(),
                 AppSettings.shared.$themeLight.removeDuplicates()
             ),
-            AppSettings.shared.$macosOptionAsAlt.removeDuplicates()
+            // Collapse the appearance keys that only need to trigger a refresh
+            // (not their value) into one leg, keeping the CombineLatest within
+            // its arity: option-as-alt plus the terminal translucency keys.
+            Publishers.Merge3(
+                AppSettings.shared.$macosOptionAsAlt.removeDuplicates().map { _ in () },
+                AppSettings.shared.$terminalBackgroundOpacity.removeDuplicates().map { _ in () },
+                AppSettings.shared.$terminalBackgroundBlur.removeDuplicates().map { _ in () }
+            )
         )
             .dropFirst()
             .receive(on: DispatchQueue.main)
