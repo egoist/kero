@@ -203,6 +203,75 @@ final class TerminalManager: nonisolated ObservableObject {
         return project
     }
 
+    /// Treats a linked checkout as a parallel workspace. Selecting one never
+    /// injects `cd` into a live shell or switches the current checkout's
+    /// branch: an existing project/session is revealed, otherwise a new
+    /// pinned project is opened with its first terminal rooted there.
+    @discardableResult
+    func openOrRevealWorktree(
+        at path: String, suggestedName: String? = nil
+    ) -> Project? {
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory),
+              isDirectory.boolValue else { return nil }
+        let target = Self.directoryIdentity(path)
+
+        for project in projects {
+            if let session = project.sessions.first(where: { session in
+                let root = project.panelRoot(
+                    followingSessionAt: session.currentDirectoryPath,
+                    foregroundAt: session.foregroundDirectoryPath
+                ).root
+                return Self.directoryIdentity(root) == target
+            }) {
+                revealSession(session)
+                return project
+            }
+            // An empty restored project can still own this worktree. Reopen a
+            // terminal in it instead of creating a duplicate project row.
+            if project.sessions.isEmpty,
+               project.customDirectory.map(Self.directoryIdentity) == target {
+                selectedProjectID = project.id
+                project.newSession(directory: target)
+                return project
+            }
+        }
+
+        let project = makeProject(createInitialSession: false)
+        project.customName = Project.normalizedCustomName(suggestedName)
+        project.customDirectory = target
+        project.newSession(directory: target)
+        insert(project)
+        return project
+    }
+
+    /// Session counts make already-open worktrees recognizable in the Git
+    /// navigator without pretending to know whether a foreground process is
+    /// specifically an agent.
+    func sessionCountsByWorktree(
+        _ worktrees: [GitStatusModel.Worktree]
+    ) -> [String: Int] {
+        let pathsByIdentity = Dictionary(
+            uniqueKeysWithValues: worktrees.map {
+                (Self.directoryIdentity($0.path), $0.path)
+            }
+        )
+        var counts: [String: Int] = [:]
+        for project in projects {
+            for session in project.sessions {
+                let root = project.panelRoot(
+                    followingSessionAt: session.currentDirectoryPath,
+                    foregroundAt: session.foregroundDirectoryPath
+                ).root
+                guard let originalPath = pathsByIdentity[Self.directoryIdentity(root)] else {
+                    continue
+                }
+                counts[originalPath, default: 0] += 1
+            }
+        }
+        return counts
+    }
+
     /// Creates a project rooted at `directory`, with its first terminal
     /// launched there. Used by Kero's Finder service.
     private func newProject(directory: String) {
@@ -239,6 +308,10 @@ final class TerminalManager: nonisolated ObservableObject {
             projects.append(project)
         }
         selectedProjectID = project.id
+    }
+
+    private static func directoryIdentity(_ path: String) -> String {
+        URL(fileURLWithPath: path, isDirectory: true).standardizedFileURL.path
     }
 
     /// Routes folders from the Finder service into the active Kero window.

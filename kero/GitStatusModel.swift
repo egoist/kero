@@ -12,6 +12,22 @@ import Foundation
 /// source-control operations without blocking the UI.
 @MainActor
 final class GitStatusModel: nonisolated ObservableObject {
+    nonisolated struct Worktree: Identifiable, Equatable, Sendable {
+        var id: String { path }
+        let path: String
+        let headOID: String?
+        let branch: String?
+        let isDetached: Bool
+        let isBare: Bool
+        let lockedReason: String?
+        let prunableReason: String?
+
+        var shortHeadOID: String {
+            guard let headOID else { return "" }
+            return String(headOID.prefix(7))
+        }
+    }
+
     nonisolated struct Entry: Identifiable, Equatable, Sendable {
         var id: String { path }
         /// Relative to the repository root, as porcelain v2 reports it.
@@ -157,6 +173,7 @@ final class GitStatusModel: nonisolated ObservableObject {
     @Published private(set) var mergeEntries: [Entry] = []
     @Published private(set) var stagedEntries: [Entry] = []
     @Published private(set) var changedEntries: [Entry] = []
+    @Published private(set) var worktrees: [Worktree] = []
     @Published private(set) var branches: [String] = []
     @Published private(set) var defaultBranch: String?
     @Published private(set) var remotes: [String] = []
@@ -199,6 +216,11 @@ final class GitStatusModel: nonisolated ObservableObject {
     /// Keeps a mutation globally exclusive even if the terminal changes cwd
     /// while its Git process is still running.
     private var runningOperationID: UUID?
+    /// Watches Git's shared worktree administration directory. Agents often
+    /// add/remove worktrees inside one long-running shell command, so command
+    /// completion alone would not update the navigator until the agent exits.
+    private var worktreeMetadataWatcher: DispatchSourceFileSystemObject?
+    private var worktreeMetadataWatchedPath = ""
     var totalChangeCount: Int {
         mergeEntries.count + stagedEntries.count + changedEntries.count
     }
@@ -221,6 +243,14 @@ final class GitStatusModel: nonisolated ObservableObject {
 
     func isCurrent(_ entry: Entry) -> Bool {
         entry.repositoryRoot.isEmpty || entry.repositoryRoot == repoRoot
+    }
+
+    func isCurrent(_ worktree: Worktree) -> Bool {
+        Self.normalizedPath(worktree.path) == Self.normalizedPath(repoRoot)
+    }
+
+    func worktree(forBranch branch: String) -> Worktree? {
+        worktrees.first { $0.branch == branch }
     }
 
     /// Returns a Git decoration only when `absolutePath` belongs to the
@@ -267,6 +297,7 @@ final class GitStatusModel: nonisolated ObservableObject {
             recentCommitLimit = recentCommitLimitByRoot[root]
                 ?? Self.recentCommitPageSize
             hasResolvedStatus = false
+            stopWorktreeMetadataWatcher()
             clearRepositoryState(preserveIdentity: true)
             if let cachedStatus = cachedStatusByRoot[root] {
                 apply(cachedStatus)
@@ -999,6 +1030,7 @@ final class GitStatusModel: nonisolated ObservableObject {
         mergeEntries = []
         stagedEntries = []
         changedEntries = []
+        worktrees = []
         fileDecorations = [:]
         ignoredPaths = []
         branches = []
@@ -1030,6 +1062,7 @@ final class GitStatusModel: nonisolated ObservableObject {
             } else {
                 preserveFailure = false
             }
+            stopWorktreeMetadataWatcher()
             clearRepositoryState(preserveFailedOperation: preserveFailure)
             return
         case .failed(let message):
@@ -1066,6 +1099,7 @@ final class GitStatusModel: nonisolated ObservableObject {
         topLevel = result.topLevel
         repositoryIdentity = result.topLevel
         if result.loadedDetails {
+            worktrees = result.worktrees
             branches = result.branches
             defaultBranch = result.defaultBranch
             remotes = result.remotes
@@ -1073,6 +1107,9 @@ final class GitStatusModel: nonisolated ObservableObject {
             hasMoreRecentCommits = result.hasMoreRecentCommits
             repositoryOperation = result.repositoryOperation
             stashCount = result.stashCount
+            configureWorktreeMetadataWatcher(
+                commonGitDirectory: result.commonGitDirectory
+            )
         }
 
         let entries = result.entries.map { entry in
@@ -1093,6 +1130,57 @@ final class GitStatusModel: nonisolated ObservableObject {
         }
     }
 
+    private func configureWorktreeMetadataWatcher(commonGitDirectory: String) {
+        guard !commonGitDirectory.isEmpty else {
+            stopWorktreeMetadataWatcher()
+            return
+        }
+        let worktreesDirectory = (commonGitDirectory as NSString)
+            .appendingPathComponent("worktrees")
+        var isDirectory: ObjCBool = false
+        let watchedPath: String
+        if FileManager.default.fileExists(
+            atPath: worktreesDirectory, isDirectory: &isDirectory
+        ), isDirectory.boolValue {
+            watchedPath = worktreesDirectory
+        } else {
+            // Before the first linked worktree exists, watch the common Git
+            // directory so creation of its `worktrees` child is still seen.
+            watchedPath = commonGitDirectory
+        }
+        guard watchedPath != worktreeMetadataWatchedPath else { return }
+        stopWorktreeMetadataWatcher()
+
+        let descriptor = Darwin.open(watchedPath, O_EVTONLY)
+        guard descriptor >= 0 else { return }
+        let source = DispatchSource.makeFileSystemObjectSource(
+            fileDescriptor: descriptor,
+            eventMask: [.write, .delete, .rename, .attrib, .extend, .link],
+            queue: .main
+        )
+        source.setEventHandler { [weak self] in
+            guard let self,
+                  self.worktreeMetadataWatchedPath == watchedPath else { return }
+            let event = self.worktreeMetadataWatcher?.data ?? []
+            if event.contains(.delete) || event.contains(.rename) {
+                self.stopWorktreeMetadataWatcher()
+            }
+            self.refresh()
+        }
+        source.setCancelHandler {
+            Darwin.close(descriptor)
+        }
+        worktreeMetadataWatchedPath = watchedPath
+        worktreeMetadataWatcher = source
+        source.resume()
+    }
+
+    private func stopWorktreeMetadataWatcher() {
+        worktreeMetadataWatcher?.cancel()
+        worktreeMetadataWatcher = nil
+        worktreeMetadataWatchedPath = ""
+    }
+
     nonisolated enum StatusLoadResult: Equatable, Sendable {
         case repository(StatusResult)
         case notRepository
@@ -1109,8 +1197,10 @@ final class GitStatusModel: nonisolated ObservableObject {
         var lineAdditions = 0
         var lineDeletions = 0
         var topLevel = ""
+        var commonGitDirectory = ""
         var entries: [Entry] = []
         var ignoredPaths: Set<String> = []
+        var worktrees: [Worktree] = []
         var branches: [String] = []
         var defaultBranch: String?
         var remotes: [String] = []
@@ -1264,6 +1354,26 @@ final class GitStatusModel: nonisolated ObservableObject {
         var result = parseStatus(status.stdout)
         result.topLevel = resolvedRoot
 
+        let commonGitDirectory = statusGit(
+            ["rev-parse", "--path-format=absolute", "--git-common-dir"],
+            in: resolvedRoot
+        )
+        if commonGitDirectory.status == 0 {
+            result.commonGitDirectory = strippingTrailingLineEnding(
+                commonGitDirectory.stdout
+            )
+        }
+
+        // Worktrees belong to the repository family rather than only this
+        // checkout. `-z` keeps agent-created paths lossless, including spaces
+        // and newlines, while porcelain fields remain forward-compatible.
+        let worktreeList = statusGit(
+            ["worktree", "list", "--porcelain", "-z"], in: resolvedRoot
+        )
+        if worktreeList.status == 0 {
+            result.worktrees = parseWorktrees(worktreeList.stdout)
+        }
+
         let diff = statusGit(
             result.hasHead
                 ? ["diff", "--numstat", "HEAD", "--"]
@@ -1385,6 +1495,10 @@ final class GitStatusModel: nonisolated ObservableObject {
         return value
     }
 
+    private nonisolated static func normalizedPath(_ path: String) -> String {
+        (path as NSString).standardizingPath
+    }
+
     private nonisolated static func gitFailureMessage(
         _ run: (status: Int32, stdout: String, stderr: String), fallback: String
     ) -> String {
@@ -1459,6 +1573,77 @@ final class GitStatusModel: nonisolated ObservableObject {
             }
             index += 1
         }
+        return result
+    }
+
+    /// Parses `git worktree list --porcelain -z`. Records are separated by an
+    /// empty NUL field and each attribute is itself NUL-terminated, so paths
+    /// never need Git's quoting rules. Unknown attributes are ignored.
+    nonisolated static func parseWorktrees(_ output: String) -> [Worktree] {
+        var result: [Worktree] = []
+        var path: String?
+        var headOID: String?
+        var branch: String?
+        var isDetached = false
+        var isBare = false
+        var lockedReason: String?
+        var prunableReason: String?
+
+        func appendCurrent() {
+            guard let path, !path.isEmpty else { return }
+            result.append(Worktree(
+                path: path,
+                headOID: headOID,
+                branch: branch,
+                isDetached: isDetached,
+                isBare: isBare,
+                lockedReason: lockedReason,
+                prunableReason: prunableReason
+            ))
+        }
+
+        func resetCurrent() {
+            path = nil
+            headOID = nil
+            branch = nil
+            isDetached = false
+            isBare = false
+            lockedReason = nil
+            prunableReason = nil
+        }
+
+        for token in output.split(separator: "\0", omittingEmptySubsequences: false) {
+            let record = String(token)
+            if record.isEmpty {
+                appendCurrent()
+                resetCurrent()
+                continue
+            }
+            if record.hasPrefix("worktree ") {
+                path = String(record.dropFirst("worktree ".count))
+            } else if record.hasPrefix("HEAD ") {
+                headOID = String(record.dropFirst("HEAD ".count))
+            } else if record.hasPrefix("branch ") {
+                let ref = String(record.dropFirst("branch ".count))
+                let prefix = "refs/heads/"
+                branch = ref.hasPrefix(prefix) ? String(ref.dropFirst(prefix.count)) : ref
+            } else if record == "detached" {
+                isDetached = true
+            } else if record == "bare" {
+                isBare = true
+            } else if record == "locked" {
+                lockedReason = ""
+            } else if record.hasPrefix("locked ") {
+                lockedReason = String(record.dropFirst("locked ".count))
+            } else if record == "prunable" {
+                prunableReason = ""
+            } else if record.hasPrefix("prunable ") {
+                prunableReason = String(record.dropFirst("prunable ".count))
+            }
+        }
+        // Be tolerant of producers that omit the porcelain block's final
+        // empty field even though Git itself currently emits one.
+        appendCurrent()
         return result
     }
 

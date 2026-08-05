@@ -72,6 +72,16 @@ struct RightSidebarView: View {
                         GitPanel(
                             model: git,
                             session: manager.selectedSession,
+                            worktreeSessionCounts: manager.sessionCountsByWorktree(git.worktrees),
+                            openWorktree: { worktree in
+                                manager.openOrRevealWorktree(
+                                    at: worktree.path,
+                                    suggestedName: worktree.branch
+                                        ?? (worktree.shortHeadOID.isEmpty
+                                            ? nil
+                                            : "Detached \(worktree.shortHeadOID)")
+                                )
+                            },
                             openFile: { manager.openFile($0) },
                             openToSide: { manager.openFileToSide($0) },
                             openDiff: { entry, staged in
@@ -687,6 +697,8 @@ private struct GitPanel: View {
 
     @ObservedObject var model: GitStatusModel
     let session: TerminalSession?
+    let worktreeSessionCounts: [String: Int]
+    let openWorktree: (GitStatusModel.Worktree) -> Void
     let openFile: (String) -> Void
     let openToSide: (String) -> Void
     let openDiff: (_ entry: GitStatusModel.Entry, _ staged: Bool) -> Void
@@ -703,6 +715,7 @@ private struct GitPanel: View {
     @State private var stagedCollapsed = false
     @State private var changesCollapsed = false
     @State private var historyCollapsed = false
+    @State private var worktreesCollapsed = false
     @State private var expandedCommitIDs: Set<String> = []
     @State private var filterText = ""
     @State private var showFilter = false
@@ -844,18 +857,28 @@ private struct GitPanel: View {
         Menu {
             if !model.branches.isEmpty {
                 ForEach(model.branches, id: \.self) { branch in
-                    Button {
-                        performOperation(.branchMenu) {
-                            model.switchBranch(to: branch)
+                    if let worktree = model.worktree(forBranch: branch),
+                       !model.isCurrent(worktree) {
+                        Button {
+                            openWorktree(worktree)
+                        } label: {
+                            Label(branch, systemImage: "rectangle.stack")
                         }
-                    } label: {
-                        if branch == model.branch {
-                            Label(branch, systemImage: "checkmark")
-                        } else {
-                            Text(branch)
+                        .help(String(localized: "Open the worktree using this branch"))
+                    } else {
+                        Button {
+                            performOperation(.branchMenu) {
+                                model.switchBranch(to: branch)
+                            }
+                        } label: {
+                            if branch == model.branch {
+                                Label(branch, systemImage: "checkmark")
+                            } else {
+                                Text(branch)
+                            }
                         }
+                        .disabled(branch == model.branch || model.isBusy)
                     }
-                    .disabled(branch == model.branch || model.isBusy)
                 }
                 Divider()
             }
@@ -1406,6 +1429,17 @@ private struct GitPanel: View {
     private var changeList: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 1) {
+                if model.worktrees.count > 1 {
+                    WorktreesSectionView(
+                        worktrees: model.worktrees,
+                        currentPath: model.repoRoot,
+                        sessionCounts: worktreeSessionCounts,
+                        fontScale: sidebarFontScale,
+                        isCollapsed: $worktreesCollapsed,
+                        openWorktree: openWorktree
+                    )
+                    .frame(maxWidth: .infinity)
+                }
                 if model.totalChangeCount == 0 {
                     cleanState
                 } else if visibleChangeCount == 0 {
