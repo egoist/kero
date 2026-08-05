@@ -135,12 +135,14 @@ final class TerminalSession: NSObject, nonisolated ObservableObject, nonisolated
     private func beginTeardown(processAlive: Bool, notifyExit: Bool) {
         // TerminalHostView normally clears these while dismantling, but close
         // teardown must not depend on a later SwiftUI reconciliation pass.
-        // Both callbacks originate on PaneView and capture this session.
+        // These callbacks originate on PaneView and capture this session.
         surface.setSurfaceVisible(false)
         surface.onBecomeFirstResponder = nil
         surface.splitTarget.onSplit = nil
         surface.splitTarget.onNewBrowserTab = nil
         surface.splitTarget.onNewBrowserPane = nil
+        surface.splitTarget.onNewFileTab = nil
+        surface.splitTarget.onNewFilePane = nil
 
         if processAlive {
             _ = shellPid // Cache it before `hasExited` changes.
@@ -484,9 +486,67 @@ extension TerminalSession: TerminalBackendEvents {
         TerminalNotificationService.shared.post(message: message, sessionID: id)
     }
 
-    func terminalDidRequestOpenURL(_ url: String) {
-        guard let target = URL(string: url) else { return }
-        NSWorkspace.shared.open(target)
+    func terminalDidRequestOpenURL(_ value: String) {
+        guard let target = terminalLinkTarget(for: value) else { return }
+        switch target {
+        case .file(let fileURL):
+            NSWorkspace.shared.activateFileViewerSelecting([fileURL])
+        case .url(let url):
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    /// Classifies a detected terminal link only after proving a local path
+    /// exists or a non-file URL has a scheme. Context menus and Command-click
+    /// use this same answer, so neither offers an action it cannot perform.
+    func terminalLinkTarget(for value: String) -> TerminalLinkTarget? {
+        if let fileURL = existingFileURL(from: value) {
+            return .file(fileURL)
+        }
+        guard let url = URL(string: value),
+              url.scheme != nil,
+              !url.isFileURL
+        else { return nil }
+        return .url(url)
+    }
+
+    /// Resolves terminal links the way the shell would: `file:` URLs are
+    /// already absolute, `~` belongs to the current user, and other paths are
+    /// relative to this pane's live working directory. Diagnostics commonly
+    /// append `:line[:column]`, so try the literal path before peeling those
+    /// numeric locations off.
+    private func existingFileURL(from value: String) -> URL? {
+        let candidate: URL
+        if let url = URL(string: value), url.scheme != nil {
+            guard url.isFileURL else { return nil }
+            candidate = url
+        } else {
+            let decoded = value.removingPercentEncoding ?? value
+            let expanded = (decoded as NSString).expandingTildeInPath
+            if expanded.hasPrefix("/") {
+                candidate = URL(fileURLWithPath: expanded)
+            } else {
+                let basePath = foregroundDirectoryPath ?? currentDirectoryPath
+                candidate = URL(
+                    fileURLWithPath: expanded,
+                    relativeTo: URL(fileURLWithPath: basePath, isDirectory: true)
+                )
+            }
+        }
+
+        var url = candidate.standardizedFileURL
+        while true {
+            if FileManager.default.fileExists(atPath: url.path) {
+                return url
+            }
+            let strippedPath = url.path.replacingOccurrences(
+                of: #":\d+$"#,
+                with: "",
+                options: .regularExpression
+            )
+            guard strippedPath != url.path else { return nil }
+            url = URL(fileURLWithPath: strippedPath).standardizedFileURL
+        }
     }
 
     func terminalDidScroll(_ position: TerminalScrollPosition) {

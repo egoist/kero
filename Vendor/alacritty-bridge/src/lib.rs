@@ -63,6 +63,7 @@ pub const KERO_EVENT_SHELL_PROMPT_START: u32 = 9;
 pub const KERO_EVENT_SHELL_COMMAND_START: u32 = 10;
 pub const KERO_EVENT_SHELL_COMMAND_EXECUTING: u32 = 11;
 pub const KERO_EVENT_SHELL_COMMAND_FINISHED: u32 = 12;
+pub const KERO_EVENT_MOUSE_SHAPE: u32 = 13;
 
 /// Per-cell attributes handed to the renderer. A subset of
 /// `alacritty_terminal`'s `Flags` plus Kero's own `SELECTED`.
@@ -224,6 +225,7 @@ enum OscEvent {
     ShellCommandStart,
     ShellCommandExecuting,
     ShellCommandFinished(Option<i32>),
+    MouseShape(String),
 }
 
 #[derive(Debug, Default)]
@@ -336,6 +338,7 @@ impl OscInterceptor {
         std::str::from_utf8(&self.buffer).is_ok_and(|payload| {
             payload.starts_with("7;")
                 || payload.starts_with("9;")
+                || payload.starts_with("22;")
                 || payload.starts_with("777;notify;")
         })
     }
@@ -345,6 +348,13 @@ impl OscInterceptor {
 
         if let Some(url) = payload.strip_prefix("7;") {
             return working_directory_from_osc7(url).map(OscEvent::WorkingDirectory);
+        }
+
+        if let Some(name) = payload.strip_prefix("22;") {
+            // OSC 22 pointer shape. Like Ghostty, Kero takes a single CSS
+            // cursor keyword and no kitty push/pop stack; the host owns the
+            // keyword list, so the name crosses as-is and typos die there.
+            return clean_terminal_text(name, 64).map(OscEvent::MouseShape);
         }
 
         if let Some(value) = payload.strip_prefix("133;") {
@@ -368,19 +378,22 @@ impl OscInterceptor {
     }
 }
 
-// MARK: - Synchronized update tracking
+// MARK: - Escape-stream scanning
 
-/// Tracks DEC private mode 2026 at the PTY boundary. Alacritty buffers the
-/// enclosed bytes atomically, but Kero's host-driven cursor timer can otherwise
-/// request a frame while that buffer is still being assembled.
+/// Watches the raw stream for escape sequences the host must react to but
+/// `alacritty_terminal` will not surface. DEC private mode 2026: Alacritty
+/// buffers the enclosed bytes atomically, but Kero's host-driven cursor timer
+/// can otherwise request a frame while that buffer is still being assembled.
+/// Pointer shape: Ghostty's stream handler moves the pointer when mouse
+/// reporting toggles and when RIS lands, and the emulator reports neither.
 #[derive(Debug, Default)]
-struct SyncUpdateTracker {
-    state: SyncScanState,
+struct StreamScanner {
+    state: ScanState,
     parameters: Vec<u8>,
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
-enum SyncScanState {
+enum ScanState {
     #[default]
     Ground,
     Escape,
@@ -395,68 +408,82 @@ enum SyncUpdateEvent {
     End,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ScanEvent {
+    SyncUpdate(SyncUpdateEvent),
+    /// A pointer-shape name for the host, coupled exactly as Ghostty's stream
+    /// handler couples them: enabling any mouse-reporting mode shows
+    /// `default`, disabling one restores `text`, and RIS restores `text`.
+    MouseShape(&'static str),
+}
+
 const SYNCHRONIZED_UPDATE_TIMEOUT: Duration = Duration::from_millis(150);
 
-/// Alacritty's default URL hint, kept in sync with the app's built-in config.
+/// Alacritty's default URL hint plus local file paths containing a slash.
+/// Requiring a slash avoids turning ordinary dotted words into links while
+/// still covering absolute, home-relative, explicit-relative, and project-
+/// relative paths.
 #[rustfmt::skip]
-const URL_REGEX: &str = "(ipfs:|ipns:|magnet:|mailto:|gemini://|gopher://|https://|http://|news:|file:|git://|ssh:|ftp://)\
+const LINK_REGEX: &str = "((ipfs:|ipns:|magnet:|mailto:|gemini://|gopher://|https://|http://|news:|file:|git://|ssh:|ftp://)|\
+                          (/|~/|\\./|\\.\\./|[A-Za-z0-9._@%+~-]+/))\
                          [^\u{0000}-\u{001F}\u{007F}-\u{009F}<>\"\\s{-}\\^⟨⟩`\\\\]+";
 
 /// Avoid walking an effectively unbounded soft-wrapped logical line on hover.
 const MAX_URL_SEARCH_LINES: i32 = 100;
 
-impl SyncUpdateTracker {
-    fn process(&mut self, input: &[u8]) -> Vec<SyncUpdateEvent> {
+impl StreamScanner {
+    fn process(&mut self, input: &[u8]) -> Vec<ScanEvent> {
         let mut events = Vec::new();
 
         for &byte in input {
             match self.state {
-                SyncScanState::Ground => match byte {
-                    0x1b => self.state = SyncScanState::Escape,
+                ScanState::Ground => match byte {
+                    0x1b => self.state = ScanState::Escape,
                     0x9b => self.start_csi(),
-                    0x90 | 0x98 | 0x9d | 0x9e | 0x9f => self.state = SyncScanState::ControlString,
+                    0x90 | 0x98 | 0x9d | 0x9e | 0x9f => self.state = ScanState::ControlString,
                     _ => {}
                 },
-                SyncScanState::Escape => match byte {
+                ScanState::Escape => match byte {
                     b'[' => self.start_csi(),
-                    b']' | b'P' | b'X' | b'^' | b'_' => self.state = SyncScanState::ControlString,
+                    b']' | b'P' | b'X' | b'^' | b'_' => self.state = ScanState::ControlString,
+                    // RIS. Bare `ESC c` only: a preceding intermediate byte —
+                    // a charset designation like `ESC ( c` — leaves Escape
+                    // state before this arm can see the final byte.
+                    b'c' => {
+                        events.push(ScanEvent::MouseShape("text"));
+                        self.state = ScanState::Ground;
+                    }
                     0x1b => {}
-                    _ => self.state = SyncScanState::Ground,
+                    _ => self.state = ScanState::Ground,
                 },
-                SyncScanState::Csi => match byte {
+                ScanState::Csi => match byte {
                     0x1b => {
                         self.parameters.clear();
-                        self.state = SyncScanState::Escape;
+                        self.state = ScanState::Escape;
                     }
                     0x40..=0x7e => {
-                        if self.parameters == b"?2026" {
-                            match byte {
-                                b'h' => events.push(SyncUpdateEvent::Start),
-                                b'l' => events.push(SyncUpdateEvent::End),
-                                _ => {}
-                            }
-                        }
+                        self.dispatch_csi(byte, &mut events);
                         self.parameters.clear();
-                        self.state = SyncScanState::Ground;
+                        self.state = ScanState::Ground;
                     }
                     0x20..=0x3f if self.parameters.len() < 32 => {
                         self.parameters.push(byte);
                     }
                     0x18 | 0x1a => {
                         self.parameters.clear();
-                        self.state = SyncScanState::Ground;
+                        self.state = ScanState::Ground;
                     }
                     _ => {}
                 },
-                SyncScanState::ControlString => match byte {
-                    0x07 | 0x9c => self.state = SyncScanState::Ground,
-                    0x1b => self.state = SyncScanState::ControlStringEscape,
+                ScanState::ControlString => match byte {
+                    0x07 | 0x9c => self.state = ScanState::Ground,
+                    0x1b => self.state = ScanState::ControlStringEscape,
                     _ => {}
                 },
-                SyncScanState::ControlStringEscape => match byte {
-                    b'\\' | 0x9c => self.state = SyncScanState::Ground,
+                ScanState::ControlStringEscape => match byte {
+                    b'\\' | 0x9c => self.state = ScanState::Ground,
                     0x1b => {}
-                    _ => self.state = SyncScanState::ControlString,
+                    _ => self.state = ScanState::ControlString,
                 },
             }
         }
@@ -466,7 +493,34 @@ impl SyncUpdateTracker {
 
     fn start_csi(&mut self) {
         self.parameters.clear();
-        self.state = SyncScanState::Csi;
+        self.state = ScanState::Csi;
+    }
+
+    /// DECSET/DECRST, one event per recognized mode in the parameter list:
+    /// 2026 gates frames, and the mouse-reporting family moves the pointer
+    /// shape the way Ghostty's stream handler does.
+    fn dispatch_csi(&self, final_byte: u8, events: &mut Vec<ScanEvent>) {
+        let enabled = match final_byte {
+            b'h' => true,
+            b'l' => false,
+            _ => return,
+        };
+        let Some(modes) = self.parameters.strip_prefix(b"?") else {
+            return;
+        };
+        for mode in modes.split(|&byte| byte == b';') {
+            match mode {
+                b"2026" => events.push(ScanEvent::SyncUpdate(if enabled {
+                    SyncUpdateEvent::Start
+                } else {
+                    SyncUpdateEvent::End
+                })),
+                b"9" | b"1000" | b"1002" | b"1003" => events.push(ScanEvent::MouseShape(
+                    if enabled { "default" } else { "text" },
+                )),
+                _ => {}
+            }
+        }
     }
 }
 
@@ -668,6 +722,7 @@ impl Proxy {
                 KERO_EVENT_SHELL_COMMAND_FINISHED,
                 &exit_code.unwrap_or(-1).to_le_bytes(),
             ),
+            OscEvent::MouseShape(name) => self.emit(KERO_EVENT_MOUSE_SHAPE, name.as_bytes()),
         }
     }
 }
@@ -677,7 +732,7 @@ impl Proxy {
 struct OscReader {
     inner: File,
     interceptor: OscInterceptor,
-    sync_tracker: SyncUpdateTracker,
+    scanner: StreamScanner,
     pending: VecDeque<u8>,
     proxy: Proxy,
 }
@@ -696,8 +751,15 @@ impl Read for OscReader {
             return Ok(0);
         }
 
-        for event in self.sync_tracker.process(&output[..count]) {
-            self.proxy.record_synchronized_update(event);
+        for event in self.scanner.process(&output[..count]) {
+            match event {
+                ScanEvent::SyncUpdate(sync) => self.proxy.record_synchronized_update(sync),
+                // Synthetic OSC 22: the host treats Ghostty's implied shape
+                // changes exactly like ones a program asked for by name.
+                ScanEvent::MouseShape(name) => {
+                    self.proxy.emit_osc(OscEvent::MouseShape(name.to_owned()));
+                }
+            }
         }
 
         let (filtered, events) = self.interceptor.process(&output[..count]);
@@ -740,7 +802,7 @@ impl OscPty {
             reader: OscReader {
                 inner: reader,
                 interceptor: OscInterceptor::default(),
-                sync_tracker: SyncUpdateTracker::default(),
+                scanner: StreamScanner::default(),
                 pending: VecDeque::new(),
                 proxy,
             },
@@ -974,7 +1036,7 @@ pub unsafe extern "C" fn kero_alacritty_new(
     if config.is_null() || theme.is_null() {
         return std::ptr::null_mut();
     }
-    let Ok(url_regex) = RegexSearch::new(URL_REGEX) else {
+    let Ok(url_regex) = RegexSearch::new(LINK_REGEX) else {
         return std::ptr::null_mut();
     };
     let config = &*config;
@@ -1949,33 +2011,67 @@ mod tests {
     }
 
     #[test]
-    fn sync_update_tracker_handles_every_chunk_boundary() {
-        let input = b"\x1b[?2026hframe\x1b[?2026l";
-        let expected = vec![SyncUpdateEvent::Start, SyncUpdateEvent::End];
+    fn stream_scanner_handles_every_chunk_boundary() {
+        let input = b"\x1b[?2026hframe\x1b[?2026l\x1bc";
+        let expected = vec![
+            ScanEvent::SyncUpdate(SyncUpdateEvent::Start),
+            ScanEvent::SyncUpdate(SyncUpdateEvent::End),
+            ScanEvent::MouseShape("text"),
+        ];
 
         for split in 0..=input.len() {
-            let mut tracker = SyncUpdateTracker::default();
-            let mut events = tracker.process(&input[..split]);
-            events.extend(tracker.process(&input[split..]));
+            let mut scanner = StreamScanner::default();
+            let mut events = scanner.process(&input[..split]);
+            events.extend(scanner.process(&input[split..]));
             assert_eq!(events, expected, "split at {split}");
         }
     }
 
     #[test]
-    fn sync_update_tracker_ignores_sequences_inside_control_strings() {
-        let mut tracker = SyncUpdateTracker::default();
-        let events = tracker.process(b"\x1b]0;\x1b[?2026h\x07\x1bPpayload\x1b[?2026l\x1b\\");
+    fn stream_scanner_ignores_sequences_inside_control_strings() {
+        let mut scanner = StreamScanner::default();
+        let events = scanner.process(b"\x1b]0;\x1b[?2026h\x07\x1bPpayload\x1b[?2026l\x1b\\");
 
         assert!(events.is_empty());
     }
 
     #[test]
-    fn sync_update_tracker_accepts_c1_csi() {
-        let mut tracker = SyncUpdateTracker::default();
+    fn stream_scanner_accepts_c1_csi() {
+        let mut scanner = StreamScanner::default();
         assert_eq!(
-            tracker.process(b"\x9b?2026h\x9b?2026l"),
-            vec![SyncUpdateEvent::Start, SyncUpdateEvent::End]
+            scanner.process(b"\x9b?2026h\x9b?2026l"),
+            vec![
+                ScanEvent::SyncUpdate(SyncUpdateEvent::Start),
+                ScanEvent::SyncUpdate(SyncUpdateEvent::End),
+            ]
         );
+    }
+
+    #[test]
+    fn stream_scanner_couples_mouse_reporting_to_pointer_shape() {
+        let mut scanner = StreamScanner::default();
+        assert_eq!(
+            scanner.process(b"\x1b[?1002;1006h\x1b[?1000l"),
+            vec![
+                ScanEvent::MouseShape("default"),
+                ScanEvent::MouseShape("text"),
+            ]
+        );
+        // Non-private modes and unrelated DEC modes stay silent.
+        assert!(scanner.process(b"\x1b[9h\x1b[?25l").is_empty());
+    }
+
+    #[test]
+    fn stream_scanner_restores_text_shape_on_full_reset() {
+        let mut scanner = StreamScanner::default();
+        assert_eq!(
+            scanner.process(b"\x1bc"),
+            vec![ScanEvent::MouseShape("text")]
+        );
+        // A charset designation's final byte and a `c` inside a control
+        // string must not read as RIS.
+        assert!(scanner.process(b"\x1b(c").is_empty());
+        assert!(scanner.process(b"\x1b]0;\x1bc\x07").is_empty());
     }
 
     fn theme() -> KeroTheme {
@@ -2003,12 +2099,12 @@ mod tests {
     }
 
     fn url_in(term: &Term<VoidListener>, point: Point) -> Option<String> {
-        let mut regex = RegexSearch::new(URL_REGEX).unwrap();
+        let mut regex = RegexSearch::new(LINK_REGEX).unwrap();
         plain_url_at(term, &mut regex, point).map(|(url, _)| url)
     }
 
     fn url_match_in(term: &Term<VoidListener>, point: Point) -> Option<(String, Match)> {
-        let mut regex = RegexSearch::new(URL_REGEX).unwrap();
+        let mut regex = RegexSearch::new(LINK_REGEX).unwrap();
         plain_url_at(term, &mut regex, point)
     }
 
@@ -2049,6 +2145,31 @@ mod tests {
             url_in(&term, ascii_point(content, "balanced")),
             Some(content.to_owned())
         );
+    }
+
+    #[test]
+    fn plain_url_lookup_matches_local_file_paths() {
+        for path in [
+            "/tmp/kero/main.swift",
+            "~/Developer/kero/main.swift",
+            "./Sources/main.swift",
+            "../Shared/main.swift",
+            "Sources/Kero/main.swift:42:8",
+        ] {
+            let term = parse(path.as_bytes());
+            assert_eq!(
+                url_in(&term, ascii_point(path, "main")),
+                Some(path.to_owned())
+            );
+        }
+    }
+
+    #[test]
+    fn plain_url_lookup_does_not_match_bare_file_names() {
+        let path = "main.swift";
+        let term = parse(path.as_bytes());
+
+        assert_eq!(url_in(&term, ascii_point(path, "main")), None);
     }
 
     #[test]
@@ -2157,6 +2278,29 @@ mod tests {
                 OscEvent::ShellCommandFinished(None),
                 OscEvent::ShellCommandFinished(None),
                 OscEvent::ShellCommandFinished(Some(17)),
+            ]
+        );
+    }
+
+    #[test]
+    fn osc_interceptor_parses_mouse_shape_variants() {
+        let mut interceptor = OscInterceptor::default();
+        let input = concat!(
+            "\x1b]22;pointer\x07",
+            "\x1b]22;ns-resize\x1b\\",
+            // Empty and control-laden names are dropped, but still consumed so
+            // Alacritty never sees a sequence it cannot use.
+            "\x1b]22;\x07",
+            "\x1b]22;bad\nshape\x07",
+        );
+        let (output, events) = intercept(&mut interceptor, input.as_bytes());
+
+        assert!(output.is_empty());
+        assert_eq!(
+            events,
+            vec![
+                OscEvent::MouseShape("pointer".to_owned()),
+                OscEvent::MouseShape("ns-resize".to_owned()),
             ]
         );
     }

@@ -224,8 +224,6 @@ struct FileViewerView: View {
     var onFocused: () -> Void = {}
     /// Splits this pane on the given edge — wired to the context-menu items.
     var onSplit: (PaneDropEdge) -> Void = { _ in }
-    var onNewBrowserTab: (String?) -> Void = { _ in }
-    var onNewBrowserPane: (String?) -> Void = { _ in }
 
     @ObservedObject private var settings = AppSettings.shared
     @Environment(\.colorScheme) private var colorScheme
@@ -245,9 +243,7 @@ struct FileViewerView: View {
                         wrapLines: settings.wrapLines,
                         isFocused: isFocused,
                         onFocused: onFocused,
-                        onSplit: onSplit,
-                        onNewBrowserTab: onNewBrowserTab,
-                        onNewBrowserPane: onNewBrowserPane
+                        onSplit: onSplit
                     )
                     .id(file.reloadRevision)
                 }

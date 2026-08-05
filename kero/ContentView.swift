@@ -3,7 +3,137 @@
 //  kero
 //
 
+import Combine
 import SwiftUI
+
+/// Coordinates the direct tab-strip drag with the mounted pane layout. A
+/// reference object keeps the latest global pointer location and pane frames
+/// available synchronously when the strip receives its drag-ended callback.
+@MainActor
+final class TabSplitDragCoordinator: ObservableObject {
+    struct Drag {
+        let sourceTabID: UUID
+        let location: CGPoint
+        let targetTabID: UUID?
+        let targetPaneID: UUID?
+        let edge: PaneDropEdge?
+        let title: String
+        let systemImage: String
+        let fileIconPath: String?
+        let paneCount: Int
+    }
+
+    @Published private(set) var drag: Drag?
+
+    private weak var project: Project?
+    private var renderedTabID: UUID?
+    private var paneFrames: [UUID: CGRect] = [:]
+
+    func update(sourceTabID: UUID, location: CGPoint, in project: Project) {
+        self.project = project
+        drag = resolvedDrag(
+            sourceTabID: sourceTabID,
+            location: location,
+            in: project
+        )
+    }
+
+    /// Pane frames are reported by the currently mounted layout, including a
+    /// single full-bleed pane. Re-resolve an active drag because a resize or
+    /// newly created split can change the quadrant under a stationary cursor.
+    func updatePaneFrames(_ frames: [UUID: CGRect], for tabID: UUID) {
+        let changed = renderedTabID != tabID || paneFrames != frames
+        renderedTabID = tabID
+        paneFrames = frames
+        guard changed, let drag, let project else { return }
+        self.drag = resolvedDrag(
+            sourceTabID: drag.sourceTabID,
+            location: drag.location,
+            in: project
+        )
+    }
+
+    func clearPaneFrames(for tabID: UUID) {
+        guard renderedTabID == tabID else { return }
+        renderedTabID = nil
+        paneFrames = [:]
+    }
+
+    func commit() {
+        guard let drag, let project else {
+            cancel()
+            return
+        }
+        // Resolve once more at release so the operation uses the same frames
+        // as the final preview even if the last move and mouse-up are adjacent.
+        let resolved = resolvedDrag(
+            sourceTabID: drag.sourceTabID,
+            location: drag.location,
+            in: project
+        )
+        if let targetTabID = resolved.targetTabID,
+           let targetPaneID = resolved.targetPaneID,
+           let edge = resolved.edge {
+            project.moveTab(
+                resolved.sourceTabID,
+                into: targetTabID,
+                toward: edge,
+                beside: targetPaneID
+            )
+        }
+        cancel()
+    }
+
+    func cancel() {
+        drag = nil
+        project = nil
+    }
+
+    private func resolvedDrag(
+        sourceTabID: UUID,
+        location: CGPoint,
+        in project: Project
+    ) -> Drag {
+        let source = project.tabs.first { $0.id == sourceTabID }
+        let sourceContent = source?.focusedContent
+        let targetTabID = project.selectedTabID
+
+        var targetPaneID: UUID?
+        var edge: PaneDropEdge?
+        if let source,
+           !source.allContents.contains(where: \.isDiff),
+           targetTabID != sourceTabID,
+           renderedTabID == targetTabID,
+           let targetTab = project.selectedTab,
+           let hit = paneFrames.first(where: { $0.value.contains(location) }),
+           let targetPane = targetTab.allPanes.first(where: { $0.id == hit.key }),
+           !targetPane.content.isDiff {
+            targetPaneID = hit.key
+            edge = dropEdge(at: location, in: hit.value)
+        }
+
+        return Drag(
+            sourceTabID: sourceTabID,
+            location: location,
+            targetTabID: targetPaneID == nil ? nil : targetTabID,
+            targetPaneID: targetPaneID,
+            edge: edge,
+            title: source?.displayTitle ?? sourceContent?.title ?? String(localized: "Tab"),
+            systemImage: sourceContent?.systemImage ?? "terminal",
+            fileIconPath: sourceContent?.fileIconPath,
+            paneCount: source?.allPanes.count ?? 1
+        )
+    }
+
+    private func dropEdge(at location: CGPoint, in frame: CGRect) -> PaneDropEdge {
+        let dx = (location.x - frame.midX) / max(frame.width, 1)
+        let dy = (location.y - frame.midY) / max(frame.height, 1)
+        if abs(dx) > abs(dy) {
+            return dx < 0 ? .left : .right
+        }
+        return dy < 0 ? .top : .bottom
+    }
+}
 
 enum BottomToolbarLayout {
     static let idealHeight: CGFloat = 32
@@ -23,10 +153,10 @@ struct ContentView: View {
     @ObservedObject var manager: TerminalManager
     @ObservedObject private var settings = AppSettings.shared
     @ObservedObject private var themeChanges = Theme.changes
-    @ObservedObject private var settings = AppSettings.shared
     @Environment(\.colorScheme) private var colorScheme
     @StateObject private var tabSwitcher = TabSwitcherController()
     @StateObject private var git = GitStatusModel()
+    @StateObject private var tabSplitDrag = TabSplitDragCoordinator()
 
     /// Every terminal in the selected project can change the same repository.
     /// Watching command completion keeps the toolbar current without polling.
@@ -54,39 +184,47 @@ struct ContentView: View {
             VStack(spacing: 0) {
                 // Above the pane stack so header tooltips, which hang down
                 // into the terminal area, aren't covered by it.
-                MainHeaderView(manager: manager)
+                MainHeaderView(manager: manager, tabSplitDrag: tabSplitDrag)
                     .background(Color(nsColor: Theme.background))
                     .zIndex(1)
 
                 ZStack {
-                    // Diff panes stay mounted while unselected: removing one
-                    // would pull its NSHostingView out of the window, which
-                    // tears down and re-creates the WKWebView inside (losing
-                    // the rendered diff and scroll position). Unselected ones
-                    // just sit covered by the active tab's opaque pane layer.
-                    // Diffs are always their own single-pane tab, so a selected
-                    // diff fills the whole content area, unchanged.
-                    if let project = manager.selectedProject {
+                    // Diff panes stay mounted after their project has been
+                    // visited: removing a project's stack pulls every
+                    // NSHostingView out of the window at once, making project
+                    // switching block while WebKit tears down and reattaches
+                    // the rendered diffs. Unvisited restored projects remain
+                    // lazy; inactive stacks sit beneath the active opaque pane.
+                    ForEach(manager.projectsWithMountedDiffs) { project in
                         ForEach(project.diffPlacements, id: \.diff.id) { placement in
+                            let isSelected = manager.selectedProjectID == project.id
+                                && project.selectedTabID == placement.tabID
                             DiffViewerView(
                                 diff: placement.diff,
-                                isSelected: project.selectedTabID == placement.tabID
+                                isSelected: isSelected
                             )
                             .background(Color(nsColor: Theme.background))
-                            .allowsHitTesting(project.selectedTabID == placement.tabID)
-                            .zIndex(project.selectedTabID == placement.tabID ? 1 : 0)
+                            .allowsHitTesting(isSelected)
+                            .zIndex(isSelected ? 1 : 0)
                         }
                     }
                     Group {
                         if let tab = manager.selectedProject?.selectedTab {
                             PaneLayoutView(
                                 tab: tab,
+                                tabSplitDrag: tabSplitDrag,
                                 onSplit: { manager.split(toward: $0) },
                                 onNewBrowserTab: {
                                     manager.newBrowserTab(initialURL: $0)
                                 },
                                 onNewBrowserPane: {
                                     manager.newBrowserPane(initialURL: $0)
+                                },
+                                onNewFileTab: {
+                                    manager.openFile($0)
+                                },
+                                onNewFilePane: {
+                                    manager.openFileToSide($0)
                                 }
                             )
                         } else {
@@ -168,7 +306,10 @@ struct ContentView: View {
             syncGit()
         }
         .onChange(of: commandCompletionSequences) { syncGit() }
-        .onChange(of: manager.selectedProjectID) { syncGit() }
+        .onChange(of: manager.selectedProjectID) {
+            tabSplitDrag.cancel()
+            syncGit()
+        }
         .onChange(of: manager.selectedSession?.id) { syncGit() }
         .onChange(of: manager.selectedSession?.workingDirectory) { syncGit() }
         .onChange(of: manager.selectedSession?.foregroundDirectoryPath) { syncGit() }
@@ -839,6 +980,7 @@ private struct InstantPopoverPresenter<PopoverContent: View>: NSViewRepresentabl
 /// window-drag space.
 private struct MainHeaderView: View {
     @ObservedObject var manager: TerminalManager
+    @ObservedObject var tabSplitDrag: TabSplitDragCoordinator
     @ObservedObject private var themeChanges = Theme.changes
 
     /// Keep an always-available grab target beside the trailing controls,
@@ -878,6 +1020,7 @@ private struct MainHeaderView: View {
                     // while shown.
                     SessionTabsView(
                         project: project,
+                        tabSplitDrag: tabSplitDrag,
                         maxStripWidth: max(
                             0,
                             geo.size.width - leadingInset - hiddenLeftSidebarControlWidth
@@ -932,10 +1075,14 @@ private struct MainHeaderView: View {
 /// Horizontal tabs for one project — terminal sessions and open files —
 /// plus a "+" button.
 private struct SessionTabsView: View {
+    private let fadeWidth: CGFloat = 20
+    private let tabSpacing: CGFloat = 3
+
     @ObservedObject var project: Project
+    @ObservedObject var tabSplitDrag: TabSplitDragCoordinator
     let maxStripWidth: CGFloat
     @State private var overflow = StripOverflow()
-    @State private var draggedTabID: UUID?
+    @State private var scrollGeometry = StripScrollGeometry()
     @State private var tabFrames: [UUID: CGRect] = [:]
     @State private var tabSizes: [UUID: CGSize] = [:]
     /// Tab currently showing the inline rename field, if any.
@@ -947,11 +1094,17 @@ private struct SessionTabsView: View {
         var right = false
     }
 
+    private struct StripScrollGeometry: Equatable {
+        var contentOffsetX: CGFloat = 0
+        var containerWidth: CGFloat = 0
+        var contentWidth: CGFloat = 0
+    }
+
     var body: some View {
         HStack(spacing: 4) {
             ScrollViewReader { proxy in
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 3) {
+                HStack(spacing: tabSpacing) {
                     ForEach(project.tabs) { tab in
                         PaneTabItem(
                             tab: tab,
@@ -969,7 +1122,7 @@ private struct SessionTabsView: View {
                                 )
                             }
                         }
-                        .opacity(draggedTabID == tab.id ? 0.65 : 1)
+                        .opacity(tabSplitDrag.drag?.sourceTabID == tab.id ? 0.65 : 1)
                         // Masked to .subviews while renaming so dragging in the
                         // text field selects text instead of reordering the tab.
                         .highPriorityGesture(
@@ -983,20 +1136,28 @@ private struct SessionTabsView: View {
                     }
                 }
             }
-            .onScrollGeometryChange(for: StripOverflow.self) { geo in
-                StripOverflow(
-                    left: geo.contentOffset.x > 0.5,
-                    right: geo.contentOffset.x + geo.containerSize.width < geo.contentSize.width - 0.5
+            .onScrollGeometryChange(for: StripScrollGeometry.self) { geo in
+                StripScrollGeometry(
+                    contentOffsetX: geo.contentOffset.x,
+                    containerWidth: geo.containerSize.width,
+                    contentWidth: geo.contentSize.width
                 )
             } action: { _, new in
-                overflow = new
+                scrollGeometry = new
+                overflow = StripOverflow(
+                    left: new.contentOffsetX > 0.5,
+                    right: new.contentOffsetX + new.containerWidth < new.contentWidth - 0.5
+                )
             }
             // Keep the active tab visible: scrolls the minimum distance to
-            // reveal it (anchor: nil is a no-op when it's already fully in view).
+            // reveal it beyond the fade rather than merely inside the viewport.
             .onChange(of: project.selectedTabID) { _, id in
                 guard let id else { return }
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    proxy.scrollTo(id)
+                // Preserve ScrollViewReader's reliable minimum reveal first,
+                // then refine it once SwiftUI has advanced the scroll layout.
+                performScroll(to: id, anchor: nil, using: proxy, animated: true)
+                DispatchQueue.main.async {
+                    scrollToSelectedTab(using: proxy, animated: true)
                 }
             }
             // Selection is not the only thing that can hide the active tab.
@@ -1005,6 +1166,13 @@ private struct SessionTabsView: View {
             // the width of content before it.
             .onChange(of: maxStripWidth) {
                 scrollToSelectedTab(using: proxy)
+            }
+            .onChange(of: scrollGeometry.containerWidth) {
+                // Defer until the tab sizes have settled against the resized
+                // viewport before deciding whether the active tab needs help.
+                DispatchQueue.main.async {
+                    scrollToSelectedTab(using: proxy)
+                }
             }
             .onChange(of: project.tabs.map(\.id)) {
                 scrollToSelectedTab(using: proxy)
@@ -1024,13 +1192,13 @@ private struct SessionTabsView: View {
                         colors: [overflow.left ? .clear : .black, .black],
                         startPoint: .leading, endPoint: .trailing
                     )
-                    .frame(width: 20)
+                    .frame(width: fadeWidth)
                     Color.black
                     LinearGradient(
                         colors: [.black, overflow.right ? .clear : .black],
                         startPoint: .leading, endPoint: .trailing
                     )
-                    .frame(width: 20)
+                    .frame(width: fadeWidth)
                 }
             }
             .animation(.easeInOut(duration: 0.15), value: overflow)
@@ -1057,19 +1225,71 @@ private struct SessionTabsView: View {
         }
     }
 
-    /// `anchor: nil` moves only as far as needed and is a no-op when the
-    /// selected tab is already fully inside the strip.
-    private func scrollToSelectedTab(using proxy: ScrollViewProxy) {
+    /// Moves only when the selected tab overlaps an active edge fade. The
+    /// custom anchor places that tab just beyond the fade instead of at the
+    /// viewport edge, where `scrollTo` would leave it partially obscured.
+    private func scrollToSelectedTab(using proxy: ScrollViewProxy, animated: Bool = false) {
         guard let id = project.selectedTabID,
-              project.tabs.contains(where: { $0.id == id }) else { return }
-        proxy.scrollTo(id)
+              let selectedIndex = project.tabs.firstIndex(where: { $0.id == id }) else { return }
+
+        guard scrollGeometry.containerWidth > 0,
+              let selectedSize = tabSizes[id] else {
+            performScroll(to: id, anchor: nil, using: proxy, animated: animated)
+            return
+        }
+
+        var tabMinX = CGFloat(selectedIndex) * tabSpacing
+        for tab in project.tabs[..<selectedIndex] {
+            guard let size = tabSizes[tab.id] else {
+                performScroll(to: id, anchor: nil, using: proxy, animated: animated)
+                return
+            }
+            tabMinX += size.width
+        }
+
+        let tabMaxX = tabMinX + selectedSize.width
+        let safeMinX = scrollGeometry.contentOffsetX + (overflow.left ? fadeWidth : 0)
+        let safeMaxX = scrollGeometry.contentOffsetX + scrollGeometry.containerWidth
+            - (overflow.right ? fadeWidth : 0)
+        let anchor: UnitPoint
+        let availableSpace = max(1, scrollGeometry.containerWidth - selectedSize.width)
+
+        if tabMinX < safeMinX - 0.5 {
+            anchor = UnitPoint(x: min(1, fadeWidth / availableSpace), y: 0.5)
+        } else if tabMaxX > safeMaxX + 0.5 {
+            anchor = UnitPoint(x: max(0, 1 - fadeWidth / availableSpace), y: 0.5)
+        } else {
+            return
+        }
+
+        performScroll(to: id, anchor: anchor, using: proxy, animated: animated)
+    }
+
+    private func performScroll(
+        to id: UUID,
+        anchor: UnitPoint?,
+        using proxy: ScrollViewProxy,
+        animated: Bool
+    ) {
+        let reveal = {
+            if let anchor {
+                proxy.scrollTo(id, anchor: anchor)
+            } else {
+                proxy.scrollTo(id)
+            }
+        }
+        if animated {
+            withAnimation(.easeInOut(duration: 0.2), reveal)
+        } else {
+            reveal()
+        }
     }
 
     /// Reorders immediately as the pointer crosses another tab. This direct
     /// gesture deliberately avoids a pasteboard drag session, which the
     /// hidden title bar can otherwise claim as a window move first.
     private func updateTabDrag(source: UUID, location: CGPoint) {
-        draggedTabID = source
+        tabSplitDrag.update(sourceTabID: source, location: location, in: project)
         NSCursor.closedHand.set()
         guard let target = tabFrames.first(where: {
             $0.key != source && $0.value.contains(location)
@@ -1080,7 +1300,7 @@ private struct SessionTabsView: View {
     }
 
     private func endTabDrag() {
-        draggedTabID = nil
+        tabSplitDrag.commit()
         NSCursor.arrow.set()
     }
 

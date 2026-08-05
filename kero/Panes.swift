@@ -147,6 +147,13 @@ indirect enum PaneNode {
 
     /// Replaces `target` with a split containing it and `pane`.
     func inserting(_ pane: Pane, toward edge: PaneDropEdge, beside target: UUID) -> PaneNode {
+        inserting(.pane(pane), toward: edge, beside: target)
+    }
+
+    /// Replaces `target` with a split containing it and another pane tree.
+    /// Keeping the inserted tree intact lets a dragged split tab become one
+    /// branch of the destination without flattening or losing its fractions.
+    func inserting(_ node: PaneNode, toward edge: PaneDropEdge, beside target: UUID) -> PaneNode {
         switch self {
         case .pane(let existing):
             guard existing.id == target else { return self }
@@ -156,14 +163,14 @@ indirect enum PaneNode {
             return .split(PaneSplit(
                 axis: axis,
                 fraction: 0.5,
-                first: .pane(insertedFirst ? pane : existing),
-                second: .pane(insertedFirst ? existing : pane)
+                first: insertedFirst ? node : .pane(existing),
+                second: insertedFirst ? .pane(existing) : node
             ))
         case .split(var split):
             if split.first.contains(target) {
-                split.first = split.first.inserting(pane, toward: edge, beside: target)
+                split.first = split.first.inserting(node, toward: edge, beside: target)
             } else if split.second.contains(target) {
-                split.second = split.second.inserting(pane, toward: edge, beside: target)
+                split.second = split.second.inserting(node, toward: edge, beside: target)
             }
             return .split(split)
         }
@@ -560,6 +567,20 @@ final class PaneTab: nonisolated ObservableObject, nonisolated Identifiable {
             ? focusedPaneID : layout.allPanes[0].id
         layout = layout.inserting(pane, toward: edge, beside: target)
         focusedPaneID = pane.id
+    }
+
+    /// Inserts another tab's complete layout beside a pane in this tab. The
+    /// dragged tab's focused pane becomes focused here after the move.
+    func insert(
+        _ insertedLayout: PaneNode,
+        focusedPaneID insertedFocus: UUID,
+        toward edge: PaneDropEdge,
+        beside target: UUID
+    ) {
+        guard layout.contains(target), insertedLayout.contains(insertedFocus) else { return }
+        unzoom()
+        layout = layout.inserting(insertedLayout, toward: edge, beside: target)
+        focusedPaneID = insertedFocus
     }
 
     /// Moves `dragged` next to `target` on the given edge — the drag-to-split

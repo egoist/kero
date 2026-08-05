@@ -168,7 +168,7 @@ final class KeroTerminalView: AppTerminalView, TerminalBackendSurface {
     override func rightMouseDown(with event: NSEvent) {
         focusForInteraction()
         NSMenu.popUpContextMenu(
-            contextMenu(initialURL: browserInitialURL(for: event)),
+            contextMenu(linkTarget: linkTarget(for: event)),
             with: event,
             for: self
         )
@@ -178,22 +178,32 @@ final class KeroTerminalView: AppTerminalView, TerminalBackendSurface {
 
     override func menu(for event: NSEvent) -> NSMenu? {
         focusForInteraction()
-        return contextMenu(initialURL: browserInitialURL(for: event))
+        return contextMenu(linkTarget: linkTarget(for: event))
     }
 
-    private func browserInitialURL(for event: NSEvent) -> String? {
-        event.modifierFlags.contains(.command) ? hoveredLink : nil
+    private func linkTarget(for event: NSEvent) -> TerminalLinkTarget? {
+        guard event.modifierFlags.contains(.command), let hoveredLink else { return nil }
+        return events?.terminalLinkTarget(for: hoveredLink)
     }
 
-    private func contextMenu(initialURL: String?) -> NSMenu {
+    private func contextMenu(linkTarget: TerminalLinkTarget?) -> NSMenu {
         let menu = NSMenu()
         menu.addItem(contextItem(String(localized: "Copy"), #selector(copy(_:))))
         menu.addItem(contextItem(String(localized: "Paste"), #selector(NSText.paste(_:))))
         menu.addItem(.separator())
         menu.addItem(contextItem(String(localized: "Select All"), #selector(selectAll(_:))))
-        menu.addItem(.separator())
-        for item in splitTarget.browserMenuItems(initialURL: initialURL) {
-            menu.addItem(item)
+        if let linkTarget {
+            menu.addItem(.separator())
+            switch linkTarget {
+            case .url(let url):
+                for item in splitTarget.browserMenuItems(initialURL: url.absoluteString) {
+                    menu.addItem(item)
+                }
+            case .file(let url):
+                for item in splitTarget.fileMenuItems(path: url.path) {
+                    menu.addItem(item)
+                }
+            }
         }
         menu.addItem(.separator())
         for item in splitTarget.menuItems() { menu.addItem(item) }
@@ -420,8 +430,10 @@ final class SplitMenuTarget: NSObject {
     var onSplit: ((PaneDropEdge) -> Void)?
     var onNewBrowserTab: ((String?) -> Void)?
     var onNewBrowserPane: ((String?) -> Void)?
+    var onNewFileTab: ((String) -> Void)?
+    var onNewFilePane: ((String) -> Void)?
 
-    func browserMenuItems(initialURL: String? = nil) -> [NSMenuItem] {
+    func browserMenuItems(initialURL: String) -> [NSMenuItem] {
         let tabItem = item(
             String(localized: "New Browser Tab"),
             #selector(newBrowserTab(_:))
@@ -432,6 +444,20 @@ final class SplitMenuTarget: NSObject {
             #selector(newBrowserPane(_:))
         )
         paneItem.representedObject = initialURL
+        return [tabItem, paneItem]
+    }
+
+    func fileMenuItems(path: String) -> [NSMenuItem] {
+        let tabItem = item(
+            String(localized: "New File Tab"),
+            #selector(newFileTab(_:))
+        )
+        tabItem.representedObject = path
+        let paneItem = item(
+            String(localized: "New File Pane"),
+            #selector(newFilePane(_:))
+        )
+        paneItem.representedObject = path
         return [tabItem, paneItem]
     }
 
@@ -460,5 +486,15 @@ final class SplitMenuTarget: NSObject {
 
     @objc private func newBrowserPane(_ sender: NSMenuItem) {
         onNewBrowserPane?(sender.representedObject as? String)
+    }
+
+    @objc private func newFileTab(_ sender: NSMenuItem) {
+        guard let path = sender.representedObject as? String else { return }
+        onNewFileTab?(path)
+    }
+
+    @objc private func newFilePane(_ sender: NSMenuItem) {
+        guard let path = sender.representedObject as? String else { return }
+        onNewFilePane?(path)
     }
 }

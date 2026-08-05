@@ -16,6 +16,25 @@ the original feature bullet instead of adding separate entries for them.
 
 ## [unreleased]
 
+## [0.1.44]
+
+- Prevent a rare crash while using the Ctrl-Tab switcher
+
+## [0.1.43]
+
+- Command-click local file paths in the terminal to reveal them in Finder, or Command-right-click paths and URLs to open them in new file or browser tabs and panes
+- Alacritty terminal panes now move the mouse pointer the way Ghostty panes do: programs can set shapes with OSC 22, mouse-reporting apps show the arrow, and a terminal reset restores the text cursor
+
+## [0.1.42]
+
+- Drag a tab onto the current tab's content to turn it into a split pane
+
+## [0.1.41]
+
+- Fix diff controls and content sometimes using the wrong appearance when Kero follows the system theme
+
+## [0.1.40]
+
 - Edit live worktree changes directly in the diff view, with remembered Review/Edit and Unified/Split controls plus normal save/discard handling
 - Fix modified special keys and application-keypad input in Alacritty terminals, including Shift-Enter for multiline prompts in Claude Code
 - Fix: Show a green Clean status for unchanged repositories and include untracked files in the toolbar's added-line count

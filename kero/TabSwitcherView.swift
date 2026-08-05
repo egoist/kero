@@ -246,9 +246,9 @@ final class TabSwitcherMonitorView: NSView {
         ) { [weak self, weak window] event in
             // AppKit invokes local monitors synchronously on the event thread
             // (the main thread). Wrap the non-Sendable NSEvent only across
-            // `assumeIsolated`'s generic boundary; it never changes threads.
+            // `assumeMainActor`'s generic boundary; it never changes threads.
             let input = MainThreadEvent(event)
-            let output: MainThreadEvent = MainActor.assumeIsolated {
+            let output: MainThreadEvent = assumeMainActor {
                 guard let self,
                       let window,
                       window.isKeyWindow,
@@ -272,10 +272,14 @@ final class TabSwitcherMonitorView: NSView {
                 object: name == NSWindow.didResignKeyNotification ? window : nil,
                 queue: .main
             ) { [weak self] _ in
-                MainActor.assumeIsolated {
-                    self?.controller?.cancel()
-                }
+                self?.cancelFromMainThreadNotification()
             })
+        }
+    }
+
+    nonisolated private func cancelFromMainThreadNotification() {
+        assumeMainActor {
+            controller?.cancel()
         }
     }
 

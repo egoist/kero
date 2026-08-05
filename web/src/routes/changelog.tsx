@@ -8,15 +8,24 @@ const FALLBACK_CONTRIBUTOR_COUNT = 2
 
 async function getContributorCount() {
   try {
+    const headers: Record<string, string> = {
+      Accept: 'application/vnd.github+json',
+      'User-Agent': 'kero.sh',
+    }
+    const token = process.env.GITHUB_TOKEN
+    if (token) headers.Authorization = `Bearer ${token}`
+
     const response = await fetch(CONTRIBUTORS_URL, {
-      headers: {
-        Accept: 'application/vnd.github+json',
-        'User-Agent': 'kero.sh',
-      },
+      headers,
       signal: AbortSignal.timeout(2500),
     })
 
-    if (!response.ok) return FALLBACK_CONTRIBUTOR_COUNT
+    if (!response.ok) {
+      console.error(
+        `Failed to fetch contributors: ${response.status} ${response.statusText}`,
+      )
+      return FALLBACK_CONTRIBUTOR_COUNT
+    }
     if (response.status === 204) return 0
 
     const lastPage = response.headers
@@ -28,7 +37,8 @@ async function getContributorCount() {
     return Array.isArray(contributors)
       ? contributors.length
       : FALLBACK_CONTRIBUTOR_COUNT
-  } catch {
+  } catch (error) {
+    console.error('Failed to fetch contributors:', error)
     return FALLBACK_CONTRIBUTOR_COUNT
   }
 }
@@ -62,7 +72,7 @@ function parseReleases(markdown: string): Release[] {
   const headings = Array.from(markdown.matchAll(/^## \[([^\]]+)\]\s*$/gm))
 
   return headings
-    .filter((heading) => heading[1] !== 'unrelease')
+    .filter((heading) => heading[1] !== 'unreleased')
     .map((heading, index, releasedHeadings) => {
       const bodyStart = (heading.index ?? 0) + heading[0].length
       const bodyEnd = releasedHeadings[index + 1]?.index ?? markdown.length

@@ -17,27 +17,37 @@ private nonisolated final class DiffPipeData: @unchecked Sendable {
 
 /// Lightweight UI state that should follow Kero across launches without
 /// becoming a user-facing TOML setting.
-private enum DiffViewPreferences {
+@MainActor
+private final class DiffViewPreferences: ObservableObject {
+    static let shared = DiffViewPreferences()
+
     private static let layoutKey = "diffView.layout"
     private static let modeKey = "diffView.mode"
 
-    static var diffStyle: DiffStyle {
-        get {
-            guard let rawValue = UserDefaults.standard.string(forKey: layoutKey),
-                  let style = DiffStyle(rawValue: rawValue)
-            else { return .unified }
-            return style
-        }
-        set {
-            UserDefaults.standard.set(newValue.rawValue, forKey: layoutKey)
+    @Published var diffStyle: DiffStyle {
+        didSet {
+            UserDefaults.standard.set(diffStyle.rawValue, forKey: Self.layoutKey)
         }
     }
 
-    static var prefersEditing: Bool {
-        get { UserDefaults.standard.string(forKey: modeKey) == "edit" }
-        set {
-            UserDefaults.standard.set(newValue ? "edit" : "review", forKey: modeKey)
+    @Published var prefersEditing: Bool {
+        didSet {
+            UserDefaults.standard.set(
+                prefersEditing ? "edit" : "review",
+                forKey: Self.modeKey
+            )
         }
+    }
+
+    private init() {
+        let defaults = UserDefaults.standard
+        if let rawValue = defaults.string(forKey: Self.layoutKey),
+           let style = DiffStyle(rawValue: rawValue) {
+            diffStyle = style
+        } else {
+            diffStyle = .unified
+        }
+        prefersEditing = defaults.string(forKey: Self.modeKey) == "edit"
     }
 }
 
@@ -50,14 +60,24 @@ final class DiffWebModel: nonisolated ObservableObject {
     @Published var newContent = ""
     @Published var fileName = ""
     @Published var fileID = ""
-    @Published var diffStyle: DiffStyle = DiffViewPreferences.diffStyle
+    @Published var canEdit = false
     @Published var overflowMode: OverflowMode = .scroll
-    @Published var isEditing = false
     var onFileEditChange: ((String, String) -> Void)?
     var onFileEditComplete: ((String, String) -> Void)?
     /// The WKWebView renders blank until its JS bundle has drawn the diff;
     /// a skeleton covers it until the bridge reports ready.
     @Published var isReady = false
+    /// Explicit appearance for the long-lived, separately hosted diff root.
+    /// Its NSHostingView is re-parented between SwiftUI containers, so relying
+    /// on an implicitly inherited colorScheme can leave WebKit one appearance
+    /// behind after macOS changes between light and dark.
+    @Published private(set) var usesDarkAppearance = false
+
+    func updateAppearance(_ appearance: NSAppearance) {
+        let isDark = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        guard usesDarkAppearance != isDark else { return }
+        usesDarkAppearance = isDark
+    }
 }
 
 /// A git diff opened as a tab from the git panel. Loads both sides of the
@@ -97,9 +117,10 @@ final class DiffTab: nonisolated ObservableObject, nonisolated Identifiable {
     /// The web view lives on the tab (not in the SwiftUI view) so switching
     /// tabs re-parents the same rendered view instead of booting a fresh
     /// WKWebView — same pattern as `TerminalSession.terminalView`.
-    private(set) lazy var webHostView: NSView = NSHostingView(
-        rootView: DiffWebRoot(model: web)
-    )
+    ///
+    /// It starts nil so project selection can commit its skeleton before the
+    /// selected diff creates WebKit's AppKit hierarchy on the main actor.
+    @Published private(set) var webHostView: NSView?
 
     private nonisolated static let maxBytes = 5 << 20
     private var savedNewContent = ""
@@ -162,7 +183,7 @@ final class DiffTab: nonisolated ObservableObject, nonisolated Identifiable {
     func reload() {
         // Keep the editor's document and undo history stable until the user
         // leaves edit mode, and never replace an unsaved buffer from disk.
-        guard !web.isEditing, !isDirty else { return }
+        guard !isEditing, !isDirty else { return }
         reloadGeneration &+= 1
         let generation = reloadGeneration
         isLoading = true
@@ -225,7 +246,7 @@ final class DiffTab: nonisolated ObservableObject, nonisolated Identifiable {
             self.error = result.failure
             self.isUnmerged = result.unmerged
             self.isEditable = result.editable && result.failure == nil
-            self.web.isEditing = self.isEditable && DiffViewPreferences.prefersEditing
+            self.web.canEdit = self.isEditable
             self.web.oldContent = result.old
             self.web.newContent = result.new
             self.savedNewContent = result.new
@@ -233,6 +254,28 @@ final class DiffTab: nonisolated ObservableObject, nonisolated Identifiable {
             self.isDirty = false
             self.saveError = nil
         }
+    }
+
+    /// Refreshes a live diff when navigation brings it back on screen.
+    /// Historical blobs are immutable and already loaded by `init`; rerunning
+    /// four Git processes and republishing both files on every project switch
+    /// only makes WebKit render the same diff again. An initial live load also
+    /// stays in flight rather than being duplicated by the view's first mount.
+    func refreshWhenSelected() {
+        guard commitHash == nil, !isLoading else { return }
+        reload()
+    }
+
+    /// WebKit views are main-actor objects, but their creation does not need to
+    /// be part of the project-selection transaction. Yielding lets SwiftUI
+    /// display the existing skeleton first and avoids materializing every
+    /// hidden diff in a project at once.
+    func materializeWebHostView() async {
+        guard webHostView == nil else { return }
+        await Task.yield()
+        guard !Task.isCancelled, webHostView == nil else { return }
+        web.updateAppearance(NSApp.effectiveAppearance)
+        webHostView = DiffWebHostingView(model: web)
     }
 
     /// Accepts the updated side emitted by Pierre's editor. The web view owns
@@ -256,14 +299,16 @@ final class DiffTab: nonisolated ObservableObject, nonisolated Identifiable {
     }
 
     func setDiffStyle(_ style: DiffStyle) {
-        web.diffStyle = style
-        DiffViewPreferences.diffStyle = style
+        DiffViewPreferences.shared.diffStyle = style
     }
 
     func setEditing(_ isEditing: Bool) {
         guard isEditable else { return }
-        web.isEditing = isEditing
-        DiffViewPreferences.prefersEditing = isEditing
+        DiffViewPreferences.shared.prefersEditing = isEditing
+    }
+
+    private var isEditing: Bool {
+        isEditable && DiffViewPreferences.shared.prefersEditing
     }
 
     func save() {
@@ -529,6 +574,7 @@ private enum DiffFont {
 private struct DiffWebRoot: View {
     @ObservedObject var model: DiffWebModel
     @ObservedObject private var settings = AppSettings.shared
+    @ObservedObject private var preferences = DiffViewPreferences.shared
 
     var body: some View {
         PierreMultiDiffView(
@@ -538,10 +584,10 @@ private struct DiffWebRoot: View {
                     name: model.fileName,
                     oldContents: model.oldContent,
                     newContents: model.newContent,
-                    isEditable: model.isEditing
+                    isEditable: model.canEdit && preferences.prefersEditing
                 )
             ],
-            diffStyle: $model.diffStyle,
+            diffStyle: $preferences.diffStyle,
             overflowMode: $model.overflowMode,
             renderOptions: DiffFont.renderOptions(
                 family: settings.fontFamily, size: settings.fontSize
@@ -558,6 +604,45 @@ private struct DiffWebRoot: View {
                 }
             }
         )
+        // Pierre derives its JavaScript theme from this environment value.
+        // Make it follow the host view's effective AppKit appearance instead
+        // of a colorScheme captured while the detached host was constructed.
+        .environment(
+            \.colorScheme,
+            model.usesDarkAppearance ? ColorScheme.dark : ColorScheme.light
+        )
+    }
+}
+
+/// Bridges the actual AppKit appearance into the detached SwiftUI diff root.
+/// AppKit sends this callback only after the view's effective appearance has
+/// changed, avoiding the old/new ordering race of a global system notification.
+private final class DiffWebHostingView: NSHostingView<DiffWebRoot> {
+    private let model: DiffWebModel
+
+    init(model: DiffWebModel) {
+        self.model = model
+        super.init(rootView: DiffWebRoot(model: model))
+    }
+
+    @available(*, unavailable)
+    required init(rootView: DiffWebRoot) {
+        fatalError("init(rootView:) has not been implemented")
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        model.updateAppearance(effectiveAppearance)
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        model.updateAppearance(effectiveAppearance)
     }
 }
 
@@ -596,6 +681,7 @@ struct DiffViewerView: View {
     @ObservedObject var diff: DiffTab
     @ObservedObject private var themeChanges = Theme.changes
     @ObservedObject private var web: DiffWebModel
+    @ObservedObject private var preferences = DiffViewPreferences.shared
     /// The view stays mounted while other tabs are selected (see
     /// ContentView); this flags when it is the frontmost tab so content
     /// refreshes on each re-visit, not just on first mount.
@@ -620,7 +706,7 @@ struct DiffViewerView: View {
                     placeholder(icon: "exclamationmark.triangle", text: error)
                 } else if web.oldContent == web.newContent {
                     if diff.isLoading {
-                        DiffSkeletonView()
+                        initialLoadingSkeleton
                     } else if diff.isUnmerged {
                         placeholder(
                             icon: "arrow.triangle.merge",
@@ -632,26 +718,38 @@ struct DiffViewerView: View {
                 } else {
                     VStack(spacing: 0) {
                         controlBar
-                        DiffWebHostView(view: diff.webHostView)
-                            // Cover (never hide) the webview while it boots:
-                            // making it invisible lets WebKit throttle rendering
-                            // and the initial diff render can be dropped entirely.
-                            .overlay {
-                                if !web.isReady {
-                                    DiffSkeletonView()
-                                        .background(Color(nsColor: Theme.background))
-                                        .transition(.opacity)
+                        if let webHostView = diff.webHostView {
+                            DiffWebHostView(view: webHostView)
+                                // Cover (never hide) the webview while it boots:
+                                // making it invisible lets WebKit throttle rendering
+                                // and the initial diff render can be dropped entirely.
+                                .overlay {
+                                    if !web.isReady {
+                                        DiffSkeletonView()
+                                            .background(Color(nsColor: Theme.background))
+                                            .transition(.opacity)
+                                    }
                                 }
-                            }
+                        } else {
+                            DiffSkeletonView()
+                                .task(id: isSelected) {
+                                    guard isSelected else { return }
+                                    await diff.materializeWebHostView()
+                                }
+                        }
                     }
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .onAppear { diff.reload() }
+        .onAppear {
+            if isSelected {
+                diff.refreshWhenSelected()
+            }
+        }
         .onChange(of: isSelected) {
             if isSelected {
-                diff.reload()
+                diff.refreshWhenSelected()
             }
         }
     }
@@ -681,16 +779,29 @@ struct DiffViewerView: View {
     private var controlBar: some View {
         DiffControlsBar(
             diffStyle: Binding(
-                get: { web.diffStyle },
+                get: { preferences.diffStyle },
                 set: { diff.setDiffStyle($0) }
             ),
             isEditing: Binding(
-                get: { web.isEditing },
+                get: { diff.isEditable && preferences.prefersEditing },
                 set: { diff.setEditing($0) }
             ),
             canEdit: diff.isEditable
         )
-        .frame(height: 37)
+        .frame(height: DiffViewerLayout.controlsHeight)
+    }
+
+    /// The WebKit skeleton later sits below the real controls. Reserve that
+    /// exact toolbar row during the file load too, so the code-shaped lines do
+    /// not jump down when the diff contents become available.
+    private var initialLoadingSkeleton: some View {
+        VStack(spacing: 0) {
+            DiffControlsSkeletonBar(
+                showsModePlaceholder: diff.commitHash == nil && !diff.staged
+            )
+            .frame(height: DiffViewerLayout.controlsHeight)
+            DiffSkeletonView()
+        }
     }
 
     private func placeholder(icon: String, text: String) -> some View {
@@ -723,6 +834,10 @@ struct DiffViewerView: View {
     }
 }
 
+private enum DiffViewerLayout {
+    static let controlsHeight: CGFloat = 37
+}
+
 /// Native controls for the materially changed diff toolbar. The surrounding
 /// diff view is legacy SwiftUI, but new interaction stays in AppKit.
 private struct DiffControlsBar: NSViewRepresentable {
@@ -742,6 +857,91 @@ private struct DiffControlsBar: NSViewRepresentable {
             onDiffStyleChange: { diffStyle = $0 },
             onEditingChange: { isEditing = $0 }
         )
+    }
+}
+
+/// Matches the native controls row while the diff metadata is still loading.
+/// Keeping this in AppKit gives the placeholder the same sizing and divider
+/// behavior as the toolbar that replaces it.
+private struct DiffControlsSkeletonBar: NSViewRepresentable {
+    let showsModePlaceholder: Bool
+
+    func makeNSView(context: Context) -> DiffControlsSkeletonNSView {
+        DiffControlsSkeletonNSView()
+    }
+
+    func updateNSView(_ view: DiffControlsSkeletonNSView, context: Context) {
+        view.update(showsModePlaceholder: showsModePlaceholder)
+    }
+}
+
+private final class DiffControlsSkeletonNSView: NSView {
+    private let modePlaceholder = NSView()
+    private let layoutPlaceholder = NSView()
+    private let divider = NSView()
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        wantsLayer = true
+        setAccessibilityElement(false)
+
+        for placeholder in [modePlaceholder, layoutPlaceholder] {
+            placeholder.wantsLayer = true
+            placeholder.layer?.cornerRadius = 5
+            placeholder.translatesAutoresizingMaskIntoConstraints = false
+            addSubview(placeholder)
+        }
+
+        divider.wantsLayer = true
+        divider.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(divider)
+
+        NSLayoutConstraint.activate([
+            layoutPlaceholder.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -10),
+            layoutPlaceholder.centerYAnchor.constraint(equalTo: centerYAnchor),
+            layoutPlaceholder.widthAnchor.constraint(equalToConstant: 111),
+            layoutPlaceholder.heightAnchor.constraint(equalToConstant: 20),
+            modePlaceholder.trailingAnchor.constraint(
+                equalTo: layoutPlaceholder.leadingAnchor, constant: -8
+            ),
+            modePlaceholder.centerYAnchor.constraint(equalTo: centerYAnchor),
+            modePlaceholder.widthAnchor.constraint(equalToConstant: 93),
+            modePlaceholder.heightAnchor.constraint(equalToConstant: 20),
+            divider.leadingAnchor.constraint(equalTo: leadingAnchor),
+            divider.trailingAnchor.constraint(equalTo: trailingAnchor),
+            divider.bottomAnchor.constraint(equalTo: bottomAnchor),
+            divider.heightAnchor.constraint(equalToConstant: 1),
+        ])
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    func update(showsModePlaceholder: Bool) {
+        updateAppearanceColors()
+        modePlaceholder.isHidden = !showsModePlaceholder
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        updateAppearanceColors()
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        updateAppearanceColors()
+    }
+
+    private func updateAppearanceColors() {
+        effectiveAppearance.performAsCurrentDrawingAppearance {
+            layer?.backgroundColor = Theme.background.cgColor
+            divider.layer?.backgroundColor = Theme.divider.cgColor
+            let fill = NSColor.labelColor.withAlphaComponent(0.05).cgColor
+            modePlaceholder.layer?.backgroundColor = fill
+            layoutPlaceholder.layer?.backgroundColor = fill
+        }
     }
 }
 
@@ -814,13 +1014,31 @@ private final class DiffControlsNSView: NSView {
     ) {
         self.onDiffStyleChange = onDiffStyleChange
         self.onEditingChange = onEditingChange
-        layer?.backgroundColor = Theme.background.cgColor
-        divider.layer?.backgroundColor = Theme.divider.cgColor
+        updateAppearanceColors()
 
         layoutControl.selectedSegment = diffStyle == .split ? 1 : 0
         modeControl.isHidden = !canEdit
         modeControl.setEnabled(canEdit, forSegment: 1)
         modeControl.selectedSegment = canEdit && isEditing ? 1 : 0
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        updateAppearanceColors()
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        updateAppearanceColors()
+        modeControl.needsDisplay = true
+        layoutControl.needsDisplay = true
+    }
+
+    private func updateAppearanceColors() {
+        effectiveAppearance.performAsCurrentDrawingAppearance {
+            layer?.backgroundColor = Theme.background.cgColor
+            divider.layer?.backgroundColor = Theme.divider.cgColor
+        }
     }
 
     @objc private func modeChanged() {

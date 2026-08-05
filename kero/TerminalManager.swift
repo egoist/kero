@@ -35,7 +35,18 @@ enum FindAction {
 @MainActor
 final class TerminalManager: nonisolated ObservableObject {
     @Published var projects: [Project] = []
-    @Published var selectedProjectID: UUID?
+    @Published var selectedProjectID: UUID? {
+        willSet {
+            // Diff hosts are expensive WebKit trees. Once a project has put
+            // them in this window, keep that project's stack mounted across
+            // project switches just as ContentView already does across tab
+            // switches. Reattaching every open diff can otherwise block the
+            // main thread while AppKit rebuilds the window/view hierarchy.
+            if let selectedProjectID, selectedProjectID != newValue {
+                retainedDiffProjectIDs.insert(selectedProjectID)
+            }
+        }
+    }
     @Published var isPanelVisible = false
     @Published var panelTab: RightPanel = .files
     /// Visibility of the left project sidebar (⌘B). `isPanelVisible` above is
@@ -46,6 +57,10 @@ final class TerminalManager: nonisolated ObservableObject {
     /// Projects publish their own changes (session list, session selection);
     /// re-publish them so views observing the manager stay current.
     private var projectObservations: [UUID: AnyCancellable] = [:]
+    /// Projects whose diff stacks have already been mounted in this window.
+    /// Unvisited restored projects stay lazy so launch does not instantiate all
+    /// of their WKWebViews at once.
+    private var retainedDiffProjectIDs: Set<UUID> = []
     private var projectCounter = 0
     private var settingsObservation: AnyCancellable?
     private var autosaveObservation: AnyCancellable?
@@ -174,6 +189,16 @@ final class TerminalManager: nonisolated ObservableObject {
 
     var selectedSession: TerminalSession? {
         selectedProject?.selectedSession
+    }
+
+    /// Diff stacks that should remain in the window hierarchy. The selected
+    /// project is included immediately; previously selected projects remain
+    /// only when they actually own a diff.
+    var projectsWithMountedDiffs: [Project] {
+        projects.filter {
+            $0.id == selectedProjectID
+                || (retainedDiffProjectIDs.contains($0.id) && $0.hasDiffs)
+        }
     }
 
     // MARK: - Projects
@@ -350,6 +375,7 @@ final class TerminalManager: nonisolated ObservableObject {
             let neighbor = min(index, projects.count - 1)
             selectedProjectID = neighbor >= 0 ? projects[neighbor].id : nil
         }
+        retainedDiffProjectIDs.remove(project.id)
         // Nothing left to inspect once the last project is gone, so collapse
         // the right sidebar — its panels all track the selected session.
         if projects.isEmpty {
@@ -814,6 +840,7 @@ final class TerminalManager: nonisolated ObservableObject {
         let snapshot = SessionSnapshot(
             projects: projects.compactMap { project in
                 guard !project.tabs.isEmpty else { return nil }
+                let projectSessions = project.sessions
                 let tabs = project.tabs.map { tab -> ProjectSnapshot.TabSnapshot in
                     let layout = Self.layoutSnapshot(
                         tab.layout,
@@ -825,7 +852,10 @@ final class TerminalManager: nonisolated ObservableObject {
                     } ?? 0
                     return ProjectSnapshot.TabSnapshot(
                         layout: layout, focusedPaneIndex: focusedPaneIndex,
-                        customName: tab.customName
+                        customName: tab.customName,
+                        contextSessionIndex: tab.contextSession.flatMap { context in
+                            projectSessions.firstIndex { $0.id == context.id }
+                        }
                     )
                 }
                 return ProjectSnapshot(
@@ -922,8 +952,19 @@ final class TerminalManager: nonisolated ObservableObject {
             let project = makeProject(createInitialSession: false)
             project.customName = Project.normalizedCustomName(saved.customName)
             project.customDirectory = saved.customDirectory
-            for tab in saved.tabs {
-                project.restoreTab(from: tab, histories: Self.pendingHistories)
+            var restoredContexts: [(tab: PaneTab, sessionIndex: Int)] = []
+            for savedTab in saved.tabs {
+                guard let tab = project.restoreTab(
+                    from: savedTab, histories: Self.pendingHistories
+                ) else { continue }
+                if let sessionIndex = savedTab.contextSessionIndex {
+                    restoredContexts.append((tab, sessionIndex))
+                }
+            }
+            let restoredSessions = project.sessions
+            for context in restoredContexts
+            where restoredSessions.indices.contains(context.sessionIndex) {
+                context.tab.contextSession = restoredSessions[context.sessionIndex]
             }
             guard !project.tabs.isEmpty else {
                 projectObservations[project.id] = nil
