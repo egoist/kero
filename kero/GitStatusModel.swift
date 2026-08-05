@@ -1365,15 +1365,19 @@ final class GitStatusModel: nonisolated ObservableObject {
     /// A malformed `.git` directory/file can produce the same rev-parse text
     /// as a plain folder. Preserve that as an actionable status error instead
     /// of offering to initialize a nested repository on top of broken metadata.
+    /// Walks up using the string path APIs: `URL.deletingLastPathComponent()`
+    /// has no fixed point at `/`, where it yields `/..`, then `/../..`, so a
+    /// `parent == directory` test never ends the loop.
     private nonisolated static func containsGitMetadata(atOrAbove root: String) -> Bool {
         let fm = FileManager.default
-        var directory = URL(fileURLWithPath: root, isDirectory: true).standardizedFileURL
+        var directory = (root as NSString).standardizingPath
+        guard directory.hasPrefix("/") else { return false }
         while true {
-            if fm.fileExists(atPath: directory.appendingPathComponent(".git").path) {
+            if fm.fileExists(atPath: (directory as NSString).appendingPathComponent(".git")) {
                 return true
             }
-            let parent = directory.deletingLastPathComponent()
-            if parent.path == directory.path { return false }
+            let parent = (directory as NSString).deletingLastPathComponent
+            if parent == directory { return false }
             directory = parent
         }
     }
