@@ -104,6 +104,8 @@ fn main() {
         display_offset: 0,
         total_lines: 0,
         screen_lines: 0,
+        ime_line: -1,
+        ime_column: -1,
     };
     unsafe { kero_alacritty_snapshot(handle, &mut snapshot) };
 
