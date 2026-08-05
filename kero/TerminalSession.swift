@@ -29,6 +29,9 @@ final class TerminalSession: NSObject, nonisolated ObservableObject, nonisolated
     /// The emulator driving this session. Fixed for the session's lifetime —
     /// changing the setting only affects terminals opened afterwards.
     let backend: TerminalBackend
+    /// Daemon-owned PTY this pane attaches to. Nil for the traditional
+    /// renderer-owned process lifecycle.
+    let muxSessionID: UUID?
     let surface: any TerminalBackendSurface
     let overlayScrollbar = OverlayScrollbarView()
     /// Find-in-terminal state for this session's pane (⌘F).
@@ -45,18 +48,36 @@ final class TerminalSession: NSObject, nonisolated ObservableObject, nonisolated
     private var lastHistorySnapshot: String?
     private var isTerminating = false
     private var commandExecutionStartedAtNanos: UInt64?
+    /// The daemon's shell PID never changes for the life of a session, so it
+    /// is captured once at create or reconnect and never re-queried.
+    private let muxShellPID: pid_t?
+    /// The daemon's foreground PID does change, but reading it costs a socket
+    /// round trip and callers sit on paths that must not block — see
+    /// ``refreshMuxForegroundPID()`` for when this is renewed.
+    private var muxForegroundPID: pid_t?
+    private var isRefreshingMuxForegroundPID = false
 
     init(
         initialDirectory: String? = nil,
         restoredHistory: String? = nil,
         commandArguments: [String]? = nil,
-        environmentPath: String? = nil
+        environmentPath: String? = nil,
+        restoredMuxSessionID: UUID? = nil,
+        restoredBackend: TerminalBackend? = nil
     ) {
         let directCommand = commandArguments.flatMap { $0.isEmpty ? nil : $0 }
         let shellPath = directCommand?.first ?? Self.loginShell()
         let directory = Self.validWorkingDirectory(initialDirectory)
         let artifacts = Self.makeLaunchArtifacts(restoredHistory: restoredHistory)
-        let backend = AppSettings.shared.terminalBackend
+        let restoredMuxInfo = restoredMuxSessionID.flatMap {
+            KeroMuxControl.info($0)
+        }
+        // The daemon's renderer is authoritative for a live session. The
+        // snapshot copy remains useful if the daemon disappeared and this pane
+        // falls back to starting a replacement terminal.
+        let backend = restoredMuxInfo.map {
+            TerminalBackend(persisted: $0.backend)
+        } ?? restoredBackend ?? AppSettings.shared.terminalBackend
         let script = Self.makeLaunchScript(
             backend: backend,
             shellPath: shellPath,
@@ -72,14 +93,42 @@ final class TerminalSession: NSObject, nonisolated ObservableObject, nonisolated
             environment: Self.surfaceEnvironment(pathOverride: environmentPath)
         )
 
+        var muxInfo = restoredMuxInfo
+        if muxInfo == nil, AppSettings.shared.durableTerminalSessions {
+            do {
+                muxInfo = try KeroMuxControl.create(
+                    launch: launch,
+                    backend: backend,
+                    shellName: (shellPath as NSString).lastPathComponent
+                )
+            } catch {
+                NSLog("kero: durable session unavailable, using a local PTY: \(error)")
+            }
+        }
+        let muxSessionID = muxInfo?.id
+        let surfaceLaunch: TerminalLaunch
+        if let muxSessionID {
+            surfaceLaunch = KeroMuxControl.attachmentLaunch(
+                sessionID: muxSessionID,
+                workingDirectory: directory,
+                environment: launch.environment
+            )
+        } else {
+            surfaceLaunch = launch
+        }
+
         self.shellPath = shellPath
         self.backend = backend
+        self.muxSessionID = muxSessionID
+        muxShellPID = muxInfo?.shellPID
+        muxForegroundPID = muxInfo?.foregroundPID
         launchWorkingDirectory = directory
         launchDirectoryURL = artifacts.directoryURL
         shellPidFileURL = artifacts.pidFileURL
-        title = (shellPath as NSString).lastPathComponent
+        title = muxInfo?.title ?? (shellPath as NSString).lastPathComponent
+        workingDirectory = muxInfo?.workingDirectory
 
-        let surface = Self.makeSurface(backend: backend, launch: launch)
+        let surface = Self.makeSurface(backend: backend, launch: surfaceLaunch)
         self.surface = surface
         find = TerminalFind(surface: surface)
         lastHistorySnapshot = restoredHistory
@@ -126,7 +175,35 @@ final class TerminalSession: NSObject, nonisolated ObservableObject, nonisolated
     func terminate() {
         guard !hasExited, !isTerminating else { return }
         isTerminating = true
+        if let muxSessionID {
+            KeroMuxControl.terminate(muxSessionID)
+            beginTeardown(processAlive: false, notifyExit: false)
+            return
+        }
         beginTeardown(processAlive: true, notifyExit: false)
+    }
+
+    /// A window close or app quit is a detach for daemon-owned terminals and
+    /// the traditional close for renderer-owned terminals. Capturing before
+    /// releasing the renderer gives reconnect a compact, exact VT baseline.
+    func closeForAppLifecycle() {
+        guard !hasExited, !isTerminating else { return }
+        guard let muxSessionID else {
+            terminate()
+            return
+        }
+        isTerminating = true
+        if let checkpoint = TerminalHistorySerializer.captureRaw(from: surface) {
+            KeroMuxControl.checkpoint(checkpoint, sessionID: muxSessionID)
+        }
+        surface.setSurfaceVisible(false)
+        surface.onBecomeFirstResponder = nil
+        surface.splitTarget.onSplit = nil
+        surface.splitTarget.onNewBrowserTab = nil
+        surface.splitTarget.onNewBrowserPane = nil
+        surface.detach()
+        hasExited = true
+        removeLaunchArtifacts()
     }
 
     /// Keeps the session and surface alive until the child has either exited
@@ -216,10 +293,33 @@ final class TerminalSession: NSObject, nonisolated ObservableObject, nonisolated
     /// keeps describing the old tree. This is deliberately a separate fact:
     /// `currentDirectoryPath` must stay true to the shell.
     var foregroundDirectoryPath: String? {
-        guard let foreground = surface.foregroundPid, foreground > 0,
+        guard let foreground = foregroundPid, foreground > 0,
               foreground != shellPid
         else { return nil }
         return processWorkingDirectory(pid: foreground)
+    }
+
+    /// Foreground job of the terminal, whoever owns the PTY. Reading the
+    /// daemon's copy would mean a socket round trip, and this is read while
+    /// SwiftUI evaluates a body, so durable sessions serve the cached value
+    /// that ``refreshMuxForegroundPID()`` renews on shell-integration events.
+    private var foregroundPid: pid_t? {
+        muxSessionID == nil ? surface.foregroundPid : muxForegroundPID
+    }
+
+    /// The daemon's foreground process changes when a command starts or ends,
+    /// which is exactly what shell integration reports, so this is renewed
+    /// from those events rather than polled.
+    private func refreshMuxForegroundPID() {
+        guard let muxSessionID, !isRefreshingMuxForegroundPID else { return }
+        isRefreshingMuxForegroundPID = true
+        KeroMuxControl.info(muxSessionID) { [weak self] info in
+            Task { @MainActor in
+                guard let self else { return }
+                self.isRefreshingMuxForegroundPID = false
+                self.muxForegroundPID = info?.foregroundPID
+            }
+        }
     }
 
     func sendCommand(_ text: String) {
@@ -240,7 +340,7 @@ final class TerminalSession: NSObject, nonisolated ObservableObject, nonisolated
         guard captureLive else { return lastHistorySnapshot }
 
         let rootShellIsForeground = shellPid != nil
-            && surface.foregroundPid == shellPid
+            && foregroundPid == shellPid
         if !rootShellIsForeground,
            !TerminalHistorySerializer.hasPrimaryScrollback(surface) {
             // A primary screen with no rows above the viewport and an
@@ -268,6 +368,7 @@ final class TerminalSession: NSObject, nonisolated ObservableObject, nonisolated
     /// before `exec`, so this remains stable while a shell's foreground PID
     /// moves to child jobs and back.
     var shellPid: pid_t? {
+        if muxSessionID != nil { return muxShellPID }
         if let cachedShellPid, cachedShellPid > 0 { return cachedShellPid }
         guard !hasExited, let shellPidFileURL,
               let text = try? String(contentsOf: shellPidFileURL, encoding: .utf8),
@@ -422,12 +523,21 @@ extension TerminalSession: TerminalBackendEvents {
     func terminalDidChangeTitle(_ title: String) {
         guard !title.isEmpty else { return }
         self.title = title
+        if let muxSessionID {
+            KeroMuxControl.updateMetadataAsync(sessionID: muxSessionID, title: title)
+        }
     }
 
     func terminalDidChangeWorkingDirectory(_ path: String) {
         guard !path.isEmpty else { return }
         workingDirectory = path.hasPrefix("/")
             ? URL(fileURLWithPath: path).absoluteString : path
+        if let muxSessionID {
+            KeroMuxControl.updateMetadataAsync(
+                sessionID: muxSessionID,
+                workingDirectory: path
+            )
+        }
     }
 
     func terminalDidChangeCellSize(_ size: CGSize) {
@@ -470,6 +580,9 @@ extension TerminalSession: TerminalBackendEvents {
             commandExecutionStartedAtNanos = nil
         }
         commandLifecycle = lifecycle
+        // A command starting or ending is precisely when the daemon's
+        // foreground process group moves.
+        refreshMuxForegroundPID()
     }
 
     func terminalDidClose(processAlive: Bool) {

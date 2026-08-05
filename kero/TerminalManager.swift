@@ -104,17 +104,22 @@ final class TerminalManager: nonisolated ObservableObject {
     /// `historyKey` each restoring session pane carries. Shared across windows
     /// (keys are unique per pane), so restores read from it without consuming.
     private static var pendingHistories: [String: String] = [:]
+    /// Every durable ID referenced by the complete saved window set. Recovery
+    /// must consider all windows before the first manager claims one.
+    private static var savedMuxSessionIDs = Set<UUID>()
     private static var hasLoadedStore = false
     /// Set on app termination so window teardown can't re-save a partial
     /// snapshot over the final full one.
     private static var isQuitting = false
     private static var didReopenWindows = false
+    private static var didRecoverMuxSessions = false
 
     init() {
         if !Self.hasLoadedStore {
             Self.hasLoadedStore = true
             Self.pendingRestores = SessionStore.load()
             Self.pendingHistories = TerminalHistoryStore.load()
+            Self.savedMuxSessionIDs = Self.muxSessionIDs(in: Self.pendingRestores)
         }
         Self.registry.append(self)
         var restored = false
@@ -128,7 +133,8 @@ final class TerminalManager: nonisolated ObservableObject {
             Self.pendingHistories = [:]
         }
         let queuedDirectories = Self.takePendingDirectories()
-        if !restored, queuedDirectories.isEmpty {
+        let recoveredMuxSessions = recoverUnreferencedMuxSessions()
+        if !restored, queuedDirectories.isEmpty, !recoveredMuxSessions {
             startupProjectID = newProject().id
         }
         for directory in queuedDirectories {
@@ -173,6 +179,11 @@ final class TerminalManager: nonisolated ObservableObject {
                 guard !TerminalManager.isQuitting else { return }
                 TerminalManager.isQuitting = true
                 TerminalManager.saveAll(captureTerminalHistory: true)
+                for manager in TerminalManager.registry {
+                    for project in manager.projects {
+                        project.closeSessionsForAppLifecycle()
+                    }
+                }
             }
     }
 
@@ -800,7 +811,7 @@ final class TerminalManager: nonisolated ObservableObject {
             Self.saveAll(captureTerminalHistory: false)
         }
         for project in projects {
-            project.terminateAll()
+            project.closeSessionsForAppLifecycle()
         }
     }
 
@@ -874,8 +885,10 @@ final class TerminalManager: nonisolated ObservableObject {
         typealias ProjectSnapshot = SessionSnapshot.ProjectSnapshot
         switch layout {
         case .pane(let pane):
+            var session: TerminalSession?
+            if case .session(let paneSession) = pane.content { session = paneSession }
             var historyKey: String?
-            if case .session(let session) = pane.content,
+            if let session,
                let history = session.serializedHistory(
                    captureLive: captureTerminalHistory
                ), !history.isEmpty {
@@ -883,10 +896,16 @@ final class TerminalManager: nonisolated ObservableObject {
                 histories[key] = history
                 historyKey = key
             }
+            // The backend is only worth persisting alongside a durable session:
+            // it tells a reconnect which renderer to rebuild if the daemon is
+            // gone. Ordinary panes take the current setting on restore.
+            let muxSessionID = session?.muxSessionID
             return .pane(ProjectSnapshot.PaneSnapshot(
                 content: contentSnapshot(pane.content),
                 weight: 1,
-                historyKey: historyKey
+                historyKey: historyKey,
+                muxSessionID: muxSessionID,
+                terminalBackend: muxSessionID == nil ? nil : session?.backend.rawValue
             ))
         case .split(let split):
             return .split(
@@ -931,6 +950,100 @@ final class TerminalManager: nonisolated ObservableObject {
                 repoRoot: diff.repoRoot, path: diff.path, staged: diff.staged,
                 untracked: diff.untracked, origPath: diff.origPath
             )
+        }
+    }
+
+    private static func muxSessionIDs(in snapshots: [SessionSnapshot]) -> Set<UUID> {
+        Set(snapshots.flatMap { window in
+            window.projects.flatMap { project in
+                project.tabs.flatMap { tab in
+                    muxSessionIDs(in: tab.layout)
+                }
+            }
+        })
+    }
+
+    private static func muxSessionIDs(
+        in layout: SessionSnapshot.ProjectSnapshot.LayoutSnapshot
+    ) -> [UUID] {
+        switch layout {
+        case .pane(let pane):
+            return pane.muxSessionID.map { [$0] } ?? []
+        case .split(_, _, let first, let second):
+            return muxSessionIDs(in: first) + muxSessionIDs(in: second)
+        }
+    }
+
+    /// A live daemon can outlast an unsaved app process. Put sessions missing
+    /// from the complete saved layout into one ordinary project so they are
+    /// visible and closable instead of becoming hidden background processes.
+    private func recoverUnreferencedMuxSessions() -> Bool {
+        guard !Self.didRecoverMuxSessions else { return false }
+        Self.didRecoverMuxSessions = true
+        switch KeroMuxControl.listOutcome() {
+        case .notRunning:
+            return false
+        case .sessions(let sessions):
+            return integrateUnreferencedMuxSessions(sessions)
+        case .unreachable:
+            // A daemon exists but did not answer, so what it owns is unknown
+            // — not empty. Giving up here would hide its sessions until the
+            // next launch; keep asking in the background instead.
+            Self.scheduleMuxRecoveryRetry(attemptsRemaining: 5)
+            return false
+        }
+    }
+
+    private func integrateUnreferencedMuxSessions(
+        _ all: [KeroMuxSessionInfo]
+    ) -> Bool {
+        // Sessions already owned by a pane in any window are not orphans.
+        // This covers panes restored from the snapshot, fresh durable panes
+        // created before a delayed recovery ran, and — for legacy snapshots
+        // with no mux IDs — sessions the restore itself just created.
+        let claimedNow = Set(Self.registry.flatMap { manager in
+            manager.projects.flatMap { project in
+                project.sessions.compactMap(\.muxSessionID)
+            }
+        })
+        let sessions = all
+            .filter {
+                !Self.savedMuxSessionIDs.contains($0.id)
+                    && !claimedNow.contains($0.id)
+            }
+            .sorted { $0.shellPID < $1.shellPID }
+        guard !sessions.isEmpty else { return false }
+        let project = makeProject(createInitialSession: false)
+        project.customName = String(localized: "Recovered Sessions")
+        for session in sessions {
+            project.recoverMuxSession(session)
+        }
+        projects.append(project)
+        selectedProjectID = project.id
+        return true
+    }
+
+    /// Bounded so a daemon that never answers cannot poll forever; the next
+    /// launch's recovery is the backstop for anything still unaccounted.
+    private static func scheduleMuxRecoveryRetry(attemptsRemaining: Int) {
+        guard attemptsRemaining > 0 else { return }
+        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 5) {
+            let outcome = KeroMuxControl.listOutcome()
+            Task { @MainActor in
+                guard !isQuitting else { return }
+                switch outcome {
+                case .notRunning:
+                    break
+                case .unreachable:
+                    scheduleMuxRecoveryRetry(attemptsRemaining: attemptsRemaining - 1)
+                case .sessions(let sessions):
+                    // Integrate into whichever window still exists; with none
+                    // open there is nowhere to show a recovered project, and
+                    // the next launch picks these sessions up instead.
+                    guard let manager = registry.first else { return }
+                    _ = manager.integrateUnreferencedMuxSessions(sessions)
+                }
+            }
         }
     }
 

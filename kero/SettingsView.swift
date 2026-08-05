@@ -206,6 +206,17 @@ struct SettingsView: View {
                     )
                     .labelsHidden()
                 }
+
+                DescribedSettingsRow(
+                    "Keep terminal sessions running when Kero closes",
+                    description: "New terminals continue running locally and reconnect when Kero reopens"
+                ) {
+                    Toggle(
+                        "Keep terminal sessions running when Kero closes",
+                        isOn: $settings.durableTerminalSessions
+                    )
+                    .labelsHidden()
+                }
             }
 
             Section("Text Editing") {
@@ -242,6 +253,7 @@ struct SettingsView: View {
                         && settings.toolbarVisibility == AppSettings.defaultToolbarVisibility
                         && !settings.wrapLines
                         && !settings.restoreTerminalHistory
+                        && !settings.durableTerminalSessions
                         && settings.terminalBackend == .fallback)
                 }
             }

@@ -16,6 +16,8 @@ the original feature bullet instead of adding separate entries for them.
 
 ## [unreleased]
 
+- Optionally keep terminal sessions running locally when Kero closes, then reconnect their live processes and output when Kero reopens
+
 ## [0.1.44]
 
 - Prevent a rare crash while using the Ctrl-Tab switcher
