@@ -16,6 +16,8 @@ the original feature bullet instead of adding separate entries for them.
 
 ## [unreleased]
 
+- Markdown files open rendered instead of as raw source, with headings, lists, task boxes, links, blockquotes, tables, images, and syntax-highlighted code blocks. A chip in the corner of the pane switches to the source and back, and the choice sticks; ⇧⌘V does the same from the keyboard
+
 ## [0.1.44]
 
 - Prevent a rare crash while using the Ctrl-Tab switcher

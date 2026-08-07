@@ -49,7 +49,7 @@ enum SyntaxLanguage: Hashable {
     }
 }
 
-/// Tree-sitter syntax highlighting for the source editor. `SourceTextEditor`
+/// Tree-sitter syntax highlighting for the source editor. `SourceEditorController`
 /// asks for a plugin per file; unsupported file types get `nil` and render as
 /// plain text. The highlighter itself lives in `SyntaxHighlightPlugin`.
 enum SyntaxHighlighting {
