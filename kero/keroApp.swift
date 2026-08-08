@@ -16,6 +16,7 @@ struct keroApp: App {
     init() {
         TerminalFont.registerBundledFonts()
         TerminalNotificationService.shared.configure()
+        AppSettings.shared.reconcileAIEnabled()
     }
 
     var body: some Scene {
@@ -254,6 +255,14 @@ private struct KeroCommands: Commands {
                 manager?.openSelectedPageInDefaultBrowser()
             }
             .disabled(manager?.hasSelectedBrowser != true)
+        }
+
+        CommandMenu("Agents") {
+            Button("Next Agent Needing Attention") {
+                manager?.focusNextAgentAttention()
+            }
+            .keyboardShortcut("a", modifiers: [.command, .shift])
+            .disabled(manager?.hasAgentAttention != true)
         }
 
         CommandMenu("Tabs") {

@@ -16,6 +16,8 @@ the original feature bullet instead of adding separate entries for them.
 
 ## [unreleased]
 
+- Automate project-scoped panes and coding agents from Kero terminals with guarded `+pane` and `+agent` commands, one-click AI setup, semantic status badges, completion notifications, and attention navigation
+
 ## [0.1.44]
 
 - Prevent a rare crash while using the Ctrl-Tab switcher

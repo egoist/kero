@@ -121,6 +121,12 @@
         }
       }
     },
+    "%@ finished" : {
+
+    },
+    "%@ needs attention" : {
+
+    },
     "%@ palette · Tab switches appearance" : {
       "localizations" : {
         "ja" : {
@@ -259,6 +265,16 @@
     },
     "%lld" : {
       "shouldTranslate" : false
+    },
+    "%lld agents %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld agents %2$@"
+          }
+        }
+      }
     },
     "%lld fps" : {
 
@@ -519,6 +535,15 @@
         }
       }
     },
+    "Agent %@" : {
+
+    },
+    "AI" : {
+
+    },
+    "Agents" : {
+
+    },
     "Allow" : {
       "localizations" : {
         "ja" : {
@@ -647,6 +672,9 @@
         }
       }
     },
+    "Automation" : {
+
+    },
     "Automatically check for updates" : {
       "localizations" : {
         "ja" : {
@@ -743,6 +771,9 @@
           }
         }
       }
+    },
+    "blocked" : {
+
     },
     "Branch name" : {
 
@@ -1910,6 +1941,9 @@
         }
       }
     },
+    "created" : {
+
+    },
     "Current branch, %@" : {
       "localizations" : {
         "ja" : {
@@ -2321,6 +2355,9 @@
           }
         }
       }
+    },
+    "done" : {
+
     },
     "Down" : {
       "localizations" : {
@@ -3228,6 +3265,9 @@
         }
       }
     },
+    "idle" : {
+
+    },
     "Ignored" : {
       "localizations" : {
         "ja" : {
@@ -3339,6 +3379,9 @@
           }
         }
       }
+    },
+    "Installs Kero's coordination skill and lifecycle integrations" : {
+
     },
     "Insert Absolute Path in Terminal" : {
       "localizations" : {
@@ -4034,6 +4077,9 @@
           }
         }
       }
+    },
+    "Next Agent Needing Attention" : {
+
     },
     "Next match" : {
       "localizations" : {
@@ -6707,6 +6753,9 @@
         }
       }
     },
+    "This terminal predates Kero automation. Open a new terminal and try again." : {
+
+    },
     "This webpage couldn’t be loaded." : {
       "localizations" : {
         "ja" : {
@@ -7031,6 +7080,9 @@
         }
       }
     },
+    "unknown" : {
+
+    },
     "Unknown Kero command “%@”. Run `kero +help`." : {
       "localizations" : {
         "ja" : {
@@ -7224,6 +7276,7 @@
       }
     },
     "Usage:\n  kero\n  kero <command> [arguments...]\n  kero +themes [--dark | --light]\n  kero +themes --list [--dark | --light]\n  kero +help\n\nWith no arguments, kero creates a project with a normal login shell.\nAn argv creates a project whose first terminal runs it directly.\n\n+themes browses Kero's themes in the terminal. Moving through the list\npreviews the theme across the whole app; Return saves it and Esc\nrestores the previous theme." : {
+      "extractionState" : "stale",
       "localizations" : {
         "ja" : {
           "stringUnit" : {
@@ -7238,6 +7291,9 @@
           }
         }
       }
+    },
+    "Usage:\n  kero\n  kero <command> [arguments...]\n  kero +themes [--dark | --light]\n  kero +themes --list [--dark | --light]\n  kero +pane <command> [options]\n  kero +agent <command> [options]\n  kero +help\n\nWith no arguments, kero creates a project with a normal login shell.\nAn argv creates a project whose first terminal runs it directly.\n\n+themes browses Kero's themes in the terminal. Moving through the list\npreviews the theme across the whole app; Return saves it and Esc\nrestores the previous theme.\n\n+pane provides project-scoped terminal layout, input, viewport reads,\nand output waits. +agent adds recognized-agent start, guarded prompts,\npassive lifecycle waits, result reads, and an installable, auto-updating\nskill for compatible coding agents. Run either command with --help for\nits complete contract." : {
+
     },
     "Use Automatic Directory" : {
       "localizations" : {
@@ -7334,6 +7390,9 @@
           }
         }
       }
+    },
+    "working" : {
+
     },
     "Working tree clean" : {
       "localizations" : {

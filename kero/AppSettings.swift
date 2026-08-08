@@ -204,6 +204,13 @@ final class AppSettings: nonisolated ObservableObject {
         didSet { save() }
     }
 
+    /// Install Kero's shared coordination skill plus the native lifecycle
+    /// integrations whose provider APIs cover a complete interactive turn.
+    /// Every other agent continues to use passive process/screen observation.
+    @Published private(set) var aiEnabled: Bool {
+        didSet { save() }
+    }
+
     /// Which emulator drives terminal panes. Only ever holds a backend this
     /// build ships a surface for — see `TerminalBackend` — and a session binds
     /// its backend at creation, so a change here reaches terminals opened
@@ -247,6 +254,7 @@ final class AppSettings: nonisolated ObservableObject {
         macosOptionAsAlt = toml["terminal.macos-option-as-alt"]?.bool ?? false
         wrapLines = toml["editor.wrap-lines"]?.bool ?? false
         restoreTerminalHistory = toml["terminal.restore-history"]?.bool ?? false
+        aiEnabled = toml["ai.enabled"]?.bool ?? false
         terminalBackend = TerminalBackend(persisted: toml["terminal.backend"]?.string)
         applyAppearance()
         reloadThemeSelection()
@@ -295,7 +303,51 @@ final class AppSettings: nonisolated ObservableObject {
         macosOptionAsAlt = false
         wrapLines = false
         restoreTerminalHistory = false
+        if aiEnabled {
+            do {
+                try setAIEnabled(false)
+            } catch {
+                NSLog("kero: failed to disable AI support: \(error)")
+            }
+        }
         terminalBackend = .fallback
+    }
+
+    /// Persist the setting only after every requested destination operation
+    /// returns successfully.
+    func setAIEnabled(_ enabled: Bool) throws {
+        if enabled {
+            try KeroAgentIntegrations.preflightInstallAvailable()
+            _ = try KeroAutomationSkill.install(
+                destinations: KeroAutomationSkill.Destination.allCases,
+                force: false
+            )
+            try KeroAgentIntegrations.installAvailable()
+        } else {
+            try KeroAgentIntegrations.preflightUninstallManaged()
+            _ = try KeroAutomationSkill.uninstall(
+                destinations: KeroAutomationSkill.Destination.allCases,
+                force: false
+            )
+            try KeroAgentIntegrations.uninstallManaged()
+        }
+        aiEnabled = enabled
+    }
+
+    /// App updates normally preserve the bundle path targeted by the links.
+    /// Reconcile at launch as well so moving the app or changing Debug build
+    /// products repairs only installations the user explicitly enabled.
+    func reconcileAIEnabled() {
+        guard aiEnabled else { return }
+        do {
+            _ = try KeroAutomationSkill.install(
+                destinations: KeroAutomationSkill.Destination.allCases,
+                force: false
+            )
+            try KeroAgentIntegrations.installAvailable()
+        } catch {
+            NSLog("kero: failed to refresh AI support: \(error)")
+        }
     }
 
     private func save() {
@@ -332,6 +384,9 @@ final class AppSettings: nonisolated ObservableObject {
         }
         if restoreTerminalHistory {
             lines.append("terminal.restore-history = true")
+        }
+        if aiEnabled {
+            lines.append("ai.enabled = true")
         }
         if terminalBackend != .fallback {
             lines.append("terminal.backend = \(TOML.quote(terminalBackend.rawValue))")

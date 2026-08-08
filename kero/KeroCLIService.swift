@@ -10,12 +10,10 @@ import GhosttyTheme
 
 /// Bridges the bundled `kero` executable back to its owning app process.
 ///
-/// The CLI receives a per-launch secret and a generated catalog file through
-/// the terminal environment. Distributed notifications keep preview changes
-/// fast without opening a network listener. The token scopes requests to this
-/// Kero launch and rejects stale or accidental traffic; distributed
-/// notifications are observable by same-user processes, so this is not a
-/// security boundary against them.
+/// Theme previews retain the original per-launch distributed-notification
+/// bridge. Terminal and agent automation use a separate private Unix socket
+/// plus a per-terminal capability, because the broader theme token was never
+/// designed to authorize pane reads or input.
 @MainActor
 final class KeroCLIService {
     static let shared = KeroCLIService()
@@ -45,10 +43,13 @@ final class KeroCLIService {
     private let secret = UUID().uuidString
     private let directoryURL: URL
     private let stateURL: URL
+    private let automationSocketPath: String
     private var notificationObserver: NSObjectProtocol?
     private var terminationObserver: NSObjectProtocol?
     private var previewMonitor: Timer?
     private var activePreview: ActivePreview?
+    private var automationServer: KeroAutomationSocketServer?
+    private var terminalCapabilities: [String: UUID] = [:]
 
     private init() {
         let fileManager = FileManager.default
@@ -58,6 +59,8 @@ final class KeroCLIService {
                 isDirectory: true
             )
         stateURL = directoryURL.appendingPathComponent("themes.json")
+        let socketNonce = UUID().uuidString.prefix(8)
+        automationSocketPath = "/tmp/kero-\(getuid())-\(ProcessInfo.processInfo.processIdentifier)-\(socketNonce).sock"
 
         do {
             try fileManager.createDirectory(
@@ -70,6 +73,18 @@ final class KeroCLIService {
         }
 
         writeState()
+
+        do {
+            automationServer = try KeroAutomationSocketServer(
+                path: automationSocketPath
+            ) { request, reply in
+                Task { @MainActor in
+                    reply(await KeroCLIService.shared.handleAutomation(request))
+                }
+            }
+        } catch {
+            NSLog("kero: failed to start automation socket: \(error)")
+        }
 
         notificationObserver = DistributedNotificationCenter.default()
             .addObserver(
@@ -96,11 +111,21 @@ final class KeroCLIService {
     /// Variables added to every Kero shell. The app executable's directory is
     /// prepended to the inherited PATH, making `kero` available without
     /// modifying a user's dotfiles or installing a global symlink.
-    var terminalEnvironment: [String: String] {
+    func terminalEnvironment(for sessionID: UUID) -> [String: String] {
+        let capability = UUID().uuidString + UUID().uuidString
+        terminalCapabilities[capability] = sessionID
         var environment = [
             "KERO_CLI_STATE": stateURL.path,
             "KERO_CLI_TOKEN": secret,
+            "KERO_AUTOMATION": "1",
+            "KERO_AUTOMATION_HELP": "kero +agent explain",
+            "KERO_AUTOMATION_SOCKET": automationSocketPath,
+            "KERO_AUTOMATION_TOKEN": capability,
+            "KERO_TERMINAL_ID": sessionID.uuidString,
         ]
+        if let skillURL = try? KeroAutomationSkill.bundledSkillURL() {
+            environment["KERO_AUTOMATION_SKILL"] = skillURL.path
+        }
         if let executableURL = Bundle.main.executableURL {
             let bin = executableURL.deletingLastPathComponent().path
             let inherited = ProcessInfo.processInfo.environment["PATH"]
@@ -108,6 +133,35 @@ final class KeroCLIService {
             environment["PATH"] = "\(bin):\(inherited)"
         }
         return environment
+    }
+
+    func revokeTerminal(id: UUID) {
+        terminalCapabilities = terminalCapabilities.filter { $0.value != id }
+    }
+
+    private func handleAutomation(
+        _ request: KeroAutomationRequest
+    ) async -> KeroAutomationResponse {
+        guard request.version == 1 else {
+            return .failure(
+                id: request.id,
+                code: "unsupported_version",
+                message: "Kero supports automation protocol version 1."
+            )
+        }
+        guard let terminalID = UUID(uuidString: request.terminalID),
+              terminalCapabilities[request.token] == terminalID
+        else {
+            return .failure(
+                id: request.id,
+                code: "unauthorized",
+                message: "The terminal automation capability is invalid or expired."
+            )
+        }
+        return await KeroAutomationRouter.route(
+            request,
+            callerTerminalID: terminalID
+        )
     }
 
     private func handle(_ notification: Notification) {
@@ -288,6 +342,8 @@ final class KeroCLIService {
 
     private func removeStateDirectory() {
         clearActivePreview()
+        automationServer = nil
+        terminalCapabilities = [:]
         try? FileManager.default.removeItem(at: directoryURL)
     }
 }

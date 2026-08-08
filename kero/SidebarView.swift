@@ -350,6 +350,11 @@ private struct SidebarProjectRow: View {
 
             Spacer(minLength: 0)
 
+            if let rollup = project.agentRollup, !isRenaming {
+                AgentStatusBadgeRepresentable(rollup: rollup)
+                    .fixedSize()
+            }
+
             // Fixed trailing slot: close and the ⌘N hint share the same
             // width so hover does not reflow the row. Continuous title
             // updates from the terminal re-render the strip; without a

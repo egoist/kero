@@ -1,0 +1,97 @@
+// Managed by Kero. Re-enabling AI replaces this integration.
+// KERO_INTEGRATION_ID=pi
+// KERO_INTEGRATION_VERSION=1
+// @ts-nocheck
+
+import net from "node:net";
+
+type AgentState = "working" | "blocked" | "idle";
+
+const socketPath = process.env.KERO_AUTOMATION_SOCKET;
+const token = process.env.KERO_AUTOMATION_TOKEN;
+const terminalID = process.env.KERO_TERMINAL_ID;
+let requestSequence = Date.now() * 1000;
+let requestChain = Promise.resolve();
+
+function enabled(): boolean {
+  return process.env.KERO_AUTOMATION === "1"
+    && !!socketPath
+    && !!token
+    && !!terminalID;
+}
+
+function report(state: AgentState, reason?: string): Promise<void> {
+  const pending = requestChain.then(() => reportOnce(state, reason));
+  requestChain = pending.catch(() => {});
+  return pending;
+}
+
+function reportOnce(state: AgentState, reason?: string): Promise<void> {
+  if (!enabled()) return Promise.resolve();
+
+  requestSequence += 1;
+  const request = {
+    version: 1,
+    id: `kero:pi:${requestSequence}`,
+    method: "agent.report",
+    token,
+    terminalID,
+    params: {
+      state,
+      reason: reason ?? `Pi lifecycle: ${state}`,
+    },
+  };
+
+  return new Promise((resolve) => {
+    const socket = net.createConnection(socketPath!);
+    let finished = false;
+    const finish = () => {
+      if (finished) return;
+      finished = true;
+      socket.destroy();
+      resolve();
+    };
+    socket.setTimeout(750, finish);
+    socket.on("connect", () => socket.write(`${JSON.stringify(request)}\n`));
+    socket.on("data", finish);
+    socket.on("error", finish);
+    socket.on("end", finish);
+    socket.on("close", finish);
+  });
+}
+
+export default function keroAgentState(pi) {
+  if (!enabled()) return;
+
+  let rootSession = false;
+  let active = false;
+  let lastState: AgentState | undefined;
+
+  function publish(state: AgentState) {
+    if (state === lastState) return;
+    lastState = state;
+    void report(state);
+  }
+
+  pi.on("session_start", (_event, context) => {
+    if (context?.mode !== "tui") return;
+    rootSession = true;
+    active = context?.isIdle?.() === false;
+    publish(active ? "working" : "idle");
+  });
+
+  pi.on("agent_start", () => {
+    if (!rootSession) return;
+    active = true;
+    publish("working");
+  });
+
+  const settle = (_event, context) => {
+    if (!rootSession || context?.isIdle?.() === false) return;
+    active = false;
+    publish("idle");
+  };
+  pi.on("agent_settled", settle);
+  // Older Pi releases expose agent_end but not agent_settled.
+  pi.on("agent_end", settle);
+}

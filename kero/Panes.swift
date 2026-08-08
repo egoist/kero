@@ -562,11 +562,28 @@ final class PaneTab: nonisolated ObservableObject, nonisolated Identifiable {
     /// Inserts `pane` inside the focused pane's rectangle, taking half of that
     /// rectangle on the requested edge. Focuses the new pane.
     func split(_ pane: Pane, toward edge: PaneDropEdge) {
+        split(
+            pane,
+            toward: edge,
+            beside: focusedPaneID,
+            focusInserted: true
+        )
+    }
+
+    /// Automation can split a specific pane without stealing the user's tab
+    /// or pane focus. Interactive split commands keep using the convenience
+    /// overload above and therefore focus the inserted pane.
+    func split(
+        _ pane: Pane,
+        toward edge: PaneDropEdge,
+        beside requestedTarget: UUID,
+        focusInserted: Bool
+    ) {
         unzoom()
-        let target = layout.contains(focusedPaneID)
-            ? focusedPaneID : layout.allPanes[0].id
+        let target = layout.contains(requestedTarget)
+            ? requestedTarget : layout.allPanes[0].id
         layout = layout.inserting(pane, toward: edge, beside: target)
-        focusedPaneID = pane.id
+        if focusInserted { focusedPaneID = pane.id }
     }
 
     /// Inserts another tab's complete layout beside a pane in this tab. The

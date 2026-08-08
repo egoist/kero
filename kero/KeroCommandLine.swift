@@ -38,7 +38,7 @@ private enum Appearance: String {
     }
 }
 
-private enum CLIError: Error, CustomStringConvertible {
+enum CLIError: Error, CustomStringConvertible {
     case message(String)
 
     var description: String {
@@ -70,9 +70,12 @@ private func installExitHandlers() {
     }
 }
 
-private final class AppConnection {
+final class AppConnection {
     let stateURL: URL
     let token: String
+    private let automationSocketPath: String?
+    private let automationToken: String?
+    private let terminalID: String?
 
     init(environment: [String: String] = ProcessInfo.processInfo.environment) throws {
         guard let statePath = environment["KERO_CLI_STATE"],
@@ -86,9 +89,12 @@ private final class AppConnection {
         }
         stateURL = URL(fileURLWithPath: statePath)
         self.token = token
+        automationSocketPath = environment["KERO_AUTOMATION_SOCKET"]
+        automationToken = environment["KERO_AUTOMATION_TOKEN"]
+        terminalID = environment["KERO_TERMINAL_ID"]
     }
 
-    func loadState() throws -> ThemeState {
+    fileprivate func loadState() throws -> ThemeState {
         let oldDate = try? stateURL.resourceValues(
             forKeys: [.contentModificationDateKey]
         ).contentModificationDate
@@ -123,7 +129,7 @@ private final class AppConnection {
         }
     }
 
-    func post(
+    fileprivate func post(
         action: String,
         id: String? = nil,
         appearance: Appearance? = nil,
@@ -167,6 +173,49 @@ private final class AppConnection {
         // Let the app's main run loop claim the request before this short-lived
         // process disappears from the invoking terminal.
         Thread.sleep(forTimeInterval: 0.05)
+    }
+
+    func automationRequest(
+        method: String,
+        params: [String: KeroJSONValue] = [:],
+        timeout: TimeInterval = 5
+    ) throws -> KeroJSONValue {
+        guard let automationSocketPath, !automationSocketPath.isEmpty,
+              let automationToken, !automationToken.isEmpty,
+              let terminalID, !terminalID.isEmpty else {
+            throw CLIError.message(
+                String(localized: "This terminal predates Kero automation. Open a new terminal and try again.")
+            )
+        }
+        let request = KeroAutomationRequest(
+            version: 1,
+            id: UUID().uuidString,
+            method: method,
+            token: automationToken,
+            terminalID: terminalID,
+            params: params
+        )
+        let response: KeroAutomationResponse
+        do {
+            response = try KeroAutomationSocketServer.exchange(
+                path: automationSocketPath,
+                request: request,
+                timeout: timeout
+            )
+        } catch {
+            // Swift errors that only implement CustomStringConvertible can
+            // otherwise collapse to the unhelpful "error 0" NSError bridge.
+            throw CLIError.message(String(describing: error))
+        }
+        guard response.version == 1, response.id == request.id else {
+            throw CLIError.message("Kero returned a mismatched automation response.")
+        }
+        guard response.ok, let result = response.result else {
+            let code = response.error?.code ?? "automation_error"
+            let message = response.error?.message ?? "Kero rejected the automation request."
+            throw CLIError.message("\(code): \(message)")
+        }
+        return result
     }
 }
 
@@ -524,6 +573,8 @@ private func printHelp() {
           kero <command> [arguments...]
           kero +themes [--dark | --light]
           kero +themes --list [--dark | --light]
+          kero +pane <command> [options]
+          kero +agent <command> [options]
           kero +help
 
         With no arguments, kero creates a project with a normal login shell.
@@ -532,6 +583,12 @@ private func printHelp() {
         +themes browses Kero's themes in the terminal. Moving through the list
         previews the theme across the whole app; Return saves it and Esc
         restores the previous theme.
+
+        +pane provides project-scoped terminal layout, input, viewport reads,
+        and output waits. +agent adds recognized-agent start, guarded prompts,
+        passive lifecycle waits, result reads, and an installable, auto-updating
+        skill for compatible coding agents. Run either command with --help for
+        its complete contract.
         """)
     )
 }
@@ -540,6 +597,13 @@ private func run() throws {
     let arguments = Array(CommandLine.arguments.dropFirst())
     if arguments == ["+help"] {
         printHelp()
+        return
+    }
+    if arguments.first == "+pane" || arguments.first == "+agent" {
+        try KeroAutomationCommandLine.run(
+            namespace: arguments[0],
+            arguments: Array(arguments.dropFirst())
+        )
         return
     }
     if arguments.first != "+themes" {

@@ -212,6 +212,14 @@ struct SettingsView: View {
                 Toggle("Wrap lines to editor width", isOn: $settings.wrapLines)
             }
 
+            Section("Automation") {
+                AgentCLISupportSettingsRow(
+                    isEnabled: settings.aiEnabled,
+                    onChange: { try settings.setAIEnabled($0) }
+                )
+                .frame(minHeight: 44)
+            }
+
             Section("Updates") {
                 Toggle(
                     "Automatically check for updates",
@@ -242,6 +250,7 @@ struct SettingsView: View {
                         && settings.toolbarVisibility == AppSettings.defaultToolbarVisibility
                         && !settings.wrapLines
                         && !settings.restoreTerminalHistory
+                        && !settings.aiEnabled
                         && settings.terminalBackend == .fallback)
                 }
             }

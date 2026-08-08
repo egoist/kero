@@ -84,6 +84,9 @@ final class TerminalManager: nonisolated ObservableObject {
     /// Live managers in window-creation order; the persisted snapshot is
     /// one entry per registered manager.
     private static var registry: [TerminalManager] = []
+    /// Read-only module access for the authenticated local automation router.
+    /// Mutation and window ownership remain private to `TerminalManager`.
+    static var automationManagers: [TerminalManager] { registry }
     private struct CLIProjectLaunch {
         let arguments: [String]
         let directory: String
@@ -481,6 +484,58 @@ final class TerminalManager: nonisolated ObservableObject {
         if let manager = registry.first(where: { $0.window != nil }) {
             manager.window?.makeKeyAndOrderFront(nil)
         }
+    }
+
+    /// "Seen" is a model focus decision, not an API read. A background CLI can
+    /// inspect output repeatedly without clearing a finished badge; selecting
+    /// the pane through any UI path clears it on the next monitor tick.
+    static func automationIsSessionFocused(_ id: UUID) -> Bool {
+        guard NSApp.isActive else { return false }
+        for manager in registry where manager.window?.isKeyWindow == true {
+            guard let project = manager.selectedProject,
+                  let tab = project.selectedTab,
+                  let pane = tab.focusedPane,
+                  case .session(let session) = pane.content
+            else { continue }
+            if session.id == id { return true }
+        }
+        return false
+    }
+
+    var hasAgentAttention: Bool {
+        projects.contains { project in
+            project.sessions.contains {
+                $0.agentStatus?.phase == .blocked || $0.agentStatus?.phase == .done
+            }
+        }
+    }
+
+    /// Cycles blocked agents first, then unseen completions, preserving project,
+    /// tab, and split-tree order within each state. Only an explicit focus
+    /// action acknowledges `done`; automation reads never call this path.
+    func focusNextAgentAttention() {
+        let ordered = projects.flatMap { project in
+            project.tabs.flatMap(\.sessions)
+        }
+        let attention = ordered.filter { $0.agentStatus?.phase == .blocked }
+            + ordered.filter { $0.agentStatus?.phase == .done }
+        guard !attention.isEmpty else { return }
+
+        let currentID: UUID? = {
+            guard let pane = selectedProject?.selectedTab?.focusedPane,
+                  case .session(let session) = pane.content else { return nil }
+            return session.id
+        }()
+        let next: TerminalSession
+        if let currentID,
+           let index = attention.firstIndex(where: { $0.id == currentID }) {
+            next = attention[(index + 1) % attention.count]
+        } else {
+            next = attention[0]
+        }
+        revealSession(next)
+        next.markAutomationAgentSeen()
+        window?.makeKeyAndOrderFront(nil)
     }
 
     /// Clears the terminal in the focused pane. No-op while another content

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Kero Automation"
+  short_description: "Coordinate agents across Kero panes"
+  default_prompt: "Use $kero-automation to delegate this task to another Kero pane and return its result."

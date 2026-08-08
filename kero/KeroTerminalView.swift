@@ -72,6 +72,33 @@ final class KeroTerminalView: AppTerminalView, TerminalBackendSurface {
 
     func findSelection() { searchSelection() }
 
+    func readVisibleText(maxLines: Int, maxColumns: Int) -> String? {
+        // Ghostty's public host API currently exposes styled screen export but
+        // not its viewport read primitive. Callers choose tight bounds so the
+        // agent monitor does not pay the larger diagnostic-read cost.
+        TerminalHistorySerializer.previewText(
+            from: self,
+            maxLines: min(max(maxLines, 1), 500),
+            maxColumns: min(max(maxColumns, 1), 2_000)
+        )
+    }
+
+    func sendApplicationScroll(lines: Int) -> Bool {
+        guard lines != 0,
+              let cgEvent = CGEvent(
+                scrollWheelEvent2Source: nil,
+                units: .line,
+                wheelCount: 1,
+                wheel1: Int32(clamping: lines),
+                wheel2: 0,
+                wheel3: 0
+              ),
+              let event = NSEvent(cgEvent: cgEvent)
+        else { return false }
+        super.scrollWheel(with: event)
+        return true
+    }
+
     func exportScreenFile() -> String? {
         captureHistoryExportPath(action: "write_screen_file:open,vt")
     }

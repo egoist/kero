@@ -1045,6 +1045,32 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
         write(Array(text.utf8))
     }
 
+    func sendApplicationScroll(lines: Int) -> Bool {
+        guard lines != 0 else { return false }
+        let mode = terminalMode
+        if mode.contains(.mouseReporting) {
+            let code = lines > 0 ? 64 : 65
+            let column = max(gridSize.columns / 2, 0)
+            let row = max(gridSize.rows / 2, 0)
+            for _ in 0..<min(abs(lines), 50) {
+                sendMouse(
+                    code: code,
+                    column: column,
+                    row: row,
+                    modifiers: 0,
+                    released: false
+                )
+            }
+            return true
+        }
+        if mode.contains(.alternateScreen), mode.contains(.alternateScroll) {
+            let sequence = AlacrittyKeyMap.cursor(up: lines > 0, mode: mode)
+            for _ in 0..<min(abs(lines), 50) { writeControl(sequence) }
+            return true
+        }
+        return false
+    }
+
     func clearScreen() {
         guard let handle else { return }
         kero_alacritty_clear(handle)
@@ -1111,6 +1137,55 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
 
     func exportScrollbackFile() -> String? {
         exportFile(scrollbackOnly: true)
+    }
+
+    /// Reads only the already-materialized viewport snapshot. This is bounded
+    /// by rows × columns and avoids serializing the 10,000-line scrollback for
+    /// status observation or a CLI read.
+    func readVisibleText(maxLines: Int, maxColumns: Int) -> String? {
+        guard let handle else { return nil }
+        var snapshot = KeroSnapshot()
+        kero_alacritty_snapshot(handle, &snapshot)
+        guard snapshot.columns > 0, snapshot.rows > 0,
+              let cells = snapshot.cells
+        else { return "" }
+
+        let boundedRows = min(snapshot.rows, max(maxLines, 1))
+        let boundedColumns = min(snapshot.columns, max(maxColumns, 1))
+        let firstRow = snapshot.rows - boundedRows
+        var lines: [String] = []
+        lines.reserveCapacity(boundedRows)
+        for row in firstRow..<snapshot.rows {
+            var line = ""
+            line.reserveCapacity(boundedColumns)
+            for column in 0..<boundedColumns {
+                let cell = cells[row * snapshot.columns + column]
+                if cell.flags & UInt16(KERO_CELL_WIDE_SPACER) != 0 { continue }
+                if cell.flags & UInt16(KERO_CELL_HIDDEN) != 0 {
+                    line.append(" ")
+                    continue
+                }
+                if cell.text_len > 0, let text = snapshot.text {
+                    let offset = Int(cell.text_offset)
+                    let length = Int(cell.text_len)
+                    guard offset >= 0, length >= 0,
+                          offset + length <= snapshot.text_len
+                    else { continue }
+                    line += String(
+                        decoding: UnsafeBufferPointer(
+                            start: text.advanced(by: offset), count: length
+                        ),
+                        as: UTF8.self
+                    )
+                } else if let scalar = UnicodeScalar(cell.ch) {
+                    line.unicodeScalars.append(scalar)
+                }
+            }
+            while line.last == " " || line.last == "\t" { line.removeLast() }
+            lines.append(line)
+        }
+        while lines.last?.isEmpty == true { lines.removeLast() }
+        return lines.joined(separator: "\n")
     }
 
     /// Writes the bridge's styled VT stream to its own directory under the
@@ -1548,12 +1623,30 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
         let mode = terminalMode
         guard mode.contains(.mouseReporting) else { return }
         let point = gridPoint(for: event)
-        let x = point.column + 1
-        let y = point.line + 1
         let modifiers =
             (event.modifierFlags.contains(.shift) ? 4 : 0)
             + (event.modifierFlags.contains(.option) ? 8 : 0)
             + (event.modifierFlags.contains(.control) ? 16 : 0)
+        sendMouse(
+            code: code,
+            column: point.column,
+            row: point.line,
+            modifiers: modifiers,
+            released: released
+        )
+    }
+
+    private func sendMouse(
+        code: Int,
+        column: Int,
+        row: Int,
+        modifiers: Int,
+        released: Bool
+    ) {
+        let mode = terminalMode
+        guard mode.contains(.mouseReporting) else { return }
+        let x = column + 1
+        let y = row + 1
 
         if mode.contains(.sgrMouse) {
             let suffix = released ? "m" : "M"
