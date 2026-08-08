@@ -114,6 +114,7 @@
 				AA20000000000000000000A1 /* STTextView-Plugin-Neon */,
 				AA30000000000000000000A1 /* TreeSitterTSX */,
 				AA60000000000000000000A1 /* FuzzyMatch */,
+				AA70000000000000000000A1 /* Markdown */,
 			);
 			productName = kero;
 			productReference = FF3FDD73300B6A7400112486 /* Kero Debug.app */;
@@ -153,6 +154,7 @@
 				AA10000000000000000000E0 /* XCRemoteSwiftPackageReference "Sparkle" */,
 				AA20000000000000000000A0 /* XCRemoteSwiftPackageReference "STTextView-Plugin-Neon" */,
 				AA60000000000000000000A0 /* XCRemoteSwiftPackageReference "FuzzyMatch" */,
+				AA70000000000000000000A0 /* XCRemoteSwiftPackageReference "swift-markdown" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = FF3FDD74300B6A7400112486 /* Products */;
@@ -487,6 +489,14 @@
 				minimumVersion = 1.3.2;
 			};
 		};
+		AA70000000000000000000A0 /* XCRemoteSwiftPackageReference "swift-markdown" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/swiftlang/swift-markdown";
+			requirement = {
+				kind = revision;
+				revision = 27b7fc1a19068bcea3d2072db0ce86360d1400ed;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -525,6 +535,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = AA60000000000000000000A0 /* XCRemoteSwiftPackageReference "FuzzyMatch" */;
 			productName = FuzzyMatch;
+		};
+		AA70000000000000000000A1 /* Markdown */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AA70000000000000000000A0 /* XCRemoteSwiftPackageReference "swift-markdown" */;
+			productName = Markdown;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

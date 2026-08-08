@@ -20,8 +20,19 @@ extension FileTab {
         (editorView as? NSScrollView)?.documentView as? STTextView
     }
 
+    /// The mounted markdown preview's text view, when this file is showing its
+    /// rendered form instead of the editor.
+    private var previewTextView: NSTextView? {
+        (editorView as? MarkdownPreviewView)?.findTarget
+    }
+
+    /// Whether this file is currently on screen as rendered markdown, which is
+    /// read-only — so Find works but Replace has nothing to act on.
+    var showsRenderedMarkdown: Bool {
+        editorView is MarkdownPreviewView
+    }
+
     func performFindAction(_ action: FindAction) {
-        guard let textView else { return }
         let finderAction: NSTextFinder.Action =
             switch action {
             case .show: .showFindInterface
@@ -31,9 +42,17 @@ extension FileTab {
             case .previous: .previousMatch
             case .useSelection: .setSearchString
             }
-        // Asking for the next match before anything has been searched for, or
-        // for the selection with none, does nothing rather than beeping.
-        guard textView.textFinder.validateAction(finderAction) else { return }
-        textView.textFinder.performAction(finderAction)
+        if let textView {
+            // Asking for the next match before anything has been searched for,
+            // or for the selection with none, does nothing rather than beeping.
+            guard textView.textFinder.validateAction(finderAction) else { return }
+            textView.textFinder.performAction(finderAction)
+        } else if let previewTextView {
+            // NSTextView keeps its own finder private and reads the action off
+            // the sender's tag, so a rendered document is searched this way.
+            let sender = NSMenuItem()
+            sender.tag = finderAction.rawValue
+            previewTextView.performTextFinderAction(sender)
+        }
     }
 }

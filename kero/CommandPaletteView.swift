@@ -258,6 +258,16 @@ struct CommandPaletteView: View {
                 manager.togglePanel(.info)
             },
             PaletteCommand(
+                id: "toggle-markdown-preview",
+                title: MarkdownViewPreferences.shared.showsSource
+                    ? "Preview Markdown"
+                    : "Edit Markdown Source",
+                systemImage: "doc.richtext",
+                shortcut: "⇧⌘V"
+            ) {
+                manager.toggleMarkdownPreview()
+            },
+            PaletteCommand(
                 id: "toggle-fps-counter",
                 title: manager.isFPSCounterVisible ? "Hide FPS Counter" : "Show FPS Counter",
                 systemImage: "gauge.with.needle"

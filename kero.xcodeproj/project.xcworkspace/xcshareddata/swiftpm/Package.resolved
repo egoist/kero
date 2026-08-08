@@ -1,5 +1,5 @@
 {
-  "originHash" : "944056b7ed6438af06aa572f2d570efbf9437d68d4617a21b3148e00642fb307",
+  "originHash" : "fb90edad64fb4f07d26d49103225e355bca348dd4efebfd10c3c92d2e3ca10de",
   "pins" : [
     {
       "identity" : "coretextswift",
@@ -79,6 +79,23 @@
       "location" : "https://github.com/krzyzanowskim/STTextView-Plugin-Neon",
       "state" : {
         "revision" : "5a30db4ce7908a5414e7b499e2379bdc49991cd1"
+      }
+    },
+    {
+      "identity" : "swift-cmark",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/swiftlang/swift-cmark.git",
+      "state" : {
+        "branch" : "gfm",
+        "revision" : "7898f1b3e4befeecee56cb4a3bc8eebd2cb63219"
+      }
+    },
+    {
+      "identity" : "swift-markdown",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/swiftlang/swift-markdown",
+      "state" : {
+        "revision" : "27b7fc1a19068bcea3d2072db0ce86360d1400ed"
       }
     },
     {

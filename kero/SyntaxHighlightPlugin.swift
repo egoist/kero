@@ -208,14 +208,16 @@ final class SyntaxHighlightCoordinator {
     /// concealment, and the explicit "no highlight" marker. Grammars attach
     /// these alongside real captures (e.g. Swift's `@comment @spell`), so they
     /// must be dropped rather than resolved to a color.
-    private static let ignoredCaptures: Set<String> = ["spell", "nospell", "conceal", "none"]
+    /// Also read by `MarkdownCodeHighlighter`, which colors preview code
+    /// fences through the same capture-name rules.
+    static let ignoredCaptures: Set<String> = ["spell", "nospell", "conceal", "none"]
 
     /// The theme color for a tree-sitter capture name, trying the most specific
     /// name first and shortening on each dot (`variable.parameter` → `variable`),
     /// then the theme's `plain` default. The merged queries carry finer-grained
     /// capture names than the theme enumerates, so exact-match alone would leave
     /// many tokens uncolored.
-    private static func themeColor(for name: String, theme: STPluginNeonAppKit.Theme) -> NSColor? {
+    static func themeColor(for name: String, theme: STPluginNeonAppKit.Theme) -> NSColor? {
         var key = name
         while true {
             if let color = theme.color(forToken: TokenName(key)) {
