@@ -358,6 +358,10 @@ final class KeroAgentObservationState {
     var lastForegroundPID: pid_t?
     var integrationPhase: KeroAgentPhase?
     var integrationReason: String?
+    /// Native integrations publish semantic idle, not whether that idle ended
+    /// a turn. Track active-turn evidence so launching an already-idle CLI in
+    /// the background never looks like a newly finished task.
+    var integrationTurnActive = false
     var screenPromptedAt: Date?
     var lastScreenFingerprint: Int?
     var screenChangeCount = 0
@@ -597,6 +601,7 @@ extension TerminalSession {
         agentObservation.declaredKind = kind
         agentObservation.integrationPhase = nil
         agentObservation.integrationReason = nil
+        agentObservation.integrationTurnActive = false
         agentObservation.resetScreenObservation()
         agentObservation.awaitingInitialPrompt = true
         agentObservation.commandGraceDeadline = Date().addingTimeInterval(5)
@@ -615,6 +620,7 @@ extension TerminalSession {
         guard let status = agentStatus else { return }
         agentObservation.integrationPhase = nil
         agentObservation.integrationReason = nil
+        agentObservation.integrationTurnActive = true
         agentObservation.awaitingInitialPrompt = false
         agentObservation.commandGraceDeadline = nil
         agentObservation.beginScreenObservation(
@@ -655,6 +661,7 @@ extension TerminalSession {
         agentObservation.integrationReason = reason
         agentObservation.commandGraceDeadline = nil
         if phase == .working || phase == .blocked {
+            agentObservation.integrationTurnActive = true
             agentObservation.beginScreenObservation(
                 fingerprint: automationAgentScreenSnapshot(kind: kind).fingerprint
             )
@@ -667,6 +674,8 @@ extension TerminalSession {
         // state; readiness is process recognition, not a disposable lifecycle
         // turn that should appear as background completion.
         if agentObservation.awaitingInitialPrompt, phase == .idle {
+            agentObservation.integrationPhase = nil
+            agentObservation.integrationReason = nil
             updateAutomationAgentStatus(
                 alias: alias,
                 kind: kind,
@@ -679,10 +688,17 @@ extension TerminalSession {
             return true
         }
 
-        let presentedPhase = automationPresentedPhase(
-            integrationPhase: phase,
-            isFocused: focused
-        )
+        let completedTurn = agentObservation.integrationTurnActive
+            || agentStatus?.phase == .working
+            || agentStatus?.phase == .blocked
+        let presentedPhase: KeroAgentPhase
+        switch phase {
+        case .idle, .done:
+            presentedPhase = completedTurn && !focused ? .done : .idle
+            agentObservation.integrationTurnActive = false
+        default:
+            presentedPhase = phase
+        }
         updateAutomationAgentStatus(
             alias: alias,
             kind: kind,
@@ -704,9 +720,13 @@ extension TerminalSession {
         if status.authority == .screen {
             agentObservation.integrationPhase = nil
             agentObservation.integrationReason = nil
+            agentObservation.beginScreenObservation(
+                fingerprint: automationAgentScreenSnapshot(kind: status.kind).fingerprint
+            )
         } else {
             agentObservation.integrationPhase = .idle
             agentObservation.integrationReason = "Completion viewed"
+            agentObservation.integrationTurnActive = false
         }
         updateAutomationAgentStatus(
             alias: status.alias,
@@ -727,20 +747,6 @@ extension TerminalSession {
             title: title,
             visibleText: automationVisibleText(maxLines: 80, maxColumns: 500)
         )
-    }
-
-    /// Integrations publish the semantic idle state. `done` is Kero's unseen
-    /// presentation of that same state, not something a model must announce.
-    private func automationPresentedPhase(
-        integrationPhase: KeroAgentPhase,
-        isFocused: Bool
-    ) -> KeroAgentPhase {
-        switch integrationPhase {
-        case .idle, .done:
-            return isFocused ? .idle : .done
-        default:
-            return integrationPhase
-        }
     }
 
     /// Herdr treats a known agent with no matching working/blocker rule as
@@ -781,10 +787,17 @@ extension TerminalSession {
             guard activityObserved else { return nil }
             agentObservation.screenIdleConfirmations += 1
             guard agentObservation.screenIdleConfirmations >= 3 else { return nil }
-            return (
-                isFocused ? .idle : .done,
-                "Terminal UI settled after task activity"
-            )
+            let phase: KeroAgentPhase = isFocused ? .idle : .done
+            if phase == .idle {
+                // A completion observed in its focused pane is already seen.
+                // Make the settled screen the next-turn baseline so merely
+                // moving focus away cannot manufacture a new completion.
+                agentObservation.beginScreenObservation(
+                    fingerprint: snapshot.fingerprint,
+                    at: now
+                )
+            }
+            return (phase, "Terminal UI settled after task activity")
         }
     }
 
@@ -833,12 +846,39 @@ extension TerminalSession {
         let declaredKind = agentObservation.declaredKind
         agentObservation.declaredKind = kind
 
+        // Directly launched CLIs have no `agent.start` declaration. Their
+        // recognized foreground process is enough to show an idle presence
+        // badge immediately, while this baseline lets later screen activity
+        // drive the same working/blocked/done lifecycle as guarded launches.
+        if agentStatus == nil,
+           agentObservation.integrationPhase == nil,
+           agentObservation.screenPromptedAt == nil {
+            agentObservation.beginScreenObservation(
+                fingerprint: automationAgentScreenSnapshot(kind: kind).fingerprint
+            )
+            updateAutomationAgentStatus(
+                alias: alias,
+                kind: kind,
+                phase: .idle,
+                authority: .process,
+                reason: "Directly launched \(kind.displayName) detected",
+                processID: foreground,
+                unseen: false
+            )
+        }
+
         if let phase = agentObservation.integrationPhase,
            phase != .working, phase != .blocked {
-            let normalized = automationPresentedPhase(
-                integrationPhase: phase,
-                isFocused: isFocused
-            )
+            // Presentation is decided when the native event arrives. Preserve
+            // it until a new event or explicit focus acknowledges completion;
+            // otherwise leaving an idle pane would turn it back into `done`.
+            let currentPresentation = agentStatus.flatMap { status in
+                status.authority == .integration
+                    && (status.phase == .idle || status.phase == .done)
+                    ? status : nil
+            }
+            let normalized = currentPresentation?.phase
+                ?? ((phase == .idle || phase == .done) ? .idle : phase)
             updateAutomationAgentStatus(
                 alias: alias,
                 kind: kind,
@@ -847,7 +887,7 @@ extension TerminalSession {
                 reason: agentObservation.integrationReason
                     ?? "Reported by native agent integration",
                 processID: foreground,
-                unseen: normalized == .done
+                unseen: currentPresentation?.unseen ?? (normalized == .done)
             )
             return
         }
@@ -868,7 +908,8 @@ extension TerminalSession {
         let screenCanSettle = agentObservation.screenPromptedAt != nil
             && agentObservation.integrationPhase == nil
             && (agentStatus?.authority == .command
-                || agentStatus?.authority == .screen)
+                || agentStatus?.authority == .screen
+                || agentStatus?.authority == .process)
         if screenCanSettle {
             if let inferred = automationScreenFallback(kind: kind, isFocused: isFocused) {
                 updateAutomationAgentStatus(
@@ -884,7 +925,8 @@ extension TerminalSession {
             }
             // Transcript viewers and an idle candidate still inside its
             // confirmation window must not erase the last screen result.
-            if agentStatus?.authority == .screen { return }
+            if agentStatus?.authority == .screen
+                || agentStatus?.authority == .process { return }
         }
 
         if let phase = agentObservation.integrationPhase {
@@ -919,9 +961,9 @@ extension TerminalSession {
         updateAutomationAgentStatus(
             alias: alias,
             kind: kind,
-            phase: .unknown,
+            phase: .idle,
             authority: .process,
-            reason: "No prompted task is being observed",
+            reason: "Directly launched \(kind.displayName) detected",
             processID: foreground,
             unseen: false
         )
@@ -933,6 +975,7 @@ extension TerminalSession {
         agentObservation.declaredKind = nil
         agentObservation.integrationPhase = nil
         agentObservation.integrationReason = nil
+        agentObservation.integrationTurnActive = false
         agentObservation.awaitingInitialPrompt = false
         agentObservation.commandGraceDeadline = nil
         agentObservation.resetScreenObservation()
@@ -989,9 +1032,11 @@ extension PaneTab {
     }
 
     fileprivate static func rollup(_ statuses: [KeroAgentStatus]) -> KeroAgentRollup? {
-        // Unknown is useful to automation clients diagnosing a recognized but
-        // unobserved process, but it gives people no actionable chrome state.
-        let visibleStatuses = statuses.filter { $0.phase != .unknown }
+        // Idle and unknown remain useful to automation clients, but neither is
+        // actionable enough to occupy persistent pane, tab, or project chrome.
+        let visibleStatuses = statuses.filter {
+            $0.phase != .idle && $0.phase != .unknown
+        }
         guard let phase = visibleStatuses.map(\.phase).max(by: {
             $0.rollupPriority < $1.rollupPriority
         }) else { return nil }
