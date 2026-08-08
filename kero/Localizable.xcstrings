@@ -266,15 +266,23 @@
     "%lld" : {
       "shouldTranslate" : false
     },
-    "%lld agents %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$lld agents %2$@"
-          }
-        }
-      }
+    "%lld agents finished" : {
+
+    },
+    "%lld agents idle" : {
+
+    },
+    "%lld agents in an unknown state" : {
+
+    },
+    "%lld agents need attention" : {
+
+    },
+    "%lld agents starting" : {
+
+    },
+    "%lld agents working" : {
+
     },
     "%lld fps" : {
 
@@ -535,7 +543,22 @@
         }
       }
     },
-    "Agent %@" : {
+    "Agent finished" : {
+
+    },
+    "Agent idle" : {
+
+    },
+    "Agent needs attention" : {
+
+    },
+    "Agent starting" : {
+
+    },
+    "Agent state unknown" : {
+
+    },
+    "Agent working" : {
 
     },
     "AI" : {
@@ -771,9 +794,6 @@
           }
         }
       }
-    },
-    "blocked" : {
-
     },
     "Branch name" : {
 
@@ -1941,9 +1961,6 @@
         }
       }
     },
-    "created" : {
-
-    },
     "Current branch, %@" : {
       "localizations" : {
         "ja" : {
@@ -2355,9 +2372,6 @@
           }
         }
       }
-    },
-    "done" : {
-
     },
     "Down" : {
       "localizations" : {
@@ -3264,9 +3278,6 @@
           }
         }
       }
-    },
-    "idle" : {
-
     },
     "Ignored" : {
       "localizations" : {
@@ -7080,9 +7091,6 @@
         }
       }
     },
-    "unknown" : {
-
-    },
     "Unknown Kero command “%@”. Run `kero +help`." : {
       "localizations" : {
         "ja" : {
@@ -7390,9 +7398,6 @@
           }
         }
       }
-    },
-    "working" : {
-
     },
     "Working tree clean" : {
       "localizations" : {
