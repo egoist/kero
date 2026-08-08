@@ -136,14 +136,34 @@ struct MarkdownRenderer: @MainActor MarkupVisitor {
         let scales: [CGFloat] = [1.75, 1.45, 1.22, 1.08, 1.0, 1.0]
         let scale = scales[min(max(heading.level, 1), 6) - 1]
         let size = style.bodyFont.pointSize * scale
-        let font = NSFont.systemFont(ofSize: size, weight: .semibold)
 
         let content = NSMutableAttributedString(attributedString: defaultVisit(heading))
-        content.addAttribute(
+        // Per-run rather than one font across the range: `# an *italic* title`
+        // and inline code in a heading carry their own fonts, which a blanket
+        // assignment would erase. Mono runs keep their face at the heading
+        // size; everything else becomes semibold system with its italic and
+        // bold traits carried over.
+        content.enumerateAttribute(
             .font,
-            value: font,
-            range: NSRange(location: 0, length: content.length)
-        )
+            in: NSRange(location: 0, length: content.length)
+        ) { value, range, _ in
+            let existing = (value as? NSFont) ?? style.bodyFont
+            let existingTraits = existing.fontDescriptor.symbolicTraits
+            var replacement: NSFont
+            if existingTraits.contains(.monoSpace) {
+                replacement = NSFont(descriptor: existing.fontDescriptor, size: size) ?? existing
+            } else {
+                replacement = .systemFont(ofSize: size, weight: .semibold)
+                let carried = existingTraits.intersection([.italic, .bold])
+                if !carried.isEmpty {
+                    let descriptor = replacement.fontDescriptor.withSymbolicTraits(
+                        replacement.fontDescriptor.symbolicTraits.union(carried)
+                    )
+                    replacement = NSFont(descriptor: descriptor, size: size) ?? replacement
+                }
+            }
+            content.addAttribute(.font, value: replacement, range: range)
+        }
         if heading.level >= 6 {
             content.addAttribute(
                 .foregroundColor,
@@ -674,6 +694,13 @@ struct MarkdownRenderer: @MainActor MarkupVisitor {
         // A fragment on a path (`README.md#usage`) is not part of the filename.
         let path = trimmed.split(separator: "#", maxSplits: 1).first.map(String.init) ?? trimmed
         guard !path.isEmpty else { return nil }
+        // A markdown destination is a URI reference, so percent-escapes decode
+        // into the real filename (`My%20Guide.md` names "My Guide.md"). Only a
+        // destination that is not a valid URI — a raw space, usually — falls
+        // back to being taken as a literal path.
+        if let uri = URL(string: path, relativeTo: baseURL), uri.isFileURL {
+            return uri.standardizedFileURL
+        }
         return URL(fileURLWithPath: path, relativeTo: baseURL).standardizedFileURL
     }
 

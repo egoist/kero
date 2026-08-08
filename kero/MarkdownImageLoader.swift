@@ -84,12 +84,30 @@ final class MarkdownImageLoader {
 
     private nonisolated static func fetch(_ url: URL) async -> NSImage? {
         var request = URLRequest(url: url)
+        // Idle timeout: it also covers a stalling body, since receiving data
+        // resets it.
         request.timeoutInterval = 15
-        guard let (data, response) = try? await URLSession.shared.data(for: request),
+        // Streamed rather than `data(for:)`, which would buffer the entire
+        // response before the size check could reject it — the cap has to hold
+        // against a server that ignores or misstates Content-Length.
+        guard let (bytes, response) = try? await URLSession.shared.bytes(for: request),
               let http = response as? HTTPURLResponse,
               (200..<300).contains(http.statusCode),
-              data.count <= maxBytes
+              http.expectedContentLength <= Int64(maxBytes) // -1 when unknown
         else { return nil }
+
+        var data = Data()
+        data.reserveCapacity(http.expectedContentLength > 0
+            ? Int(http.expectedContentLength)
+            : 1 << 20)
+        do {
+            for try await byte in bytes {
+                guard data.count < maxBytes else { return nil }
+                data.append(byte)
+            }
+        } catch {
+            return nil
+        }
         return NSImage(data: data)
     }
 }
