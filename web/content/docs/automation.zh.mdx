@@ -1,6 +1,6 @@
 ---
 title: 与 AI Agent 协作
-description: 让编码 agent 在 Kero 里分派工作、同步并行会话，而你继续专注并掌握决定权。
+description: 让编码 agent 在 Kero 窗格间分派和协调工作，而你继续专注并掌握决定权。
 ---
 
 Kero 的自动化主要是给 AI 编码 agent 用的。它让 agent 安全地操作 Kero 的窗格、协调其他 agent；你不需要再学一套命令。
@@ -21,7 +21,7 @@ Kero 支持 Codex、Claude Code、Gemini CLI、Grok Build、OpenCode、Cursor Ag
 
 > 把这个 bug 交给另一个 Codex agent，完成后再检查它的结果。
 
-> 问一下正在改 API 的 Claude 会话，schema 是否已经定下来，再把答案告诉测试会话。
+> 问一下负责 API 的 agent，schema 是否已经定下来，再把答案告诉跑测试的 agent。
 
 > 在旁边启动开发服务器，等它就绪后把 URL 告诉我。
 
@@ -29,13 +29,13 @@ Kero 支持 Codex、Claude Code、Gemini CLI、Grok Build、OpenCode、Cursor Ag
 
 Kero 的自动化接口由 agent 自己调用，你不需要输入或记住任何自动化命令。
 
-## 让多个 Claude Code 会话互相同步
+## 让多个 agent 在窗格间协作
 
-使用 [Claude Code 2.1.224 或更高版本](https://code.claude.com/docs/en/cross-session-messaging)时，同一台 Mac 上的 Claude 会话可以直接互相传递发现、问题和进度。你可以让一个会话去询问另一个，也可以让它在改动共享 API、解除其他任务的阻塞时，主动通知相关会话。
+你可以把相关工作拆到几个 Kero 窗格里，再让主要 agent 负责协调。例如，一个 agent 修改 API，另一个补测试。协调方可以向指定的 agent 询问发现或进度、补充要求、把有用的结果传给另一个 agent，最后再把汇总后的答案交给你。不同窗格也可以运行不同的受支持编码工具。
 
-这样并行工作时就不必由你来回复制上下文。每段对话仍留在各自的 Kero 窗格里，agent 之间只传递当前需要的文字，不会共享完整对话历史或文件。
+这样并行工作时就不必由你来回复制上下文。每个 agent 的对话仍留在自己的窗格里，协调方只会传递另一个 agent 当前需要的问题、更新或结果。
 
-来自另一个 agent 的消息不等于你的批准。它不能替你回答权限提示、修改配置，也不能绕过接收方原本的安全规则。如果下一步仍需要你决定，agent 还是会进入 **Blocked**，把控制权交还给你。
+发出补充消息不代表任务已经完成。协调方仍要等待 agent、读取结果并检查结论。来自另一个 agent 的消息也不等于你的批准；权限、凭据、信任和破坏性操作仍然必须交还给你决定。
 
 ## 它运行时，你继续工作
 
@@ -59,7 +59,7 @@ Agent 完成或需要输入时还可以发通知。按 <kbd>Cmd</kbd>+<kbd>Shift
 
 ## 决定权仍然在你手里
 
-- Kero 对窗格的自动化只作用于当前项目，不能操作其他项目或窗口里的窗格。Claude Code 自己的会话消息另有范围与控制；默认只用于当前项目的相关会话，只有你明确指定目标时，才会联系其他项目。
+- Agent 自动化只作用于当前 Kero 项目，不能操作其他项目或窗口里的窗格。
 - 后台工作默认不抢焦点。
 - Kero 不会替你回答权限、凭据、信任或破坏性操作提示。Agent 进入 **Blocked**，就是把决定交还给你。
 - **Done** 只表示可以开始审阅，不代表 Kero 自动批准了 agent 的改动。
@@ -71,4 +71,3 @@ Agent 完成或需要输入时还可以发通知。按 <kbd>Cmd</kbd>+<kbd>Shift
 - 如果 agent 当时已经在运行，请重启它。
 - 看看设置里有没有直接显示的错误。
 - 如果希望这次任务使用自动化，可以明确说「在 Kero 后台窗格里运行」或「交给另一个 Kero agent」。
-- 如果要让 Claude 会话互相同步，请使用 Claude Code 2.1.224 或更高版本，并保持目标会话正在运行。
