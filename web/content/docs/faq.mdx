@@ -14,8 +14,8 @@ Yes. Free to download, open source under GPLv3, no account and no subscription.
 <Accordion title="Does it replace my shell?">
 
 No. Kero hosts the shell you already run — it starts `$SHELL -l` and leaves your
-prompt, aliases, functions, and dotfiles alone. The terminal underneath is
-libghostty, the same core as Ghostty.
+prompt, aliases, functions, and dotfiles alone. The terminal pane can use
+Ghostty or Alacritty as its backend.
 
 </Accordion>
 
@@ -25,12 +25,16 @@ No telemetry and no analytics. The only network request Kero makes on its own is
 the update check against `releases.kero.sh`, which you can turn off in
 **Settings → Updates**.
 
+Pages you open in a [browser pane](/docs/browser) and agent CLIs you run make
+their own user-directed requests, just as they would outside Kero.
+
 </Accordion>
 
-<Accordion title="Does it read my Ghostty config?">
+<Accordion title="Does it read my Ghostty or Alacritty config?">
 
-No. `~/.config/ghostty` is ignored. Fonts and colors come from Kero's own
-[settings](/docs/configuration); everything else uses Ghostty's defaults.
+No. Backend, fonts, colors, and input behavior come from Kero's own
+[settings](/docs/configuration). Kero does not load either terminal app's
+config file.
 
 </Accordion>
 
@@ -65,10 +69,12 @@ Ghostty uses.
 
 <Accordion title="Can I use it with an AI coding agent?">
 
-That's much of what it's built for. Run the agent in one session, watch the diff
-it produced in the [git panel](/docs/git), read the changed file in a pane
-beside it, and stage what you actually want. Programs in a session can also
-request microphone access for voice input — macOS attributes the prompt to Kero.
+That's much of what it is built for. Kero recognizes supported agents, shows
+working/blocked/completed state in the layout, and offers guarded, project-scoped
+pane and agent commands. See [Agents and automation](/docs/automation).
+
+You can still use an agent as an ordinary terminal program: review its diff in
+the [Git panel](/docs/git), read files beside it, and stage only what you want.
 
 </Accordion>
 

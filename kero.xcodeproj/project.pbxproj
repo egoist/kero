@@ -13,10 +13,13 @@
 		AA10000000000000000000E2 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = AA10000000000000000000E1 /* Sparkle */; };
 		AA20000000000000000000A2 /* STTextView-Plugin-Neon in Frameworks */ = {isa = PBXBuildFile; productRef = AA20000000000000000000A1 /* STTextView-Plugin-Neon */; };
 		AA30000000000000000000A2 /* TreeSitterTSX in Frameworks */ = {isa = PBXBuildFile; productRef = AA30000000000000000000A1 /* TreeSitterTSX */; };
+		AA60000000000000000000A2 /* FuzzyMatch in Frameworks */ = {isa = PBXBuildFile; productRef = AA60000000000000000000A1 /* FuzzyMatch */; };
 		FF519F43300BBE2100D8B982 /* PierreDiffsSwift in Frameworks */ = {isa = PBXBuildFile; productRef = AA10000000000000000000D1 /* PierreDiffsSwift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		AA50000000000000000000A0 /* Debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Debug.xcconfig; sourceTree = "<group>"; };
+		AA50000000000000000000A1 /* Local.example.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Local.example.xcconfig; sourceTree = "<group>"; };
 		FF3FDD73300B6A7400112486 /* Kero Debug.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Kero Debug.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -52,14 +55,25 @@
 				AA10000000000000000000E2 /* Sparkle in Frameworks */,
 				AA20000000000000000000A2 /* STTextView-Plugin-Neon in Frameworks */,
 				AA30000000000000000000A2 /* TreeSitterTSX in Frameworks */,
+				AA60000000000000000000A2 /* FuzzyMatch in Frameworks */,
 			);
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		AA50000000000000000000A2 /* Config */ = {
+			isa = PBXGroup;
+			children = (
+				AA50000000000000000000A0 /* Debug.xcconfig */,
+				AA50000000000000000000A1 /* Local.example.xcconfig */,
+			);
+			path = Config;
+			sourceTree = "<group>";
+		};
 		FF3FDD6A300B6A7400112486 = {
 			isa = PBXGroup;
 			children = (
+				AA50000000000000000000A2 /* Config */,
 				FF3FDD75300B6A7400112486 /* kero */,
 				FF3FDD74300B6A7400112486 /* Products */,
 			);
@@ -80,6 +94,7 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = FF3FDD7E300B6A7600112486 /* Build configuration list for PBXNativeTarget "kero" */;
 			buildPhases = (
+				AA40000000000000000000A0 /* Build Alacritty bridge */,
 				FF3FDD6F300B6A7400112486 /* Sources */,
 				FF3FDD70300B6A7400112486 /* Frameworks */,
 				FF3FDD71300B6A7400112486 /* Resources */,
@@ -98,6 +113,7 @@
 				AA10000000000000000000E1 /* Sparkle */,
 				AA20000000000000000000A1 /* STTextView-Plugin-Neon */,
 				AA30000000000000000000A1 /* TreeSitterTSX */,
+				AA60000000000000000000A1 /* FuzzyMatch */,
 			);
 			productName = kero;
 			productReference = FF3FDD73300B6A7400112486 /* Kero Debug.app */;
@@ -123,6 +139,8 @@
 			hasScannedForEncodings = 0;
 			knownRegions = (
 				en,
+				ja,
+				"zh-Hans",
 				Base,
 			);
 			mainGroup = FF3FDD6A300B6A7400112486;
@@ -134,6 +152,7 @@
 				AA10000000000000000000D0 /* XCRemoteSwiftPackageReference "PierreDiffsSwift" */,
 				AA10000000000000000000E0 /* XCRemoteSwiftPackageReference "Sparkle" */,
 				AA20000000000000000000A0 /* XCRemoteSwiftPackageReference "STTextView-Plugin-Neon" */,
+				AA60000000000000000000A0 /* XCRemoteSwiftPackageReference "FuzzyMatch" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = FF3FDD74300B6A7400112486 /* Products */;
@@ -152,6 +171,30 @@
 			);
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		AA40000000000000000000A0 /* Build Alacritty bridge */ = {
+			isa = PBXShellScriptBuildPhase;
+			inputPaths = (
+				"$(SRCROOT)/Vendor/alacritty-bridge/Cargo.lock",
+				"$(SRCROOT)/Vendor/alacritty-bridge/Cargo.toml",
+				"$(SRCROOT)/Vendor/alacritty-bridge/src/graphics_event_loop.rs",
+				"$(SRCROOT)/Vendor/alacritty-bridge/src/kitty_graphics.rs",
+				"$(SRCROOT)/Vendor/alacritty-bridge/src/kitty_graphics_tracking.rs",
+				"$(SRCROOT)/Vendor/alacritty-bridge/src/lib.rs",
+				"$(SRCROOT)/scripts/build-alacritty-bridge.sh",
+			);
+			name = "Build Alacritty bridge";
+			outputPaths = (
+				"$(BUILT_PRODUCTS_DIR)/alacritty-bridge/libkero_alacritty.a",
+			);
+			shellPath = /bin/zsh;
+			shellScript = (
+				"\"${SRCROOT}/scripts/build-alacritty-bridge.sh\"",
+				"",
+			);
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		FF3FDD6F300B6A7400112486 /* Sources */ = {
@@ -282,33 +325,49 @@
 		};
 		FF3FDD7F300B6A7600112486 /* Debug configuration for PBXNativeTarget "kero" */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = AA50000000000000000000A0 /* Debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = "AppIcon-Dev";
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = kero/kero.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 30;
+				CURRENT_PROJECT_VERSION = 50;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
+				HEADER_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(SRCROOT)/Vendor/alacritty-bridge/include",
+				);
 				INFOPLIST_FILE = kero/Info.plist;
+				KERO_DISPLAY_NAME = "Kero Debug";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(BUILT_PRODUCTS_DIR)/alacritty-bridge",
+				);
 				MACOSX_DEPLOYMENT_TARGET = 15.6;
-				MARKETING_VERSION = 0.1.25;
+				MARKETING_VERSION = 0.1.45;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-lkero_alacritty",
+				);
 				PRODUCT_BUNDLE_IDENTIFIER = sh.kero.dev;
-				PRODUCT_NAME = "Kero Debug";
+				PRODUCT_NAME = kero;
 				REGISTER_APP_GROUPS = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "kero/kero-Bridging-Header.h";
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
+				WRAPPER_NAME = "$(KERO_DISPLAY_NAME).app";
 			};
 			name = Debug;
 		};
@@ -320,27 +379,42 @@
 				CODE_SIGN_ENTITLEMENTS = kero/kero.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 30;
+				CURRENT_PROJECT_VERSION = 50;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
+				HEADER_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(SRCROOT)/Vendor/alacritty-bridge/include",
+				);
 				INFOPLIST_FILE = kero/Info.plist;
+				KERO_DISPLAY_NAME = Kero;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(BUILT_PRODUCTS_DIR)/alacritty-bridge",
+				);
 				MACOSX_DEPLOYMENT_TARGET = 15.6;
-				MARKETING_VERSION = 0.1.25;
+				MARKETING_VERSION = 0.1.45;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-lkero_alacritty",
+				);
 				PRODUCT_BUNDLE_IDENTIFIER = sh.kero;
-				PRODUCT_NAME = Kero;
+				PRODUCT_NAME = kero;
 				REGISTER_APP_GROUPS = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "kero/kero-Bridging-Header.h";
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
+				WRAPPER_NAME = "$(KERO_DISPLAY_NAME).app";
 			};
 			name = Release;
 		};
@@ -386,7 +460,7 @@
 			repositoryURL = "https://github.com/egoist-labs/PierreDiffsSwift";
 			requirement = {
 				kind = upToNextMajorVersion;
-				minimumVersion = 1.4.1;
+				minimumVersion = 1.5.0;
 			};
 		};
 		AA10000000000000000000E0 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
@@ -403,6 +477,14 @@
 			requirement = {
 				kind = revision;
 				revision = 5a30db4ce7908a5414e7b499e2379bdc49991cd1;
+			};
+		};
+		AA60000000000000000000A0 /* XCRemoteSwiftPackageReference "FuzzyMatch" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/ordo-one/FuzzyMatch";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.3.2;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
@@ -438,6 +520,11 @@
 		AA30000000000000000000A1 /* TreeSitterTSX */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = TreeSitterTSX;
+		};
+		AA60000000000000000000A1 /* FuzzyMatch */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AA60000000000000000000A0 /* XCRemoteSwiftPackageReference "FuzzyMatch" */;
+			productName = FuzzyMatch;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

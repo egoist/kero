@@ -22,7 +22,7 @@ final class KeroApplicationDelegate: NSObject, NSApplicationDelegate {
     ) {
         let directories = Self.directories(from: pasteboard)
         guard !directories.isEmpty else {
-            error.pointee = "Select one or more folders to open in Kero." as NSString
+            error.pointee = String(localized: "Select one or more folders to open in Kero.") as NSString
             return
         }
 

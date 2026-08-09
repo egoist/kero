@@ -20,9 +20,9 @@ enum AppTheme: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .system: return "System"
-        case .light: return "Light"
-        case .dark: return "Dark"
+        case .system: return String(localized: "System", comment: "Appearance that follows the macOS setting.")
+        case .light: return String(localized: "Light", comment: "Light app appearance.")
+        case .dark: return String(localized: "Dark", comment: "Dark app appearance.")
         }
     }
 
@@ -46,8 +46,8 @@ final class ThemeChanges: nonisolated ObservableObject {}
 /// `NSColor` properties derive window chrome from the same palette and adapt
 /// to the system appearance.
 enum Theme {
-    static let defaultDarkThemeName = "Default Dark"
-    static let defaultLightThemeName = "Default Light"
+    nonisolated static let defaultDarkThemeName = "Default Dark"
+    nonisolated static let defaultLightThemeName = "Default Light"
 
     @MainActor static let changes = ThemeChanges()
 
@@ -61,6 +61,90 @@ enum Theme {
     nonisolated static let defaultLightDefinition = keroDefault(
         named: defaultLightThemeName, from: "GitHub Light Default", dark: false
     )
+
+    /// Popular themes that render through the shared palette path used by both
+    /// terminal backends. Each appearance has 29 catalog themes plus Kero's
+    /// default, keeping either Settings picker capped at 30 choices.
+    private nonisolated static let commonDarkCatalogThemeNames: Set<String> = [
+        "Adwaita Dark",
+        "Afterglow",
+        "Atom One Dark",
+        "Ayu",
+        "Ayu Mirage",
+        "Catppuccin Frappe",
+        "Catppuccin Macchiato",
+        "Catppuccin Mocha",
+        "Dark+",
+        "Dracula",
+        "Everforest Dark Hard",
+        "Flexoki Dark",
+        "GitHub Dark",
+        "GitHub Dark Dimmed",
+        "Gruvbox Dark",
+        "Gruvbox Material",
+        "iTerm2 Solarized Dark",
+        "Kanagawa Dragon",
+        "Kanagawa Wave",
+        "Material Dark",
+        "Monokai Pro",
+        "Night Owl",
+        "Nord",
+        "Nvim Dark",
+        "Rose Pine",
+        "Rose Pine Moon",
+        "TokyoNight",
+        "TokyoNight Storm",
+        "Vesper",
+    ]
+
+    private nonisolated static let commonLightCatalogThemeNames: Set<String> = [
+        "Adwaita",
+        "Alabaster",
+        "Apple System Colors Light",
+        "Atom One Light",
+        "Ayu Light",
+        "Bluloco Light",
+        "Catppuccin Latte",
+        "Dawnfox",
+        "Dayfox",
+        "Everforest Light Med",
+        "Flexoki Light",
+        "GitHub",
+        "GitHub Light High Contrast",
+        "GitLab Light",
+        "Gruvbox Light",
+        "Gruvbox Material Light",
+        "Iceberg Light",
+        "iTerm2 Solarized Light",
+        "Kanagawa Lotus",
+        "Light Owl",
+        "Material",
+        "Modus Operandi",
+        "Monokai Pro Light",
+        "Nord Light",
+        "Nvim Light",
+        "One Half Light",
+        "Rose Pine Dawn",
+        "TokyoNight Day",
+        "Tomorrow",
+    ]
+
+    /// Kero's Default comes first; the duplicate GitHub Default catalog rows
+    /// are intentionally omitted because the built-ins use those palettes.
+    nonisolated static let commonDarkThemes: [GhosttyThemeDefinition] =
+        [defaultDarkDefinition] + GhosttyThemeCatalog.allThemes.filter {
+            $0.isDark && commonDarkCatalogThemeNames.contains($0.name)
+        }
+
+    nonisolated static let commonLightThemes: [GhosttyThemeDefinition] =
+        [defaultLightDefinition] + GhosttyThemeCatalog.allThemes.filter {
+            !$0.isDark && commonLightCatalogThemeNames.contains($0.name)
+        }
+
+    nonisolated static func isCommonTheme(named name: String, dark: Bool) -> Bool {
+        let themes = dark ? commonDarkThemes : commonLightThemes
+        return themes.contains { $0.name == name }
+    }
 
     /// The selected definitions, mirrored out of `AppSettings` because the
     /// dynamic color providers below may resolve outside the main actor.
@@ -86,6 +170,27 @@ enum Theme {
         )
         selection.withLock { $0 = resolved }
         changes.objectWillChange.send()
+    }
+
+    /// Applies one catalog theme without changing the saved setting. The
+    /// bundled `kero +themes` browser uses this while the user moves through
+    /// its list, then either commits through `AppSettings` or restores the
+    /// saved pair with `reloadSelection`.
+    @MainActor
+    @discardableResult
+    static func previewSelection(named name: String, dark: Bool) -> Bool {
+        guard isCommonTheme(named: name, dark: dark),
+              let definition = definition(named: name)
+        else { return false }
+        selection.withLock {
+            if dark {
+                $0.dark = definition
+            } else {
+                $0.light = definition
+            }
+        }
+        changes.objectWillChange.send()
+        return true
     }
 
     /// The selected ghostty theme for one appearance.

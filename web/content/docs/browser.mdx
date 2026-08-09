@@ -1,0 +1,56 @@
+---
+title: Browser panes
+description: Open websites beside a terminal, navigate with native controls, and keep links inside the project.
+---
+
+Kero can put a built-in browser in any tab or split pane. It is useful for a
+local dev server, API documentation, an issue, or anything else you want beside
+the terminal that is using it.
+
+## Opening a browser
+
+- Choose **File → New Browser Tab** for a blank tab.
+- Open the command palette (<kbd>Cmd</kbd>+<kbd>P</kbd>) and run **New Browser
+  Tab** or **New Browser Pane**.
+- Command-right-click a detected URL in a terminal and choose **New Browser
+  Tab** or **New Browser Pane** to open it without copying the address.
+
+Browser tabs belong to the selected project and participate in its normal tab
+and pane layout. If no project is open, Kero creates one to hold the browser.
+
+## Address and search
+
+The field at the top accepts a full URL, a hostname, or search terms:
+
+- `kero.sh` becomes an HTTPS address.
+- `localhost`, local hostnames, IP addresses, and explicit ports use HTTP.
+- Everything else becomes a Google search.
+
+Use <kbd>Cmd</kbd>+<kbd>L</kbd> to focus the field and
+<kbd>Cmd</kbd>+<kbd>R</kbd> to reload. The toolbar also has Back, Forward,
+Stop/Reload, Share, and **Open in Default Browser** controls. Trackpad back and
+forward gestures work too.
+
+| Action | Shortcut |
+| --- | --- |
+| Focus address bar | <kbd>Cmd</kbd>+<kbd>L</kbd> |
+| Reload page | <kbd>Cmd</kbd>+<kbd>R</kbd> |
+
+## Opening links where you want them
+
+Right-click a link on a page for **Open Link in New Tab** or **Open Link in New
+Pane**. The new page stays in the same project workspace.
+
+In a terminal, a plain Command-click opens a detected web URL in your default
+browser. Command-right-click is the version that offers a Kero tab or pane.
+Local paths have a parallel workflow described under
+[Paths and URLs](/docs/terminal#paths-and-urls).
+
+## What is preserved
+
+Switching tabs or projects keeps the page as you left it, including history,
+scroll position, forms, and in-page state. When Kero relaunches, it restores
+the current URL and layout, but not the full back/forward history.
+
+Browser panes keep cookies, logins, and other site data across tabs and
+launches. This is not a private-browsing mode.

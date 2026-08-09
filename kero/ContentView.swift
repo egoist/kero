@@ -3,48 +3,229 @@
 //  kero
 //
 
+import Combine
 import SwiftUI
+
+/// Coordinates the direct tab-strip drag with the mounted pane layout. A
+/// reference object keeps the latest global pointer location and pane frames
+/// available synchronously when the strip receives its drag-ended callback.
+@MainActor
+final class TabSplitDragCoordinator: ObservableObject {
+    struct Drag {
+        let sourceTabID: UUID
+        let location: CGPoint
+        let targetTabID: UUID?
+        let targetPaneID: UUID?
+        let edge: PaneDropEdge?
+        let title: String
+        let systemImage: String
+        let fileIconPath: String?
+        let paneCount: Int
+    }
+
+    @Published private(set) var drag: Drag?
+
+    private weak var project: Project?
+    private var renderedTabID: UUID?
+    private var paneFrames: [UUID: CGRect] = [:]
+
+    func update(sourceTabID: UUID, location: CGPoint, in project: Project) {
+        self.project = project
+        drag = resolvedDrag(
+            sourceTabID: sourceTabID,
+            location: location,
+            in: project
+        )
+    }
+
+    /// Pane frames are reported by the currently mounted layout, including a
+    /// single full-bleed pane. Re-resolve an active drag because a resize or
+    /// newly created split can change the quadrant under a stationary cursor.
+    func updatePaneFrames(_ frames: [UUID: CGRect], for tabID: UUID) {
+        let changed = renderedTabID != tabID || paneFrames != frames
+        renderedTabID = tabID
+        paneFrames = frames
+        guard changed, let drag, let project else { return }
+        self.drag = resolvedDrag(
+            sourceTabID: drag.sourceTabID,
+            location: drag.location,
+            in: project
+        )
+    }
+
+    func clearPaneFrames(for tabID: UUID) {
+        guard renderedTabID == tabID else { return }
+        renderedTabID = nil
+        paneFrames = [:]
+    }
+
+    func commit() {
+        guard let drag, let project else {
+            cancel()
+            return
+        }
+        // Resolve once more at release so the operation uses the same frames
+        // as the final preview even if the last move and mouse-up are adjacent.
+        let resolved = resolvedDrag(
+            sourceTabID: drag.sourceTabID,
+            location: drag.location,
+            in: project
+        )
+        if let targetTabID = resolved.targetTabID,
+           let targetPaneID = resolved.targetPaneID,
+           let edge = resolved.edge {
+            project.moveTab(
+                resolved.sourceTabID,
+                into: targetTabID,
+                toward: edge,
+                beside: targetPaneID
+            )
+        }
+        cancel()
+    }
+
+    func cancel() {
+        drag = nil
+        project = nil
+    }
+
+    private func resolvedDrag(
+        sourceTabID: UUID,
+        location: CGPoint,
+        in project: Project
+    ) -> Drag {
+        let source = project.tabs.first { $0.id == sourceTabID }
+        let sourceContent = source?.focusedContent
+        let targetTabID = project.selectedTabID
+
+        var targetPaneID: UUID?
+        var edge: PaneDropEdge?
+        if let source,
+           !source.allContents.contains(where: \.isDiff),
+           targetTabID != sourceTabID,
+           renderedTabID == targetTabID,
+           let targetTab = project.selectedTab,
+           let hit = paneFrames.first(where: { $0.value.contains(location) }),
+           let targetPane = targetTab.allPanes.first(where: { $0.id == hit.key }),
+           !targetPane.content.isDiff {
+            targetPaneID = hit.key
+            edge = dropEdge(at: location, in: hit.value)
+        }
+
+        return Drag(
+            sourceTabID: sourceTabID,
+            location: location,
+            targetTabID: targetPaneID == nil ? nil : targetTabID,
+            targetPaneID: targetPaneID,
+            edge: edge,
+            title: source?.displayTitle ?? sourceContent?.title ?? String(localized: "Tab"),
+            systemImage: sourceContent?.systemImage ?? "terminal",
+            fileIconPath: sourceContent?.fileIconPath,
+            paneCount: source?.allPanes.count ?? 1
+        )
+    }
+
+    private func dropEdge(at location: CGPoint, in frame: CGRect) -> PaneDropEdge {
+        let dx = (location.x - frame.midX) / max(frame.width, 1)
+        let dy = (location.y - frame.midY) / max(frame.height, 1)
+        if abs(dx) > abs(dy) {
+            return dx < 0 ? .left : .right
+        }
+        return dy < 0 ? .top : .bottom
+    }
+}
+
+enum BottomToolbarLayout {
+    static let idealHeight: CGFloat = 32
+
+    static func height(for session: TerminalSession?) -> CGFloat {
+        guard session?.backend == .libghostty,
+              let cellHeight = session?.terminalCellSize?.height,
+              cellHeight.isFinite, cellHeight > 0 else {
+            return idealHeight
+        }
+        let rowCount = max(1, (idealHeight / cellHeight).rounded())
+        return rowCount * cellHeight
+    }
+}
 
 struct ContentView: View {
     @ObservedObject var manager: TerminalManager
+    @ObservedObject private var settings = AppSettings.shared
     @ObservedObject private var themeChanges = Theme.changes
     @Environment(\.colorScheme) private var colorScheme
     @StateObject private var tabSwitcher = TabSwitcherController()
+    @StateObject private var git = GitStatusModel()
+    @StateObject private var tabSplitDrag = TabSplitDragCoordinator()
+
+    /// Every terminal in the selected project can change the same repository.
+    /// Watching command completion keeps the toolbar current without polling.
+    private var commandCompletionSequences: [UUID: UInt64] {
+        Dictionary(uniqueKeysWithValues:
+            manager.selectedProject?.sessions.map {
+                ($0.id, $0.commandLifecycle.completionSequence)
+            } ?? []
+        )
+    }
+
+    private var bottomToolbarHeight: CGFloat {
+        BottomToolbarLayout.height(for: manager.selectedSession)
+    }
 
     var body: some View {
         HStack(spacing: 0) {
             if manager.isLeftSidebarVisible {
-                SidebarView(manager: manager)
+                SidebarView(
+                    manager: manager,
+                    bottomBarHeight: bottomToolbarHeight
+                )
             }
 
             VStack(spacing: 0) {
                 // Above the pane stack so header tooltips, which hang down
                 // into the terminal area, aren't covered by it.
-                MainHeaderView(manager: manager)
+                MainHeaderView(manager: manager, tabSplitDrag: tabSplitDrag)
                     .zIndex(1)
 
                 ZStack {
-                    // Diff panes stay mounted while unselected: removing one
-                    // would pull its NSHostingView out of the window, which
-                    // tears down and re-creates the WKWebView inside (losing
-                    // the rendered diff and scroll position). Unselected ones
-                    // just sit covered by the active tab's opaque pane layer.
-                    // Diffs are always their own single-pane tab, so a selected
-                    // diff fills the whole content area, unchanged.
-                    if let project = manager.selectedProject {
+                    // Diff panes stay mounted after their project has been
+                    // visited: removing a project's stack pulls every
+                    // NSHostingView out of the window at once, making project
+                    // switching block while WebKit tears down and reattaches
+                    // the rendered diffs. Unvisited restored projects remain
+                    // lazy; inactive stacks sit beneath the active opaque pane.
+                    ForEach(manager.projectsWithMountedDiffs) { project in
                         ForEach(project.diffPlacements, id: \.diff.id) { placement in
+                            let isSelected = manager.selectedProjectID == project.id
+                                && project.selectedTabID == placement.tabID
                             DiffViewerView(
                                 diff: placement.diff,
-                                isSelected: project.selectedTabID == placement.tabID
+                                isSelected: isSelected
                             )
                             .background(Color(nsColor: Theme.background))
-                            .allowsHitTesting(project.selectedTabID == placement.tabID)
-                            .zIndex(project.selectedTabID == placement.tabID ? 1 : 0)
+                            .allowsHitTesting(isSelected)
+                            .zIndex(isSelected ? 1 : 0)
                         }
                     }
                     Group {
                         if let tab = manager.selectedProject?.selectedTab {
-                            PaneLayoutView(tab: tab, onSplit: { manager.split(toward: $0) })
+                            PaneLayoutView(
+                                tab: tab,
+                                tabSplitDrag: tabSplitDrag,
+                                onSplit: { manager.split(toward: $0) },
+                                onNewBrowserTab: {
+                                    manager.newBrowserTab(initialURL: $0)
+                                },
+                                onNewBrowserPane: {
+                                    manager.newBrowserPane(initialURL: $0)
+                                },
+                                onNewFileTab: {
+                                    manager.openFile($0)
+                                },
+                                onNewFilePane: {
+                                    manager.openFileToSide($0)
+                                }
+                            )
                         } else {
                             emptyState
                         }
@@ -57,10 +238,26 @@ struct ContentView: View {
                     .zIndex(2)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                if manager.selectedProject != nil
+                    && settings.toolbarVisibility != .hide
+                    && (git.isRepo || settings.toolbarVisibility == .always) {
+                    BottomToolbarView(
+                        model: git,
+                        height: bottomToolbarHeight,
+                        toggleGitPanel: { manager.togglePanel(.git) },
+                        hideToolbar: { settings.toolbarVisibility = .hide }
+                    )
+                }
             }
             .background(Color(nsColor: Theme.background))
 
-            RightSidebarView(manager: manager)
+            // Dropping the hidden sidebar also drops its expanded file tree
+            // and process snapshot. Git stays window-owned because the toolbar
+            // remains visible while this panel is closed.
+            if manager.isPanelVisible {
+                RightSidebarView(manager: manager, git: git)
+            }
         }
         .ignoresSafeArea()
         .overlay(alignment: .topLeading) {
@@ -85,6 +282,21 @@ struct ContentView: View {
                 .frame(width: 0, height: 0)
         }
         .background(WindowChromeAccessor { manager.attach(to: $0) })
+        .onAppear { syncGit() }
+        .onReceive(NotificationCenter.default.publisher(
+            for: NSApplication.didBecomeActiveNotification
+        )) { _ in
+            syncGit()
+        }
+        .onChange(of: commandCompletionSequences) { syncGit() }
+        .onChange(of: manager.selectedProjectID) {
+            tabSplitDrag.cancel()
+            syncGit()
+        }
+        .onChange(of: manager.selectedSession?.id) { syncGit() }
+        .onChange(of: manager.selectedSession?.workingDirectory) { syncGit() }
+        .onChange(of: manager.selectedSession?.foregroundDirectoryPath) { syncGit() }
+        .onChange(of: manager.selectedProject?.customDirectory) { syncGit() }
         .onChange(of: colorScheme) {
             manager.refreshAppearance()
         }
@@ -109,6 +321,19 @@ struct ContentView: View {
         return tab.diffs.isEmpty
     }
 
+    private func syncGit() {
+        guard let project = manager.selectedProject,
+              let session = project.selectedSession else {
+            git.sync(root: "")
+            return
+        }
+        let root = project.panelRoot(
+            followingSessionAt: session.currentDirectoryPath,
+            foregroundAt: session.foregroundDirectoryPath
+        ).root
+        git.sync(root: root)
+    }
+
     @ViewBuilder
     private var emptyState: some View {
         if manager.selectedProject == nil {
@@ -129,7 +354,9 @@ struct ContentView: View {
     }
 
     private func emptyStatePrompt(
-        title: String, buttonTitle: String, action: @escaping () -> Void
+        title: LocalizedStringKey,
+        buttonTitle: LocalizedStringKey,
+        action: @escaping () -> Void
     ) -> some View {
         VStack(spacing: 12) {
             Image(systemName: "terminal")
@@ -142,12 +369,585 @@ struct ContentView: View {
     }
 }
 
+/// Project context for the active workspace. It stays deliberately compact so
+/// terminal content remains the center of gravity below the tab strip.
+private struct BottomToolbarView: View {
+    @ObservedObject var model: GitStatusModel
+    @ObservedObject private var themeChanges = Theme.changes
+    let height: CGFloat
+    let toggleGitPanel: () -> Void
+    let hideToolbar: () -> Void
+
+    @State private var isShowingBranches = false
+    @State private var branchFilter = ""
+    @State private var branchSearchFocusRequest: UInt = 0
+    @State private var branchScrollRequest: UInt = 0
+    @State private var isBranchButtonHovered = false
+    @State private var isChangesButtonHovered = false
+    @State private var isNoRepositoryButtonHovered = false
+    @State private var hoveredBranch: String?
+
+    private var filteredBranches: [String] {
+        let query = branchFilter.trimmingCharacters(in: .whitespacesAndNewlines)
+        var branches = query.isEmpty ? model.branches : model.branches.filter {
+            $0.localizedCaseInsensitiveContains(query)
+        }
+        if let current = model.branch,
+           let index = branches.firstIndex(of: current), index != branches.startIndex {
+            branches.remove(at: index)
+            branches.insert(current, at: branches.startIndex)
+        }
+        return branches
+    }
+
+    private var changesAccessibilityValue: String {
+        guard model.totalChangeCount > 0 else { return String(localized: "Clean") }
+        return String(localized: "+\(model.lineAdditions), −\(model.lineDeletions)")
+    }
+
+    var body: some View {
+        HStack(spacing: 9) {
+            if model.isRepo {
+                branchButton
+                changesButton
+            } else {
+                noRepositoryButton
+            }
+
+            Spacer(minLength: 0)
+        }
+        .font(.system(size: 11))
+        .padding(.horizontal, 10)
+        .frame(height: height)
+        .contentShape(Rectangle())
+        .background {
+            ToolbarContextMenuMonitor(hideToolbar: hideToolbar)
+        }
+        .background(Color(nsColor: Theme.background))
+        .overlay(alignment: .top) {
+            Rectangle()
+                .fill(Color(nsColor: Theme.divider))
+                .frame(height: 1)
+        }
+    }
+
+    private var noRepositoryButton: some View {
+        Button(action: toggleGitPanel) {
+            HStack(spacing: 6) {
+                Image(systemName: "arrow.triangle.branch")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.secondary)
+                Text("No Git Repository")
+            }
+            .padding(.horizontal, 6)
+            .frame(height: 24)
+            .background {
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .fill(
+                        isNoRepositoryButtonHovered
+                            ? Color.primary.opacity(0.08)
+                            : Color.clear
+                    )
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { isNoRepositoryButtonHovered = $0 }
+    }
+
+    private var branchButton: some View {
+        Button {
+            toggleBranchPicker()
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "arrow.triangle.branch")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(Color(nsColor: Theme.accent))
+                Text(verbatim: model.branch ?? "detached HEAD")
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+            .padding(.horizontal, 6)
+            .frame(height: 24)
+            .background {
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .fill(isBranchButtonHovered ? Color.primary.opacity(0.08) : .clear)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { isBranchButtonHovered = $0 }
+        .background {
+            InstantPopoverPresenter(
+                isPresented: $isShowingBranches,
+                preferredEdge: .maxY,
+                onPresent: {
+                    guard isShowingBranches else { return }
+                    branchSearchFocusRequest &+= 1
+                    branchScrollRequest &+= 1
+                },
+                onDismiss: {
+                    hoveredBranch = nil
+                }
+            ) {
+                branchPicker
+            }
+        }
+        .disabled(model.isBusy)
+        .help("Switch Branch")
+        .accessibilityLabel(
+            String(localized: "Current branch, \(model.branch ?? String(localized: "detached HEAD"))")
+        )
+    }
+
+    private var changesButton: some View {
+        Button(action: toggleGitPanel) {
+            HStack(spacing: 8) {
+                if model.totalChangeCount == 0 {
+                    Circle()
+                        .fill(Color(red: 0.25, green: 0.73, blue: 0.31))
+                        .frame(width: 6, height: 6)
+                    Text("Clean")
+                } else {
+                    Text(verbatim: "+\(model.lineAdditions)")
+                        .foregroundStyle(Color(red: 0.25, green: 0.73, blue: 0.31))
+                        .monospacedDigit()
+                    Text(verbatim: "−\(model.lineDeletions)")
+                        .foregroundStyle(Color(red: 1.0, green: 0.48, blue: 0.45))
+                        .monospacedDigit()
+                }
+            }
+            .padding(.horizontal, 6)
+            .frame(height: 24)
+            .background {
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .fill(isChangesButtonHovered ? Color.primary.opacity(0.08) : .clear)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { isChangesButtonHovered = $0 }
+        .help("Open Changes")
+        .accessibilityLabel("Open Changes")
+        .accessibilityValue(changesAccessibilityValue)
+    }
+
+    private var branchPicker: some View {
+        VStack(spacing: 0) {
+            BranchSearchField(
+                text: $branchFilter,
+                focusRequest: branchSearchFocusRequest
+            ) {
+                if filteredBranches.count == 1,
+                   let branch = filteredBranches.first,
+                   branch != model.branch {
+                    selectBranch(branch)
+                }
+            }
+            .frame(height: 22)
+            .padding(8)
+
+            Divider()
+
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(spacing: 2) {
+                        if filteredBranches.isEmpty {
+                            Text("No matches")
+                                .foregroundStyle(.secondary)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 24)
+                        } else {
+                            ForEach(filteredBranches, id: \.self) { branch in
+                                let isHovered = hoveredBranch == branch
+                                Button {
+                                    selectBranch(branch)
+                                } label: {
+                                    HStack(spacing: 7) {
+                                        Image(systemName: "checkmark")
+                                            .font(.system(size: 9, weight: .semibold))
+                                            .opacity(branch == model.branch ? 1 : 0)
+                                        Text(verbatim: branch)
+                                            .lineLimit(1)
+                                            .truncationMode(.middle)
+                                        Spacer(minLength: 0)
+                                        if branch == model.defaultBranch {
+                                            Text(
+                                                "default",
+                                                comment: "Badge for the repository's default branch."
+                                            )
+                                            .font(.system(size: 9, weight: .medium))
+                                            .foregroundStyle(
+                                                isHovered
+                                                    ? Color.white.opacity(0.85)
+                                                    : Color(nsColor: .secondaryLabelColor)
+                                            )
+                                            .padding(.horizontal, 5)
+                                            .padding(.vertical, 1)
+                                            .background(
+                                                Capsule().fill(
+                                                    isHovered
+                                                        ? Color.white.opacity(0.18)
+                                                        : Color.primary.opacity(0.07)
+                                                )
+                                            )
+                                            .fixedSize()
+                                        }
+                                    }
+                                    .foregroundStyle(isHovered ? Color.white : Color.primary)
+                                    .padding(.horizontal, 9)
+                                    .frame(height: 26)
+                                    .background {
+                                        RoundedRectangle(cornerRadius: 5, style: .continuous)
+                                            .fill(
+                                                isHovered
+                                                    ? Color(nsColor: .selectedContentBackgroundColor)
+                                                    : Color.clear
+                                            )
+                                    }
+                                    .contentShape(Rectangle())
+                                }
+                                .buttonStyle(.plain)
+                                .onHover { isHovered in
+                                    if isHovered {
+                                        hoveredBranch = branch
+                                    } else if hoveredBranch == branch {
+                                        hoveredBranch = nil
+                                    }
+                                }
+                                .disabled(branch == model.branch || model.isBusy)
+                                .id(branch)
+                            }
+                        }
+                    }
+                    .padding(5)
+                }
+                .onChange(of: branchScrollRequest) {
+                    guard let branch = model.branch else { return }
+                    DispatchQueue.main.async {
+                        proxy.scrollTo(branch, anchor: .top)
+                    }
+                }
+            }
+        }
+        .font(.system(size: 11))
+        .frame(width: 260, height: 250)
+        .background {
+            VisualEffectView(material: .popover)
+                .ignoresSafeArea()
+        }
+    }
+
+    private func toggleBranchPicker() {
+        if !isShowingBranches { branchFilter = "" }
+        isShowingBranches.toggle()
+    }
+
+    private func selectBranch(_ branch: String) {
+        isShowingBranches = false
+        model.switchBranch(to: branch)
+    }
+}
+
+/// NSSearchField supplies the standard macOS bezel, magnifier, clear button,
+/// focus ring, and vibrancy-aware colors inside the native popover.
+private struct BranchSearchField: NSViewRepresentable {
+    @Binding var text: String
+    let focusRequest: UInt
+    let onSubmit: () -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(parent: self)
+    }
+
+    func makeNSView(context: Context) -> NSSearchField {
+        let field = NSSearchField()
+        field.delegate = context.coordinator
+        field.controlSize = .small
+        field.font = .systemFont(ofSize: 11)
+        field.placeholderString = String(localized: "Filter branches")
+        field.setAccessibilityLabel(String(localized: "Filter branches"))
+        return field
+    }
+
+    func updateNSView(_ field: NSSearchField, context: Context) {
+        context.coordinator.parent = self
+        if field.stringValue != text {
+            field.stringValue = text
+            field.currentEditor()?.string = text
+        }
+        guard context.coordinator.handledFocusRequest != focusRequest else { return }
+        context.coordinator.handledFocusRequest = focusRequest
+        context.coordinator.focus(field)
+    }
+
+    final class Coordinator: NSObject, NSSearchFieldDelegate {
+        var parent: BranchSearchField
+        var handledFocusRequest: UInt?
+
+        init(parent: BranchSearchField) {
+            self.parent = parent
+            handledFocusRequest = parent.focusRequest == 0 ? 0 : nil
+        }
+
+        func focus(_ field: NSSearchField, attemptsRemaining: Int = 6) {
+            DispatchQueue.main.async { [weak self, weak field] in
+                guard let self, let field else { return }
+                if let window = field.window, window.makeFirstResponder(field) { return }
+                guard attemptsRemaining > 1 else { return }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                    self.focus(field, attemptsRemaining: attemptsRemaining - 1)
+                }
+            }
+        }
+
+        func controlTextDidChange(_ notification: Notification) {
+            guard let field = notification.object as? NSSearchField else { return }
+            parent.text = field.stringValue
+        }
+
+        func control(
+            _ control: NSControl,
+            textView: NSTextView,
+            doCommandBy commandSelector: Selector
+        ) -> Bool {
+            guard commandSelector == #selector(NSResponder.insertNewline(_:)) else {
+                return false
+            }
+            parent.text = textView.string
+            parent.onSubmit()
+            return true
+        }
+    }
+}
+
+/// SwiftUI anchors a context menu to this full-width toolbar view. A local
+/// AppKit monitor retains the same hit area while presenting from the actual
+/// right-click event, so the menu appears at the pointer instead.
+private struct ToolbarContextMenuMonitor: NSViewRepresentable {
+    let hideToolbar: () -> Void
+
+    func makeNSView(context: Context) -> ToolbarContextMenuMonitorView {
+        let view = ToolbarContextMenuMonitorView()
+        view.hideToolbar = hideToolbar
+        return view
+    }
+
+    func updateNSView(_ nsView: ToolbarContextMenuMonitorView, context: Context) {
+        nsView.hideToolbar = hideToolbar
+    }
+
+    static func dismantleNSView(
+        _ nsView: ToolbarContextMenuMonitorView,
+        coordinator: ()
+    ) {
+        nsView.detach()
+    }
+}
+
+@MainActor
+private final class ToolbarContextMenuMonitorView: NSView {
+    var hideToolbar: () -> Void = {}
+    private var eventMonitor: Any?
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        nil
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        detach()
+        guard let window else { return }
+
+        eventMonitor = NSEvent.addLocalMonitorForEvents(matching: .rightMouseDown) {
+            [weak self, weak window] event in
+            let input = ToolbarContextMenuEvent(event)
+            let output: ToolbarContextMenuEvent = MainActor.assumeIsolated {
+                guard let self,
+                      let window,
+                      let event = input.value,
+                      event.window === window,
+                      self.bounds.contains(self.convert(event.locationInWindow, from: nil))
+                else { return input }
+
+                let menu = NSMenu()
+                let hideItem = NSMenuItem(
+                    title: String(localized: "Hide"),
+                    action: #selector(self.hideToolbarFromMenu),
+                    keyEquivalent: ""
+                )
+                hideItem.target = self
+                menu.addItem(hideItem)
+                menu.update()
+                var screenPoint = window.convertPoint(toScreen: event.locationInWindow)
+                // The toolbar sits at the screen's lower edge. Position the
+                // menu upward so its bottom edge, rather than its top edge,
+                // meets the pointer without AppKit relocating the whole menu.
+                screenPoint.y += menu.size.height
+                _ = menu.popUp(positioning: nil, at: screenPoint, in: nil)
+                return ToolbarContextMenuEvent(nil)
+            }
+            return output.value
+        }
+    }
+
+    @objc private func hideToolbarFromMenu() {
+        hideToolbar()
+    }
+
+    func detach() {
+        guard let eventMonitor else { return }
+        NSEvent.removeMonitor(eventMonitor)
+        self.eventMonitor = nil
+    }
+
+    deinit {
+        if let eventMonitor {
+            NSEvent.removeMonitor(eventMonitor)
+        }
+    }
+}
+
+/// Local event monitors run synchronously on AppKit's main event thread.
+private struct ToolbarContextMenuEvent: @unchecked Sendable {
+    let value: NSEvent?
+
+    init(_ value: NSEvent?) {
+        self.value = value
+    }
+}
+
+/// A single AppKit-owned popover avoids SwiftUI's re-entrant presentation path:
+/// rapid binding changes reconcile against `isShown`, and generation checks
+/// prevent a stale close callback from dismissing a newer presentation.
+private struct InstantPopoverPresenter<PopoverContent: View>: NSViewRepresentable {
+    @Binding var isPresented: Bool
+    let preferredEdge: NSRectEdge
+    let onPresent: () -> Void
+    let onDismiss: () -> Void
+    let content: () -> PopoverContent
+
+    init(
+        isPresented: Binding<Bool>,
+        preferredEdge: NSRectEdge,
+        onPresent: @escaping () -> Void,
+        onDismiss: @escaping () -> Void,
+        @ViewBuilder content: @escaping () -> PopoverContent
+    ) {
+        _isPresented = isPresented
+        self.preferredEdge = preferredEdge
+        self.onPresent = onPresent
+        self.onDismiss = onDismiss
+        self.content = content
+    }
+
+    final class Coordinator: NSObject, NSPopoverDelegate {
+        var parent: InstantPopoverPresenter
+        let popover: NSPopover
+        let hostingController: NSHostingController<PopoverContent>
+        private var presentationGeneration: UInt = 0
+
+        init(parent: InstantPopoverPresenter) {
+            self.parent = parent
+            popover = NSPopover()
+            hostingController = NSHostingController(rootView: parent.content())
+            super.init()
+            popover.animates = false
+            popover.behavior = .transient
+            popover.delegate = self
+            popover.contentViewController = hostingController
+        }
+
+        func reconcile(parent: InstantPopoverPresenter, anchor: NSView) {
+            self.parent = parent
+            hostingController.rootView = parent.content()
+            popover.animates = false
+
+            if parent.isPresented {
+                guard !popover.isShown, anchor.window != nil else { return }
+                presentationGeneration &+= 1
+                hostingController.view.layoutSubtreeIfNeeded()
+                let fittingSize = hostingController.view.fittingSize
+                if fittingSize.width > 0, fittingSize.height > 0 {
+                    popover.contentSize = fittingSize
+                }
+                popover.show(
+                    relativeTo: anchor.bounds,
+                    of: anchor,
+                    preferredEdge: parent.preferredEdge
+                )
+            } else if popover.isShown {
+                popover.close()
+            }
+        }
+
+        func popoverWillShow(_ notification: Notification) {
+            popover.animates = false
+        }
+
+        func popoverDidShow(_ notification: Notification) {
+            let generation = presentationGeneration
+            DispatchQueue.main.async { [weak self] in
+                guard let self,
+                      self.presentationGeneration == generation,
+                      self.popover.isShown,
+                      self.parent.isPresented else { return }
+                self.parent.onPresent()
+            }
+        }
+
+        func popoverWillClose(_ notification: Notification) {
+            popover.animates = false
+        }
+
+        func popoverDidClose(_ notification: Notification) {
+            let generation = presentationGeneration
+            DispatchQueue.main.async { [weak self] in
+                guard let self,
+                      self.presentationGeneration == generation,
+                      !self.popover.isShown else { return }
+                self.parent.onDismiss()
+                if self.parent.isPresented {
+                    self.parent.isPresented = false
+                }
+            }
+        }
+
+        func dismantle() {
+            popover.delegate = nil
+            popover.animates = false
+            popover.close()
+        }
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(parent: self)
+    }
+
+    func makeNSView(context: Context) -> NSView {
+        NSView(frame: .zero)
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        context.coordinator.reconcile(parent: self, anchor: nsView)
+    }
+
+    static func dismantleNSView(_ nsView: NSView, coordinator: Coordinator) {
+        coordinator.dismantle()
+    }
+}
+
 /// Slim bar above the terminal: the selected project's sessions as
-/// horizontal tabs on the left, sidebar toggle on the right. Doubles as
+/// horizontal tabs, with sidebar controls at the outer edges. Doubles as
 /// window-drag space.
 private struct MainHeaderView: View {
     @ObservedObject var manager: TerminalManager
+    @ObservedObject var tabSplitDrag: TabSplitDragCoordinator
     @ObservedObject private var themeChanges = Theme.changes
+
+    /// Keep an always-available grab target beside the trailing controls,
+    /// even when the session strip is full.
+    private let minimumWindowDragWidth: CGFloat = 100
 
     /// With the left sidebar hidden the header slides under the window's
     /// traffic-light buttons, so inset its content to clear them.
@@ -155,21 +955,44 @@ private struct MainHeaderView: View {
         manager.isLeftSidebarVisible ? 8 : 78
     }
 
+    /// A hidden sidebar moves its toggle into this header. Reserve the
+    /// button and its following HStack spacing before sizing the tab strip.
+    private var hiddenLeftSidebarControlWidth: CGFloat {
+        manager.isLeftSidebarVisible ? 0 : 32
+    }
+
     var body: some View {
         GeometryReader { geo in
             HStack(spacing: 8) {
+                if !manager.isLeftSidebarVisible {
+                    ChromeIconButton(
+                        systemImage: "sidebar.left",
+                        tooltip: "Toggle Left Sidebar (⌘B)",
+                        tooltipAlignment: .leading
+                    ) {
+                        manager.toggleLeftSidebar()
+                    }
+                }
                 if let project = manager.selectedProject {
                     // Everything in the header that isn't the scrollable tab
-                    // strip: leading inset + trailing padding (8), HStack
-                    // spacings (16), sidebar toggle (24), "+" and spacing (26),
-                    // and the exit-zoom button (24 + 8 spacing) while shown.
+                    // strip: leading inset, an optional left-sidebar control,
+                    // trailing padding (8), HStack spacings (16), right-sidebar
+                    // toggle (24), "+" and spacing (26), the minimum drag
+                    // target (100), and the exit-zoom button (24 + 8 spacing)
+                    // while shown.
                     SessionTabsView(
                         project: project,
-                        maxStripWidth: max(0, geo.size.width - leadingInset - 74 - (manager.isPaneZoomed ? 32 : 0))
+                        tabSplitDrag: tabSplitDrag,
+                        maxStripWidth: max(
+                            0,
+                            geo.size.width - leadingInset - hiddenLeftSidebarControlWidth
+                                - 74 - minimumWindowDragWidth
+                                - (manager.isPaneZoomed ? 32 : 0)
+                        )
                     )
                 }
                 WindowDragArea()
-                    .frame(maxWidth: .infinity)
+                    .frame(minWidth: minimumWindowDragWidth, maxWidth: .infinity)
                 // Zoom indicator: only visible while the selected tab has a
                 // zoomed pane. Styled like the sidebar toggle next to it, with
                 // the accent tint marking the active state. Click restores the
@@ -190,17 +1013,12 @@ private struct MainHeaderView: View {
                 // No project means the sidebar has nothing to show, so drop
                 // its toggle too — matching the panel collapsing itself.
                 if manager.selectedProject != nil {
-                    Button {
+                    ChromeIconButton(
+                        systemImage: "sidebar.right",
+                        tooltip: "Toggle Right Sidebar (⇧⌘B)"
+                    ) {
                         manager.toggleSidebar()
-                    } label: {
-                        Image(systemName: "sidebar.right")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundStyle(manager.isPanelVisible ? Color(nsColor: Theme.accent) : .secondary)
-                            .frame(width: 24, height: 24)
-                            .contentShape(RoundedRectangle(cornerRadius: 6))
                     }
-                    .buttonStyle(.plain)
-                    .tooltip("Toggle Right Sidebar (⇧⌘B)", edge: .below, alignment: .trailing)
                 }
             }
             .padding(.leading, leadingInset)
@@ -219,11 +1037,16 @@ private struct MainHeaderView: View {
 /// Horizontal tabs for one project — terminal sessions and open files —
 /// plus a "+" button.
 private struct SessionTabsView: View {
+    private let fadeWidth: CGFloat = 20
+    private let tabSpacing: CGFloat = 3
+
     @ObservedObject var project: Project
+    @ObservedObject var tabSplitDrag: TabSplitDragCoordinator
     let maxStripWidth: CGFloat
     @State private var overflow = StripOverflow()
-    @State private var draggedTabID: UUID?
+    @State private var scrollGeometry = StripScrollGeometry()
     @State private var tabFrames: [UUID: CGRect] = [:]
+    @State private var tabSizes: [UUID: CGSize] = [:]
     /// Tab currently showing the inline rename field, if any.
     @State private var renamingTabID: UUID?
 
@@ -233,11 +1056,17 @@ private struct SessionTabsView: View {
         var right = false
     }
 
+    private struct StripScrollGeometry: Equatable {
+        var contentOffsetX: CGFloat = 0
+        var containerWidth: CGFloat = 0
+        var contentWidth: CGFloat = 0
+    }
+
     var body: some View {
         HStack(spacing: 4) {
             ScrollViewReader { proxy in
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 3) {
+                HStack(spacing: tabSpacing) {
                     ForEach(project.tabs) { tab in
                         PaneTabItem(
                             tab: tab,
@@ -255,7 +1084,7 @@ private struct SessionTabsView: View {
                                 )
                             }
                         }
-                        .opacity(draggedTabID == tab.id ? 0.65 : 1)
+                        .opacity(tabSplitDrag.drag?.sourceTabID == tab.id ? 0.65 : 1)
                         // Masked to .subviews while renaming so dragging in the
                         // text field selects text instead of reordering the tab.
                         .highPriorityGesture(
@@ -269,26 +1098,55 @@ private struct SessionTabsView: View {
                     }
                 }
             }
-            .onScrollGeometryChange(for: StripOverflow.self) { geo in
-                StripOverflow(
-                    left: geo.contentOffset.x > 0.5,
-                    right: geo.contentOffset.x + geo.containerSize.width < geo.contentSize.width - 0.5
+            .onScrollGeometryChange(for: StripScrollGeometry.self) { geo in
+                StripScrollGeometry(
+                    contentOffsetX: geo.contentOffset.x,
+                    containerWidth: geo.containerSize.width,
+                    contentWidth: geo.contentSize.width
                 )
             } action: { _, new in
-                overflow = new
+                scrollGeometry = new
+                overflow = StripOverflow(
+                    left: new.contentOffsetX > 0.5,
+                    right: new.contentOffsetX + new.containerWidth < new.contentWidth - 0.5
+                )
             }
             // Keep the active tab visible: scrolls the minimum distance to
-            // reveal it (anchor: nil is a no-op when it's already fully in view).
+            // reveal it beyond the fade rather than merely inside the viewport.
             .onChange(of: project.selectedTabID) { _, id in
                 guard let id else { return }
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    proxy.scrollTo(id)
+                // Preserve ScrollViewReader's reliable minimum reveal first,
+                // then refine it once SwiftUI has advanced the scroll layout.
+                performScroll(to: id, anchor: nil, using: proxy, animated: true)
+                DispatchQueue.main.async {
+                    scrollToSelectedTab(using: proxy, animated: true)
                 }
+            }
+            // Selection is not the only thing that can hide the active tab.
+            // Keep it visible when the window/sidebar changes the viewport,
+            // tabs are inserted or reordered, or a live title/rename changes
+            // the width of content before it.
+            .onChange(of: maxStripWidth) {
+                scrollToSelectedTab(using: proxy)
+            }
+            .onChange(of: scrollGeometry.containerWidth) {
+                // Defer until the tab sizes have settled against the resized
+                // viewport before deciding whether the active tab needs help.
+                DispatchQueue.main.async {
+                    scrollToSelectedTab(using: proxy)
+                }
+            }
+            .onChange(of: project.tabs.map(\.id)) {
+                scrollToSelectedTab(using: proxy)
+            }
+            .onChange(of: tabSizes) {
+                scrollToSelectedTab(using: proxy)
             }
             .onAppear {
                 // Restored sessions may open with an off-screen active tab.
-                guard let id = project.selectedTabID else { return }
-                DispatchQueue.main.async { proxy.scrollTo(id) }
+                DispatchQueue.main.async {
+                    scrollToSelectedTab(using: proxy)
+                }
             }
             .mask {
                 HStack(spacing: 0) {
@@ -296,13 +1154,13 @@ private struct SessionTabsView: View {
                         colors: [overflow.left ? .clear : .black, .black],
                         startPoint: .leading, endPoint: .trailing
                     )
-                    .frame(width: 20)
+                    .frame(width: fadeWidth)
                     Color.black
                     LinearGradient(
                         colors: [.black, overflow.right ? .clear : .black],
                         startPoint: .leading, endPoint: .trailing
                     )
-                    .frame(width: 20)
+                    .frame(width: fadeWidth)
                 }
             }
             .animation(.easeInOut(duration: 0.15), value: overflow)
@@ -310,26 +1168,90 @@ private struct SessionTabsView: View {
             .fixedSize(horizontal: true, vertical: false)
             }
 
-            Button {
+            ChromeIconButton(
+                systemImage: "plus",
+                tooltip: "New Session (⌘T)",
+                font: .system(size: 10, weight: .semibold),
+                iconSize: 14,
+                tooltipAlignment: .leading
+            ) {
                 project.newSession()
-            } label: {
-                Image(systemName: "plus")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 22, height: 22)
-                    .contentShape(RoundedRectangle(cornerRadius: 6))
             }
-            .buttonStyle(.plain)
-            .tooltip("New Session (⌘T)", edge: .below)
         }
-        .onPreferenceChange(TabFramePreferenceKey.self) { tabFrames = $0 }
+        .onPreferenceChange(TabFramePreferenceKey.self) { frames in
+            tabFrames = frames
+            let sizes = frames.mapValues(\.size)
+            if sizes != tabSizes {
+                tabSizes = sizes
+            }
+        }
+    }
+
+    /// Moves only when the selected tab overlaps an active edge fade. The
+    /// custom anchor places that tab just beyond the fade instead of at the
+    /// viewport edge, where `scrollTo` would leave it partially obscured.
+    private func scrollToSelectedTab(using proxy: ScrollViewProxy, animated: Bool = false) {
+        guard let id = project.selectedTabID,
+              let selectedIndex = project.tabs.firstIndex(where: { $0.id == id }) else { return }
+
+        guard scrollGeometry.containerWidth > 0,
+              let selectedSize = tabSizes[id] else {
+            performScroll(to: id, anchor: nil, using: proxy, animated: animated)
+            return
+        }
+
+        var tabMinX = CGFloat(selectedIndex) * tabSpacing
+        for tab in project.tabs[..<selectedIndex] {
+            guard let size = tabSizes[tab.id] else {
+                performScroll(to: id, anchor: nil, using: proxy, animated: animated)
+                return
+            }
+            tabMinX += size.width
+        }
+
+        let tabMaxX = tabMinX + selectedSize.width
+        let safeMinX = scrollGeometry.contentOffsetX + (overflow.left ? fadeWidth : 0)
+        let safeMaxX = scrollGeometry.contentOffsetX + scrollGeometry.containerWidth
+            - (overflow.right ? fadeWidth : 0)
+        let anchor: UnitPoint
+        let availableSpace = max(1, scrollGeometry.containerWidth - selectedSize.width)
+
+        if tabMinX < safeMinX - 0.5 {
+            anchor = UnitPoint(x: min(1, fadeWidth / availableSpace), y: 0.5)
+        } else if tabMaxX > safeMaxX + 0.5 {
+            anchor = UnitPoint(x: max(0, 1 - fadeWidth / availableSpace), y: 0.5)
+        } else {
+            return
+        }
+
+        performScroll(to: id, anchor: anchor, using: proxy, animated: animated)
+    }
+
+    private func performScroll(
+        to id: UUID,
+        anchor: UnitPoint?,
+        using proxy: ScrollViewProxy,
+        animated: Bool
+    ) {
+        let reveal = {
+            if let anchor {
+                proxy.scrollTo(id, anchor: anchor)
+            } else {
+                proxy.scrollTo(id)
+            }
+        }
+        if animated {
+            withAnimation(.easeInOut(duration: 0.2), reveal)
+        } else {
+            reveal()
+        }
     }
 
     /// Reorders immediately as the pointer crosses another tab. This direct
     /// gesture deliberately avoids a pasteboard drag session, which the
     /// hidden title bar can otherwise claim as a window move first.
     private func updateTabDrag(source: UUID, location: CGPoint) {
-        draggedTabID = source
+        tabSplitDrag.update(sourceTabID: source, location: location, in: project)
         NSCursor.closedHand.set()
         guard let target = tabFrames.first(where: {
             $0.key != source && $0.value.contains(location)
@@ -340,7 +1262,7 @@ private struct SessionTabsView: View {
     }
 
     private func endTabDrag() {
-        draggedTabID = nil
+        tabSplitDrag.commit()
         NSCursor.arrow.set()
     }
 
@@ -361,11 +1283,28 @@ private struct SessionTabsView: View {
             }
             Divider()
         }
+        if case .browser(let browser) = tab.focusedContent,
+           !browser.urlString.isEmpty {
+            Button("Open in Default Browser") {
+                browser.openInDefaultBrowser()
+            }
+            .disabled(browser.shareURL == nil)
+            Button("Copy Address") {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(browser.urlString, forType: .string)
+            }
+            Divider()
+        }
         Button("Close") { project.close(tab) }
         Button("Close Others") { project.closeOthers(tab) }
             .disabled(project.tabs.count <= 1)
         Button("Close Tabs to the Right") { project.closeToRight(of: tab) }
             .disabled(project.tabs.last?.id == tab.id)
+        Divider()
+        Button("Close Files") { project.closeFiles() }
+            .disabled(!project.hasFiles)
+        Button("Close Diffs") { project.closeDiffs() }
+            .disabled(!project.hasDiffs)
         Divider()
         Button("Close All") { project.closeAll() }
     }
@@ -397,6 +1336,8 @@ private struct PaneTabItem: View {
         if renamingTabID == tab.id {
             TabRenameChrome(
                 systemImage: tab.focusedContent?.systemImage ?? "terminal",
+                browserIcon: focusedBrowser,
+                fileIconPath: focusedFileIconPath,
                 initialValue: tab.displayTitle ?? "",
                 commit: { name in
                     let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -407,23 +1348,37 @@ private struct PaneTabItem: View {
         } else {
             switch tab.focusedContent {
             case .session(let session):
-                SessionTabLabel(session: session, customTitle: tab.customName, paneCount: paneCount, isSelected: isSelected, select: select, close: close)
+                SessionTabLabel(session: session, customTitle: tab.customName, paneCount: paneCount, agentRollup: tab.agentRollup, isSelected: isSelected, select: select, close: close)
             case .file(let file):
-                FileTabLabel(file: file, customTitle: tab.customName, paneCount: paneCount, isSelected: isSelected, select: select, close: close)
+                FileTabLabel(file: file, customTitle: tab.customName, paneCount: paneCount, agentRollup: tab.agentRollup, isSelected: isSelected, select: select, close: close)
+            case .browser(let browser):
+                BrowserTabLabel(browser: browser, customTitle: tab.customName, paneCount: paneCount, agentRollup: tab.agentRollup, isSelected: isSelected, select: select, close: close)
             case .diff(let diff):
-                TabItemChrome(
-                    systemImage: "plus.forwardslash.minus",
-                    title: tab.customName ?? diff.title,
+                DiffTabLabel(
+                    diff: diff,
+                    customTitle: tab.customName,
                     paneCount: paneCount,
+                    agentRollup: tab.agentRollup,
                     isSelected: isSelected,
                     select: select,
                     close: close
                 )
-                .help(diff.path)
             case nil:
                 EmptyView()
             }
         }
+    }
+
+    private var focusedBrowser: BrowserTab? {
+        if case .browser(let browser) = tab.focusedContent {
+            browser
+        } else {
+            nil
+        }
+    }
+
+    private var focusedFileIconPath: String? {
+        tab.focusedContent?.fileIconPath
     }
 }
 
@@ -433,6 +1388,8 @@ private struct PaneTabItem: View {
 private struct TabRenameChrome: View {
     @ObservedObject private var themeChanges = Theme.changes
     let systemImage: String
+    let browserIcon: BrowserTab?
+    let fileIconPath: String?
     let commit: (String) -> Void
     let end: () -> Void
 
@@ -444,11 +1401,15 @@ private struct TabRenameChrome: View {
 
     init(
         systemImage: String,
+        browserIcon: BrowserTab?,
+        fileIconPath: String?,
         initialValue: String,
         commit: @escaping (String) -> Void,
         end: @escaping () -> Void
     ) {
         self.systemImage = systemImage
+        self.browserIcon = browserIcon
+        self.fileIconPath = fileIconPath
         self.commit = commit
         self.end = end
         _draft = State(initialValue: initialValue)
@@ -456,9 +1417,17 @@ private struct TabRenameChrome: View {
 
     var body: some View {
         HStack(spacing: 5) {
-            Image(systemName: systemImage)
-                .font(.system(size: 9, weight: .medium))
-                .foregroundStyle(Color(nsColor: Theme.accent))
+            if let browserIcon {
+                BrowserFaviconView(browser: browserIcon, size: 11)
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundStyle(Color(nsColor: Theme.accent))
+            } else if let fileIconPath {
+                MaterialFileIconView(path: fileIconPath, size: 12)
+            } else {
+                Image(systemName: systemImage)
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundStyle(Color(nsColor: Theme.accent))
+            }
             TextField("", text: $draft)
                 .textFieldStyle(.plain)
                 .font(.system(size: 11.5))
@@ -495,6 +1464,7 @@ private struct SessionTabLabel: View {
     /// User-assigned tab name overriding the live terminal title.
     var customTitle: String?
     let paneCount: Int
+    let agentRollup: KeroAgentRollup?
     let isSelected: Bool
     let select: () -> Void
     let close: () -> Void
@@ -504,6 +1474,7 @@ private struct SessionTabLabel: View {
             systemImage: "terminal",
             title: customTitle ?? session.title,
             paneCount: paneCount,
+            agentRollup: agentRollup,
             isSelected: isSelected,
             select: select,
             close: close
@@ -516,6 +1487,7 @@ private struct FileTabLabel: View {
     /// User-assigned tab name overriding the file name.
     var customTitle: String?
     let paneCount: Int
+    let agentRollup: KeroAgentRollup?
     let isSelected: Bool
     let select: () -> Void
     let close: () -> Void
@@ -523,8 +1495,10 @@ private struct FileTabLabel: View {
     var body: some View {
         TabItemChrome(
             systemImage: "doc.text",
+            fileIconPath: file.path,
             title: customTitle ?? file.name,
             paneCount: paneCount,
+            agentRollup: agentRollup,
             isSelected: isSelected,
             isDirty: file.isDirty,
             select: select,
@@ -534,11 +1508,64 @@ private struct FileTabLabel: View {
     }
 }
 
+private struct BrowserTabLabel: View {
+    @ObservedObject var browser: BrowserTab
+    /// User-assigned tab name overriding the webpage title.
+    var customTitle: String?
+    let paneCount: Int
+    let agentRollup: KeroAgentRollup?
+    let isSelected: Bool
+    let select: () -> Void
+    let close: () -> Void
+
+    var body: some View {
+        TabItemChrome(
+            systemImage: "globe",
+            browserIcon: browser,
+            title: customTitle ?? browser.title,
+            paneCount: paneCount,
+            agentRollup: agentRollup,
+            isSelected: isSelected,
+            select: select,
+            close: close
+        )
+        .help(browser.urlString)
+    }
+}
+
+private struct DiffTabLabel: View {
+    @ObservedObject var diff: DiffTab
+    var customTitle: String?
+    let paneCount: Int
+    let agentRollup: KeroAgentRollup?
+    let isSelected: Bool
+    let select: () -> Void
+    let close: () -> Void
+
+    var body: some View {
+        TabItemChrome(
+            systemImage: "plus.forwardslash.minus",
+            fileIconPath: diff.path,
+            title: customTitle ?? diff.title,
+            paneCount: paneCount,
+            agentRollup: agentRollup,
+            isSelected: isSelected,
+            isDirty: diff.isDirty,
+            select: select,
+            close: close
+        )
+        .help(diff.path)
+    }
+}
+
 private struct TabItemChrome: View {
     @ObservedObject private var themeChanges = Theme.changes
     let systemImage: String
+    var browserIcon: BrowserTab? = nil
+    var fileIconPath: String? = nil
     let title: String
     var paneCount: Int = 1
+    var agentRollup: KeroAgentRollup? = nil
     let isSelected: Bool
     var isDirty = false
     let select: () -> Void
@@ -549,10 +1576,31 @@ private struct TabItemChrome: View {
     var body: some View {
         Button(action: select) {
             HStack(spacing: 5) {
-                Image(systemName: systemImage)
-                    .font(.system(size: 9, weight: .medium))
-                    .foregroundStyle(isSelected ? AnyShapeStyle(Color(nsColor: Theme.accent)) : AnyShapeStyle(.tertiary))
-                Text(title)
+                if let browserIcon {
+                    BrowserFaviconView(browser: browserIcon, size: 11)
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundStyle(
+                            isSelected
+                                ? AnyShapeStyle(Color(nsColor: Theme.accent))
+                                : AnyShapeStyle(.tertiary)
+                        )
+                        .opacity(isSelected ? 1 : 0.78)
+                } else if let fileIconPath {
+                    MaterialFileIconView(
+                        path: fileIconPath,
+                        size: 12,
+                        opacity: isSelected ? 1 : 0.82
+                    )
+                } else {
+                    Image(systemName: systemImage)
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundStyle(
+                            isSelected
+                                ? AnyShapeStyle(Color(nsColor: Theme.accent))
+                                : AnyShapeStyle(.tertiary)
+                        )
+                }
+                Text(verbatim: title)
                     .font(.system(size: 11.5))
                     .foregroundStyle(isSelected ? .primary : .secondary)
                     .lineLimit(1)
@@ -560,10 +1608,14 @@ private struct TabItemChrome: View {
                     HStack(spacing: 2) {
                         Image(systemName: "square.split.2x1")
                             .font(.system(size: 7.5, weight: .semibold))
-                        Text("\(paneCount)")
+                        Text(verbatim: "\(paneCount)")
                             .font(.system(size: 9, weight: .semibold))
                     }
                     .foregroundStyle(.tertiary)
+                }
+                if let agentRollup {
+                    AgentStatusBadgeRepresentable(rollup: agentRollup)
+                        .fixedSize()
                 }
                 if isHovering {
                     Button(action: close) {

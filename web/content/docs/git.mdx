@@ -12,6 +12,22 @@ Every action here is a git command Kero runs on your behalf, and the output is
 shown to you when something has more to say than "done". Nothing is rewritten,
 squashed, or force-pushed unless you asked for it.
 
+## The Git toolbar
+
+Kero can show a compact toolbar below the active tab. In a repository it shows
+the current branch and aggregate added/deleted line counts; an unchanged tree
+gets a green **Clean** state. Untracked files are included in the added count.
+
+- Click the branch to search and switch local branches. The repository's
+  default branch is marked in the list.
+- Click the change counts to open the Git panel.
+- Outside a repository, **Always Show** mode leaves a **No Git Repository**
+  button that opens the panel's initialization state.
+
+Choose **Hide**, **Auto**, or **Always Show** under Settings → Appearance, or
+set [`toolbar.visibility`](/docs/configuration#toolbarvisibility). The default
+is Hide. You can also hide a visible toolbar from its context menu.
+
 ## Changed files
 
 Files are grouped into conflicts, staged changes, and unstaged changes. Hover a
@@ -40,6 +56,18 @@ itself, editable) or **Open File to the Side**.
 
 Large diffs stay responsive. A changeset with a thousand files in it opens as
 fast as a one-line one, and scrolls without stutter.
+
+The controls above a diff remember two choices globally:
+
+- **Unified / Split** changes between one-column and side-by-side layout.
+- **Review / Edit** appears for an unstaged file in the live worktree. Edit the
+  new side directly and save with <kbd>Cmd</kbd>+<kbd>S</kbd>; dirty-file close
+  handling is the same as in the normal editor.
+
+Staged and historical commit diffs stay read-only, because they are snapshots
+rather than files Kero can safely write. Switching one diff to Edit or Split
+updates the preference for other open diffs without making an ineligible diff
+editable.
 
 ## Committing
 

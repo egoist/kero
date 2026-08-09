@@ -4,8 +4,8 @@ description: Divide a tab into panes, move between them, resize them, and zoom o
 ---
 
 Any tab can be split into panes. A pane usually holds a terminal, but it can
-also hold a file you opened from the tree or a diff you opened from the git
-panel — which is the point: the diff sits next to the shell that produced it.
+also hold a file, diff, or [browser](/docs/browser)—which is the point: the
+thing you are reading sits beside the shell that produced it.
 
 ## Splitting
 
@@ -20,9 +20,17 @@ Splitting left and up have no default shortcut; run them from the **Tabs** menu,
 the command palette (<kbd>Cmd</kbd>+<kbd>P</kbd>), or the pane's own context
 menu. The new pane inherits the focused pane's working directory.
 
+Splitting always divides the **focused pane**, even inside a nested layout. It
+does not resize an unrelated neighbor. Every pane gets a small live title and
+split controls in its header so its local context stays visible.
+
 Already-open panes can be rearranged: grab the thin strip along the top of a
 pane and drag it onto the edge of another one. The target pane shows which half
 it will land on before you let go.
+
+You can turn a whole tab into a pane too. Drag its tab from the top strip onto
+the left, right, top, or bottom edge of the current tab's content. The drop
+preview shows the resulting split before you release it.
 
 ## Moving between panes
 

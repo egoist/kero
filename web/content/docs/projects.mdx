@@ -43,6 +43,11 @@ That's why `cd`-ing around inside a repo doesn't make the file tree jump: the
 repository root stays the root. Outside a repository, the panels simply follow
 the terminal.
 
+When the foreground program moves into a different checkout—an agent entering
+its own Git worktree, for example—Files, Git, and Info follow that checkout
+instead. They return when the foreground job does. A manually pinned project
+directory always wins and disables this automatic re-rooting.
+
 To pin it instead, right-click the project and choose **Set Project Directory…**.
 The pinned folder is remembered across relaunches, and **Use Automatic
 Directory** hands control back.
@@ -62,13 +67,14 @@ is set to — with its own working directory and scrollback.
 | Action | Shortcut |
 | --- | --- |
 | New session | <kbd>Cmd</kbd>+<kbd>T</kbd> |
-| Switch to tab 1–9 | <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>1</kbd>–<kbd>9</kbd> |
+| Switch to tab 1–9 | <kbd>Ctrl</kbd>+<kbd>1</kbd>–<kbd>9</kbd> |
 | Tab switcher (by recent use) | <kbd>Ctrl</kbd>+<kbd>Tab</kbd> |
 | Next / previous tab | <kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>]</kbd> / <kbd>[</kbd> |
 | Close the focused pane | <kbd>Cmd</kbd>+<kbd>W</kbd> |
 
-A new session starts in the current session's directory, falling back to the
-project directory.
+A new session starts in the pinned project directory when one is set. Otherwise
+it inherits the current session's directory, then falls back to your home
+directory when neither is known.
 
 ### Tab titles
 
@@ -78,7 +84,9 @@ and **Use Automatic Title** to go back to following the terminal.
 
 The rest of the tab menu is the usual set: **Close**, **Close Others**, **Close
 Tabs to the Right**, **Close All**, plus **Reveal in Finder** and **Copy
-Absolute Path** for the session's directory.
+Absolute Path** for the session's directory. **Close Files** and **Close Diffs**
+clear those content types across the project while leaving terminals and
+browser panes alone.
 
 ## Windows
 
@@ -101,5 +109,4 @@ stopped when you quit.
 
 Previous scrollback is restored only if you ask for it, with
 [`terminal.restore-history`](/docs/configuration#terminalrestore-history). It's
-off by default because turning it on means Kero writes captured terminal output
-to disk.
+off by default because the restored scrollback is stored on disk.

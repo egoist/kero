@@ -1,0 +1,43 @@
+---
+title: 浏览器窗格
+description: 把网页放在终端旁边，用原生控件浏览，并让链接留在当前项目里。
+---
+
+Kero 可以在任意标签页或分屏里放一个内置浏览器。它适合打开本地开发服务器、API 文档、issue，或者任何你想和当前终端并排看的网页。
+
+## 打开浏览器
+
+- 选 **File → New Browser Tab** 新建空白标签页。
+- 打开命令面板（<kbd>Cmd</kbd>+<kbd>P</kbd>），运行 **New Browser Tab** 或
+  **New Browser Pane**。
+- 在终端里按住 Command 右键一个识别出来的 URL，选 **New Browser Tab** 或
+  **New Browser Pane**，不用先复制地址。
+
+浏览器标签页属于当前项目，和普通标签页、窗格一起参与布局。如果一个项目都没打开，Kero 会先建一个项目，让浏览器有地方归属。
+
+## 地址与搜索
+
+顶部输入框可以接收完整 URL、主机名或搜索词：
+
+- `kero.sh` 会变成 HTTPS 地址。
+- `localhost`、局域网主机名、IP 地址和显式端口使用 HTTP。
+- 其他内容会变成 Google 搜索。
+
+按 <kbd>Cmd</kbd>+<kbd>L</kbd> 聚焦输入框，<kbd>Cmd</kbd>+<kbd>R</kbd> 重新加载。工具栏还提供后退、前进、停止 / 刷新、分享和 **Open in Default Browser**。触控板的前进后退手势也能用。
+
+| 操作 | 快捷键 |
+| --- | --- |
+| 聚焦地址栏 | <kbd>Cmd</kbd>+<kbd>L</kbd> |
+| 重新加载 | <kbd>Cmd</kbd>+<kbd>R</kbd> |
+
+## 决定链接打开在哪里
+
+右键网页里的链接，可以选 **Open Link in New Tab** 或 **Open Link in New Pane**。新页面仍留在同一个项目工作区里。
+
+在终端里，直接 Command 点按识别出来的网页 URL，会交给系统默认浏览器；按住 Command 右键，才会提供 Kero 标签页和窗格。对本地路径也有一套对应操作，见[路径与 URL](/zh/docs/terminal#路径与-url)。
+
+## 会保留什么
+
+切换标签页或项目后，网页会保持原样，包括浏览历史、滚动位置、表单和页面内部状态。Kero 重启时会恢复当前 URL 和布局，但不会恢复完整的前进 / 后退历史。
+
+浏览器窗格会跨标签页、跨启动保留 Cookie、登录状态和其他站点数据；这不是无痕浏览模式。

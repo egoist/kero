@@ -11,9 +11,22 @@ import SwiftUI
 struct SettingsView: View {
     @ObservedObject private var settings = AppSettings.shared
     @ObservedObject private var updater = Updater.shared
+    @State private var relaunchError = ""
+    @State private var isShowingRelaunchError = false
 
     /// Installed fixed-pitch families (bundled default first).
     private let families = TerminalFont.selectableFamilies()
+
+    private var toolbarVisibilityDescription: LocalizedStringKey {
+        switch settings.toolbarVisibility {
+        case .auto:
+            "Shows the toolbar only in Git repositories"
+        case .always:
+            "Shows the toolbar in every project"
+        case .hide:
+            "Keeps the toolbar hidden"
+        }
+    }
 
     var body: some View {
         CappedIdealHeight(maxHeight: 600) { form }
@@ -30,6 +43,36 @@ struct SettingsView: View {
                     Spacer()
                     ThemePicker(selection: $settings.theme)
                 }
+
+                Picker("Language", selection: $settings.language) {
+                    ForEach(AppLanguage.allCases) { language in
+                        Text(verbatim: language.title).tag(language)
+                    }
+                }
+
+                DescribedSettingsRow(
+                    "Toolbar",
+                    description: toolbarVisibilityDescription
+                ) {
+                    Picker("Toolbar", selection: $settings.toolbarVisibility) {
+                        Text("Auto").tag(ToolbarVisibility.auto)
+                        Text("Always Show").tag(ToolbarVisibility.always)
+                        Text("Hide").tag(ToolbarVisibility.hide)
+                    }
+                    .labelsHidden()
+                }
+
+                if settings.languageRequiresRelaunch {
+                    HStack(alignment: .firstTextBaseline) {
+                        Text("Relaunch Kero to apply the language change.")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Button("Relaunch Kero") {
+                            relaunch()
+                        }
+                    }
+                }
             }
 
             Section("Colors") {
@@ -43,9 +86,6 @@ struct SettingsView: View {
                         Text(name).tag(name)
                     }
                 }
-                Text("Colors for the whole window, one theme per appearance.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
             }
 
             Section("Font") {
@@ -76,37 +116,108 @@ struct SettingsView: View {
                     )
                     .labelsHidden()
                 }
+            }
 
-                Toggle("Thicken font strokes", isOn: $settings.fontThicken)
-                Text("Renders terminal text with slightly heavier strokes, like classic macOS font smoothing.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
+            Section("Sidebar") {
+                HStack {
+                    Text("Font size")
+                    Slider(
+                        value: $settings.sidebarFontSize,
+                        in: AppSettings.sidebarFontSizeRange,
+                        step: 1
+                    )
+                    .accessibilityLabel("Sidebar font size")
+                    Text("\(Int(settings.sidebarFontSize)) pt")
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                        .frame(width: 40, alignment: .trailing)
+                    Stepper(
+                        "",
+                        value: $settings.sidebarFontSize,
+                        in: AppSettings.sidebarFontSizeRange,
+                        step: 1
+                    )
+                    .labelsHidden()
+                    .accessibilityLabel("Sidebar font size")
+                }
             }
 
             Section("Preview") {
-                // Exercises regular/bold plus Nerd Font icon fallback.
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("kero ❯ echo \"the quick brown fox\" 0O 1lI")
-                    Text("\u{E0A0} main \u{E0B0} ~/dev/kero \u{E711} \u{F024B} \u{F0A7D}")
-                    Text("bold — permission denied (os error 13)")
-                        .bold()
-                }
-                .font(Font(previewFont))
-                .padding(.vertical, 4)
+                // SwiftUI Text cannot show Ghostty's font-thicken — that flag
+                // only affects CoreText glyph rasterization — so draw through
+                // AppKit with shouldSmoothFonts matching the toggle.
+                FontThickenPreview(font: previewFont, thicken: settings.fontThicken)
+                    .padding(.vertical, 4)
+                    // NSView drawing has no semantic children of its own.
+                    // Preserve the sample text that the previous SwiftUI Text
+                    // views exposed to VoiceOver.
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(Text(verbatim: """
+                    kero ❯ echo "the quick brown fox" 0O 1lI
+                    \u{E0A0} main \u{E0B0} ~/dev/kero \u{E711} \u{F024B} \u{F0A7D}
+                    bold — permission denied (os error 13)
+                    """))
+                    .accessibilityAddTraits(.isStaticText)
             }
 
             Section("Terminal") {
-                Toggle(
+                // Only show this once there is a real choice. `selectable`
+                // omits backends this build cannot create, so every tab here
+                // takes effect instead of silently producing a dead pane.
+                if TerminalBackend.selectable.count > 1 {
+                    HStack(alignment: .top) {
+                        Text("Backend")
+                        Spacer()
+                        VStack(alignment: .leading, spacing: 8) {
+                            TerminalBackendPicker(selection: $settings.terminalBackend)
+                            Text("Changes apply to new terminals")
+                                .font(.callout)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+
+                DescribedSettingsRow(
+                    "Thicken font strokes",
+                    description: "Renders terminal text with slightly heavier strokes, like classic macOS font smoothing"
+                ) {
+                    Toggle("Thicken font strokes", isOn: $settings.fontThicken)
+                        .labelsHidden()
+                }
+
+                DescribedSettingsRow(
+                    "Use Option as Alt/Meta",
+                    description: "Sends Option-key combinations to terminal programs as Meta shortcuts instead of macOS text input"
+                ) {
+                    Toggle(
+                        "Use Option as Alt/Meta",
+                        isOn: $settings.macosOptionAsAlt
+                    )
+                    .labelsHidden()
+                }
+
+                DescribedSettingsRow(
                     "Restore session history on relaunch",
-                    isOn: $settings.restoreTerminalHistory
-                )
-                Text("Reopened terminals show their previous scrollback above a fresh shell.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
+                    description: "Reopened terminals show their previous scrollback above a fresh shell"
+                ) {
+                    Toggle(
+                        "Restore session history on relaunch",
+                        isOn: $settings.restoreTerminalHistory
+                    )
+                    .labelsHidden()
+                }
             }
 
             Section("Text Editing") {
                 Toggle("Wrap lines to editor width", isOn: $settings.wrapLines)
+            }
+
+            Section("Automation") {
+                AgentCLISupportSettingsRow(
+                    isEnabled: settings.aiEnabled,
+                    onChange: { try settings.setAIEnabled($0) }
+                )
+                .frame(minHeight: 44)
             }
 
             Section("Updates") {
@@ -129,30 +240,168 @@ struct SettingsView: View {
                     }
                     .disabled(settings.fontFamily.isEmpty
                         && settings.fontSize == AppSettings.defaultFontSize
+                        && settings.sidebarFontSize == AppSettings.defaultSidebarFontSize
                         && !settings.fontThicken
+                        && !settings.macosOptionAsAlt
+                        && settings.language == .system
                         && settings.theme == .system
                         && settings.themeDark == Theme.defaultDarkThemeName
                         && settings.themeLight == Theme.defaultLightThemeName
+                        && settings.toolbarVisibility == AppSettings.defaultToolbarVisibility
                         && !settings.wrapLines
-                        && !settings.restoreTerminalHistory)
+                        && !settings.restoreTerminalHistory
+                        && !settings.aiEnabled
+                        && settings.terminalBackend == .fallback)
                 }
             }
         }
         .formStyle(.grouped)
         .frame(width: 440)
+        .alert(
+            "Couldn’t Relaunch Kero",
+            isPresented: $isShowingRelaunchError
+        ) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(verbatim: relaunchError)
+        }
     }
 
     private var previewFont: NSFont {
         TerminalFont.resolve(family: settings.fontFamily, size: CGFloat(settings.fontSize))
     }
 
-    /// Kero's built-in Default theme first, then every bundled theme, split
-    /// by background luminance so each picker offers themes that suit its
-    /// appearance slot.
-    private static let darkThemeNames = [Theme.defaultDarkThemeName]
-        + GhosttyThemeCatalog.allThemes.filter(\.isDark).map(\.name)
-    private static let lightThemeNames = [Theme.defaultLightThemeName]
-        + GhosttyThemeCatalog.allThemes.filter { !$0.isDark }.map(\.name)
+    private func relaunch() {
+        TerminalManager.saveForRelaunch()
+
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.createsNewApplicationInstance = true
+        configuration.activates = true
+        NSWorkspace.shared.openApplication(
+            at: Bundle.main.bundleURL,
+            configuration: configuration
+        ) { _, error in
+            DispatchQueue.main.async {
+                if let error {
+                    relaunchError = error.localizedDescription
+                    isShowingRelaunchError = true
+                } else {
+                    NSApp.terminate(nil)
+                }
+            }
+        }
+    }
+
+    /// The compact catalog of popular themes shared by both terminal backends,
+    /// split by the appearance slot they suit.
+    private static let darkThemeNames = Theme.commonDarkThemes.map(\.name)
+    private static let lightThemeNames = Theme.commonLightThemes.map(\.name)
+}
+
+/// Matches macOS Settings: a title and explanation form one label stack,
+/// while the setting control stays aligned to the row's top-right corner.
+private struct DescribedSettingsRow<Control: View>: View {
+    let title: LocalizedStringKey
+    let description: LocalizedStringKey
+    let control: Control
+
+    init(
+        _ title: LocalizedStringKey,
+        description: LocalizedStringKey,
+        @ViewBuilder control: () -> Control
+    ) {
+        self.title = title
+        self.description = description
+        self.control = control()
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 16) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                Text(description)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            control
+                .fixedSize(horizontal: true, vertical: false)
+        }
+    }
+}
+
+/// Settings font preview that honors `font-thicken`. Ghostty thickens by
+/// enabling CoreText font smoothing when rasterizing glyphs; SwiftUI `Text`
+/// does not, so toggling the setting left this preview unchanged.
+private struct FontThickenPreview: NSViewRepresentable {
+    var font: NSFont
+    var thicken: Bool
+
+    func makeNSView(context: Context) -> FontThickenPreviewView {
+        FontThickenPreviewView()
+    }
+
+    func updateNSView(_ view: FontThickenPreviewView, context: Context) {
+        view.previewFont = font
+        view.thicken = thicken
+        view.needsDisplay = true
+        view.invalidateIntrinsicContentSize()
+    }
+}
+
+private final class FontThickenPreviewView: NSView {
+    var previewFont: NSFont = .monospacedSystemFont(ofSize: 13, weight: .regular)
+    var thicken = false
+
+    /// Regular / icon / bold lines — same samples as the old SwiftUI preview.
+    private let lines: [(text: String, bold: Bool)] = [
+        ("kero ❯ echo \"the quick brown fox\" 0O 1lI", false),
+        ("\u{E0A0} main \u{E0B0} ~/dev/kero \u{E711} \u{F024B} \u{F0A7D}", false),
+        ("bold — permission denied (os error 13)", true),
+    ]
+
+    private let lineSpacing: CGFloat = 6
+    private let verticalPadding: CGFloat = 4
+
+    override var isFlipped: Bool { true }
+
+    override var intrinsicContentSize: NSSize {
+        let lineHeight = ceil(previewFont.boundingRectForFont.height)
+        let height = verticalPadding * 2
+            + CGFloat(lines.count) * lineHeight
+            + CGFloat(max(0, lines.count - 1)) * lineSpacing
+        return NSSize(width: NSView.noIntrinsicMetric, height: height)
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        guard let ctx = NSGraphicsContext.current?.cgContext else { return }
+        // Mirror Ghostty's CoreText glyph path (face/coretext.zig):
+        // font-thicken == shouldSmoothFonts.
+        ctx.setAllowsFontSmoothing(true)
+        ctx.setShouldSmoothFonts(thicken)
+        ctx.setAllowsFontSubpixelPositioning(true)
+        ctx.setShouldSubpixelPositionFonts(true)
+        ctx.setAllowsFontSubpixelQuantization(false)
+        ctx.setShouldSubpixelQuantizeFonts(false)
+        ctx.setAllowsAntialiasing(true)
+        ctx.setShouldAntialias(true)
+
+        let color = NSColor.labelColor
+        var y = verticalPadding
+        let lineHeight = ceil(previewFont.boundingRectForFont.height)
+        for (text, bold) in lines {
+            let font = bold
+                ? NSFontManager.shared.convert(previewFont, toHaveTrait: .boldFontMask)
+                : previewFont
+            let attrs: [NSAttributedString.Key: Any] = [
+                .font: font,
+                .foregroundColor: color,
+            ]
+            (text as NSString).draw(at: NSPoint(x: 0, y: y), withAttributes: attrs)
+            y += lineHeight + lineSpacing
+        }
+    }
 }
 
 /// Sizes its sole child to the child's ideal height, capped at `maxHeight`.
@@ -234,6 +483,97 @@ private struct ThemeOption: View {
         .buttonStyle(.plain)
         .accessibilityLabel(theme.title)
         .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
+    }
+}
+
+/// Keeps every available engine visible, following the same selection model
+/// as the Appearance tabs above while leaving room for capability differences.
+private struct TerminalBackendPicker: View {
+    @Binding var selection: TerminalBackend
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 6) {
+            ForEach(TerminalBackend.selectable) { backend in
+                TerminalBackendOption(
+                    backend: backend,
+                    isSelected: selection == backend,
+                    select: { selection = backend }
+                )
+            }
+        }
+        .frame(maxWidth: 310)
+    }
+}
+
+private struct TerminalBackendOption: View {
+    let backend: TerminalBackend
+    let isSelected: Bool
+    let select: () -> Void
+
+    var body: some View {
+        Button(action: select) {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 6) {
+                    Image(backend.settingsIconName)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 24, height: 24)
+                    Text(backend.displayName)
+                        .font(.callout)
+                        .foregroundStyle(.primary)
+                }
+                VStack(alignment: .leading, spacing: 3) {
+                    ForEach(backend.settingsHighlights) { highlight in
+                        TerminalBackendHighlightRow(highlight: highlight)
+                    }
+                }
+                .padding(.top, 2)
+            }
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .padding(8)
+            .background(
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(Color.accentColor.opacity(isSelected ? 0.15 : 0))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 10)
+                    .strokeBorder(
+                        isSelected ? Color.accentColor : Color.primary.opacity(0.12),
+                        lineWidth: isSelected ? 2 : 0.5
+                    )
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 10))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(backend.displayName)
+        .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
+    }
+}
+
+private struct TerminalBackendHighlightRow: View {
+    let highlight: TerminalBackendHighlight
+
+    var body: some View {
+        let availability = highlight.isPositive
+            ? String(localized: "Available", comment: "Accessibility description for a supported terminal feature.")
+            : String(localized: "Unavailable", comment: "Accessibility description for an unsupported terminal feature.")
+        HStack(spacing: 4) {
+            Image(systemName: highlight.isPositive
+                ? "checkmark.circle.fill"
+                : "exclamationmark.circle.fill")
+                .foregroundStyle(highlight.isPositive ? Color.green : Color.orange)
+            Text(highlight.title)
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+        }
+        .font(.caption)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(
+            String(
+                localized: "\(availability): \(highlight.title)",
+                comment: "Accessibility label for a terminal feature and whether it is available."
+            )
+        )
     }
 }
 

@@ -1,30 +1,47 @@
 ---
 title: The terminal
-description: What Kero changes about your shell (almost nothing) and what it adds around it.
+description: Kero's terminal backends, shell environment, link handling, notifications, and safety features.
 ---
 
-Kero embeds [libghostty](https://ghostty.org), the terminal core behind Ghostty,
-and hosts it natively in each pane. Rendering, escape-sequence handling, and
-Unicode all behave the way Ghostty does.
+Every terminal pane runs your real login shell and uses one of two native,
+GPU-accelerated terminal backends. Kero owns the surrounding behavior—pane
+focus, search, notifications, links, history, themes, and paste safety—so it is
+consistent whichever emulator you choose.
+
+## Terminal backends
+
+Choose a backend under **Settings → Terminal → Backend**:
+
+| Backend | Notes |
+| --- | --- |
+| **Ghostty** | The default |
+| **Alacritty** | Generally uses less memory |
+
+Both support GPU acceleration, image rendering, Kero's shared theme catalog,
+find, mouse reporting, notifications, and progress reports. A backend change
+applies to new terminals only—existing panes keep the emulator they started
+with.
 
 ## Your shell, unchanged
 
-Each session runs your login shell — `exec $SHELL -l` — so your prompt, aliases,
-functions, and dotfiles load exactly as they do anywhere else. On top of that
-Kero sets:
+Each session starts your account's login shell, so your prompt, aliases,
+functions, and dotfiles load as they do in any terminal. Kero adds capability
+and identity variables:
 
 | Variable | Value |
 | --- | --- |
 | `TERM_PROGRAM` | `ghostty` |
-| `TERM_PROGRAM_VERSION` | the embedded libghostty version |
+| `TERM_PROGRAM_VERSION` | the Ghostty capability version Kero implements |
+| `KERO_TERM` | `ghostty` or `alacritty`, the actual pane backend |
 
-It advertises Ghostty because tools use `TERM_PROGRAM` as a capability hint —
-image-rendering CLIs, for one, use it to pick the Kitty graphics protocol.
+Both backends advertise Ghostty through `TERM_PROGRAM` because image-aware and
+notification-aware CLIs use it as a capability hint. Use `KERO_TERM` only when
+you genuinely need to distinguish the renderer.
 
 <Callout type="info">
-Kero does **not** read `~/.config/ghostty`. Appearance is configured in Kero's
-own settings and [config file](/docs/configuration); everything else uses Ghostty's
-defaults.
+Kero does not read `~/.config/ghostty` or an Alacritty config. Fonts, colors,
+input behavior, and the backend are configured in Kero's own
+[settings](/docs/configuration).
 </Callout>
 
 ## Search
@@ -37,49 +54,79 @@ defaults.
 | Use selection for find | <kbd>Cmd</kbd>+<kbd>E</kbd> |
 | Clear the terminal | <kbd>Cmd</kbd>+<kbd>K</kbd> |
 
-Find works on the focused pane, terminal or editor, and stays live while the
-find field has keyboard focus.
+Find acts on the focused terminal or editor pane and remains active while its
+search field owns keyboard focus.
+
+## Paths and URLs
+
+Kero recognizes web URLs and existing local paths printed by terminal
+programs. Local links can be absolute, `~/`-relative, `./` or `../` relative,
+or relative to the pane's live working directory. A diagnostic suffix such as
+`:42` or `:42:7` does not stop the underlying file from being found.
+
+- **Command-click** a local path to reveal it in Finder, or a URL to open it in
+  the default browser.
+- **Command-right-click** a path for **New File Tab** / **New File Pane**, or a
+  URL for **New Browser Tab** / **New Browser Pane**.
+
+This gives compiler output and agent transcripts a direct route back into the
+same project. Browser behavior is covered in [Browser panes](/docs/browser).
 
 ## Notifications
 
-Kero forwards these to Notification Center:
+Kero forwards two terminal events to Notification Center:
 
-- a **bell** from a session that isn't focused
-- a **notification escape sequence** (`OSC 9`) from a program that wants to tell
-  you something — a long build finishing, a test run failing
+- a bell from a session that is not focused;
+- an `OSC 777;notify` request from a program such as a long-running build or
+  coding agent.
 
-macOS only asks for notification permission the first time a terminal actually
-tries to notify you, not at launch.
+Notifications can play the system sound. Clicking one activates Kero and jumps
+to the exact session that emitted it. macOS asks for permission only when a
+terminal first tries to notify you, not when Kero launches.
 
 ## Progress reports
 
 Programs that emit `OSC 9;4` progress get a slim bar above the terminal, with
-distinct error and paused states. Nothing to enable — if the tool reports
-progress, you see it.
+distinct normal, paused, and error states. There is nothing to enable: if the
+program reports progress, the pane shows it.
 
-## Clipboard and paste safety
+## Clipboard, drops, and paste safety
 
-Both of these match Ghostty's defaults:
+- **Clipboard reads are confirmed.** `OSC 52` can ask for the macOS clipboard,
+  including from a remote host over SSH. Kero asks before returning it.
+- **Risky pastes are flagged.** Multi-line or command-like text is held behind
+  a confirmation instead of being submitted immediately.
+- **Files become shell-safe paths.** Finder-copied or dragged files are inserted
+  as quoted absolute paths. Clipboard images still reach image-aware TUIs.
 
-- **Clipboard reads are confirmed.** A program can ask to read your clipboard
-  with an `OSC 52` escape — including one running on a remote host over SSH.
-  Kero asks you first instead of handing it over silently.
-- **Risky pastes are flagged.** Pasting text that looks like it could execute a
-  command on arrival shows a warning before it goes through.
+## Option-key input
 
-Images on the clipboard, and files copied in Finder, paste as shell-safe
-absolute paths — which is what image-aware TUIs expect to receive.
+By default, Option stays with the active macOS input source so layouts such as
+Polish Pro can type composed characters. Enable **Use Option as Alt/Meta** in
+Settings when a terminal program should receive Option-key chords as Meta
+shortcuts instead. See
+[`terminal.macos-option-as-alt`](/docs/configuration#terminalmacos-option-as-alt).
 
-## Microphone
+## The `kero` command
 
-Programs running inside a session can request microphone access — voice input in
-an AI coding agent, for example. macOS attributes the request to Kero, so you'll
-see one prompt naming Kero rather than the program.
+Every Kero terminal includes a project-aware CLI:
+
+```sh
+kero                         # create a project at the current directory
+kero vim ~/src/app.swift     # create it and run this argv in the first terminal
+kero +themes                 # browse and preview themes interactively
+kero +themes --list --dark   # print theme names without the browser
+kero +help                   # show all command groups
+```
+
+The theme browser previews each selection across the whole app; Return saves
+it and Escape restores the previous theme. `kero +pane` and `kero +agent`
+provide the guarded project-scoped commands documented under
+[Agents and automation](/docs/automation).
 
 ## Fonts
 
-Kero ships **JetBrains Mono** plus Nerd Font symbols, so powerline prompts and
-icon glyphs render without installing anything. Any installed monospace family
-can replace it — see [`font-family`](/docs/configuration#font-family), along
-with [`font-size`](/docs/configuration#font-size) and
-[`font-thicken`](/docs/configuration#font-thicken).
+Kero bundles JetBrains Mono plus Nerd Font symbols. Any installed monospace
+family can replace it. See [`font-family`](/docs/configuration#font-family),
+[`font-size`](/docs/configuration#font-size), and
+[`terminal.font-thicken`](/docs/configuration#terminalfont-thicken).

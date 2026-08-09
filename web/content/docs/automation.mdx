@@ -1,0 +1,99 @@
+---
+title: Agents and automation
+description: Coordinate project-scoped panes and coding agents with Kero's guarded local CLI.
+---
+
+Kero recognizes coding agents running in terminal panes and exposes a local,
+authenticated automation CLI. You can create background layout, start an
+agent, send a guarded prompt, wait for its state, and read its result without
+stealing focus from the pane you are using.
+
+## Turn on agent support
+
+Open **Settings → Automation** and enable **AI**. Kero then:
+
+- makes its coordination commands available to supported coding agents; and
+- provides more precise **working**, **blocked**, and **done** status for Pi,
+  OpenCode, and Grok Build when those tools are already configured.
+
+If Kero finds an existing agent setup that conflicts with this feature, it
+leaves that setup unchanged, returns the toggle to its previous state, and
+shows the error. Restart an already-running agent after enabling support for
+the first time.
+
+The equivalent explicit command is:
+
+```sh
+kero +agent skill install
+```
+
+Use `status`, `uninstall`, or `--provider NAME` with the same command group for
+more control.
+
+## Pane automation
+
+`kero +pane` controls layout and raw terminal I/O. Successful operations return
+JSON containing IDs that can be passed to later commands:
+
+```sh
+kero +pane current
+kero +pane list
+kero +pane split --right --cwd "$PWD"
+kero +pane run --pane PANE_ID -- bun test
+kero +pane read --pane PANE_ID --lines 120
+kero +pane wait-output --pane PANE_ID --contains "ready" --timeout 30000
+```
+
+Targets default to the terminal invoking the command. New splits stay in the
+background unless `--focus` is explicit. `run` starts a command in the target
+shell; `send` is deliberately separate raw terminal input.
+
+## Agent automation
+
+Kero recognizes Codex, Claude Code, Gemini CLI, Grok Build, OpenCode, Cursor
+Agent, Aider, Amp, and Pi. A typical delegated workflow is explicit about both
+layout and agent creation:
+
+```sh
+# 1. Create a background shell and record pane_id from the JSON response.
+kero +pane split --right --cwd "$PWD"
+
+# 2. Start the chosen CLI in that existing shell.
+kero +agent start tests --kind codex --pane PANE_ID
+
+# 3. Send a bounded task through the guarded agent channel.
+kero +agent prompt tests --text "Run the focused tests and report failures."
+
+# 4. Wait without focusing it, then read the settled result.
+kero +agent wait tests --state done,blocked --timeout 1800000
+kero +agent read tests --lines 160
+```
+
+`start` never creates or closes layout. `prompt` requires a live recognized
+agent that is ready for input. `wait` returns when Kero reports one of the
+requested states, and `read` does not mark unseen work as seen.
+
+Run `kero +agent --help`, `kero +pane --help`, or
+`kero +agent explain` for the complete command and lifecycle contract.
+
+## Status in the UI
+
+Kero shows **working**, **blocked**, and **done** status on panes and tabs. The
+status updates automatically while supported agents run. A completed agent in
+the background stays marked **done** until you focus its pane.
+
+Agents that finish or need input can post a notification and receive an
+attention badge. <kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>A</kbd> jumps to the next
+agent needing attention.
+
+## Guardrails
+
+- Automation is scoped to the invoking terminal's project. Guessed IDs in
+  other projects or windows are rejected.
+- Background operations do not take focus unless requested.
+- Use `+agent prompt` for agent messages. `+pane send` is raw terminal input
+  and can interact with any program.
+- Kero never answers permission, credential, trust, or destructive-action
+  prompts for you. A blocked agent is a handoff to the user.
+- Terminals opened before the automation environment was added may ask you to
+  open a new terminal before using these commands.

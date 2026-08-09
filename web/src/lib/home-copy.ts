@@ -43,7 +43,7 @@ const en: HomeCopy = {
   languageName: 'English',
   title: 'Kero — A native terminal workspace for macOS',
   description:
-    'Kero is a fast, keyboard-first terminal workspace for macOS. Projects, sessions, a command palette, and inline git diffs — all in one native window.',
+    'Kero is a fast, keyboard-first terminal workspace for macOS. Projects, sessions, browser panes, git diffs, and coding agents — all in one native window.',
   taglineBefore: 'Your terminal, with the ',
   taglineHighlight: 'whole project',
   taglineAfter: ' around it.',
@@ -81,6 +81,11 @@ const en: HomeCopy = {
             'Cmd+D splits right, Cmd+Shift+D splits down, Opt+Cmd+arrows moves focus between panes',
         },
         {
+          name: 'Browser panes',
+          detail:
+            'open a site or local server beside its terminal, with native tabs, splits, and restored URLs',
+        },
+        {
           name: 'Restored on relaunch',
           detail:
             'quit and reopen: projects, tabs, and pane layout come back, each shell fresh beneath its previous scrollback',
@@ -102,7 +107,7 @@ const en: HomeCopy = {
         {
           name: 'Inline diffs',
           detail:
-            'click a changed file to read its diff in place, without leaving the window',
+            'review unified or split diffs in place, and edit live unstaged changes directly',
         },
         {
           name: 'Branch work',
@@ -112,7 +117,7 @@ const en: HomeCopy = {
         {
           name: 'Files panel',
           detail:
-            'browse the working tree, open a file, edit it with tree-sitter highlighting, Cmd+S to save',
+            'browse the working tree, open a file, edit it with syntax highlighting, Cmd+S to save',
         },
         {
           name: 'Session info',
@@ -130,8 +135,14 @@ const en: HomeCopy = {
             'zsh, fish, or bash exactly as you configured it — prompt, aliases, dotfiles and all',
         },
         {
-          name: 'Built on libghostty',
-          detail: "Ghostty's terminal core, embedded and hosted natively by kero",
+          name: 'Two native backends',
+          detail:
+            'choose Ghostty or Alacritty for new panes; both are GPU-accelerated and support images',
+        },
+        {
+          name: 'Agent-aware',
+          detail:
+            'semantic status, completion notifications, and guarded project-scoped coordination commands',
         },
         {
           name: 'Desktop notifications',
@@ -161,7 +172,7 @@ const en: HomeCopy = {
     { name: 'Cmd+T', detail: 'new session' },
     { name: 'Cmd+W', detail: 'close the focused pane' },
     { name: 'Cmd+1–9', detail: 'switch project' },
-    { name: 'Ctrl+Shift+1–9', detail: 'switch tab' },
+    { name: 'Ctrl+1–9', detail: 'switch tab' },
     { name: 'Ctrl+Tab', detail: 'open the tab switcher' },
     { name: 'Cmd+P', detail: 'command palette' },
     { name: 'Cmd+D / Cmd+Shift+D', detail: 'split right / split down' },
@@ -174,6 +185,8 @@ const en: HomeCopy = {
     { name: 'Cmd+F / Cmd+G', detail: 'find / find next' },
     { name: 'Cmd+K', detail: 'clear the terminal' },
     { name: 'Cmd+S', detail: 'save the open file' },
+    { name: 'Cmd+L / Cmd+R', detail: 'focus address bar / reload browser' },
+    { name: 'Cmd+Shift+A', detail: 'next agent needing attention' },
   ],
   faq: [
     {
@@ -182,15 +195,15 @@ const en: HomeCopy = {
     },
     {
       q: 'Does it replace my shell?',
-      a: 'No. kero hosts the shell you already run and leaves your prompt, aliases, and dotfiles untouched. The terminal underneath is libghostty, the same core as Ghostty.',
+      a: 'No. kero hosts the shell you already run and leaves your prompt, aliases, and dotfiles untouched. Terminal panes can use Ghostty or Alacritty.',
     },
     {
       q: 'Does it collect any data?',
-      a: 'No telemetry, no analytics. The only network call kero makes is the update check against releases.kero.sh.',
+      a: 'No telemetry, no analytics. Its only automatic network request is the update check; browser pages and agent CLIs make only the requests you ask them to.',
     },
     {
       q: 'What happens to my sessions when I quit?',
-      a: 'Projects, tabs, and pane layout come back on relaunch. Each terminal reopens as a fresh shell in its old directory, with the previous scrollback restored above a "Session Contents Restored" divider.',
+      a: 'Projects, tabs, browser URLs, and pane layout come back on relaunch. Each terminal reopens as a fresh shell in its old directory; previous scrollback returns only when history restoration is enabled.',
     },
     {
       q: 'Is this an IDE?',
@@ -206,7 +219,7 @@ const zh: HomeCopy = {
   languageName: '中文',
   title: 'Kero — 原生 macOS 终端工作区',
   description:
-    'Kero 是面向 macOS 的原生终端工作区：快速、键盘优先。项目、会话、命令面板、内联 git diff，都在同一个窗口里。',
+    'Kero 是面向 macOS 的原生终端工作区：快速、键盘优先。项目、会话、浏览器窗格、git diff 和编码 agent，都在同一个窗口里。',
   taglineBefore: '你的终端，',
   taglineHighlight: '整个项目',
   taglineAfter: '都在身边。',
@@ -242,6 +255,10 @@ const zh: HomeCopy = {
           detail: 'Cmd+D 向右分，Cmd+Shift+D 向下分，Opt+Cmd+方向键在窗格间切换焦点',
         },
         {
+          name: '浏览器窗格',
+          detail: '把网页或本地服务放在终端旁边；支持标签页、分屏和 URL 恢复',
+        },
+        {
           name: '重启后原样恢复',
           detail:
             '退出再打开，项目、标签页和窗格布局都还在；每个 shell 重新启动，之前的输出留在上方',
@@ -262,7 +279,7 @@ const zh: HomeCopy = {
         },
         {
           name: '内联 diff',
-          detail: '点开改动过的文件，直接看 diff，不用离开窗口',
+          detail: '在窗口里看单栏或左右 diff，还能直接编辑实时、未暂存的改动',
         },
         {
           name: '分支操作',
@@ -271,7 +288,7 @@ const zh: HomeCopy = {
         },
         {
           name: '文件面板',
-          detail: '浏览工作区，打开文件编辑；tree-sitter 语法高亮，Cmd+S 保存',
+          detail: '浏览工作区，打开文件编辑；语法高亮，Cmd+S 保存',
         },
         {
           name: '会话信息',
@@ -288,8 +305,12 @@ const zh: HomeCopy = {
             'zsh、fish 还是 bash，你怎么配的就怎么用——提示符、别名、dotfiles 一个不少',
         },
         {
-          name: '基于 libghostty',
-          detail: 'Ghostty 的终端内核，由 kero 原生嵌入运行',
+          name: '两个原生后端',
+          detail: '新窗格可选 Ghostty 或 Alacritty；两者都有 GPU 加速并支持图片',
+        },
+        {
+          name: '理解 agent 状态',
+          detail: '语义状态、完成通知，以及带保护、限制在当前项目内的协调命令',
         },
         {
           name: '桌面通知',
@@ -317,7 +338,7 @@ const zh: HomeCopy = {
     { name: 'Cmd+T', detail: '新建会话' },
     { name: 'Cmd+W', detail: '关闭当前窗格' },
     { name: 'Cmd+1–9', detail: '切换项目' },
-    { name: 'Ctrl+Shift+1–9', detail: '切换标签页' },
+    { name: 'Ctrl+1–9', detail: '切换标签页' },
     { name: 'Ctrl+Tab', detail: '打开标签页切换器' },
     { name: 'Cmd+P', detail: '命令面板' },
     { name: 'Cmd+D / Cmd+Shift+D', detail: '向右分屏 / 向下分屏' },
@@ -330,6 +351,8 @@ const zh: HomeCopy = {
     { name: 'Cmd+F / Cmd+G', detail: '查找 / 查找下一个' },
     { name: 'Cmd+K', detail: '清空终端' },
     { name: 'Cmd+S', detail: '保存当前文件' },
+    { name: 'Cmd+L / Cmd+R', detail: '聚焦地址栏 / 重新加载浏览器' },
+    { name: 'Cmd+Shift+A', detail: '下一个需要注意的 agent' },
   ],
   faq: [
     {
@@ -338,15 +361,15 @@ const zh: HomeCopy = {
     },
     {
       q: '它会替换我的 shell 吗？',
-      a: '不会。kero 运行的就是你本来在用的 shell，提示符、别名和 dotfiles 都不受影响。底层终端是 libghostty，与 Ghostty 同一内核。',
+      a: '不会。kero 运行的就是你本来在用的 shell，提示符、别名和 dotfiles 都不受影响。终端窗格可以使用 Ghostty 或 Alacritty。',
     },
     {
       q: '它会收集数据吗？',
-      a: '没有遥测，也没有分析统计。kero 唯一主动发起的网络请求，是向 releases.kero.sh 检查更新。',
+      a: '没有遥测，也没有分析统计。唯一自动发起的是更新检查；浏览器页面和 agent CLI 只会发送你要求的请求。',
     },
     {
       q: '退出之后我的会话会怎样？',
-      a: '项目、标签页和窗格布局会在重新打开时恢复。每个终端会在原来的目录里启动一个新 shell，之前的输出出现在「Session Contents Restored」分隔线上方。',
+      a: '项目、标签页、浏览器 URL 和窗格布局都会恢复。每个终端在原目录里启动新 shell；只有打开了历史恢复，之前的滚动内容才会回来。',
     },
     {
       q: '这是一个 IDE 吗？',

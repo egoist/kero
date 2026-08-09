@@ -23,10 +23,17 @@ Click a file to open it in the focused pane. Right-click for the rest:
 | **Rename** | |
 | **Move to Trash** | To the Trash, not deleted outright |
 
+Rows use filename-aware Material icons. Inside a Git repository, changed paths
+also use status colors and badges, while ignored files are dimmed, so the tree
+shows the same worktree state as the Git panel without opening it.
+
+The command palette (<kbd>Cmd</kbd>+<kbd>P</kbd>) searches the entire project
+directory as well as commands and open sessions. Selecting a file opens it in
+the project directly.
+
 ## The editor
 
-Opening a file gives you a real editor in a pane, with tree-sitter syntax
-highlighting.
+Opening a file gives you a real editor in a pane, with syntax highlighting.
 
 | Action | Shortcut |
 | --- | --- |
@@ -41,6 +48,10 @@ instead, set [`editor.wrap-lines`](/docs/configuration#editorwrap-lines).
 Renaming a file in the tree updates any pane that has it open, including files
 underneath a renamed folder.
 
+If another program changes an open file, Kero refreshes a clean preview when
+the app becomes active again. It never replaces an editor buffer with unsaved
+changes.
+
 <Callout type="info">
 This is an editor for the change you're already looking at — fix a typo, adjust
 a constant, read a file the diff referenced. There's no language server, no
@@ -51,4 +62,6 @@ completion, and no project-wide refactoring. That's deliberate.
 
 A diff opened from [the git panel](/docs/git) is just another pane, so a diff, a
 file, and a terminal can sit side by side in one tab. It uses your terminal
-font, and a thousand-file changeset opens as fast as a one-line one.
+font, and a thousand-file changeset opens as fast as a one-line one. Live,
+unstaged worktree diffs can also switch from Review to Edit; staged and
+historical diffs remain read-only. See [Reading diffs](/docs/git#reading-diffs).

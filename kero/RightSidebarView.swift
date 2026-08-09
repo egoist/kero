@@ -4,20 +4,38 @@
 //
 
 import AppKit
-import Combine
 import SwiftUI
 
 /// Right sidebar: hidden by default, toggled from the terminal's corner
 /// button or ⇧⌘B. Files/Git switch via tabs along its top, otty-style.
 struct RightSidebarView: View {
     @ObservedObject var manager: TerminalManager
+    @ObservedObject var git: GitStatusModel
+    @ObservedObject private var settings = AppSettings.shared
     @ObservedObject private var themeChanges = Theme.changes
     @StateObject private var fileTree = FileTreeModel()
-    @StateObject private var git = GitStatusModel()
     @StateObject private var info = SessionInfoModel()
+    @State private var applicationIsActive = NSApp.isActive
+    /// Which rule produced the current panel root; drives the Files badge.
+    @State private var rootSource = Project.PanelRootSource.shell
     @AppStorage("rightSidebarWidth") private var width: Double = 240
 
-    private let refreshTimer = Timer.publish(every: 2, on: .main, in: .common).autoconnect()
+    private var pollsSelectedPanel: Bool {
+        manager.isPanelVisible
+            && applicationIsActive
+            && manager.panelTab != .git
+    }
+
+    /// Every terminal in the selected project can change the same repository.
+    /// Watching only these counters avoids reacting to prompt/input lifecycle
+    /// updates while still catching commands completed in an unfocused pane.
+    private var commandCompletionSequences: [UUID: UInt64] {
+        Dictionary(uniqueKeysWithValues:
+            manager.selectedProject?.sessions.map {
+                ($0.id, $0.commandLifecycle.completionSequence)
+            } ?? []
+        )
+    }
 
     /// Path of the file in the focused pane, so the tree can highlight it.
     /// Reactive: focus/selection is published up through the project to `manager`.
@@ -41,11 +59,14 @@ struct RightSidebarView: View {
                     case .files:
                         FileTreePanel(
                             model: fileTree,
+                            git: git,
                             session: manager.selectedSession,
+                            rootBadge: rootBadge,
                             currentFilePath: openFilePath,
                             openFile: { manager.openFile($0) },
                             openToSide: { manager.openFileToSide($0) },
-                            onRename: { manager.fileRenamed(from: $0, to: $1) }
+                            onRename: { manager.fileRenamed(from: $0, to: $1) },
+                            refreshGitStatus: { git.refresh() }
                         )
                     case .git:
                         GitPanel(
@@ -60,6 +81,16 @@ struct RightSidebarView: View {
                                     staged: staged,
                                     untracked: entry.isUntracked,
                                     origPath: entry.origPath
+                                )
+                            },
+                            openCommitDiff: { commit, file in
+                                manager.openCommitDiff(
+                                    repoRoot: git.repoRoot,
+                                    path: file.path,
+                                    commitHash: commit.hash,
+                                    parentHash: commit.parentHash,
+                                    status: file.status,
+                                    origPath: file.originalPath
                                 )
                             }
                         )
@@ -81,25 +112,73 @@ struct RightSidebarView: View {
                 )
             }
         }
-        .onAppear(perform: syncModels)
-        .onReceive(refreshTimer) { _ in syncModels() }
+        .onAppear { syncModels() }
+        // Files and process information remain live while visible. Git is
+        // event-driven: terminal/Git command completion and app activation
+        // refresh it without a repeating main-run-loop source.
+        .task(id: pollsSelectedPanel) {
+            guard pollsSelectedPanel else { return }
+            while !Task.isCancelled {
+                do {
+                    try await Task.sleep(for: .seconds(2))
+                } catch {
+                    return
+                }
+                syncModels()
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(
+            for: NSApplication.didBecomeActiveNotification
+        )) { _ in
+            applicationIsActive = true
+            syncModels()
+        }
+        .onReceive(NotificationCenter.default.publisher(
+            for: NSApplication.didResignActiveNotification
+        )) { _ in
+            applicationIsActive = false
+        }
+        .onChange(of: commandCompletionSequences) {
+            syncModels()
+        }
         .onChange(of: manager.isPanelVisible) { syncModels() }
         .onChange(of: manager.panelTab) { syncModels() }
         .onChange(of: manager.selectedSession?.id) { syncModels() }
         // A `cd` in the terminal publishes the new cwd immediately (OSC 7 →
-        // session.workingDirectory); resync at once instead of waiting for the
-        // next refreshTimer tick, which is what made the panel lag the change.
+        // session.workingDirectory); resync at once so automatically rooted
+        // panels follow the terminal without waiting for another event.
         .onChange(of: manager.selectedSession?.workingDirectory) { syncModels() }
-        // Same for pinning/unpinning the project directory: re-root the
-        // panels the moment it changes rather than on the next tick.
+        // Same for pinning/unpinning the project directory.
         .onChange(of: manager.selectedProject?.customDirectory) { syncModels() }
+        .environment(
+            \.sidebarFontScale,
+            CGFloat(settings.sidebarFontSize / AppSettings.defaultSidebarFontSize)
+        )
+        // Native button and control labels without a designed hierarchy use
+        // the configured base size directly.
+        .environment(\.font, .system(size: CGFloat(settings.sidebarFontSize)))
     }
 
     private var tabBar: some View {
         HStack(spacing: 4) {
-            tabButton(.info, systemImage: "info.circle", title: "Info", help: "Info (⇧⌘I)")
-            tabButton(.files, systemImage: "folder", title: "Files", help: "Files (⇧⌘E)")
-            tabButton(.git, systemImage: "arrow.triangle.branch", title: "Git", help: "Git (⇧⌘G)")
+            tabButton(
+                .info,
+                systemImage: "info.circle",
+                title: String(localized: "Info"),
+                help: String(localized: "Info (⇧⌘I)")
+            )
+            tabButton(
+                .files,
+                systemImage: "folder",
+                title: String(localized: "Files"),
+                help: String(localized: "Files (⇧⌘E)")
+            )
+            tabButton(
+                .git,
+                systemImage: "arrow.triangle.branch",
+                title: String(localized: "Git"),
+                help: String(localized: "Git (⇧⌘G)")
+            )
         }
         .padding(.horizontal, 8)
         .padding(.top, 12)
@@ -113,16 +192,16 @@ struct RightSidebarView: View {
         } label: {
             HStack(spacing: 5) {
                 Image(systemName: systemImage)
-                    .font(.system(size: 10, weight: .medium))
+                    .sidebarFont(size: 10, weight: .medium)
                 Text(title)
-                    .font(.system(size: 11, weight: isActive ? .medium : .regular))
+                    .sidebarFont(size: 11, weight: .regular)
             }
-            .foregroundStyle(isActive ? .primary : .tertiary)
+            .foregroundStyle(isActive ? .primary : .secondary)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 5)
             .background(
                 RoundedRectangle(cornerRadius: 6)
-                    .fill(isActive ? Color.primary.opacity(0.09) : .clear)
+                    .fill(isActive ? Color.primary.opacity(0.12) : .clear)
             )
             .contentShape(RoundedRectangle(cornerRadius: 6))
         }
@@ -139,19 +218,51 @@ struct RightSidebarView: View {
         else { return }
         let cwd = session.currentDirectoryPath
         // Files and Git anchor to the project directory — pinned when the
-        // user set one, else the cwd's closest git repository — so they
-        // don't re-root as the terminal cds around a repo; Info describes
-        // the shell itself, showing its live cwd next to that root.
-        let (root, isAutoRoot) = project.panelRoot(followingSessionAt: cwd)
+        // user set one, else the repository the session is working in — so
+        // they don't re-root as the terminal cds around a repo; Info
+        // describes the shell itself, showing its live cwd next to that root.
+        // An agent that moves to its own worktree changes only its own
+        // process directory, so the foreground job's cwd is passed in too.
+        let (root, source) = project.panelRoot(
+            followingSessionAt: cwd, foregroundAt: session.foregroundDirectoryPath
+        )
+        if rootSource != source { rootSource = source }
         switch manager.panelTab {
-        case .files: fileTree.sync(root: root)
-        case .git: git.sync(root: root)
+        case .files:
+            fileTree.sync(root: root)
+        case .git:
+            break
         case .info:
             info.sync(
-                root: cwd, projectRoot: root, projectRootIsAutomatic: isAutoRoot,
+                root: cwd, projectRoot: root, projectRootSource: source,
                 shellName: session.shellName, shellPid: session.shellPid
             )
         }
+    }
+
+    /// Text badge for the Files header while the panels follow the foreground
+    /// job instead of the shell — the agent's worktree in the common case, a
+    /// plain "job" when it moved somewhere that isn't a linked worktree.
+    /// The label and its spoken description travel together so neither is
+    /// assembled from translated fragments.
+    private var rootBadge: (text: String, description: String)? {
+        guard case .foreground(let isWorktree) = rootSource else { return nil }
+        if isWorktree {
+            return (
+                String(
+                    localized: "worktree",
+                    comment: "Files header badge: the panels follow a Git worktree the terminal’s foreground job moved to."
+                ),
+                String(localized: "Following the terminal job’s worktree")
+            )
+        }
+        return (
+            String(
+                localized: "job",
+                comment: "Files header badge: the panels follow a directory the terminal’s foreground job moved to, outside any worktree of the shell’s repository."
+            ),
+            String(localized: "Following the terminal job’s directory")
+        )
     }
 }
 
@@ -164,12 +275,12 @@ private struct PanelHeader: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 1) {
             Text(title)
-                .font(.system(size: 12, weight: .semibold))
+                .sidebarFont(size: 12, weight: .semibold)
                 .lineLimit(1)
             if let subtitle, !subtitle.isEmpty {
                 Text(subtitle)
-                    .font(.system(size: 10))
-                    .foregroundStyle(.tertiary)
+                    .sidebarFont(size: 10)
+                    .foregroundStyle(.secondary)
                     .lineLimit(1)
                     .truncationMode(.head)
             }
@@ -182,21 +293,38 @@ private struct PanelHeader: View {
 
 private struct FileTreePanel: View {
     @ObservedObject var model: FileTreeModel
+    @ObservedObject var git: GitStatusModel
     let session: TerminalSession?
+    /// Set while the tree follows the terminal's foreground job into another
+    /// checkout, so the header says why the root moved.
+    let rootBadge: (text: String, description: String)?
     let currentFilePath: String?
     let openFile: (String) -> Void
     let openToSide: (String) -> Void
     let onRename: (_ oldPath: String, _ newPath: String) -> Void
+    let refreshGitStatus: () -> Void
 
     var body: some View {
         VStack(spacing: 0) {
             HStack {
                 PanelHeader(title: model.rootName, subtitle: model.rootPath)
+                if let rootBadge {
+                    Text(verbatim: rootBadge.text)
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 2)
+                        .background(
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(Color.primary.opacity(0.09))
+                        )
+                        .accessibilityLabel(rootBadge.description)
+                }
                 Button {
                     NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: model.rootPath)])
                 } label: {
                     Image(systemName: "arrow.up.forward.app")
-                        .font(.system(size: 11))
+                        .sidebarFont(size: 11)
                         .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
@@ -210,9 +338,10 @@ private struct FileTreePanel: View {
                 LazyVStack(spacing: 1) {
                     ForEach(model.items) { item in
                         FileTreeRow(
-                            model: model, item: item, session: session,
+                            model: model, git: git, item: item, session: session,
                             currentFilePath: currentFilePath,
-                            openFile: openFile, openToSide: openToSide, onRename: onRename
+                            openFile: openFile, openToSide: openToSide, onRename: onRename,
+                            refreshGitStatus: refreshGitStatus
                         )
                     }
                 }
@@ -225,6 +354,7 @@ private struct FileTreePanel: View {
 
 private struct FileTreeRow: View {
     @ObservedObject var model: FileTreeModel
+    @ObservedObject var git: GitStatusModel
     @ObservedObject private var themeChanges = Theme.changes
     let item: FileTreeModel.Item
     let session: TerminalSession?
@@ -232,6 +362,7 @@ private struct FileTreeRow: View {
     let openFile: (String) -> Void
     let openToSide: (String) -> Void
     let onRename: (_ oldPath: String, _ newPath: String) -> Void
+    let refreshGitStatus: () -> Void
 
     @State private var isHovering = false
     @State private var editingName = ""
@@ -241,6 +372,10 @@ private struct FileTreeRow: View {
 
     /// The file open in the active tab, so it reads as selected in the tree.
     private var isCurrent: Bool { !item.isDirectory && item.path == currentFilePath }
+
+    private var gitDecoration: GitStatusModel.FileDecoration? {
+        git.fileDecoration(for: item.path, isDirectory: item.isDirectory)
+    }
 
     var body: some View {
         if item.isDraft {
@@ -299,6 +434,7 @@ private struct FileTreeRow: View {
         }
         Button("Move to Trash", role: .destructive) {
             model.moveToTrash(item)
+            refreshGitStatus()
         }
     }
 
@@ -310,6 +446,7 @@ private struct FileTreeRow: View {
         let oldPath = item.path
         if let newPath = model.rename(item, to: editingName) {
             onRename(oldPath, newPath)
+            refreshGitStatus()
         }
     }
 
@@ -320,6 +457,7 @@ private struct FileTreeRow: View {
         if let created = model.commitDraft(name: editingName) {
             openFile(created)
         }
+        refreshGitStatus()
     }
 
     @ViewBuilder
@@ -342,10 +480,16 @@ private struct FileTreeRow: View {
             HStack(spacing: 5) {
                 leadingGlyphs
                 Text(item.name)
-                    .font(.system(size: 11.5))
-                    .foregroundStyle(item.name.hasPrefix(".") ? .tertiary : .secondary)
+                    .sidebarFont(size: 11.5)
+                    .foregroundStyle(fileNameColor)
                     .lineLimit(1)
                 Spacer(minLength: 0)
+                if let gitDecoration {
+                    Text(gitDecoration.badge)
+                        .sidebarFont(size: 9, weight: .semibold, design: .monospaced)
+                        .foregroundStyle(gitDecoration.color)
+                        .accessibilityHidden(true)
+                }
             }
             .padding(.leading, CGFloat(item.depth) * 12 + 6)
             .padding(.trailing, 6)
@@ -353,6 +497,7 @@ private struct FileTreeRow: View {
             .contentShape(RoundedRectangle(cornerRadius: 4))
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(fileAccessibilityLabel)
         // Drag a row out as a file URL: onto the terminal (which inserts its
         // path) or into Finder and other apps. A click still opens/toggles;
         // the drag only begins once the pointer moves.
@@ -361,10 +506,20 @@ private struct FileTreeRow: View {
         }
     }
 
+    private var fileNameColor: Color {
+        if let gitDecoration { return gitDecoration.color }
+        return item.name.hasPrefix(".") ? Color.secondary.opacity(0.55) : .secondary
+    }
+
+    private var fileAccessibilityLabel: String {
+        guard let gitDecoration else { return item.name }
+        return item.name + ", " + gitDecoration.accessibilityName
+    }
+
     private var renameRow: some View {
         HStack(spacing: 5) {
             leadingGlyphs
-            nameField("Name")
+            nameField(String(localized: "Name"))
                 .onSubmit { commitRename() }
                 .onKeyPress(.escape) { model.cancelRename(); return .handled }
                 .onChange(of: fieldFocused) {
@@ -384,7 +539,9 @@ private struct FileTreeRow: View {
     private var draftRow: some View {
         HStack(spacing: 5) {
             leadingGlyphs
-            nameField(item.isDirectory ? "Folder name" : "File name")
+            nameField(item.isDirectory
+                ? String(localized: "Folder name")
+                : String(localized: "File name"))
                 .onSubmit { commitDraft() }
                 .onKeyPress(.escape) { model.cancelDraft(); return .handled }
                 .onChange(of: fieldFocused) {
@@ -404,7 +561,7 @@ private struct FileTreeRow: View {
     private func nameField(_ placeholder: String) -> some View {
         TextField(placeholder, text: $editingName)
             .textFieldStyle(.plain)
-            .font(.system(size: 11.5))
+            .sidebarFont(size: 11.5)
             .foregroundStyle(.primary)
             .focused($fieldFocused)
             .padding(.horizontal, 4)
@@ -430,17 +587,61 @@ private struct FileTreeRow: View {
         Group {
             if item.isDirectory && !item.isDraft {
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 8, weight: .semibold))
+                    .sidebarFont(size: 8, weight: .semibold)
                     .foregroundStyle(.tertiary)
                     .rotationEffect(.degrees(model.isExpanded(item) ? 90 : 0))
                     .frame(width: 10)
             } else {
                 Spacer().frame(width: 10)
             }
-            Image(systemName: item.isDirectory ? "folder.fill" : "doc.text")
-                .font(.system(size: 10))
-                .foregroundStyle(item.isDirectory ? Color(nsColor: Theme.accent).opacity(0.8) : Color.secondary)
-                .frame(width: 14)
+            if item.isDirectory {
+                Image(systemName: "folder.fill")
+                    .sidebarFont(size: 10)
+                    .foregroundStyle(Color(nsColor: Theme.accent).opacity(0.8))
+                    .frame(width: 14)
+            } else {
+                MaterialFileIconView(path: item.path, size: 14)
+                    .frame(width: 14)
+            }
+        }
+    }
+}
+
+private extension GitStatusModel.FileDecoration {
+    var badge: String {
+        switch self {
+        case .modified: "M"
+        case .added: "A"
+        case .untracked: "U"
+        case .deleted: "D"
+        case .renamed: "R"
+        case .copied: "C"
+        case .conflict: "!"
+        case .ignored: "I"
+        }
+    }
+
+    var accessibilityName: String {
+        switch self {
+        case .modified: String(localized: "Modified")
+        case .added: String(localized: "Added")
+        case .untracked: String(localized: "Untracked")
+        case .deleted: String(localized: "Deleted")
+        case .renamed: String(localized: "Renamed")
+        case .copied: String(localized: "Copied")
+        case .conflict: String(localized: "Conflict")
+        case .ignored: String(localized: "Ignored")
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .modified: Color(red: 0.82, green: 0.60, blue: 0.13)
+        case .added, .untracked: Color(red: 0.25, green: 0.73, blue: 0.31)
+        case .deleted: Color(red: 1.0, green: 0.48, blue: 0.45)
+        case .renamed, .copied: Color(red: 0.35, green: 0.65, blue: 1.0)
+        case .conflict: Color(red: 0.74, green: 0.55, blue: 1.0)
+        case .ignored: Color.secondary.opacity(0.55)
         }
     }
 }
@@ -449,6 +650,25 @@ private struct FileTreeRow: View {
 
 private struct GitPanel: View {
     @ObservedObject private var themeChanges = Theme.changes
+
+    private enum EntryOperation: Equatable {
+        case stage
+        case unstage
+        case discard
+    }
+
+    private enum OperationTrigger: Equatable {
+        case branchMenu
+        case moreMenu
+        case primaryAction
+        case commitMenu
+        case syncButton
+        case stageAll
+        case unstageAll
+        case discardAll
+        case entry(path: String, operation: EntryOperation)
+        case initializeRepository
+    }
 
     private struct FileFingerprint: Equatable {
         let exists: Bool
@@ -470,6 +690,10 @@ private struct GitPanel: View {
     let openFile: (String) -> Void
     let openToSide: (String) -> Void
     let openDiff: (_ entry: GitStatusModel.Entry, _ staged: Bool) -> Void
+    let openCommitDiff: (
+        _ commit: GitStatusModel.RecentCommit,
+        _ file: GitStatusModel.RecentCommit.FileChange
+    ) -> Void
 
     @State private var commitMessage = ""
     @State private var pendingDiscard: PendingDiscard?
@@ -478,33 +702,30 @@ private struct GitPanel: View {
     @State private var mergeCollapsed = false
     @State private var stagedCollapsed = false
     @State private var changesCollapsed = false
-    @State private var historyCollapsed = true
+    @State private var historyCollapsed = false
+    @State private var expandedCommitIDs: Set<String> = []
     @State private var filterText = ""
     @State private var showFilter = false
-    @State private var showBranchCreator = false
-    @State private var newBranchName = ""
     @State private var operationExpanded = false
-    @FocusState private var branchFieldFocused: Bool
+    @State private var operationTrigger: OperationTrigger?
+    @Environment(\.sidebarFontScale) private var sidebarFontScale
 
     var body: some View {
         VStack(spacing: 0) {
             header
-            operationBanner
+            operationFailureBanner
 
             if let statusError = model.statusError {
                 statusFailure(statusError)
             } else if !model.isRepo {
                 if model.isResolvingInitialStatus {
-                    placeholder(icon: "arrow.clockwise", text: "Finding repository…")
-                } else if model.isBusy {
-                    placeholder(icon: "hourglass", text: "Finishing Git operation…")
+                    placeholder(icon: "arrow.clockwise", text: String(localized: "Finding repository…"))
                 } else {
                     notRepository
                 }
             } else {
                 trackingBar
                 repositoryOperationBanner
-                branchCreator
                 commitBox
                 filterBar
                 changeList
@@ -522,7 +743,11 @@ private struct GitPanel: View {
                    role: .destructive) {
                 if let pendingDiscard {
                     if discardSnapshotIsCurrent(pendingDiscard) {
-                        model.discard(pendingDiscard.entry)
+                        performOperation(
+                            .entry(path: pendingDiscard.entry.path, operation: .discard)
+                        ) {
+                            model.discard(pendingDiscard.entry)
+                        }
                     } else {
                         model.cancelStaleDiscard()
                     }
@@ -545,7 +770,9 @@ private struct GitPanel: View {
             Button("Discard All Changes", role: .destructive) {
                 let snapshot = pendingDiscardAll
                 if !snapshot.isEmpty && snapshot.allSatisfy(discardSnapshotIsCurrent) {
-                    model.discardChanges(snapshot.map(\.entry))
+                    performOperation(.discardAll) {
+                        model.discardChanges(snapshot.map(\.entry))
+                    }
                 } else {
                     model.cancelStaleDiscard()
                 }
@@ -559,11 +786,12 @@ private struct GitPanel: View {
             pendingDiscard = nil
             pendingDiscardAll = []
             confirmDiscardAll = false
-            showBranchCreator = false
-            newBranchName = ""
         }
         .onChange(of: model.repositoryIdentity) {
             resetRepositoryDrafts()
+        }
+        .onChange(of: model.isBusy) {
+            if !model.isBusy { operationTrigger = nil }
         }
     }
 
@@ -575,29 +803,31 @@ private struct GitPanel: View {
                 branchMenu
             } else {
                 Image(systemName: "arrow.triangle.branch")
-                    .font(.system(size: 11, weight: .medium))
+                    .sidebarFont(size: 11, weight: .medium)
                     .foregroundStyle(Color(nsColor: Theme.accent))
-                PanelHeader(title: "Git", subtitle: model.rootPath)
+                PanelHeader(title: String(localized: "Git"), subtitle: model.rootPath)
             }
-            // Only surface progress for user operations and the initial
-            // repository discovery. Routine two-second background polls resolve
-            // in milliseconds; showing a spinner for them just makes the header
-            // flicker.
-            if model.isBusy || model.isResolvingInitialStatus {
+            // User operations surface progress in their initiating control.
+            // Keep repository discovery here because it has no trigger button.
+            if model.isResolvingInitialStatus {
                 ProgressView()
                     .controlSize(.small)
                     .scaleEffect(0.6)
                     .frame(width: 12, height: 12)
-                    .accessibilityLabel(model.isBusy ? "Git operation in progress" : "Refreshing Git status")
+                    .accessibilityLabel(String(localized: "Refreshing Git status"))
             }
             if model.isRepo {
-                headerButton("line.3.horizontal.decrease", help: "Filter Changed Files", disabled: false) {
+                headerButton(
+                    "line.3.horizontal.decrease",
+                    help: String(localized: "Filter Changed Files"),
+                    disabled: false
+                ) {
                     showFilter.toggle()
                     if !showFilter { filterText = "" }
                 }
                 headerButton(
                     "arrow.clockwise",
-                    help: "Refresh Git Status",
+                    help: String(localized: "Refresh Git Status"),
                     disabled: model.isBusy || model.isResolvingInitialStatus
                 ) {
                     model.refresh()
@@ -615,7 +845,9 @@ private struct GitPanel: View {
             if !model.branches.isEmpty {
                 ForEach(model.branches, id: \.self) { branch in
                     Button {
-                        model.switchBranch(to: branch)
+                        performOperation(.branchMenu) {
+                            model.switchBranch(to: branch)
+                        }
                     } label: {
                         if branch == model.branch {
                             Label(branch, systemImage: "checkmark")
@@ -628,16 +860,24 @@ private struct GitPanel: View {
                 Divider()
             }
             Button("Create New Branch…") {
-                newBranchName = ""
-                showBranchCreator = true
-                DispatchQueue.main.async { branchFieldFocused = true }
+                presentCreateBranchDialog()
             }
+            .disabled(model.isBusy)
         } label: {
             HStack(spacing: 6) {
-                Image(systemName: "arrow.triangle.branch")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(Color(nsColor: Theme.accent))
-                PanelHeader(title: model.branch ?? "Detached HEAD", subtitle: model.rootPath)
+                ZStack {
+                    Image(systemName: "arrow.triangle.branch")
+                        .sidebarFont(size: 11, weight: .medium)
+                        .foregroundStyle(Color(nsColor: Theme.accent))
+                        .opacity(operationIsLoading(.branchMenu) ? 0 : 1)
+                    if operationIsLoading(.branchMenu) {
+                        operationProgressView()
+                    }
+                }
+                PanelHeader(
+                    title: model.branch ?? String(localized: "Detached HEAD"),
+                    subtitle: model.rootPath
+                )
             }
             .contentShape(Rectangle())
         }
@@ -647,40 +887,50 @@ private struct GitPanel: View {
         .fixedSize(horizontal: false, vertical: true)
         .frame(maxWidth: .infinity, alignment: .leading)
         .help("Switch or Create Branch")
-        .accessibilityLabel("Current branch, \(model.branch ?? "detached HEAD")")
+        .accessibilityLabel(
+            String(localized: "Current branch, \(model.branch ?? String(localized: "detached HEAD"))")
+        )
     }
 
     private var moreMenu: some View {
         Menu {
-            Button("Fetch") { model.fetch() }
+            Button("Fetch") { performOperation(.moreMenu, model.fetch) }
                 .disabled(model.isBusy || model.remotes.isEmpty)
-            Button("Pull (Fast-forward Only)") { model.pull() }
+            Button("Pull (Fast-forward Only)") { performOperation(.moreMenu, model.pull) }
                 .disabled(model.isBusy || !model.hasUpstream)
             if model.hasUpstream {
-                Button("Push") { model.push() }
+                Button("Push") { performOperation(.moreMenu, model.push) }
                     .disabled(model.isBusy)
             } else if model.remotes.count > 1 {
                 Menu("Publish Branch to") {
                     ForEach(model.remotes, id: \.self) { remote in
-                        Button(remote) { model.publish(to: remote) }
+                        Button(remote) {
+                            performOperation(.moreMenu) { model.publish(to: remote) }
+                        }
                     }
                 }
                 .disabled(model.isBusy || model.branch == "detached HEAD")
             } else {
-                Button("Publish Branch") { model.push() }
+                Button("Publish Branch") { performOperation(.moreMenu, model.push) }
                     .disabled(model.isBusy || model.remotes.isEmpty || model.branch == "detached HEAD")
             }
-            Button("Sync Changes") { model.syncChanges() }
+            Button("Sync Changes") { performOperation(.moreMenu, model.syncChanges) }
                 .disabled(
                     model.isBusy || model.remotes.isEmpty
                         || (!model.hasUpstream && model.remotes.count != 1)
                         || model.branch == "detached HEAD"
                 )
             Divider()
-            Button("Stash All Changes") { model.stash(includeUntracked: true) }
+            Button("Stash All Changes") {
+                performOperation(.moreMenu) { model.stash(includeUntracked: true) }
+            }
                 .disabled(model.isBusy || model.totalChangeCount == 0)
-            Button(model.stashCount == 1 ? "Pop Stash" : "Pop Stash (\(model.stashCount))") {
-                model.stashPop()
+            Button(
+                model.stashCount == 1
+                    ? String(localized: "Pop Stash")
+                    : String(localized: "Pop Stash (\(model.stashCount))")
+            ) {
+                performOperation(.moreMenu, model.stashPop)
             }
             .disabled(model.isBusy || model.stashCount == 0)
             Divider()
@@ -691,11 +941,17 @@ private struct GitPanel: View {
                 NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: model.repoRoot)])
             }
         } label: {
-            Image(systemName: "ellipsis")
-                .font(.system(size: 10, weight: .medium))
-                .foregroundStyle(.secondary)
-                .frame(width: 18, height: 18)
-                .contentShape(RoundedRectangle(cornerRadius: 4))
+            ZStack {
+                Image(systemName: "ellipsis")
+                    .sidebarFont(size: 10, weight: .medium)
+                    .foregroundStyle(.secondary)
+                    .opacity(operationIsLoading(.moreMenu) ? 0 : 1)
+                if operationIsLoading(.moreMenu) {
+                    operationProgressView()
+                }
+            }
+            .frame(width: 18, height: 18)
+            .contentShape(RoundedRectangle(cornerRadius: 4))
         }
         .buttonStyle(.plain)
         .menuStyle(.button)
@@ -710,7 +966,7 @@ private struct GitPanel: View {
     ) -> some View {
         Button(action: action) {
             Image(systemName: systemImage)
-                .font(.system(size: 10, weight: .medium))
+                .sidebarFont(size: 10, weight: .medium)
                 .foregroundStyle(.secondary)
                 .frame(width: 18, height: 18)
                 .contentShape(RoundedRectangle(cornerRadius: 4))
@@ -727,19 +983,27 @@ private struct GitPanel: View {
         if let branch = model.branch {
             HStack(spacing: 5) {
                 Image(systemName: model.hasUpstream ? "arrow.triangle.2.circlepath" : "icloud.slash")
-                    .font(.system(size: 9, weight: .medium))
-                    .foregroundStyle(.tertiary)
-                Text(model.upstream ?? (branch == "detached HEAD" ? "Detached HEAD" : "Unpublished branch"))
-                    .font(.system(size: 9.5))
-                    .foregroundStyle(.tertiary)
+                    .sidebarFont(size: 9, weight: .medium)
+                    .foregroundStyle(.secondary)
+                Text(verbatim: model.upstream ?? (branch == "detached HEAD"
+                    ? String(localized: "Detached HEAD")
+                    : String(localized: "Unpublished branch")))
+                    .sidebarFont(size: 9.5)
+                    .foregroundStyle(.secondary)
                     .lineLimit(1)
                     .truncationMode(.middle)
                 Spacer(minLength: 0)
                 if model.behind > 0 {
-                    badge("↓\(model.behind)", label: "\(model.behind) incoming commits")
+                    badge(
+                        "↓\(model.behind)",
+                        label: String(localized: "\(model.behind) incoming commits")
+                    )
                 }
                 if model.ahead > 0 {
-                    badge("↑\(model.ahead)", label: "\(model.ahead) outgoing commits")
+                    badge(
+                        "↑\(model.ahead)",
+                        label: String(localized: "\(model.ahead) outgoing commits")
+                    )
                 }
             }
             .frame(height: 17)
@@ -756,14 +1020,17 @@ private struct GitPanel: View {
         if let current = model.repositoryOperation {
             HStack(spacing: 6) {
                 Image(systemName: "arrow.triangle.merge")
-                    .font(.system(size: 10, weight: .semibold))
+                    .sidebarFont(size: 10, weight: .semibold)
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(current)
-                        .font(.system(size: 10.5, weight: .medium))
+                    Text(verbatim: current)
+                        .sidebarFont(size: 10.5, weight: .medium)
                     Text(model.mergeEntries.isEmpty
-                         ? "Finish or abort from the terminal"
-                         : "Resolve and stage \(model.mergeEntries.count) conflicted \(model.mergeEntries.count == 1 ? "file" : "files")")
-                        .font(.system(size: 9.5))
+                         ? String(localized: "Finish or abort from the terminal")
+                         : String(
+                            localized: "Resolve and stage \(model.mergeEntries.count) conflicted files",
+                            comment: "Git merge guidance. The placeholder is the number of conflicted files."
+                         ))
+                        .sidebarFont(size: 9.5)
                         .foregroundStyle(.secondary)
                 }
                 Spacer(minLength: 0)
@@ -782,13 +1049,15 @@ private struct GitPanel: View {
     }
 
     @ViewBuilder
-    private var operationBanner: some View {
-        if let operation = model.operation {
+    private var operationFailureBanner: some View {
+        if let operation = model.operation,
+           case .failed = operation.state {
             VStack(spacing: 0) {
                 HStack(spacing: 6) {
-                    operationIcon(operation)
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .sidebarFont(size: 10)
                     Text(operation.statusLabel)
-                        .font(.system(size: 10.5, weight: .medium))
+                        .sidebarFont(size: 10.5, weight: .medium)
                         .lineLimit(1)
                     Spacer(minLength: 0)
                     if !operation.output.isEmpty {
@@ -796,34 +1065,40 @@ private struct GitPanel: View {
                             operationExpanded.toggle()
                         } label: {
                             Image(systemName: "chevron.right")
-                                .font(.system(size: 8, weight: .semibold))
+                                .sidebarFont(size: 8, weight: .semibold)
                                 .rotationEffect(.degrees(operationExpanded ? 90 : 0))
                                 .frame(width: 16, height: 16)
                                 .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
-                        .help(operationExpanded ? "Hide Git Output" : "Show Git Output")
-                        .accessibilityLabel(operationExpanded ? "Hide Git Output" : "Show Git Output")
+                        .help(
+                            operationExpanded
+                                ? String(localized: "Hide Git Output")
+                                : String(localized: "Show Git Output")
+                        )
+                        .accessibilityLabel(
+                            operationExpanded
+                                ? String(localized: "Hide Git Output")
+                                : String(localized: "Show Git Output")
+                        )
                     }
-                    if !operation.isRunning {
-                        Button {
-                            operationExpanded = false
-                            model.dismissOperation()
-                        } label: {
-                            Image(systemName: "xmark")
-                                .font(.system(size: 8, weight: .semibold))
-                                .frame(width: 16, height: 16)
-                                .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                        .help("Dismiss")
-                        .accessibilityLabel("Dismiss Git Result")
+                    Button {
+                        operationExpanded = false
+                        model.dismissOperation()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .sidebarFont(size: 8, weight: .semibold)
+                            .frame(width: 16, height: 16)
+                            .contentShape(Rectangle())
                     }
+                    .buttonStyle(.plain)
+                    .help("Dismiss")
+                    .accessibilityLabel("Dismiss Git Error")
                 }
                 if operationExpanded, !operation.output.isEmpty {
                     ScrollView([.horizontal, .vertical]) {
-                        Text(operation.output)
-                            .font(.system(size: 9, design: .monospaced))
+                        Text(verbatim: operation.output)
+                            .sidebarFont(size: 9, design: .monospaced)
                             .textSelection(.enabled)
                             .fixedSize(horizontal: true, vertical: false)
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -833,88 +1108,52 @@ private struct GitPanel: View {
                     .accessibilityLabel("Git Output")
                 }
             }
-            .foregroundStyle(operationColor(operation))
+            .foregroundStyle(Color(red: 0.88, green: 0.42, blue: 0.36))
             .padding(.horizontal, 8)
             .padding(.vertical, 6)
             .background(
                 RoundedRectangle(cornerRadius: 6)
-                    .fill(operationColor(operation).opacity(0.08))
+                    .fill(Color(red: 0.88, green: 0.42, blue: 0.36).opacity(0.08))
             )
             .padding(.horizontal, 10)
             .padding(.bottom, 7)
         }
     }
 
-    @ViewBuilder
-    private func operationIcon(_ operation: GitStatusModel.Operation) -> some View {
-        switch operation.state {
-        case .running:
-            ProgressView().controlSize(.mini).frame(width: 11, height: 11)
-        case .succeeded:
-            Image(systemName: "checkmark.circle.fill").font(.system(size: 10))
-        case .failed:
-            Image(systemName: "exclamationmark.triangle.fill").font(.system(size: 10))
-        }
-    }
+    private func presentCreateBranchDialog() {
+        guard !model.isBusy else { return }
 
-    private func operationColor(_ operation: GitStatusModel.Operation) -> Color {
-        switch operation.state {
-        case .running: return Color(nsColor: Theme.accent)
-        case .succeeded: return Color(red: 0.25, green: 0.68, blue: 0.33)
-        case .failed: return Color(red: 0.88, green: 0.42, blue: 0.36)
-        }
-    }
+        let alert = NSAlert()
+        alert.messageText = String(localized: "Create New Branch")
+        alert.informativeText = String(localized: "Enter a name for the new branch.")
 
-    @ViewBuilder
-    private var branchCreator: some View {
-        if showBranchCreator {
-            HStack(spacing: 5) {
-                Image(systemName: "arrow.triangle.branch")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.secondary)
-                TextField("New branch name", text: $newBranchName)
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 11))
-                    .focused($branchFieldFocused)
-                    .onSubmit(createBranch)
-                    .onKeyPress(.escape) {
-                        showBranchCreator = false
-                        return .handled
-                    }
-                Button("Create", action: createBranch)
-                    .buttonStyle(.borderless)
-                    .font(.system(size: 10, weight: .medium))
-                    .disabled(newBranchName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || model.isBusy)
-                Button {
-                    showBranchCreator = false
-                } label: {
-                    Image(systemName: "xmark").font(.system(size: 8, weight: .semibold))
-                }
-                .buttonStyle(.plain)
-                .help("Cancel")
-                .accessibilityLabel("Cancel Branch Creation")
+        let field = NSTextField(string: "")
+        field.placeholderString = String(localized: "Branch name")
+        field.frame = NSRect(x: 0, y: 0, width: 280, height: 24)
+        alert.accessoryView = field
+
+        let create = alert.addButton(withTitle: String(localized: "Create"))
+        create.keyEquivalent = "\r"
+        create.isEnabled = false
+        let cancel = alert.addButton(withTitle: String(localized: "Cancel"))
+        cancel.keyEquivalent = "\u{1b}"
+
+        let validator = NonemptyTextFieldValidator(button: create)
+        field.delegate = validator
+        alert.window.initialFirstResponder = field
+
+        let handleResponse: (NSApplication.ModalResponse) -> Void = { response in
+            _ = validator // Keep the field delegate alive until the sheet closes.
+            guard response == .alertFirstButtonReturn else { return }
+            performOperation(.branchMenu) {
+                model.createBranch(named: field.stringValue)
             }
-            .padding(.horizontal, 8)
-            .frame(height: 28)
-            .background(
-                RoundedRectangle(cornerRadius: 6)
-                    .fill(Color.primary.opacity(0.05))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 6)
-                    .strokeBorder(Color(nsColor: Theme.accent).opacity(0.45))
-            )
-            .padding(.horizontal, 10)
-            .padding(.bottom, 8)
         }
-    }
 
-    private func createBranch() {
-        let name = newBranchName
-        model.createBranch(named: name) { success in
-            guard success else { return }
-            newBranchName = ""
-            showBranchCreator = false
+        if let window = NSApp.keyWindow ?? NSApp.mainWindow {
+            alert.beginSheetModal(for: window, completionHandler: handleResponse)
+        } else {
+            handleResponse(alert.runModal())
         }
     }
 
@@ -922,9 +1161,14 @@ private struct GitPanel: View {
 
     private var commitBox: some View {
         VStack(spacing: 6) {
-            TextField(commitFieldPlaceholder, text: $commitMessage, axis: .vertical)
+            TextField(
+                "",
+                text: $commitMessage,
+                prompt: Text(commitFieldPlaceholder).foregroundStyle(.tertiary),
+                axis: .vertical
+            )
                 .textFieldStyle(.plain)
-                .font(.system(size: 11.5))
+                .sidebarFont(size: 11.5)
                 .lineLimit(1...4)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 6)
@@ -938,15 +1182,18 @@ private struct GitPanel: View {
                     return .handled
                 }
 
-            HStack(spacing: 4) {
-                actionButton(
-                    icon: "checkmark",
-                    title: commitButtonTitle,
-                    enabled: canCommit(includeAll: false),
-                    help: "Commit staged changes (⌘Return)",
-                    action: performPrimaryAction
-                )
-                commitMenu
+            if !showSyncButton || canCommit(includeAll: false) {
+                HStack(spacing: 4) {
+                    actionButton(
+                        icon: "checkmark",
+                        title: commitButtonTitle,
+                        enabled: canCommit(includeAll: false),
+                        isLoading: operationIsLoading(.primaryAction),
+                        help: String(localized: "Commit staged changes (⌘Return)"),
+                        action: performPrimaryAction
+                    )
+                    commitMenu
+                }
             }
 
             if showSyncButton {
@@ -954,8 +1201,11 @@ private struct GitPanel: View {
                     icon: "arrow.triangle.2.circlepath",
                     title: syncButtonTitle,
                     enabled: !model.isBusy,
-                    help: "Pull remote commits, then push local ones",
-                    action: model.syncChanges
+                    isLoading: operationIsLoading(.syncButton),
+                    help: String(localized: "Pull remote commits, then push local ones"),
+                    action: {
+                        performOperation(.syncButton, model.syncChanges)
+                    }
                 )
             }
         }
@@ -965,19 +1215,33 @@ private struct GitPanel: View {
 
     private var commitMenu: some View {
         Menu {
-            Button("Commit Staged") { performCommit(includeAll: false) }
+            Button("Commit Staged") {
+                performCommit(includeAll: false, trigger: .commitMenu)
+            }
                 .disabled(!canCommit(includeAll: false))
-            Button("Stage All & Commit") { performCommit(includeAll: true) }
+            Button("Stage All & Commit") {
+                performCommit(includeAll: true, trigger: .commitMenu)
+            }
                 .disabled(!canCommit(includeAll: true))
             Divider()
-            Button("Amend Last Commit") { performCommit(includeAll: false, amend: true) }
+            Button("Amend Last Commit") {
+                performCommit(includeAll: false, amend: true, trigger: .commitMenu)
+            }
                 .disabled(!canAmend(includeAll: false))
-            Button("Stage All & Amend") { performCommit(includeAll: true, amend: true) }
+            Button("Stage All & Amend") {
+                performCommit(includeAll: true, amend: true, trigger: .commitMenu)
+            }
                 .disabled(!canAmend(includeAll: true))
         } label: {
-            Image(systemName: "chevron.down")
-                .font(.system(size: 8, weight: .semibold))
-                .foregroundStyle(.secondary)
+            ZStack {
+                Image(systemName: "chevron.down")
+                    .sidebarFont(size: 8, weight: .semibold)
+                    .foregroundStyle(.secondary)
+                    .opacity(operationIsLoading(.commitMenu) ? 0 : 1)
+                if operationIsLoading(.commitMenu) {
+                    operationProgressView()
+                }
+            }
                 .frame(width: 24, height: 24)
                 .background(
                     RoundedRectangle(cornerRadius: 6)
@@ -994,21 +1258,25 @@ private struct GitPanel: View {
     }
 
     private func actionButton(
-        icon: String, title: String, enabled: Bool, help: String,
+        icon: String, title: String, enabled: Bool, isLoading: Bool, help: String,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
             HStack(spacing: 5) {
-                Image(systemName: icon)
-                    .font(.system(size: 10, weight: .semibold))
+                if isLoading {
+                    operationProgressView()
+                } else {
+                    Image(systemName: icon)
+                        .sidebarFont(size: 10, weight: .semibold)
+                }
                 Text(title)
-                    .font(.system(size: 11, weight: .medium))
+                    .sidebarFont(size: 11, weight: .medium)
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 5)
             .background(
                 RoundedRectangle(cornerRadius: 6)
-                    .fill(Color(nsColor: Theme.accent).opacity(enabled ? 0.85 : 0.3))
+                    .fill(Color(nsColor: Theme.accent).opacity(enabled || isLoading ? 0.85 : 0.3))
             )
             .foregroundStyle(.white)
             .contentShape(RoundedRectangle(cornerRadius: 6))
@@ -1016,19 +1284,24 @@ private struct GitPanel: View {
         .buttonStyle(.plain)
         .disabled(!enabled)
         .help(help)
-        .accessibilityLabel(title)
+        .accessibilityLabel(
+            isLoading ? String(localized: "\(title), in progress") : title
+        )
     }
 
     private var commitFieldPlaceholder: String {
         if model.stagedEntries.isEmpty {
             return model.recentCommits.isEmpty
-                ? "Message (stage changes to use ⌘⏎)"
-                : "Message (stage changes to use ⌘⏎, or choose Amend)"
+                ? String(localized: "Message (stage changes to use ⌘⏎)")
+                : String(localized: "Message (stage changes to use ⌘⏎, or choose Amend)")
         }
         if let branch = model.branch {
-            return "Message (⌘⏎ to commit on \"\(branch)\")"
+            return String(
+                localized: "Message (⌘⏎ to commit on “\(branch)”)",
+                comment: "Commit message placeholder. The placeholder is the current branch name."
+            )
         }
-        return "Message (⌘⏎ to commit)"
+        return String(localized: "Message (⌘⏎ to commit)")
     }
 
     private var showSyncButton: Bool {
@@ -1036,16 +1309,20 @@ private struct GitPanel: View {
     }
 
     private var syncButtonTitle: String {
-        var title = "Sync Changes"
+        var title = String(localized: "Sync Changes")
         if model.behind > 0 { title += " \(model.behind)↓" }
         if model.ahead > 0 { title += " \(model.ahead)↑" }
         return title
     }
 
     private var commitButtonTitle: String {
-        if model.stagedEntries.count == 1 { return "Commit 1 Staged File" }
-        if model.stagedEntries.count > 1 { return "Commit \(model.stagedEntries.count) Staged Files" }
-        return "Commit Staged"
+        guard !model.stagedEntries.isEmpty else {
+            return String(localized: "Commit Staged")
+        }
+        return String(
+            localized: "Commit \(model.stagedEntries.count) Staged Files",
+            comment: "Commit button title. The placeholder is the number of staged files."
+        )
     }
 
     private func canCommit(includeAll: Bool) -> Bool {
@@ -1071,14 +1348,20 @@ private struct GitPanel: View {
     }
 
     private func performPrimaryAction() {
-        performCommit(includeAll: false)
+        performCommit(includeAll: false, trigger: .primaryAction)
     }
 
-    private func performCommit(includeAll: Bool, amend: Bool = false) {
+    private func performCommit(
+        includeAll: Bool,
+        amend: Bool = false,
+        trigger: OperationTrigger
+    ) {
         guard amend ? canAmend(includeAll: includeAll) : canCommit(includeAll: includeAll) else { return }
         let submittedMessage = commitMessage
-        model.commit(message: submittedMessage, includeAll: includeAll, amend: amend) { success in
-            if success, commitMessage == submittedMessage { commitMessage = "" }
+        performOperation(trigger) {
+            model.commit(message: submittedMessage, includeAll: includeAll, amend: amend) { success in
+                if success, commitMessage == submittedMessage { commitMessage = "" }
+            }
         }
     }
 
@@ -1089,17 +1372,17 @@ private struct GitPanel: View {
         if showFilter {
             HStack(spacing: 6) {
                 Image(systemName: "magnifyingglass")
-                    .font(.system(size: 10))
+                    .sidebarFont(size: 10)
                     .foregroundStyle(.tertiary)
                 TextField("Filter changed files", text: $filterText)
                     .textFieldStyle(.plain)
-                    .font(.system(size: 11))
+                    .sidebarFont(size: 11)
                 if !filterText.isEmpty {
                     Button {
                         filterText = ""
                     } label: {
                         Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 10))
+                            .sidebarFont(size: 10)
                             .foregroundStyle(.tertiary)
                     }
                     .buttonStyle(.plain)
@@ -1126,11 +1409,14 @@ private struct GitPanel: View {
                 if model.totalChangeCount == 0 {
                     cleanState
                 } else if visibleChangeCount == 0 {
-                    inlinePlaceholder(icon: "line.3.horizontal.decrease", text: "No changed files match “\(filterText)”")
+                    inlinePlaceholder(
+                        icon: "line.3.horizontal.decrease",
+                        text: String(localized: "No changed files match “\(filterText)”")
+                    )
                 }
                 if !filteredMergeEntries.isEmpty {
                     GitSectionHeader(
-                        title: "MERGE CHANGES",
+                        title: String(localized: "MERGE CHANGES"),
                         count: filteredMergeEntries.count,
                         isCollapsed: $mergeCollapsed,
                         actions: [],
@@ -1144,12 +1430,16 @@ private struct GitPanel: View {
                 }
                 if !filteredStagedEntries.isEmpty {
                     GitSectionHeader(
-                        title: "STAGED CHANGES",
+                        title: String(localized: "STAGED CHANGES"),
                         count: filteredStagedEntries.count,
                         isCollapsed: $stagedCollapsed,
                         actions: filterText.isEmpty ? [
-                            .init(systemImage: "minus", help: "Unstage All Changes") {
-                                model.unstageAll()
+                            .init(
+                                systemImage: "minus",
+                                help: String(localized: "Unstage All Changes"),
+                                isLoading: operationIsLoading(.unstageAll)
+                            ) {
+                                performOperation(.unstageAll, model.unstageAll)
                             }
                         ] : [],
                         actionsDisabled: model.isBusy
@@ -1162,15 +1452,23 @@ private struct GitPanel: View {
                 }
                 if !filteredChangedEntries.isEmpty {
                     GitSectionHeader(
-                        title: "CHANGES",
+                        title: String(localized: "CHANGES"),
                         count: filteredChangedEntries.count,
                         isCollapsed: $changesCollapsed,
                         actions: filterText.isEmpty ? [
-                            .init(systemImage: "arrow.uturn.backward", help: "Discard All Changes") {
+                            .init(
+                                systemImage: "arrow.uturn.backward",
+                                help: String(localized: "Discard All Changes"),
+                                isLoading: operationIsLoading(.discardAll)
+                            ) {
                                 requestDiscardAll()
                             },
-                            .init(systemImage: "plus", help: "Stage All Changes") {
-                                model.stageAll()
+                            .init(
+                                systemImage: "plus",
+                                help: String(localized: "Stage All Changes"),
+                                isLoading: operationIsLoading(.stageAll)
+                            ) {
+                                performOperation(.stageAll, model.stageAll)
                             },
                         ] : [],
                         actionsDisabled: model.isBusy
@@ -1183,16 +1481,23 @@ private struct GitPanel: View {
                 }
                 if filterText.isEmpty, !model.recentCommits.isEmpty {
                     GitSectionHeader(
-                        title: "RECENT COMMITS",
+                        title: String(localized: "RECENT COMMITS"),
                         count: model.recentCommits.count,
                         isCollapsed: $historyCollapsed,
                         actions: [],
                         actionsDisabled: model.isBusy
                     )
                     if !historyCollapsed {
-                        ForEach(model.recentCommits) { commit in
-                            GitCommitRow(commit: commit)
-                        }
+                        RecentCommitsView(
+                            commits: model.recentCommits,
+                            expandedCommitIDs: $expandedCommitIDs,
+                            fontScale: sidebarFontScale,
+                            hasMoreCommits: model.hasMoreRecentCommits,
+                            isLoadingMore: model.isLoadingMoreCommits,
+                            loadMore: model.loadMoreCommits,
+                            openDiff: openCommitDiff
+                        )
+                        .frame(maxWidth: .infinity)
                     }
                 }
             }
@@ -1225,18 +1530,26 @@ private struct GitPanel: View {
     private var cleanState: some View {
         inlinePlaceholder(
             icon: model.ahead > 0 || model.behind > 0 ? "arrow.triangle.2.circlepath" : "checkmark.circle",
-            text: model.ahead > 0 || model.behind > 0 ? "Working tree clean, sync is pending" : "Working tree clean"
+            text: model.ahead > 0 || model.behind > 0
+                ? String(localized: "Working tree clean, sync is pending")
+                : String(localized: "Working tree clean")
         )
     }
 
     private func row(
         _ entry: GitStatusModel.Entry, status: Character, kind: GitEntryRow.Kind
     ) -> some View {
-        GitEntryRow(
+        let stageTrigger = OperationTrigger.entry(path: entry.path, operation: .stage)
+        let unstageTrigger = OperationTrigger.entry(path: entry.path, operation: .unstage)
+        let discardTrigger = OperationTrigger.entry(path: entry.path, operation: .discard)
+        return GitEntryRow(
             entry: entry,
             status: status,
             kind: kind,
             disabled: model.isBusy,
+            isStageLoading: operationIsLoading(stageTrigger),
+            isUnstageLoading: operationIsLoading(unstageTrigger),
+            isDiscardLoading: operationIsLoading(discardTrigger),
             openDiff: {
                 guard model.isCurrent(entry) else { return }
                 var diffEntry = entry
@@ -1249,8 +1562,8 @@ private struct GitPanel: View {
             },
             openFile: { openIfPossible(entry) },
             openToSide: { openIfPossible(entry, toSide: true) },
-            stage: { model.stage(entry) },
-            unstage: { model.unstage(entry) },
+            stage: { performOperation(stageTrigger) { model.stage(entry) } },
+            unstage: { performOperation(unstageTrigger) { model.unstage(entry) } },
             discard: { pendingDiscard = makePendingDiscard(entry) },
             absolutePath: model.absolutePath(for: entry),
             copyRelativePath: { copyToPasteboard(entry.path) },
@@ -1274,22 +1587,36 @@ private struct GitPanel: View {
     private func discardTitle(for entry: GitStatusModel.Entry?) -> String {
         guard let entry else { return "" }
         if entry.isUntracked {
-            return "Delete \(entry.fileName)? Its contents will move to the Trash."
+            return String(
+                localized: "Delete \(entry.fileName)? Its contents will move to the Trash.",
+                comment: "Discard confirmation. The placeholder is an untracked file name."
+            )
         }
         if entry.isWorktreeRename, let original = entry.origPath {
-            return "Undo this rename? \(entry.fileName) will move to the Trash and \((original as NSString).lastPathComponent) will be restored."
+            return String(
+                localized: "Undo this rename? \(entry.fileName) will move to the Trash and \((original as NSString).lastPathComponent) will be restored.",
+                comment: "Rename discard confirmation. The placeholders are the new and old file names."
+            )
         }
         if entry.isWorktreeCopy {
-            return "Discard this copy? \(entry.fileName) will move to the Trash."
+            return String(
+                localized: "Discard this copy? \(entry.fileName) will move to the Trash.",
+                comment: "Copy discard confirmation. The placeholder is a file name."
+            )
         }
-        return "Discard changes in \(entry.fileName)?"
+        return String(
+            localized: "Discard changes in \(entry.fileName)?",
+            comment: "Discard confirmation. The placeholder is a file name."
+        )
     }
 
     private func discardActionTitle(for entry: GitStatusModel.Entry?) -> String {
-        guard let entry else { return "Discard Changes" }
-        if entry.isUntracked || entry.isWorktreeCopy { return "Move to Trash" }
-        if entry.isWorktreeRename { return "Undo Rename" }
-        return "Discard Changes"
+        guard let entry else { return String(localized: "Discard Changes") }
+        if entry.isUntracked || entry.isWorktreeCopy {
+            return String(localized: "Move to Trash")
+        }
+        if entry.isWorktreeRename { return String(localized: "Undo Rename") }
+        return String(localized: "Discard Changes")
     }
 
     private func makePendingDiscard(_ entry: GitStatusModel.Entry) -> PendingDiscard {
@@ -1348,14 +1675,32 @@ private struct GitPanel: View {
 
     // MARK: Bits
 
+    private func performOperation(_ trigger: OperationTrigger, _ action: () -> Void) {
+        operationExpanded = false
+        operationTrigger = trigger
+        action()
+        if !model.isBusy { operationTrigger = nil }
+    }
+
+    private func operationIsLoading(_ trigger: OperationTrigger) -> Bool {
+        model.isBusy && operationTrigger == trigger
+    }
+
+    private func operationProgressView() -> some View {
+        ProgressView()
+            .controlSize(.mini)
+            .frame(width: 11, height: 11)
+            .accessibilityHidden(true)
+    }
+
     private func placeholder(icon: String, text: String) -> some View {
         VStack(spacing: 8) {
             Spacer()
             Image(systemName: icon)
-                .font(.system(size: 24, weight: .light))
+                .sidebarFont(size: 24, weight: .light)
                 .foregroundStyle(.quaternary)
-            Text(text)
-                .font(.system(size: 11))
+            Text(verbatim: text)
+                .sidebarFont(size: 11)
                 .foregroundStyle(.tertiary)
             Spacer()
         }
@@ -1365,10 +1710,10 @@ private struct GitPanel: View {
     private func inlinePlaceholder(icon: String, text: String) -> some View {
         VStack(spacing: 6) {
             Image(systemName: icon)
-                .font(.system(size: 18, weight: .light))
+                .sidebarFont(size: 18, weight: .light)
                 .foregroundStyle(.quaternary)
-            Text(text)
-                .font(.system(size: 10.5))
+            Text(verbatim: text)
+                .sidebarFont(size: 10.5)
                 .foregroundStyle(.tertiary)
                 .multilineTextAlignment(.center)
         }
@@ -1381,18 +1726,27 @@ private struct GitPanel: View {
         VStack(spacing: 9) {
             Spacer()
             Image(systemName: "arrow.triangle.branch")
-                .font(.system(size: 24, weight: .light))
+                .sidebarFont(size: 24, weight: .light)
                 .foregroundStyle(.quaternary)
             VStack(spacing: 2) {
                 Text("No Git Repository")
-                    .font(.system(size: 11.5, weight: .medium))
+                    .sidebarFont(size: 11.5, weight: .medium)
                 Text("Initialize the terminal’s current directory to start tracking changes.")
-                    .font(.system(size: 10))
+                    .sidebarFont(size: 10)
                     .foregroundStyle(.tertiary)
                     .multilineTextAlignment(.center)
             }
-            Button("Initialize Repository") {
-                model.initializeRepository()
+            Button {
+                performOperation(.initializeRepository) {
+                    model.initializeRepository()
+                }
+            } label: {
+                HStack(spacing: 5) {
+                    if operationIsLoading(.initializeRepository) {
+                        operationProgressView()
+                    }
+                    Text("Initialize Repository")
+                }
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.small)
@@ -1408,13 +1762,13 @@ private struct GitPanel: View {
         VStack(spacing: 9) {
             Spacer()
             Image(systemName: "exclamationmark.triangle")
-                .font(.system(size: 24, weight: .light))
+                .sidebarFont(size: 24, weight: .light)
                 .foregroundStyle(Color(red: 0.88, green: 0.42, blue: 0.36))
             VStack(spacing: 3) {
                 Text("Git Status Unavailable")
-                    .font(.system(size: 11.5, weight: .medium))
-                Text(message)
-                    .font(.system(size: 10, design: .monospaced))
+                    .sidebarFont(size: 11.5, weight: .medium)
+                Text(verbatim: message)
+                    .sidebarFont(size: 10, design: .monospaced)
                     .foregroundStyle(.tertiary)
                     .multilineTextAlignment(.center)
                     .lineLimit(5)
@@ -1432,8 +1786,8 @@ private struct GitPanel: View {
     }
 
     private func badge(_ text: String, label: String) -> some View {
-        Text(text)
-            .font(.system(size: 10, weight: .medium))
+        Text(verbatim: text)
+            .sidebarFont(size: 10, weight: .medium)
             .foregroundStyle(.secondary)
             .padding(.horizontal, 5)
             .padding(.vertical, 2)
@@ -1457,20 +1811,35 @@ private struct GitPanel: View {
         commitMessage = ""
         filterText = ""
         showFilter = false
-        newBranchName = ""
-        showBranchCreator = false
         operationExpanded = false
+        operationTrigger = nil
         pendingDiscard = nil
         pendingDiscardAll = []
         confirmDiscardAll = false
         mergeCollapsed = false
         stagedCollapsed = false
         changesCollapsed = false
-        historyCollapsed = true
+        historyCollapsed = false
+        expandedCommitIDs.removeAll()
     }
 
     private func shellQuoted(_ path: String) -> String {
         "'" + path.replacingOccurrences(of: "'", with: "'\\''") + "'"
+    }
+}
+
+private final class NonemptyTextFieldValidator: NSObject, NSTextFieldDelegate {
+    private weak var button: NSButton?
+
+    init(button: NSButton) {
+        self.button = button
+    }
+
+    func controlTextDidChange(_ notification: Notification) {
+        guard let field = notification.object as? NSTextField else { return }
+        button?.isEnabled = !field.stringValue
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .isEmpty
     }
 }
 
@@ -1479,7 +1848,20 @@ private struct GitSectionHeader: View {
         let id = UUID()
         let systemImage: String
         let help: String
+        let isLoading: Bool
         let perform: () -> Void
+
+        init(
+            systemImage: String,
+            help: String,
+            isLoading: Bool = false,
+            perform: @escaping () -> Void
+        ) {
+            self.systemImage = systemImage
+            self.help = help
+            self.isLoading = isLoading
+            self.perform = perform
+        }
     }
 
     let title: String
@@ -1500,13 +1882,12 @@ private struct GitSectionHeader: View {
             } label: {
                 HStack(spacing: 4) {
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 7, weight: .semibold))
-                        .foregroundStyle(.tertiary)
+                        .sidebarFont(size: 7, weight: .semibold)
                         .rotationEffect(.degrees(isCollapsed ? 0 : 90))
                     Text(title)
-                        .font(.system(size: 9.5, weight: .semibold))
-                        .foregroundStyle(.tertiary)
+                        .sidebarFont(size: 9.5, weight: .medium)
                 }
+                .foregroundStyle(Color.secondary.opacity(0.7))
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -1518,8 +1899,8 @@ private struct GitSectionHeader: View {
                     isShowingHelp.toggle()
                 } label: {
                     Image(systemName: "questionmark.circle")
-                        .font(.system(size: 9))
-                        .foregroundStyle(.tertiary)
+                        .sidebarFont(size: 9)
+                        .foregroundStyle(.secondary)
                         .frame(width: 14, height: 14)
                         .contentShape(Rectangle())
                 }
@@ -1527,7 +1908,7 @@ private struct GitSectionHeader: View {
                 .accessibilityLabel("About \(title)")
                 .popover(isPresented: $isShowingHelp, arrowEdge: .bottom) {
                     Text(helpText)
-                        .font(.system(size: 11))
+                        .sidebarFont(size: 11)
                         .fixedSize(horizontal: false, vertical: true)
                         .frame(width: 230, alignment: .leading)
                         .padding(12)
@@ -1536,24 +1917,36 @@ private struct GitSectionHeader: View {
 
             ForEach(actions) { action in
                 Button(action: action.perform) {
-                    Image(systemName: action.systemImage)
-                        .font(.system(size: 9, weight: .medium))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 16, height: 16)
-                        .contentShape(RoundedRectangle(cornerRadius: 3))
+                    Group {
+                        if action.isLoading {
+                            ProgressView()
+                                .controlSize(.mini)
+                                .scaleEffect(0.7)
+                        } else {
+                            Image(systemName: action.systemImage)
+                                .sidebarFont(size: 9, weight: .medium)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .frame(width: 16, height: 16)
+                    .contentShape(RoundedRectangle(cornerRadius: 3))
                 }
                 .buttonStyle(.plain)
                 .disabled(actionsDisabled)
-                .opacity(actionsDisabled ? 0.3 : (isHovering ? 1 : 0.55))
+                .opacity(action.isLoading ? 1 : (actionsDisabled ? 0.3 : (isHovering ? 1 : 0.55)))
                 .help(action.help)
-                .accessibilityLabel(action.help)
+                .accessibilityLabel(
+                    action.isLoading
+                        ? String(localized: "\(action.help), in progress")
+                        : action.help
+                )
             }
 
             Spacer(minLength: 0)
 
             if count > 0 {
                 Text("\(count)")
-                    .font(.system(size: 9, weight: .medium))
+                    .sidebarFont(size: 9, weight: .medium)
                     .foregroundStyle(.tertiary)
                     .padding(.horizontal, 5)
                     .padding(.vertical, 1)
@@ -1578,47 +1971,6 @@ private struct GitSectionHeader: View {
     }
 }
 
-private struct GitCommitRow: View {
-    @ObservedObject private var themeChanges = Theme.changes
-    let commit: GitStatusModel.RecentCommit
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(commit.subject)
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-            HStack(spacing: 4) {
-                Text(commit.shortHash)
-                    .font(.system(size: 9.5, design: .monospaced))
-                    .foregroundStyle(Color(nsColor: Theme.accent).opacity(0.85))
-                Text("·")
-                Text(commit.author)
-                Text("·")
-                Text(commit.relativeDate)
-            }
-            .font(.system(size: 9.5))
-            .foregroundStyle(.tertiary)
-            .lineLimit(1)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .contentShape(Rectangle())
-        .contextMenu {
-            Button("Copy Commit Hash") { copy(commit.hash) }
-            Button("Copy Commit Message") { copy(commit.subject) }
-        }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(commit.subject), \(commit.shortHash), by \(commit.author), \(commit.relativeDate)")
-    }
-
-    private func copy(_ text: String) {
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(text, forType: .string)
-    }
-}
-
 private struct GitEntryRow: View {
     enum Kind {
         case merge, staged, unstaged
@@ -1628,6 +1980,9 @@ private struct GitEntryRow: View {
     let status: Character
     let kind: Kind
     let disabled: Bool
+    let isStageLoading: Bool
+    let isUnstageLoading: Bool
+    let isDiscardLoading: Bool
     let openDiff: () -> Void
     let openFile: () -> Void
     let openToSide: () -> Void
@@ -1646,18 +2001,23 @@ private struct GitEntryRow: View {
             Button(action: openDiff) {
                 HStack(spacing: 7) {
                     Text(String(status))
-                        .font(.system(size: 10, weight: .bold, design: .monospaced))
+                        .sidebarFont(size: 10, weight: .bold, design: .monospaced)
                         .foregroundStyle(statusColor)
                         .frame(width: 12)
+                    MaterialFileIconView(
+                        path: absolutePath,
+                        size: 13,
+                        opacity: status == "D" ? 0.6 : 1
+                    )
                     Text(entry.fileName)
-                        .font(.system(size: 11.5))
+                        .sidebarFont(size: 11.5)
                         .foregroundStyle(.secondary)
                         .strikethrough(status == "D")
                         .lineLimit(1)
                         .layoutPriority(1)
                     if !isHovering && !isFocused {
                         Text(entry.directory)
-                            .font(.system(size: 10))
+                            .sidebarFont(size: 10)
                             .foregroundStyle(.tertiary)
                             .lineLimit(1)
                             .truncationMode(.head)
@@ -1672,9 +2032,13 @@ private struct GitEntryRow: View {
             .accessibilityLabel("\(entry.fileName), \(statusName)")
             .accessibilityHint(kind == .merge ? "Opens conflict changes" : "Opens changes")
 
-            if !disabled {
+            if !disabled || isStageLoading || isUnstageLoading || isDiscardLoading {
                 hoverActions
-                    .opacity(isHovering || isFocused ? 1 : 0.55)
+                    .opacity(
+                        isStageLoading || isUnstageLoading || isDiscardLoading
+                            ? 1
+                            : (isHovering || isFocused ? 1 : 0.55)
+                    )
             }
         }
         // Fixed height so action buttons do not grow the dense file row.
@@ -1694,29 +2058,63 @@ private struct GitEntryRow: View {
         HStack(spacing: 2) {
             switch kind {
             case .merge:
-                rowButton("plus", help: "Mark Resolved (Stage)", action: stage)
+                rowButton(
+                    "plus",
+                    help: String(localized: "Mark Resolved (Stage)"),
+                    isLoading: isStageLoading,
+                    action: stage
+                )
             case .staged:
-                rowButton("minus", help: "Unstage Changes", action: unstage)
+                rowButton(
+                    "minus",
+                    help: String(localized: "Unstage Changes"),
+                    isLoading: isUnstageLoading,
+                    action: unstage
+                )
             case .unstaged:
-                rowButton("arrow.uturn.backward", help: "Discard Changes", action: discard)
-                rowButton("plus", help: "Stage Changes", action: stage)
+                rowButton(
+                    "arrow.uturn.backward",
+                    help: String(localized: "Discard Changes"),
+                    isLoading: isDiscardLoading,
+                    action: discard
+                )
+                rowButton(
+                    "plus",
+                    help: String(localized: "Stage Changes"),
+                    isLoading: isStageLoading,
+                    action: stage
+                )
             }
         }
     }
 
     private func rowButton(
-        _ systemImage: String, help: String, action: @escaping () -> Void
+        _ systemImage: String,
+        help: String,
+        isLoading: Bool,
+        action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
-            Image(systemName: systemImage)
-                .font(.system(size: 9, weight: .semibold))
-                .foregroundStyle(.secondary)
-                .frame(width: 16, height: 16)
-                .contentShape(RoundedRectangle(cornerRadius: 3))
+            Group {
+                if isLoading {
+                    ProgressView()
+                        .controlSize(.mini)
+                        .scaleEffect(0.7)
+                } else {
+                    Image(systemName: systemImage)
+                        .sidebarFont(size: 9, weight: .semibold)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .frame(width: 16, height: 16)
+            .contentShape(RoundedRectangle(cornerRadius: 3))
         }
         .buttonStyle(.plain)
+        .disabled(disabled)
         .help(help)
-        .accessibilityLabel(help)
+        .accessibilityLabel(
+            isLoading ? String(localized: "\(help), in progress") : help
+        )
     }
 
     @ViewBuilder
@@ -1759,21 +2157,23 @@ private struct GitEntryRow: View {
 
     private var statusName: String {
         switch status {
-        case "M": return "Modified"
-        case "A": return "Added"
-        case "?": return "Untracked"
-        case "D": return "Deleted"
-        case "R": return "Renamed"
-        case "C": return "Copied"
-        case "U": return "Conflict"
-        default: return "Changed"
+        case "M": return String(localized: "Modified")
+        case "A": return String(localized: "Added")
+        case "?": return String(localized: "Untracked")
+        case "D": return String(localized: "Deleted")
+        case "R": return String(localized: "Renamed")
+        case "C": return String(localized: "Copied")
+        case "U": return String(localized: "Conflict")
+        default: return String(localized: "Changed")
         }
     }
 
     private var destructiveMenuTitle: String {
-        if entry.isUntracked || entry.isWorktreeCopy { return "Move to Trash…" }
-        if entry.isWorktreeRename { return "Undo Rename…" }
-        return "Discard Changes…"
+        if entry.isUntracked || entry.isWorktreeCopy {
+            return String(localized: "Move to Trash…")
+        }
+        if entry.isWorktreeRename { return String(localized: "Undo Rename…") }
+        return String(localized: "Discard Changes…")
     }
 
     private var statusColor: Color {
@@ -1826,17 +2226,17 @@ private struct InfoPanel: View {
     private var header: some View {
         HStack(spacing: 6) {
             Image(systemName: "info.circle")
-                .font(.system(size: 11, weight: .medium))
+                .sidebarFont(size: 11, weight: .medium)
                 .foregroundStyle(Color(nsColor: Theme.accent))
             PanelHeader(
-                title: model.shellName.isEmpty ? "Session" : model.shellName,
+                title: model.shellName.isEmpty ? String(localized: "Session") : model.shellName,
                 subtitle: model.shellPid > 0 ? "pid \(String(model.shellPid))" : nil
             )
             Button {
                 model.refresh()
             } label: {
                 Image(systemName: "arrow.clockwise")
-                    .font(.system(size: 10, weight: .medium))
+                    .sidebarFont(size: 10, weight: .medium)
                     .foregroundStyle(.secondary)
                     .frame(width: 18, height: 18)
                     .contentShape(RoundedRectangle(cornerRadius: 4))
@@ -1857,7 +2257,7 @@ private struct InfoPanel: View {
     private var currentDirectorySection: some View {
         if model.rootPath != model.projectRootPath {
             GitSectionHeader(
-                title: "CURRENT DIRECTORY", count: 0,
+                title: String(localized: "CURRENT DIRECTORY"), count: 0,
                 isCollapsed: $currentDirectoryCollapsed, actions: []
             )
             if !currentDirectoryCollapsed {
@@ -1870,15 +2270,10 @@ private struct InfoPanel: View {
     private var projectDirectorySection: some View {
         if !model.projectRootPath.isEmpty {
             GitSectionHeader(
-                title: "PROJECT DIRECTORY"
-                    + (model.projectRootIsAutomatic ? " (AUTO)" : ""),
+                title: projectDirectoryTitle,
                 count: 0,
                 isCollapsed: $projectDirectoryCollapsed, actions: [],
-                helpText: "Files and Git anchor to this directory. When "
-                    + "automatic, it follows the closest Git repository "
-                    + "containing the shell's current directory; a directory "
-                    + "set manually from the project's context menu is always "
-                    + "used as-is."
+                helpText: String(localized: "Files and Git anchor to this directory. When automatic, it follows the closest Git repository containing the shell’s current directory, or the one the terminal’s foreground job moved to — a coding agent that switched to its own worktree. A directory set manually from the project’s context menu is always used as-is.")
             )
             if !projectDirectoryCollapsed {
                 directoryGroup(path: model.projectRootPath)
@@ -1886,12 +2281,28 @@ private struct InfoPanel: View {
         }
     }
 
+    /// Names the rule behind the project directory: a root taken from the
+    /// foreground job says so rather than passing itself off as the shell's
+    /// own repository.
+    private var projectDirectoryTitle: String {
+        switch model.projectRootSource {
+        case .pinned:
+            return String(localized: "PROJECT DIRECTORY")
+        case .shell:
+            return String(localized: "PROJECT DIRECTORY (AUTO)")
+        case .foreground(let isWorktree):
+            return isWorktree
+                ? String(localized: "PROJECT DIRECTORY (WORKTREE)")
+                : String(localized: "PROJECT DIRECTORY (JOB)")
+        }
+    }
+
     /// Path line plus Finder / VS Code / Copy actions, shared by both
     /// directory sections.
     private func directoryGroup(path: String) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(path)
-                .font(.system(size: 11, design: .monospaced))
+            Text(verbatim: path)
+                .sidebarFont(size: 11)
                 .foregroundStyle(.secondary)
                 .lineLimit(2)
                 .truncationMode(.head)
@@ -1916,7 +2327,7 @@ private struct InfoPanel: View {
                         )
                     }
                 }
-                actionButton("Copy", systemImage: "doc.on.doc") {
+                actionButton(String(localized: "Copy"), systemImage: "doc.on.doc") {
                     copyPath(path)
                 }
             }
@@ -1937,9 +2348,9 @@ private struct InfoPanel: View {
         Button(action: action) {
             HStack(spacing: 4) {
                 Image(systemName: systemImage)
-                    .font(.system(size: 9, weight: .medium))
-                Text(title)
-                    .font(.system(size: 10, weight: .medium))
+                    .sidebarFont(size: 9, weight: .medium)
+                Text(verbatim: title)
+                    .sidebarFont(size: 10, weight: .medium)
             }
             .foregroundStyle(.secondary)
             .frame(maxWidth: .infinity)
@@ -1951,7 +2362,9 @@ private struct InfoPanel: View {
             .contentShape(RoundedRectangle(cornerRadius: 6))
         }
         .buttonStyle(.plain)
-        .help(title == "Copy" ? "Copy Path" : "Open in \(title)")
+        .help(systemImage == "doc.on.doc"
+            ? String(localized: "Copy Path")
+            : String(localized: "Open in \(title)"))
     }
 
     // MARK: Processes
@@ -1959,14 +2372,14 @@ private struct InfoPanel: View {
     @ViewBuilder
     private var processesSection: some View {
         GitSectionHeader(
-            title: "PROCESSES",
+            title: String(localized: "PROCESSES"),
             count: model.processes.count,
             isCollapsed: $processesCollapsed,
             actions: []
         )
         if !processesCollapsed {
             if model.processes.isEmpty {
-                emptyRow("No running processes")
+                emptyRow(String(localized: "No running processes"))
             } else {
                 ForEach(model.processes) { process in
                     InfoProcessRow(process: process) { force in
@@ -1982,14 +2395,14 @@ private struct InfoPanel: View {
     @ViewBuilder
     private var portsSection: some View {
         GitSectionHeader(
-            title: "PORTS",
+            title: String(localized: "PORTS"),
             count: model.ports.count,
             isCollapsed: $portsCollapsed,
             actions: []
         )
         if !portsCollapsed {
             if model.ports.isEmpty {
-                emptyRow("No listening ports")
+                emptyRow(String(localized: "No listening ports"))
             } else {
                 ForEach(model.ports) { port in
                     InfoPortRow(port: port) { force in
@@ -2002,8 +2415,8 @@ private struct InfoPanel: View {
 
     private func emptyRow(_ text: String) -> some View {
         Text(text)
-            .font(.system(size: 11))
-            .foregroundStyle(.tertiary)
+            .sidebarFont(size: 11)
+            .foregroundStyle(.secondary)
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
     }
@@ -2021,13 +2434,13 @@ private struct InfoProcessRow: View {
                 .fill(Color(red: 0.25, green: 0.73, blue: 0.31))
                 .frame(width: 5, height: 5)
             Text(process.name)
-                .font(.system(size: 11.5))
+                .sidebarFont(size: 11.5)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
                 .layoutPriority(1)
                 .help(process.executable)
             Text(String(process.pid))
-                .font(.system(size: 10, design: .monospaced))
+                .sidebarFont(size: 10, design: .monospaced)
                 .foregroundStyle(.tertiary)
             Spacer(minLength: 0)
             if isHovering {
@@ -2035,7 +2448,7 @@ private struct InfoProcessRow: View {
                     kill(false)
                 } label: {
                     Image(systemName: "xmark")
-                        .font(.system(size: 9, weight: .semibold))
+                        .sidebarFont(size: 9, weight: .semibold)
                         .foregroundStyle(.secondary)
                         .frame(width: 16, height: 16)
                         .contentShape(RoundedRectangle(cornerRadius: 3))
@@ -2043,8 +2456,8 @@ private struct InfoProcessRow: View {
                 .buttonStyle(.plain)
                 .help("Terminate Process")
             } else {
-                Text(String(format: "%.0f%% · %@", process.cpu, process.memoryLabel))
-                    .font(.system(size: 10))
+                Text("\(process.cpu, format: .number.precision(.fractionLength(0)))% · \(process.memoryLabel)")
+                    .sidebarFont(size: 10)
                     .foregroundStyle(.tertiary)
                     .lineLimit(1)
             }
@@ -2091,21 +2504,21 @@ private struct InfoPortRow: View {
         } label: {
             HStack(spacing: 7) {
                 Image(systemName: "network")
-                    .font(.system(size: 9, weight: .medium))
+                    .sidebarFont(size: 9, weight: .medium)
                     .foregroundStyle(Color(red: 0.35, green: 0.65, blue: 1.0))
                     .frame(width: 12)
                 Text(String(port.port))
-                    .font(.system(size: 11.5, weight: .medium, design: .monospaced))
+                    .sidebarFont(size: 11.5, weight: .medium, design: .monospaced)
                     .foregroundStyle(.secondary)
                     .layoutPriority(1)
                 Text(port.processName)
-                    .font(.system(size: 10))
+                    .sidebarFont(size: 10)
                     .foregroundStyle(.tertiary)
                     .lineLimit(1)
                 Spacer(minLength: 0)
                 if isHovering {
                     Image(systemName: "arrow.up.forward")
-                        .font(.system(size: 9, weight: .medium))
+                        .sidebarFont(size: 9, weight: .medium)
                         .foregroundStyle(.tertiary)
                 }
             }

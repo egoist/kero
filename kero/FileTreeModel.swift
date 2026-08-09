@@ -73,7 +73,13 @@ final class FileTreeModel: nonisolated ObservableObject {
             )
             expanded.remove(item.path)
         } catch {
-            presentError("Couldn’t move “\(item.name)” to the Trash.", error.localizedDescription)
+            presentError(
+                String(
+                    localized: "Couldn’t move “\(item.name)” to the Trash.",
+                    comment: "File operation error. The placeholder is a file or folder name."
+                ),
+                error.localizedDescription
+            )
         }
         rebuild()
     }
@@ -98,7 +104,10 @@ final class FileTreeModel: nonisolated ObservableObject {
         let trimmed = newName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, trimmed != item.name else { return nil }
         guard !trimmed.contains("/"), trimmed != ".", trimmed != ".." else {
-            presentError("Couldn’t rename to “\(trimmed)”.", "A name can’t contain “/” or be “.” or “..”.")
+            presentError(
+                String(localized: "Couldn’t rename to “\(trimmed)”."),
+                String(localized: "A name can’t contain “/” or be “.” or “..”.")
+            )
             return nil
         }
         let dir = (item.path as NSString).deletingLastPathComponent
@@ -108,14 +117,17 @@ final class FileTreeModel: nonisolated ObservableObject {
         // case-insensitive volume, so don't treat that as a collision.
         let caseOnlyChange = trimmed.lowercased() == item.name.lowercased()
         guard caseOnlyChange || !fm.fileExists(atPath: dest) else {
-            presentError("Couldn’t rename to “\(trimmed)”.", "An item named “\(trimmed)” already exists here.")
+            presentError(
+                String(localized: "Couldn’t rename to “\(trimmed)”."),
+                String(localized: "An item named “\(trimmed)” already exists here.")
+            )
             return nil
         }
         do {
             try fm.moveItem(atPath: item.path, toPath: dest)
             remapExpanded(from: item.path, to: dest)
         } catch {
-            presentError("Couldn’t rename to “\(trimmed)”.", error.localizedDescription)
+            presentError(String(localized: "Couldn’t rename to “\(trimmed)”."), error.localizedDescription)
             return nil
         }
         rebuild()
@@ -171,16 +183,21 @@ final class FileTreeModel: nonisolated ObservableObject {
         self.draft = nil
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { rebuild(); return nil }
-        let noun = draft.isDirectory ? "folder" : "file"
         guard !trimmed.contains("/"), trimmed != ".", trimmed != ".." else {
-            presentError("Couldn’t create “\(trimmed)”.", "A name can’t contain “/” or be “.” or “..”.")
+            presentError(
+                String(localized: "Couldn’t create “\(trimmed)”."),
+                String(localized: "A name can’t contain “/” or be “.” or “..”.")
+            )
             rebuild()
             return nil
         }
         let dest = (draft.parentDir as NSString).appendingPathComponent(trimmed)
         let fm = FileManager.default
         guard !fm.fileExists(atPath: dest) else {
-            presentError("Couldn’t create “\(trimmed)”.", "An item named “\(trimmed)” already exists here.")
+            presentError(
+                String(localized: "Couldn’t create “\(trimmed)”."),
+                String(localized: "An item named “\(trimmed)” already exists here.")
+            )
             rebuild()
             return nil
         }
@@ -189,12 +206,15 @@ final class FileTreeModel: nonisolated ObservableObject {
             do {
                 try fm.createDirectory(atPath: dest, withIntermediateDirectories: false)
             } catch {
-                presentError("Couldn’t create the \(noun).", error.localizedDescription)
+                presentError(String(localized: "Couldn’t create the folder."), error.localizedDescription)
             }
         } else if fm.createFile(atPath: dest, contents: nil) {
             createdFile = dest
         } else {
-            presentError("Couldn’t create the \(noun).", "It could not be written to disk.")
+            presentError(
+                String(localized: "Couldn’t create the file."),
+                String(localized: "It could not be written to disk.")
+            )
         }
         rebuild()
         return createdFile

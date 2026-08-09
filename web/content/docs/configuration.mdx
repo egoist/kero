@@ -1,136 +1,162 @@
 ---
 title: Configuration
-description: Every option Kero has, what it does, and the config file that holds them.
+description: Every persistent Kero option, what it does, and where it is stored.
 ---
 
-Everything you can change about Kero lives in one file:
+Most persistent Kero settings live in one file:
 
 ```
 ~/.config/kero/config.toml
 ```
 
-The Settings window (<kbd>Cmd</kbd>+<kbd>,</kbd>) writes this same file, so use
-whichever you prefer — the file isn't a second-class escape hatch, it's where
-the settings actually are. Every option Kero has is listed below.
+The Settings window (<kbd>Cmd</kbd>+<kbd>,</kbd>) writes this same file. A few
+macOS-owned settings—language and automatic updates—live elsewhere and are
+listed at the end of this page.
 
 ## How the file behaves
 
 Worth knowing before you hand-edit:
 
 - **It's read at launch.** Editing the file while Kero is running changes
-  nothing until you relaunch. Changes made in the Settings window apply
-  immediately.
-- **Kero rewrites it whenever a setting changes.** The file is regenerated from
-  scratch, so **your comments and any keys Kero doesn't recognise are lost** the
-  next time you touch a control in Settings. Pick one or the other, or keep the
-  authoritative copy in your dotfiles and let it overwrite.
-- **Only non-default values are written.** A config with nothing unusual in it
-  is nearly empty. Deleting a key restores its default; deleting the file
-  restores all of them.
-- **The parser is small.** Flat keys (`font-size = 14`), dotted keys
-  (`editor.wrap-lines = true`), `[table]` headers (flattened to the dotted
-  form), `#` comments, and string/number/boolean values. No arrays, no inline
-  tables, no multi-line strings.
-- **Bad values are ignored, not rejected.** An out-of-range size or a
-  misspelled theme falls back to the default instead of failing to start.
+  nothing until you relaunch. Changes made in Settings apply immediately,
+  except where the control says otherwise.
+- **Kero rewrites it whenever a file-backed setting changes.** The file is
+  regenerated from scratch, so your comments and unknown keys are lost the
+  next time you use one of those controls. Pick one editor for the file, or
+  keep an authoritative copy in your dotfiles.
+- **Only non-default values are written, with one exception.** `font-size` is
+  always present. Deleting any other key restores its default.
+- **The parser is deliberately small.** It supports flat keys, dotted keys,
+  `[table]` headers, `#` comments, and string/number/boolean values. It does not
+  support arrays, inline tables, or multi-line strings.
+- **Bad values fall back safely.** An out-of-range size, unknown backend, or
+  misspelled theme does not stop Kero from launching.
 
-## `theme`
+## Appearance
+
+### `theme`
 
 `"system"` · `"light"` · `"dark"` — default `"system"`
 
-Which appearance Kero uses, independent of the rest of macOS. `"system"`
-follows the OS and switches with it; the other two pin Kero to one appearance
-whatever the system is doing.
+Chooses the app appearance. `"system"` follows macOS; the other two pin Kero
+to one appearance.
 
-This decides *which* of the two color themes below is active — it isn't a color
-choice itself.
+### `theme-dark` and `theme-light`
 
-## `theme-dark` and `theme-light`
+string — defaults `"Default Dark"` and `"Default Light"`
 
-string — default `"Default Dark"` and `"Default Light"`
+The color theme for each appearance. A theme recolors terminal panes, window
+chrome, sidebars, the editor, and diffs together. The built-in defaults keep
+Kero's translucent sidebar; other themes paint it to match their palette.
 
-The color theme used in each appearance. Kero holds both at all times and swaps
-between them, so following the system gets you a dark palette at night and a
-light one by day without touching anything.
+Settings lists the curated theme catalog shared by both terminal backends. A
+hand-written name must match one of those display names exactly, including
+case, or Kero falls back to the corresponding default.
 
-A theme recolors the terminal, the window chrome, the sidebars, and the editor
-together, live. Valid names are:
+### `toolbar.visibility`
 
-- `"Default Dark"` and `"Default Light"` — Kero's own, a GitHub-derived palette.
-  These two are the only ones that keep the translucent sidebar; every other
-  theme paints it opaque to match itself.
-- Any theme in the **bundled Ghostty catalog**, by exact display name:
-  `"Catppuccin Mocha"`, `"Gruvbox Dark Hard"`, `"Tokyo Night"`, `"Nord"`,
-  `"Solarized Dark"`, and so on. Matching is exact and case-sensitive.
+`"hide"` · `"auto"` · `"always"` — default `"hide"`
 
-An unrecognised name silently falls back to the default — which is also why a
-typo can't leave you staring at an empty picker in Settings.
+Controls the compact toolbar below the active tab:
 
-Nothing stops you putting a dark theme in `theme-light`. Kero won't correct
-you; the Settings pickers just won't offer it, since they split the catalog by
-background luminance.
+- `"hide"` keeps it out of the window.
+- `"auto"` shows it only when the project directory is a Git repository.
+- `"always"` keeps its Git entry point visible in every project, including a
+  **No Git Repository** state.
 
-## `font-family`
+See [The Git toolbar](/docs/git#the-git-toolbar) for what it shows.
+
+## Text
+
+### `font-family`
 
 string — default `""`, meaning the bundled JetBrains Mono
 
-The font everywhere text is shown: the terminal, the editor, and the diff
-viewer all read this one key, so a diff never renders in something different
-from the shell that produced it.
+The terminal, editor, and diff viewer share this family. Give a family name,
+not a face: `"IBM Plex Mono"`, not `"IBM Plex Mono Regular"`. Unknown or
+non-monospace families fall back to the bundled default.
 
-Kero bundles **JetBrains Mono** and registers it for its own process only;
-nothing is installed system-wide. It also attaches **Symbols Nerd Font** as a
-fallback, so powerline separators and icon glyphs render even when the family
-you pick isn't a patched Nerd Font. That fallback stays in place whatever you
-set here.
+Kero also attaches Symbols Nerd Font as a fallback, so Powerline separators
+and icon glyphs work even when the chosen family is not a patched Nerd Font.
 
-Give a family name, not a face: `"IBM Plex Mono"`, not `"IBM Plex Mono
-Regular"`. An unknown or non-monospace name falls back to the bundled default,
-and Settings only offers fixed-pitch families in the first place.
-
-## `font-size`
+### `font-size`
 
 number, 8–32 — default `13`
 
-Point size. Anything outside the range is discarded and the default used
-instead.
+The shared terminal, editor, and diff font size in points. This is the one key
+Kero writes even when it has the default value.
 
-This is the one key Kero always writes, even at its default value.
+### `sidebar.font-size`
 
-## `font-thicken`
+number, 9–18 — default `14`
 
-boolean — default `false`
+The base text size for both sidebars. Section headings, rows, metadata, and
+controls keep their relative hierarchy as the base changes.
 
-Renders terminal glyphs with heavier strokes, the way classic macOS font
-smoothing did. Off by default so text matches a stock Ghostty install.
-
-Worth trying on a non-Retina display, where the default can look thin. On a
-Retina display it mostly just makes text softer.
-
-## `editor.wrap-lines`
+### `terminal.font-thicken`
 
 boolean — default `false`
 
-Soft-wraps long lines to the pane width in the [file editor](/docs/files). Off
-means they scroll horizontally instead.
+Renders terminal glyphs with slightly heavier strokes, similar to classic
+macOS font smoothing. Both backends honor it, and the Settings preview shows
+the result. Older `font-thicken` configs are still read, then rewritten using
+the current dotted key.
 
-Affects the editor only — wrapping in the terminal is the running program's
-business, and the diff viewer always scrolls.
-
-## `terminal.restore-history`
+### `editor.wrap-lines`
 
 boolean — default `false`
 
-Restores each terminal's previous scrollback when Kero relaunches, above the
-freshly started shell and below a `Session Contents Restored` divider.
+Soft-wraps long lines to the pane width in the [file editor](/docs/files).
+When false, long lines scroll horizontally. It does not change wrapping in a
+terminal or diff.
 
-It's off by default for a reason worth stating plainly: turning it on means
-Kero captures terminal output and **writes it to disk** so it can be replayed
-later. If secrets go through your terminal, they go through that file.
+## Terminal
 
-What comes back is static text — a record of what happened, not a live session.
+### `terminal.backend`
+
+`"libghostty"` · `"alacritty"` — default `"libghostty"`
+
+Chooses the emulator used by terminals created from then on. Existing panes
+keep the backend they started with. Both choices are native, GPU-accelerated,
+support image rendering, and use the same Kero themes; Alacritty generally has
+the lower memory footprint.
+
+See [Terminal backends](/docs/terminal#terminal-backends) for the environment
+variables and compatibility contract.
+
+### `terminal.macos-option-as-alt`
+
+boolean — default `false`
+
+When true, Option-key combinations are sent to terminal programs as Alt/Meta
+shortcuts. The default leaves Option with the active macOS input source so
+layouts such as Polish Pro can type their composed characters.
+
+### `terminal.restore-history`
+
+boolean — default `false`
+
+Restores each terminal's previous scrollback above a fresh shell after a
+relaunch. The restored content is static text, not a surviving process.
+
+Restored scrollback is stored on disk, so any secrets shown in the terminal may
+be included. This setting is off by default.
 [Projects, tabs, and pane layout](/docs/projects#what-survives-a-relaunch) are
-restored either way; this option only controls the scrollback inside them.
+restored either way.
+
+## Automation
+
+### `ai.enabled`
+
+boolean — default `false`
+
+Lets supported coding agents use Kero's guarded pane and agent commands, and
+enables agent status in the UI. The Settings toggle is the recommended way to
+change it because errors are shown inline and conflicting existing setups are
+left untouched.
+
+The pane and agent commands themselves are described in
+[Agents and automation](/docs/automation).
 
 ## A complete example
 
@@ -140,23 +166,28 @@ theme-dark = "Catppuccin Mocha"
 theme-light = "Catppuccin Latte"
 font-family = "IBM Plex Mono"
 font-size = 14
-font-thicken = false
-editor.wrap-lines = true
+sidebar.font-size = 13
+toolbar.visibility = "auto"
+terminal.font-thicken = true
+terminal.macos-option-as-alt = false
+terminal.backend = "alacritty"
 terminal.restore-history = true
+editor.wrap-lines = true
+ai.enabled = true
 ```
 
-Every key is optional, and that's the whole surface. If something isn't in this
-list, Kero doesn't let you configure it.
+Every key is optional. Delete a key to return that setting to its default.
 
-## What isn't in this file
+## Settings outside this file
 
+- **Language.** Settings offers System Default, English, Simplified Chinese,
+  and Japanese. The choice uses macOS's per-app language preference and needs a
+  relaunch, so it lives in Kero's preferences rather than TOML.
 - **Automatic update checks.** The toggle in **Settings → Updates** belongs to
-  Sparkle and lives in macOS's preference store, not here. See
-  [Installation](/docs/installation#updates).
-- **Window and layout state** — window size, sidebar widths, which panel was
-  open, the snapshot used to restore your projects. All under `sh.kero` in
-  macOS's own preferences, and not meant to be hand-edited.
-- **Ghostty's config.** Kero does not read `~/.config/ghostty`. The terminal
-  core is libghostty, but the keys above are the whole of what Kero exposes;
-  everything else uses Ghostty's defaults.
+  Sparkle. See [Installation](/docs/installation#updates).
+- **Window and layout state.** Window size, sidebar widths, selected panels,
+  projects, tabs, panes, browser URLs, and diff control preferences live in
+  Kero's macOS preferences and session snapshot.
+- **Backend config files.** Kero does not read `~/.config/ghostty` or an
+  Alacritty config. Kero's settings are the supported surface for both.
 - **Keybindings.** The [shortcuts](/docs/shortcuts) are fixed for now.

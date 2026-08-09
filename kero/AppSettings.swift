@@ -7,6 +7,88 @@ import AppKit
 import Combine
 import Foundation
 
+/// The app-specific language macOS should use when Kero next launches.
+///
+/// `AppleLanguages` is stored in Kero's own defaults domain, matching the
+/// per-app language preference managed by System Settings. Removing it returns
+/// control to the user's system language order.
+enum AppLanguage: String, CaseIterable, Identifiable {
+    case system
+    case english = "en"
+    case simplifiedChinese = "zh-Hans"
+    case japanese = "ja"
+
+    var id: String { rawValue }
+
+    /// Language names are autonyms so the picker stays usable even when the
+    /// current app language is unfamiliar to the user.
+    var title: String {
+        switch self {
+        case .system:
+            String(
+                localized: "System Default",
+                comment: "Language choice that follows the macOS setting."
+            )
+        case .english:
+            "English"
+        case .simplifiedChinese:
+            "简体中文"
+        case .japanese:
+            "日本語"
+        }
+    }
+
+    static var saved: AppLanguage {
+        guard
+            let bundleIdentifier = Bundle.main.bundleIdentifier,
+            let domain = UserDefaults.standard.persistentDomain(
+                forName: bundleIdentifier
+            ),
+            let identifiers = domain["AppleLanguages"] as? [String],
+            let identifier = identifiers.first
+        else {
+            return .system
+        }
+
+        return from(identifier: identifier) ?? .system
+    }
+
+    private static func from(identifier: String) -> AppLanguage? {
+        let normalized = identifier.replacingOccurrences(of: "_", with: "-")
+        if normalized == "zh-Hans"
+            || normalized.hasPrefix("zh-Hans-")
+            || normalized.hasPrefix("zh-CN")
+            || normalized.hasPrefix("zh-SG") {
+            return .simplifiedChinese
+        }
+        if normalized == "ja" || normalized.hasPrefix("ja-") {
+            return .japanese
+        }
+        if normalized == "en" || normalized.hasPrefix("en-") {
+            return .english
+        }
+        return nil
+    }
+
+    func persist() {
+        switch self {
+        case .system:
+            UserDefaults.standard.removeObject(forKey: "AppleLanguages")
+        case .english, .simplifiedChinese, .japanese:
+            UserDefaults.standard.set([rawValue], forKey: "AppleLanguages")
+        }
+    }
+}
+
+/// Whether the toolbar follows project context, always shows, or stays hidden.
+enum ToolbarVisibility: String, CaseIterable, Identifiable {
+    case auto
+    case always
+    case hide
+
+    var id: String { rawValue }
+}
+
 /// User-configurable settings, persisted to `$HOME/.config/kero/config.toml`.
 /// Views observe this directly; `TerminalManager` re-themes live sessions on
 /// any change.
@@ -31,6 +113,21 @@ final class AppSettings: nonisolated ObservableObject {
 
     static let defaultFontSize: Double = 13
     static let fontSizeRange: ClosedRange<Double> = 8...32
+    static let defaultSidebarFontSize: Double = 14
+    static let sidebarFontSizeRange: ClosedRange<Double> = 9...18
+    static let defaultToolbarVisibility: ToolbarVisibility = .hide
+
+    /// The language this process launched with, kept separate from the pending
+    /// selection so Settings can explain when a relaunch is required.
+    let activeLanguage: AppLanguage
+
+    @Published var language: AppLanguage {
+        didSet { language.persist() }
+    }
+
+    var languageRequiresRelaunch: Bool {
+        language != activeLanguage
+    }
 
     /// Light/dark appearance override; `system` follows macOS.
     @Published var theme: AppTheme {
@@ -67,10 +164,30 @@ final class AppSettings: nonisolated ObservableObject {
         didSet { save() }
     }
 
-    /// Ghostty's `font-thicken`: render glyphs with slightly heavier strokes,
-    /// like classic macOS font smoothing. Off by default so kero's text
+    /// Base text size for both sidebars. Each panel preserves its relative
+    /// hierarchy for section labels, content, metadata, and controls.
+    @Published var sidebarFontSize: Double {
+        didSet { save() }
+    }
+
+    /// `auto` shows the toolbar only for Git projects; `always` keeps its Git
+    /// panel entry point visible in every project; `hide` suppresses it.
+    @Published var toolbarVisibility: ToolbarVisibility {
+        didSet { save() }
+    }
+
+    /// Render terminal glyphs with slightly heavier strokes, like classic
+    /// macOS font smoothing. Each backend maps this to its own rasterizer.
+    /// Persisted as `terminal.font-thicken`; off by default so Kero's text
     /// matches a stock Ghostty install.
     @Published var fontThicken: Bool {
+        didSet { save() }
+    }
+
+    /// Send Option-key chords to terminal programs as Alt/Meta instead of
+    /// letting the active macOS input source produce text. Off by default so
+    /// layouts such as Polish Pro can type their Option-composed characters.
+    @Published var macosOptionAsAlt: Bool {
         didSet { save() }
     }
 
@@ -87,22 +204,58 @@ final class AppSettings: nonisolated ObservableObject {
         didSet { save() }
     }
 
+    /// Link Kero's shared coordination skill plus the native lifecycle
+    /// integrations whose provider APIs provide semantic turn events. Every
+    /// other agent continues to use passive process/screen observation.
+    @Published private(set) var aiEnabled: Bool {
+        didSet { save() }
+    }
+
+    /// Which emulator drives terminal panes. Only ever holds a backend this
+    /// build ships a surface for — see `TerminalBackend` — and a session binds
+    /// its backend at creation, so a change here reaches terminals opened
+    /// afterwards rather than live ones.
+    @Published var terminalBackend: TerminalBackend {
+        didSet { save() }
+    }
+
     private init() {
+        let savedLanguage = AppLanguage.saved
+        activeLanguage = savedLanguage
+        language = savedLanguage
+
         let existing = TOML.parse(at: Self.configURL)
         let toml = existing ?? Self.legacyDefaults()
         theme = toml["theme"]?.string.flatMap(AppTheme.init(rawValue:)) ?? .system
         themeDark = Self.knownTheme(
-            toml["theme-dark"]?.string, fallback: Theme.defaultDarkThemeName
+            toml["theme-dark"]?.string,
+            dark: true,
+            fallback: Theme.defaultDarkThemeName
         )
         themeLight = Self.knownTheme(
-            toml["theme-light"]?.string, fallback: Theme.defaultLightThemeName
+            toml["theme-light"]?.string,
+            dark: false,
+            fallback: Theme.defaultLightThemeName
         )
         fontFamily = toml["font-family"]?.string ?? ""
         let size = toml["font-size"]?.double ?? Self.defaultFontSize
         fontSize = Self.fontSizeRange.contains(size) ? size : Self.defaultFontSize
-        fontThicken = toml["font-thicken"]?.bool ?? false
+        let sidebarSize = toml["sidebar.font-size"]?.double
+            ?? Self.defaultSidebarFontSize
+        sidebarFontSize = Self.sidebarFontSizeRange.contains(sidebarSize)
+            ? sidebarSize
+            : Self.defaultSidebarFontSize
+        toolbarVisibility = ToolbarVisibility(
+            rawValue: toml["toolbar.visibility"]?.string ?? ""
+        ) ?? Self.defaultToolbarVisibility
+        fontThicken = toml["terminal.font-thicken"]?.bool
+            ?? toml["font-thicken"]?.bool
+            ?? false
+        macosOptionAsAlt = toml["terminal.macos-option-as-alt"]?.bool ?? false
         wrapLines = toml["editor.wrap-lines"]?.bool ?? false
         restoreTerminalHistory = toml["terminal.restore-history"]?.bool ?? false
+        aiEnabled = toml["ai.enabled"]?.bool ?? false
+        terminalBackend = TerminalBackend(persisted: toml["terminal.backend"]?.string)
         applyAppearance()
         reloadThemeSelection()
         if existing == nil { save() }
@@ -114,11 +267,13 @@ final class AppSettings: nonisolated ObservableObject {
         Theme.reloadSelection(light: themeLight, dark: themeDark)
     }
 
-    /// A saved theme name, or `fallback` when it's absent or names neither a
-    /// kero built-in nor a catalog theme (so the Settings pickers never show
-    /// an empty selection).
-    private static func knownTheme(_ name: String?, fallback: String) -> String {
-        guard let name, Theme.definition(named: name) != nil else {
+    /// A saved shared-theme name, or `fallback` when it is absent or no longer
+    /// part of the cross-backend catalog, so Settings never shows an empty
+    /// selection after upgrading from the larger Ghostty-only list.
+    private static func knownTheme(
+        _ name: String?, dark: Bool, fallback: String
+    ) -> String {
+        guard let name, Theme.isCommonTheme(named: name, dark: dark) else {
             return fallback
         }
         return name
@@ -134,16 +289,65 @@ final class AppSettings: nonisolated ObservableObject {
     func resetFont() {
         fontFamily = ""
         fontSize = Self.defaultFontSize
+        sidebarFontSize = Self.defaultSidebarFontSize
         fontThicken = false
     }
 
     func resetToDefaults() {
         resetFont()
+        language = .system
         theme = .system
         themeDark = Theme.defaultDarkThemeName
         themeLight = Theme.defaultLightThemeName
+        toolbarVisibility = Self.defaultToolbarVisibility
+        macosOptionAsAlt = false
         wrapLines = false
         restoreTerminalHistory = false
+        if aiEnabled {
+            do {
+                try setAIEnabled(false)
+            } catch {
+                NSLog("kero: failed to disable AI support: \(error)")
+            }
+        }
+        terminalBackend = .fallback
+    }
+
+    /// Persist the setting only after every requested destination operation
+    /// returns successfully.
+    func setAIEnabled(_ enabled: Bool) throws {
+        if enabled {
+            try KeroAgentIntegrations.preflightInstallAvailable()
+            _ = try KeroAutomationSkill.install(
+                destinations: KeroAutomationSkill.Destination.allCases,
+                force: false
+            )
+            try KeroAgentIntegrations.installAvailable()
+        } else {
+            try KeroAgentIntegrations.preflightUninstallManaged()
+            _ = try KeroAutomationSkill.uninstall(
+                destinations: KeroAutomationSkill.Destination.allCases,
+                force: false
+            )
+            try KeroAgentIntegrations.uninstallManaged()
+        }
+        aiEnabled = enabled
+    }
+
+    /// App updates normally preserve the bundle path targeted by the links.
+    /// Reconcile at launch as well so moving the app or changing Debug build
+    /// products repairs only installations the user explicitly enabled.
+    func reconcileAIEnabled() {
+        guard aiEnabled else { return }
+        do {
+            _ = try KeroAutomationSkill.install(
+                destinations: KeroAutomationSkill.Destination.allCases,
+                force: false
+            )
+            try KeroAgentIntegrations.installAvailable()
+        } catch {
+            NSLog("kero: failed to refresh AI support: \(error)")
+        }
     }
 
     private func save() {
@@ -163,14 +367,29 @@ final class AppSettings: nonisolated ObservableObject {
             lines.append("font-family = \(TOML.quote(fontFamily))")
         }
         lines.append("font-size = \(TOML.number(fontSize))")
+        if sidebarFontSize != Self.defaultSidebarFontSize {
+            lines.append("sidebar.font-size = \(TOML.number(sidebarFontSize))")
+        }
+        if toolbarVisibility != Self.defaultToolbarVisibility {
+            lines.append("toolbar.visibility = \(TOML.quote(toolbarVisibility.rawValue))")
+        }
         if fontThicken {
-            lines.append("font-thicken = true")
+            lines.append("terminal.font-thicken = true")
+        }
+        if macosOptionAsAlt {
+            lines.append("terminal.macos-option-as-alt = true")
         }
         if wrapLines {
             lines.append("editor.wrap-lines = true")
         }
         if restoreTerminalHistory {
             lines.append("terminal.restore-history = true")
+        }
+        if aiEnabled {
+            lines.append("ai.enabled = true")
+        }
+        if terminalBackend != .fallback {
+            lines.append("terminal.backend = \(TOML.quote(terminalBackend.rawValue))")
         }
         let dir = Self.configURL.deletingLastPathComponent()
         do {

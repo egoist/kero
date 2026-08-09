@@ -7,6 +7,7 @@ import AppKit
 import Combine
 import Foundation
 import SwiftUI
+import WebKit
 
 /// Panels available in the right sidebar. Raw values are stable names
 /// persisted in `SessionSnapshot`.
@@ -34,17 +35,35 @@ enum FindAction {
 @MainActor
 final class TerminalManager: nonisolated ObservableObject {
     @Published var projects: [Project] = []
-    @Published var selectedProjectID: UUID?
+    @Published var selectedProjectID: UUID? {
+        willSet {
+            // Diff hosts are expensive WebKit trees. Once a project has put
+            // them in this window, keep that project's stack mounted across
+            // project switches just as ContentView already does across tab
+            // switches. Reattaching every open diff can otherwise block the
+            // main thread while AppKit rebuilds the window/view hierarchy.
+            if let selectedProjectID, selectedProjectID != newValue {
+                retainedDiffProjectIDs.insert(selectedProjectID)
+            }
+        }
+    }
     @Published var isPanelVisible = false
     @Published var panelTab: RightPanel = .files
     /// Visibility of the left project sidebar (⌘B). `isPanelVisible` above is
     /// the separate right panel.
     @Published var isLeftSidebarVisible = true
+    /// Debug FPS badge in the sidebar header. Deliberately not persisted:
+    /// every launch starts with it hidden.
+    @Published var isFPSCounterVisible = false
     @Published private(set) var isCommandPaletteVisible = false
 
     /// Projects publish their own changes (session list, session selection);
     /// re-publish them so views observing the manager stay current.
     private var projectObservations: [UUID: AnyCancellable] = [:]
+    /// Projects whose diff stacks have already been mounted in this window.
+    /// Unvisited restored projects stay lazy so launch does not instantiate all
+    /// of their WKWebViews at once.
+    private var retainedDiffProjectIDs: Set<UUID> = []
     private var projectCounter = 0
     private var settingsObservation: AnyCancellable?
     private var autosaveObservation: AnyCancellable?
@@ -65,6 +84,14 @@ final class TerminalManager: nonisolated ObservableObject {
     /// Live managers in window-creation order; the persisted snapshot is
     /// one entry per registered manager.
     private static var registry: [TerminalManager] = []
+    /// Read-only module access for the authenticated local automation router.
+    /// Mutation and window ownership remain private to `TerminalManager`.
+    static var automationManagers: [TerminalManager] { registry }
+    private struct CLIProjectLaunch {
+        let arguments: [String]
+        let directory: String
+        let path: String?
+    }
     /// Folder requests can arrive while macOS is still launching Kero, before
     /// a WindowGroup has produced a manager/window to receive them.
     private static var pendingDirectories: [String] = []
@@ -113,12 +140,12 @@ final class TerminalManager: nonisolated ObservableObject {
         for directory in queuedDirectories {
             newProject(directory: directory)
         }
-        // Re-theme live sessions only when font, appearance, or terminal
-        // theme settings change. Delivery is scheduled onto the main queue
-        // because @Published emits in willSet — by then `didSet` has pushed
-        // the theme onto NSApp (and the selection into `Theme`), so
+        // Reconfigure live sessions only when font, appearance, theme, or
+        // terminal input settings change. Delivery is scheduled onto the main
+        // queue because @Published emits in willSet — by then `didSet` has
+        // pushed the theme onto NSApp (and the selection into `Theme`), so
         // `refreshAppearance` reads the new state.
-        settingsObservation = Publishers.CombineLatest(
+        settingsObservation = Publishers.CombineLatest3(
             Publishers.CombineLatest4(
                 AppSettings.shared.$fontFamily.removeDuplicates(),
                 AppSettings.shared.$fontSize.removeDuplicates(),
@@ -128,7 +155,8 @@ final class TerminalManager: nonisolated ObservableObject {
             Publishers.CombineLatest(
                 AppSettings.shared.$themeDark.removeDuplicates(),
                 AppSettings.shared.$themeLight.removeDuplicates()
-            )
+            ),
+            AppSettings.shared.$macosOptionAsAlt.removeDuplicates()
         )
             .dropFirst()
             .receive(on: DispatchQueue.main)
@@ -162,6 +190,16 @@ final class TerminalManager: nonisolated ObservableObject {
         selectedProject?.selectedSession
     }
 
+    /// Diff stacks that should remain in the window hierarchy. The selected
+    /// project is included immediately; previously selected projects remain
+    /// only when they actually own a diff.
+    var projectsWithMountedDiffs: [Project] {
+        projects.filter {
+            $0.id == selectedProjectID
+                || (retainedDiffProjectIDs.contains($0.id) && $0.hasDiffs)
+        }
+    }
+
     // MARK: - Projects
 
     @discardableResult
@@ -181,6 +219,19 @@ final class TerminalManager: nonisolated ObservableObject {
         ).lastPathComponent
         project.customDirectory = directory
         project.newSession(directory: directory)
+        insert(project)
+    }
+
+    /// Creates a CLI-requested project. An empty argv
+    /// starts the normal login shell; otherwise the terminal directly execs
+    /// the preserved argument vector with the caller's PATH.
+    private func newProject(cliLaunch: CLIProjectLaunch) {
+        let project = makeProject(createInitialSession: false)
+        project.newSession(
+            directory: cliLaunch.directory,
+            commandArguments: cliLaunch.arguments.isEmpty ? nil : cliLaunch.arguments,
+            environmentPath: cliLaunch.path
+        )
         insert(project)
     }
 
@@ -239,6 +290,26 @@ final class TerminalManager: nonisolated ObservableObject {
         let directories = pendingDirectories
         pendingDirectories = []
         return directories
+    }
+
+    /// Creates a fresh project beside the current one for the bundled CLI.
+    static func openCLIProject(
+        arguments: [String],
+        directory: String,
+        path: String?
+    ) {
+        let manager = registry.first { $0.window === NSApp.keyWindow }
+            ?? registry.first { $0.window === NSApp.mainWindow }
+            ?? registry.last { $0.window != nil }
+        guard let manager else { return }
+        manager.newProject(
+            cliLaunch: CLIProjectLaunch(
+                arguments: arguments,
+                directory: directory,
+                path: path
+            )
+        )
+        manager.window?.makeKeyAndOrderFront(nil)
     }
 
     /// Installs SwiftUI's WindowGroup opener before any window needs to appear.
@@ -303,6 +374,7 @@ final class TerminalManager: nonisolated ObservableObject {
             let neighbor = min(index, projects.count - 1)
             selectedProjectID = neighbor >= 0 ? projects[neighbor].id : nil
         }
+        retainedDiffProjectIDs.remove(project.id)
         // Nothing left to inspect once the last project is gone, so collapse
         // the right sidebar — its panels all track the selected session.
         if projects.isEmpty {
@@ -356,6 +428,29 @@ final class TerminalManager: nonisolated ObservableObject {
         project.newSession()
     }
 
+    /// Opens a browser tab in the current project. Kero remains
+    /// project-oriented, so invoking it from the no-project state first creates
+    /// the normal project shell and places the browser beside it.
+    func newBrowserTab(initialURL: String? = nil) {
+        let project = selectedProject ?? newProject()
+        project.newBrowserTab(
+            initialURL: initialURL,
+            initialFocus: initialURL == nil ? .addressBar : .webContent
+        )
+    }
+
+    /// Opens a browser beside the focused pane in the current tab.
+    func newBrowserPane(
+        toward edge: PaneDropEdge = .right,
+        initialURL: String? = nil
+    ) {
+        selectedProject?.newBrowserPane(
+            toward: edge,
+            initialURL: initialURL,
+            initialFocus: initialURL == nil ? .addressBar : .webContent
+        )
+    }
+
     /// Brings `session` to the foreground: selects its project and tab, then
     /// focuses its pane. Backs the command palette's session switcher; a no-op
     /// if the session is no longer open anywhere.
@@ -371,8 +466,80 @@ final class TerminalManager: nonisolated ObservableObject {
         }
     }
 
-    /// Clears the terminal in the focused pane. No-op while a file or diff pane
-    /// is focused, so ⌘K never wipes an off-screen terminal.
+    /// Activates Kero and reveals the session that emitted a desktop
+    /// notification. Searches every open window; if the session is gone,
+    /// still brings the app forward so the click isn't a dead end.
+    static func revealSession(id: UUID) {
+        NSApp.activate()
+        for manager in registry {
+            for project in manager.projects {
+                for session in project.sessions where session.id == id {
+                    manager.revealSession(session)
+                    manager.window?.makeKeyAndOrderFront(nil)
+                    return
+                }
+            }
+        }
+        // Session closed since the banner was posted — surface any live window.
+        if let manager = registry.first(where: { $0.window != nil }) {
+            manager.window?.makeKeyAndOrderFront(nil)
+        }
+    }
+
+    /// "Seen" is a model focus decision, not an API read. A background CLI can
+    /// inspect output repeatedly without clearing a finished badge; selecting
+    /// the pane through any UI path clears it on the next monitor tick.
+    static func automationIsSessionFocused(_ id: UUID) -> Bool {
+        guard NSApp.isActive else { return false }
+        for manager in registry where manager.window?.isKeyWindow == true {
+            guard let project = manager.selectedProject,
+                  let tab = project.selectedTab,
+                  let pane = tab.focusedPane,
+                  case .session(let session) = pane.content
+            else { continue }
+            if session.id == id { return true }
+        }
+        return false
+    }
+
+    var hasAgentAttention: Bool {
+        projects.contains { project in
+            project.sessions.contains {
+                $0.agentStatus?.phase == .blocked || $0.agentStatus?.phase == .done
+            }
+        }
+    }
+
+    /// Cycles blocked agents first, then unseen completions, preserving project,
+    /// tab, and split-tree order within each state. Only an explicit focus
+    /// action acknowledges `done`; automation reads never call this path.
+    func focusNextAgentAttention() {
+        let ordered = projects.flatMap { project in
+            project.tabs.flatMap(\.sessions)
+        }
+        let attention = ordered.filter { $0.agentStatus?.phase == .blocked }
+            + ordered.filter { $0.agentStatus?.phase == .done }
+        guard !attention.isEmpty else { return }
+
+        let currentID: UUID? = {
+            guard let pane = selectedProject?.selectedTab?.focusedPane,
+                  case .session(let session) = pane.content else { return nil }
+            return session.id
+        }()
+        let next: TerminalSession
+        if let currentID,
+           let index = attention.firstIndex(where: { $0.id == currentID }) {
+            next = attention[(index + 1) % attention.count]
+        } else {
+            next = attention[0]
+        }
+        revealSession(next)
+        next.markAutomationAgentSeen()
+        window?.makeKeyAndOrderFront(nil)
+    }
+
+    /// Clears the terminal in the focused pane. No-op while another content
+    /// kind is focused, so ⌘K never wipes an off-screen terminal.
     func clearActiveTerminal() {
         if case .session(let session)? = selectedProject?.focusedContent {
             session.clear()
@@ -392,7 +559,7 @@ final class TerminalManager: nonisolated ObservableObject {
         switch selectedProject?.focusedContent {
         case .session(let session): session.find.perform(action)
         case .file(let file): file.performFindAction(action)
-        case .diff, .none: break
+        case .browser, .diff, .none: break
         }
     }
 
@@ -401,7 +568,7 @@ final class TerminalManager: nonisolated ObservableObject {
     var canFind: Bool {
         switch selectedProject?.focusedContent {
         case .session, .file: return true
-        case .diff, .none: return false
+        case .browser, .diff, .none: return false
         }
     }
 
@@ -469,6 +636,35 @@ final class TerminalManager: nonisolated ObservableObject {
         selectedProject?.select(index: index)
     }
 
+    // MARK: - Browser
+
+    private var selectedBrowser: BrowserTab? {
+        if case .browser(let browser)? = selectedProject?.focusedContent {
+            return browser
+        }
+        return nil
+    }
+
+    var hasSelectedBrowser: Bool {
+        selectedBrowser != nil
+    }
+
+    func focusBrowserAddressBar() {
+        selectedBrowser?.requestAddressFocus()
+    }
+
+    func reloadSelectedBrowser() {
+        selectedBrowser?.reload()
+    }
+
+    func stopSelectedBrowser() {
+        selectedBrowser?.stopLoading()
+    }
+
+    func openSelectedPageInDefaultBrowser() {
+        selectedBrowser?.openInDefaultBrowser()
+    }
+
     // MARK: - Files
 
     /// Opens `path` as a file tab in the current project.
@@ -491,11 +687,28 @@ final class TerminalManager: nonisolated ObservableObject {
         )
     }
 
-    /// Saves the focused pane if it holds a file.
+    /// Opens the selected path as changed by one historical commit.
+    func openCommitDiff(
+        repoRoot: String,
+        path: String,
+        commitHash: String,
+        parentHash: String?,
+        status: Character,
+        origPath: String?
+    ) {
+        selectedProject?.openCommitDiff(
+            repoRoot: repoRoot,
+            path: path,
+            commitHash: commitHash,
+            parentHash: parentHash,
+            status: status,
+            origPath: origPath
+        )
+    }
+
+    /// Saves the focused pane if it holds a file or an editable diff.
     func saveSelectedFile() {
-        if case .file(let file)? = selectedProject?.focusedContent {
-            file.save()
-        }
+        selectedProject?.focusedContent?.save()
     }
 
     /// Propagates a file-tree rename to every open file tab across all
@@ -517,13 +730,17 @@ final class TerminalManager: nonisolated ObservableObject {
         isLeftSidebarVisible.toggle()
     }
 
+    func toggleFPSCounter() {
+        isFPSCounterVisible.toggle()
+    }
+
     func toggleCommandPalette() {
         if isCommandPaletteVisible {
             dismissCommandPalette()
         } else {
             commandPaletteWindow = NSApp.keyWindow
             if let responder = commandPaletteWindow?.firstResponder,
-               responder is KeroTerminalView || responder is FocusReportingTextView {
+               isStableWorkspaceResponder(responder) {
                 commandPalettePreviousResponder = responder
             } else {
                 commandPalettePreviousResponder = nil
@@ -553,11 +770,27 @@ final class TerminalManager: nonisolated ObservableObject {
             // editor. Never let restoration race that newer focus and win.
             if let current = window.firstResponder,
                current !== responder,
-               current is KeroTerminalView || current is FocusReportingTextView {
+               self.isStableWorkspaceResponder(current) {
                 return
             }
             window.makeFirstResponder(responder)
         }
+    }
+
+    /// Terminal and editor responders are public host views. WebKit instead
+    /// makes a private descendant of WKWebView first responder, so walk its
+    /// AppKit ancestry before deciding whether palette dismissal can restore
+    /// the page's keyboard focus.
+    private func isStableWorkspaceResponder(_ responder: NSResponder) -> Bool {
+        if responder is any TerminalBackendSurface || responder is FocusReportingTextView {
+            return true
+        }
+        var view = responder as? NSView
+        while let current = view {
+            if current is WKWebView { return true }
+            view = current.superview
+        }
+        return false
     }
 
     /// Shows the sidebar on `panel`, or hides it if already showing that panel.
@@ -577,6 +810,20 @@ final class TerminalManager: nonisolated ObservableObject {
                 session.applyTheme()
             }
         }
+    }
+
+    /// Re-themes every open window for app-wide changes that do not mutate an
+    /// `AppSettings` publisher, such as a transient CLI theme preview.
+    static func refreshAllAppearances() {
+        for manager in registry {
+            manager.refreshAppearance()
+        }
+    }
+
+    /// Flushes the complete multi-window snapshot before Settings starts a
+    /// replacement app instance for a language change.
+    static func saveForRelaunch() {
+        saveAll(captureTerminalHistory: true)
     }
 
     /// After the first window appears, reopen one window per unclaimed
@@ -648,32 +895,22 @@ final class TerminalManager: nonisolated ObservableObject {
         let snapshot = SessionSnapshot(
             projects: projects.compactMap { project in
                 guard !project.tabs.isEmpty else { return nil }
+                let projectSessions = project.sessions
                 let tabs = project.tabs.map { tab -> ProjectSnapshot.TabSnapshot in
-                    let columns = tab.columns.map { column in
-                        ProjectSnapshot.ColumnSnapshot(
-                            panes: column.panes.map { pane in
-                                var historyKey: String?
-                                if case .session(let session) = pane.content,
-                                   let history = session.serializedHistory(
-                                       captureLive: captureTerminalHistory
-                                   ), !history.isEmpty {
-                                    let key = UUID().uuidString
-                                    histories[key] = history
-                                    historyKey = key
-                                }
-                                return ProjectSnapshot.PaneSnapshot(
-                                    content: Self.contentSnapshot(pane.content),
-                                    weight: Double(pane.weight),
-                                    historyKey: historyKey
-                                )
-                            },
-                            weight: Double(column.weight)
-                        )
-                    }
-                    let (col, row) = tab.focusedLocation() ?? (0, 0)
+                    let layout = Self.layoutSnapshot(
+                        tab.layout,
+                        captureTerminalHistory: captureTerminalHistory,
+                        histories: &histories
+                    )
+                    let focusedPaneIndex = tab.allPanes.firstIndex {
+                        $0.id == tab.focusedPaneID
+                    } ?? 0
                     return ProjectSnapshot.TabSnapshot(
-                        columns: columns, focusedColumn: col, focusedRow: row,
-                        customName: tab.customName
+                        layout: layout, focusedPaneIndex: focusedPaneIndex,
+                        customName: tab.customName,
+                        contextSessionIndex: tab.contextSession.flatMap { context in
+                            projectSessions.firstIndex { $0.id == context.id }
+                        }
                     )
                 }
                 return ProjectSnapshot(
@@ -691,6 +928,46 @@ final class TerminalManager: nonisolated ObservableObject {
         return (snapshot, histories)
     }
 
+    private static func layoutSnapshot(
+        _ layout: PaneNode,
+        captureTerminalHistory: Bool,
+        histories: inout [String: String]
+    ) -> SessionSnapshot.ProjectSnapshot.LayoutSnapshot {
+        typealias ProjectSnapshot = SessionSnapshot.ProjectSnapshot
+        switch layout {
+        case .pane(let pane):
+            var historyKey: String?
+            if case .session(let session) = pane.content,
+               let history = session.serializedHistory(
+                   captureLive: captureTerminalHistory
+               ), !history.isEmpty {
+                let key = UUID().uuidString
+                histories[key] = history
+                historyKey = key
+            }
+            return .pane(ProjectSnapshot.PaneSnapshot(
+                content: contentSnapshot(pane.content),
+                weight: 1,
+                historyKey: historyKey
+            ))
+        case .split(let split):
+            return .split(
+                axis: split.axis,
+                fraction: Double(split.fraction),
+                first: layoutSnapshot(
+                    split.first,
+                    captureTerminalHistory: captureTerminalHistory,
+                    histories: &histories
+                ),
+                second: layoutSnapshot(
+                    split.second,
+                    captureTerminalHistory: captureTerminalHistory,
+                    histories: &histories
+                )
+            )
+        }
+    }
+
     private static func contentSnapshot(
         _ content: PaneContent
     ) -> SessionSnapshot.ProjectSnapshot.PaneContentSnapshot {
@@ -699,7 +976,19 @@ final class TerminalManager: nonisolated ObservableObject {
             return .session(workingDirectory: session.currentDirectoryPath)
         case .file(let file):
             return .file(path: file.path, editorState: file.editorState)
+        case .browser(let browser):
+            return .browser(url: browser.snapshotURL)
         case .diff(let diff):
+            if let commitHash = diff.commitHash {
+                return .commitDiff(
+                    repoRoot: diff.repoRoot,
+                    path: diff.path,
+                    commitHash: commitHash,
+                    parentHash: diff.commitParentHash,
+                    status: diff.commitStatus.map(String.init) ?? "M",
+                    origPath: diff.origPath
+                )
+            }
             return .diff(
                 repoRoot: diff.repoRoot, path: diff.path, staged: diff.staged,
                 untracked: diff.untracked, origPath: diff.origPath
@@ -716,10 +1005,21 @@ final class TerminalManager: nonisolated ObservableObject {
         if let tab = snapshot.rightPanelTab { panelTab = tab }
         for saved in snapshot.projects where !saved.tabs.isEmpty {
             let project = makeProject(createInitialSession: false)
-            project.customName = saved.customName
+            project.customName = Project.normalizedCustomName(saved.customName)
             project.customDirectory = saved.customDirectory
-            for tab in saved.tabs {
-                project.restoreTab(from: tab, histories: Self.pendingHistories)
+            var restoredContexts: [(tab: PaneTab, sessionIndex: Int)] = []
+            for savedTab in saved.tabs {
+                guard let tab = project.restoreTab(
+                    from: savedTab, histories: Self.pendingHistories
+                ) else { continue }
+                if let sessionIndex = savedTab.contextSessionIndex {
+                    restoredContexts.append((tab, sessionIndex))
+                }
+            }
+            let restoredSessions = project.sessions
+            for context in restoredContexts
+            where restoredSessions.indices.contains(context.sessionIndex) {
+                context.tab.contextSession = restoredSessions[context.sessionIndex]
             }
             guard !project.tabs.isEmpty else {
                 projectObservations[project.id] = nil
@@ -728,6 +1028,7 @@ final class TerminalManager: nonisolated ObservableObject {
             if let index = saved.selectedTabIndex, project.tabs.indices.contains(index) {
                 project.selectedTabID = project.tabs[index].id
             }
+            project.resetRecency()
             projects.append(project)
         }
         guard !projects.isEmpty else { return false }

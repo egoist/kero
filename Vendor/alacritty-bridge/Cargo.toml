@@ -1,0 +1,25 @@
+[package]
+name = "kero_alacritty"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+name = "kero_alacritty"
+# Static for the app, which links it directly; rlib so the examples under
+# `examples/` can drive the same C ABI headlessly.
+crate-type = ["staticlib", "rlib"]
+
+[dependencies]
+alacritty_terminal = { version = "0.26", default-features = false }
+base64 = "0.22"
+flate2 = "1.1"
+polling = "3.11"
+png = "0.18"
+unicode-width = "0.2"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"

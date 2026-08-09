@@ -73,8 +73,9 @@ since they read the current version from the appcast.
   same variables through `fumadocs-ui/css/shadcn.css`, so the docs inherit it.
 - Add more components with `bunx shadcn@latest add <name>` — the project is
   already configured for Base UI (`components.json` → `"style": "base-nova"`).
-- The download URL and version live in the `LATEST` constant at the top of
-  [`src/routes/index.tsx`](src/routes/index.tsx). Bump it on each release.
+- Landing pages read the newest release from the Sparkle appcast through
+  [`src/lib/release.ts`](src/lib/release.ts). Keep its fallback release current
+  so downloads still work if the appcast is temporarily unavailable.
 - The hero product shot is [`public/kero-screenshot.png`](public/kero-screenshot.png)
   (a real app screenshot with transparent padding + shadow) — swap the file to
   update it.

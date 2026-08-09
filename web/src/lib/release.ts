@@ -12,9 +12,9 @@ export const BREW_COMMAND = 'brew install egoist/tap/kero'
 
 // Shown only if the appcast can't be reached; kept current so downloads still work.
 const FALLBACK: Release = {
-  version: '0.1.11',
+  version: '0.1.45',
   minSystem: '15.6',
-  dmg: `${RELEASES_ORIGIN}/kero-0.1.11.dmg`,
+  dmg: `${RELEASES_ORIGIN}/kero-0.1.45.dmg`,
 }
 
 /**

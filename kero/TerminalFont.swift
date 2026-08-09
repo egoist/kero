@@ -55,6 +55,29 @@ enum TerminalFont {
         return NSFont(descriptor: descriptor, size: size) ?? base
     }
 
+    /// Some CJK terminal fonts use double-width ideographs and therefore do
+    /// not set CoreText's strict fixed-pitch flag, even though their ASCII
+    /// glyphs occupy one consistent terminal cell. Accept those when a
+    /// representative ASCII sample has identical advances.
+    private static func isTerminalMonospaced(_ font: NSFont) -> Bool {
+        if font.isFixedPitch { return true }
+
+        let characters: [UniChar] = Array(" ilMW01@#".utf16)
+        var glyphs = Array(repeating: CGGlyph(), count: characters.count)
+        guard
+            CTFontGetGlyphsForCharacters(
+                font as CTFont, characters, &glyphs, characters.count
+            ), !glyphs.contains(0)
+        else { return false }
+
+        var advances = Array(repeating: CGSize.zero, count: glyphs.count)
+        CTFontGetAdvancesForGlyphs(
+            font as CTFont, .horizontal, glyphs, &advances, glyphs.count
+        )
+        guard let width = advances.first?.width, width > 0 else { return false }
+        return advances.dropFirst().allSatisfy { abs($0.width - width) < 0.01 }
+    }
+
     /// Fixed-pitch families available for the font picker, bundled default
     /// first. The symbols-only fallback font is not a usable primary font.
     static func selectableFamilies() -> [String] {
@@ -64,7 +87,7 @@ enum TerminalFont {
                       family != bundledFamily, !family.hasPrefix("."),
                       let font = NSFontManager.shared.font(withFamily: family, traits: [], weight: 5, size: 13)
                 else { return false }
-                return font.isFixedPitch
+                return isTerminalMonospaced(font)
             }
             .sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
         return [bundledFamily] + families

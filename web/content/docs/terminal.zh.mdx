@@ -1,27 +1,37 @@
 ---
 title: 终端本身
-description: Kero 对你的 shell 改了什么（几乎没有），以及它在周围加了什么。
+description: Kero 的终端后端、shell 环境、链接处理、通知与安全功能。
 ---
 
-Kero 内嵌了 [libghostty](https://ghostty.org)——Ghostty 背后的终端内核——并在每个窗格里原生
-承载它。渲染、转义序列处理和 Unicode 的表现都和 Ghostty 一致。
+每个终端窗格都运行你真正的登录 shell，并使用两个原生 GPU 加速后端之一。窗格焦点、搜索、通知、链接、历史、主题和粘贴安全由 Kero 统一管理，所以无论选哪个模拟器，外围行为都一致。
+
+## 终端后端
+
+在 **设置 → Terminal → Backend** 里选择：
+
+| 后端 | 说明 |
+| --- | --- |
+| **Ghostty** | 默认选项 |
+| **Alacritty** | 通常占用更少内存 |
+
+两者都支持 GPU 加速、图片渲染、Kero 的共享主题目录、查找、鼠标上报、通知和进度。后端改动只影响之后新建的终端；已有窗格继续使用启动时的模拟器。
 
 ## 你的 shell，原封不动
 
-每个会话运行你的登录 shell——`exec $SHELL -l`——所以提示符、别名、函数和 dotfiles 的加载
-方式和在别处完全一样。在此之上 Kero 设置了这些环境变量：
+每个会话启动你账户的登录 shell，所以提示符、别名、函数和 dotfiles 都和其他终端里一样加载。
+Kero 额外设置了能力与身份变量：
 
 | 变量 | 值 |
 | --- | --- |
 | `TERM_PROGRAM` | `ghostty` |
-| `TERM_PROGRAM_VERSION` | 内嵌的 libghostty 版本 |
+| `TERM_PROGRAM_VERSION` | Kero 实现的 Ghostty 能力版本 |
+| `KERO_TERM` | `ghostty` 或 `alacritty`，也就是窗格实际使用的后端 |
 
-之所以对外声称是 Ghostty，是因为工具会拿 `TERM_PROGRAM` 当能力提示——比如渲染图片的 CLI
-就靠它来选择 Kitty 图形协议。
+两个后端都通过 `TERM_PROGRAM` 声明 Ghostty，因为支持图片和通知的 CLI 会把它当作能力提示。只有确实需要区分渲染器时，才看 `KERO_TERM`。
 
 <Callout type="info">
-Kero **不会**读取 `~/.config/ghostty`。外观在 Kero 自己的设置和[配置文件](/zh/docs/configuration)里
-配置，其余一切都用 Ghostty 的默认值。
+Kero 不读取 `~/.config/ghostty`，也不读取 Alacritty 配置。字体、颜色、输入行为和后端都在 Kero
+自己的[设置](/zh/docs/configuration)里配置。
 </Callout>
 
 ## 搜索
@@ -34,42 +44,64 @@ Kero **不会**读取 `~/.config/ghostty`。外观在 Kero 自己的设置和[�
 | 用选中内容查找 | <kbd>Cmd</kbd>+<kbd>E</kbd> |
 | 清空终端 | <kbd>Cmd</kbd>+<kbd>K</kbd> |
 
-查找作用于当前窗格，终端和编辑器都适用，并且在查找输入框有键盘焦点时仍然生效。
+查找作用于当前终端或编辑器窗格，并且在搜索输入框拿着键盘焦点时仍然有效。
+
+## 路径与 URL
+
+Kero 能识别终端程序打印出来的网页 URL 和确实存在的本地路径。本地链接可以是绝对路径、以
+`~/` 开头、以 `./` 或 `../` 开头，也可以相对窗格的实时工作目录。诊断信息末尾的 `:42` 或
+`:42:7` 不会妨碍找到背后的文件。
+
+- **Command 点按**本地路径会在 Finder 里显示它；点网页 URL 则交给系统默认浏览器。
+- **按住 Command 右键**路径，会出现 **New File Tab** / **New File Pane**；对 URL 则出现
+  **New Browser Tab** / **New Browser Pane**。
+
+这样一来，编译器输出和 agent 对话就能直接回到同一个项目里。网页相关行为见
+[浏览器窗格](/zh/docs/browser)。
 
 ## 通知
 
-Kero 会把这些转给「通知中心」：
+Kero 会把两类终端事件转给通知中心：
 
-- 未聚焦会话里响的**铃声**
-- 程序主动发出的**通知转义序列**（`OSC 9`）——比如一次很长的构建结束了，或者测试跑挂了
+- 未聚焦会话里的铃声；
+- 构建工具或编码 agent 发出的 `OSC 777;notify` 请求。
 
-macOS 只会在某个终端第一次真的要发通知时才申请通知权限，而不是在应用启动时。
+通知可以播放系统提示音。点通知会激活 Kero，并跳到发出它的确切会话。macOS 只在某个终端第一次真的要通知时申请权限，不会在 Kero 启动时就弹框。
 
 ## 进度显示
 
-发出 `OSC 9;4` 进度的程序，会在终端上方得到一条细进度条，错误和暂停状态各有区分。不需要
-开启任何东西——只要工具报告了进度，你就看得到。
+发出 `OSC 9;4` 进度的程序，会在终端上方得到一条细进度条，正常、暂停和错误状态各有区分。不需要打开任何开关——程序报告了，窗格就显示。
 
-## 剪贴板与粘贴安全
+## 剪贴板、拖放与粘贴安全
 
-这些保护都和 Ghostty 的默认行为一致：
+- **读剪贴板要确认。** `OSC 52` 可以申请读取 macOS 剪贴板，包括通过 SSH 跑在远端的程序。Kero 会先问你。
+- **有风险的粘贴会提示。** 多行或看起来会立即执行命令的文本，会先停在确认步骤。
+- **文件会变成 shell 安全路径。** 从 Finder 复制或拖进来的文件，会作为经过引用的绝对路径插入。剪贴板图片仍会交给支持图片的 TUI。
 
-- **读剪贴板要确认。** 程序可以用 `OSC 52` 转义序列读取你的剪贴板——包括通过 SSH 跑在远程
-  主机上的程序。Kero 会先问你，而不是悄悄交出去。
-- **有风险的粘贴会提示。** 粘贴的文本如果看起来可能一到达就执行命令，会先弹出警告。
+## Option 键输入
 
-剪贴板里的图片，以及在 Finder 里复制的文件，会以 shell 安全的绝对路径粘贴进去——这正是
-支持图片的 TUI 期待收到的形式。
+默认情况下，Option 交给当前 macOS 输入源，因此 Polish Pro 之类的布局可以输入组合字符。如果终端程序需要把 Option 组合键当成 Meta 快捷键，打开设置里的 **Use Option as Alt/Meta**。对应配置键是
+[`terminal.macos-option-as-alt`](/zh/docs/configuration#terminalmacos-option-as-alt)。
 
-## 麦克风
+## `kero` 命令
 
-会话里运行的程序可以申请麦克风权限——比如 AI 编码工具的语音输入。macOS 会把这个请求归到
-Kero 名下，所以你看到的是一个写着 Kero 的提示，而不是那个程序。
+每个 Kero 终端都带一套了解项目上下文的 CLI：
+
+```sh
+kero                         # 以当前目录新建项目
+kero vim ~/src/app.swift     # 新建项目，并让第一个终端直接运行这组 argv
+kero +themes                 # 交互式浏览和预览主题
+kero +themes --list --dark   # 不打开浏览器，直接列出主题名
+kero +help                   # 查看全部命令组
+```
+
+主题浏览器会把当前选项实时预览到整个应用；Return 保存，Escape 恢复之前的主题。`kero +pane`
+和 `kero +agent` 是有保护、限制在当前项目内的命令，详见
+[Agent 与自动化](/zh/docs/automation)。
 
 ## 字体
 
-Kero 内置 **JetBrains Mono** 和 Nerd Font 符号，所以 powerline 提示符和图标字形不用装任何
-东西就能正常显示。换成任何已安装的等宽字体见
-[`font-family`](/zh/docs/configuration#font-family)，字号见
-[`font-size`](/zh/docs/configuration#font-size)，还有一个可选的加粗笔画开关
-[`font-thicken`](/zh/docs/configuration#font-thicken)。
+Kero 内置 JetBrains Mono 和 Nerd Font 符号，也可以换成任意已安装的等宽字体。见
+[`font-family`](/zh/docs/configuration#font-family)、
+[`font-size`](/zh/docs/configuration#font-size) 和
+[`terminal.font-thicken`](/zh/docs/configuration#terminalfont-thicken)。

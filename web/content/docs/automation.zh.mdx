@@ -1,0 +1,73 @@
+---
+title: Agent 与自动化
+description: 通过 Kero 受保护的本地 CLI 协调项目内的窗格和编码 agent。
+---
+
+Kero 能识别终端窗格里运行的编码 agent，并提供一套经过本地认证的自动化 CLI。你可以新建后台布局、启动 agent、发送受保护的提示、等待状态并读取结果，全程不抢走正在使用的窗格焦点。
+
+## 打开 agent 支持
+
+进入 **设置 → Automation**，打开 **AI**。受支持的编码 agent 随后就能使用 Kero 的协调命令；如果已经配置了 Pi、OpenCode 或 Grok Build，Kero 还会显示更准确的 **working**、**blocked** 和 **done** 状态。
+
+如果现有 agent 配置与这项功能冲突，Kero 会原样保留它，让开关回到之前的状态，并显示错误。第一次打开后，请重启已经在运行的 agent。
+
+对应的显式命令是：
+
+```sh
+kero +agent skill install
+```
+
+同一命令组还支持 `status`、`uninstall` 和 `--provider NAME`。
+
+## 窗格自动化
+
+`kero +pane` 控制布局和原始终端 I/O。成功操作返回 JSON，其中的 ID 可以传给后续命令：
+
+```sh
+kero +pane current
+kero +pane list
+kero +pane split --right --cwd "$PWD"
+kero +pane run --pane PANE_ID -- bun test
+kero +pane read --pane PANE_ID --lines 120
+kero +pane wait-output --pane PANE_ID --contains "ready" --timeout 30000
+```
+
+默认目标是发起命令的那个终端。新分屏留在后台，只有显式加 `--focus` 才会抢焦点。`run` 在目标 shell 里启动命令；`send` 是单独的原始终端输入操作。
+
+## Agent 自动化
+
+Kero 能识别 Codex、Claude Code、Gemini CLI、Grok Build、OpenCode、Cursor Agent、Aider、Amp 和 Pi。一套典型委派流程会把布局创建和 agent 创建分开写清楚：
+
+```sh
+# 1. 新建后台 shell，并从 JSON 响应里记下 pane_id。
+kero +pane split --right --cwd "$PWD"
+
+# 2. 在这个已有 shell 里启动指定 CLI。
+kero +agent start tests --kind codex --pane PANE_ID
+
+# 3. 通过受保护的 agent 通道发送范围明确的任务。
+kero +agent prompt tests --text "Run the focused tests and report failures."
+
+# 4. 不切过去，等它结束或阻塞，再读取稳定后的结果。
+kero +agent wait tests --state done,blocked --timeout 1800000
+kero +agent read tests --lines 160
+```
+
+`start` 不会新建或关闭布局。`prompt` 要求目标是活着、已识别并且可以接收输入的 agent。`wait` 会在 Kero 报告指定状态时返回；`read` 不会把尚未查看的结果标成已读。
+
+完整的命令与生命周期约定见 `kero +agent --help`、`kero +pane --help` 和 `kero +agent explain`。
+
+## 界面里的状态
+
+Kero 会在窗格和标签页上显示 **working**、**blocked** 和 **done** 状态，并在受支持的 agent 运行时自动更新。后台 agent 完成后会一直显示 **done**，直到你聚焦它的窗格。
+
+完成或需要输入的 agent 可以发通知并显示待处理徽章。按
+<kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>A</kbd> 跳到下一个需要注意的 agent。
+
+## 安全边界
+
+- 自动化只作用于发起命令的那个项目；猜出来的其他项目或窗口 ID 会被拒绝。
+- 后台操作默认不抢焦点。
+- Agent 消息用 `+agent prompt`。`+pane send` 是原始终端输入，可以和任何程序交互。
+- Kero 不会替你回答权限、凭据、信任或破坏性操作提示。Agent 进入 blocked，就是把决定交还给你。
+- 如果终端是在自动化环境加入之前打开的，命令可能会要求你新开一个终端再试。

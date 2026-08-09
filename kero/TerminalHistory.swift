@@ -6,10 +6,9 @@
 import AppKit
 import Darwin
 import Foundation
-import GhosttyTerminal
 
 /// Captures and normalizes styled terminal history without reaching into a
-/// terminal backend's buffer representation. Ghostty writes its screen to a
+/// terminal backend's buffer representation. A backend writes its screen to a
 /// temporary VT file; the rest of this utility operates only on that stream.
 enum TerminalHistorySerializer {
     enum CaptureResult {
@@ -19,15 +18,14 @@ enum TerminalHistorySerializer {
 
     private static let reset = "\u{1b}[0m"
 
-    /// Captures the screen and scrollback exposed by Ghostty's screen-file
-    /// action, keeping at most the last `maxLines` rows. Kero consumes the
-    /// action's synchronous open-URL callback as a file path, so history saves
-    /// do not touch the user's clipboard or actually open the temporary file.
+    /// Captures the screen and scrollback a backend exports, keeping at most
+    /// the last `maxLines` rows.
     @MainActor
-    static func capture(from view: KeroTerminalView, maxLines: Int) -> CaptureResult {
+    static func capture(
+        from surface: any TerminalBackendSurface, maxLines: Int
+    ) -> CaptureResult {
         guard maxLines > 0,
-              let captureFile = exportedFile(
-                  from: view, action: "write_screen_file:open,vt")
+              let captureFile = validatedCaptureFile(for: surface.exportScreenFile())
         else { return .failed }
         defer { removeCaptureFile(captureFile) }
 
@@ -37,20 +35,19 @@ enum TerminalHistorySerializer {
         return .captured(normalizedHistory(from: capturedVT, maxLines: maxLines))
     }
 
-    /// Plain visible rows for the Ctrl-Tab thumbnail. This uses Ghostty's
-    /// screen export instead of AppKit bitmap caching because its framebuffer-
+    /// Plain visible rows for the Ctrl-Tab thumbnail. This uses the backend's
+    /// screen export instead of AppKit bitmap caching because a framebuffer-
     /// only Metal layer cannot be captured reliably. Only the tail of a large
     /// export is read, keeping interactive tab switching bounded even when a
     /// session has megabytes of scrollback.
     @MainActor
     static func previewText(
-        from view: KeroTerminalView,
+        from surface: any TerminalBackendSurface,
         maxLines: Int,
         maxColumns: Int
     ) -> String? {
         guard maxLines > 0, maxColumns > 0,
-              let captureFile = exportedFile(
-                  from: view, action: "write_screen_file:open,vt")
+              let captureFile = validatedCaptureFile(for: surface.exportScreenFile())
         else { return nil }
         defer { removeCaptureFile(captureFile) }
 
@@ -103,31 +100,25 @@ enum TerminalHistorySerializer {
         .joined(separator: "\n")
     }
 
-    /// A positive-only probe for a primary-buffer scrollback snapshot. Ghostty
-    /// does not export scrollback while an alternate buffer is active, but an
-    /// empty primary buffer can also produce no file, so false is inconclusive.
+    /// A positive-only probe for a primary-buffer scrollback snapshot. A
+    /// backend does not export scrollback while an alternate buffer is active,
+    /// but an empty primary buffer also produces no file, so false is
+    /// inconclusive.
     @MainActor
-    static func hasPrimaryScrollback(_ view: KeroTerminalView) -> Bool {
-        guard let captureFile = exportedFile(
-            from: view, action: "write_scrollback_file:open,vt"
+    static func hasPrimaryScrollback(_ surface: any TerminalBackendSurface) -> Bool {
+        guard let captureFile = validatedCaptureFile(
+            for: surface.exportScrollbackFile()
         ) else { return false }
         removeCaptureFile(captureFile)
         return true
     }
 
-    /// Runs a Ghostty file-export action and returns only its validated output.
-    @MainActor
-    private static func exportedFile(
-        from view: KeroTerminalView, action: String
-    ) -> CaptureFile? {
-        guard let emittedPath = view.captureHistoryExportPath(action: action) else {
-            return nil
-        }
-        return validatedCaptureFile(for: emittedPath)
-    }
-
     /// Label shown in the restored-history divider.
-    static let restoredBannerLabel = "Session Contents Restored"
+    private static let restoredBannerSourceLabel = "Session Contents Restored"
+    static let restoredBannerLabel = String(
+        localized: "Session Contents Restored",
+        comment: "Divider between restored terminal scrollback and a new live shell."
+    )
 
     /// The rule that brackets the label on each side of the divider.
     private static let restoredBannerRule = String(repeating: "\u{2500}", count: 4)
@@ -135,9 +126,30 @@ enum TerminalHistorySerializer {
     /// The divider's plain, unstyled text — `<rule> <label> <rule>`. `visibleText`
     /// yields exactly this for a divider row, so recognizing one is an equality
     /// check against it.
-    private static var restoredBannerText: String {
-        "\(restoredBannerRule) \(restoredBannerLabel) \(restoredBannerRule)"
+    private static func restoredBannerText(label: String) -> String {
+        "\(restoredBannerRule) \(label) \(restoredBannerRule)"
     }
+
+    /// A saved capture may have been written under a different app language.
+    /// Recognize every bundled translation so changing languages never replays
+    /// an old divider as terminal output.
+    private static let restoredBannerTexts: Set<String> = {
+        var labels = Set([restoredBannerSourceLabel, restoredBannerLabel])
+        for localization in Bundle.main.localizations {
+            guard let path = Bundle.main.path(
+                forResource: localization,
+                ofType: "lproj"
+            ), let bundle = Bundle(path: path) else { continue }
+            labels.insert(
+                bundle.localizedString(
+                    forKey: restoredBannerSourceLabel,
+                    value: restoredBannerSourceLabel,
+                    table: "Localizable"
+                )
+            )
+        }
+        return Set(labels.map(restoredBannerText))
+    }()
 
     /// A single-line divider fed into the terminal directly beneath replayed
     /// scrollback, marking where the restored output ends and the live shell
@@ -272,7 +284,9 @@ enum TerminalHistorySerializer {
     }
 
     private static func isRestoredBanner(_ line: String) -> Bool {
-        visibleText(in: line).trimmingCharacters(in: .whitespaces) == restoredBannerText
+        restoredBannerTexts.contains(
+            visibleText(in: line).trimmingCharacters(in: .whitespaces)
+        )
     }
 
     private static func isVisiblyBlank(_ line: String) -> Bool {
@@ -353,7 +367,11 @@ enum TerminalHistorySerializer {
     /// Accept only a regular file in a direct, non-symlink child of the OS temp
     /// directory. That child is the unique directory Ghostty creates for this
     /// screen dump and is the only directory cleanup may remove.
-    private static func validatedCaptureFile(for emittedPath: String) -> CaptureFile? {
+    /// Holds a backend's export to its side of the bargain: a regular file,
+    /// alone in a fresh subdirectory of the process temporary directory, with
+    /// no symlink anywhere on the path. Anything else is refused unread.
+    private static func validatedCaptureFile(for emittedPath: String?) -> CaptureFile? {
+        guard let emittedPath else { return nil }
         let path = emittedPath.trimmingCharacters(in: .whitespacesAndNewlines)
         guard path.hasPrefix("/"), !path.contains("\0") else { return nil }
 

@@ -24,9 +24,10 @@ final class SessionInfoModel: nonisolated ObservableObject {
         let memoryKB: Int
 
         var memoryLabel: String {
-            memoryKB >= 1024
-                ? String(format: "%.0f MB", Double(memoryKB) / 1024)
-                : "\(memoryKB) KB"
+            ByteCountFormatter.string(
+                fromByteCount: Int64(memoryKB) * 1024,
+                countStyle: .memory
+            )
         }
     }
 
@@ -43,9 +44,9 @@ final class SessionInfoModel: nonisolated ObservableObject {
     /// The project directory the file tree and git panels anchor to —
     /// shown alongside the live cwd so both are visible at a glance.
     @Published private(set) var projectRootPath = ""
-    /// Whether that directory was derived (closest git repository / cwd)
-    /// rather than pinned by the user.
-    @Published private(set) var projectRootIsAutomatic = true
+    /// Which rule produced that directory — pinned, the shell's repository,
+    /// or the repository the foreground job moved to.
+    @Published private(set) var projectRootSource = Project.PanelRootSource.shell
     @Published private(set) var shellName = ""
     @Published private(set) var shellPid: pid_t = 0
     @Published private(set) var processes: [ProcessItem] = []
@@ -56,14 +57,14 @@ final class SessionInfoModel: nonisolated ObservableObject {
     func sync(
         root: String,
         projectRoot: String,
-        projectRootIsAutomatic: Bool,
+        projectRootSource: Project.PanelRootSource,
         shellName: String,
         shellPid: pid_t?
     ) {
         if rootPath != root { rootPath = root }
         if projectRootPath != projectRoot { projectRootPath = projectRoot }
-        if self.projectRootIsAutomatic != projectRootIsAutomatic {
-            self.projectRootIsAutomatic = projectRootIsAutomatic
+        if self.projectRootSource != projectRootSource {
+            self.projectRootSource = projectRootSource
         }
         if self.shellName != shellName { self.shellName = shellName }
         let pid = shellPid ?? 0

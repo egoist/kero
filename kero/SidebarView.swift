@@ -10,6 +10,8 @@ import SwiftUI
 /// its sessions show as horizontal tabs in the main header.
 struct SidebarView: View {
     @ObservedObject var manager: TerminalManager
+    let bottomBarHeight: CGFloat
+    @ObservedObject private var settings = AppSettings.shared
     @ObservedObject private var themeChanges = Theme.changes
     @Environment(\.openSettings) private var openSettings
     @Environment(\.colorScheme) private var colorScheme
@@ -19,9 +21,24 @@ struct SidebarView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Header-height strip housing the traffic-light buttons.
-            WindowDragArea()
-                .frame(height: 38)
+            // Header-height strip housing the traffic-light buttons and the
+            // control for collapsing this sidebar.
+            HStack(spacing: 0) {
+                WindowDragArea()
+                    .frame(maxWidth: .infinity)
+                if manager.isFPSCounterVisible {
+                    FPSBadge()
+                        .padding(.trailing, 8)
+                }
+                ChromeIconButton(
+                    systemImage: "sidebar.left",
+                    tooltip: "Toggle Left Sidebar (⌘B)"
+                ) {
+                    manager.toggleLeftSidebar()
+                }
+            }
+            .padding(.trailing, 8)
+            .frame(height: 38)
 
             ScrollView {
                 VStack(spacing: 3) {
@@ -34,7 +51,8 @@ struct SidebarView: View {
                             close: { manager.close(project) },
                             isDragging: draggedProjectID == project.id,
                             onDrag: { updateProjectDrag(source: project.id, location: $0) },
-                            onDragEnded: endProjectDrag
+                            onDragEnded: endProjectDrag,
+                            fontSize: settings.sidebarFontSize
                         )
                         .background {
                             GeometryReader { proxy in
@@ -72,7 +90,7 @@ struct SidebarView: View {
                 ) { openSettings() }
             }
             .padding(.horizontal, 8)
-            .padding(.vertical, 6)
+            .frame(height: bottomBarHeight)
             .overlay(alignment: .top) {
                 Rectangle()
                     .fill(Color(nsColor: Theme.divider))
@@ -131,12 +149,13 @@ struct SidebarView: View {
     }
 }
 
-private struct SidebarFooterButton: View {
+struct ChromeIconButton: View {
     let systemImage: String
-    let tooltip: String
-    /// Buttons near the sidebar's right edge anchor `.trailing` so the label
-    /// grows inward instead of off-panel.
-    var tooltipAlignment: HorizontalAlignment = .leading
+    let tooltip: LocalizedStringKey
+    var font: Font = .system(size: 12, weight: .medium)
+    var iconSize: CGFloat = 16
+    var tooltipEdge: TooltipEdge = .below
+    var tooltipAlignment: HorizontalAlignment = .trailing
     let action: () -> Void
 
     @State private var isHovering = false
@@ -144,14 +163,60 @@ private struct SidebarFooterButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: systemImage)
-                .font(.system(size: 12, weight: .medium))
+                .font(font)
                 .foregroundStyle(isHovering ? .primary : .secondary)
-                .frame(width: 24, height: 24)
+                .frame(width: iconSize, height: iconSize)
+                .padding(4)
+                .background {
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(isHovering ? Color.primary.opacity(0.08) : .clear)
+                }
                 .contentShape(RoundedRectangle(cornerRadius: 6))
         }
         .buttonStyle(.plain)
         .onHover { isHovering = $0 }
-        .tooltip(tooltip, alignment: tooltipAlignment)
+        .tooltip(tooltip, edge: tooltipEdge, alignment: tooltipAlignment)
+    }
+}
+
+/// Live frames-per-second readout in the header strip, fed by `FPSCounter`.
+/// It exists only while the manager's toggle is on, so the counter starts
+/// when the badge appears and stops when it leaves the hierarchy.
+private struct FPSBadge: View {
+    @StateObject private var counter = FPSCounter()
+
+    var body: some View {
+        Text("\(counter.fps) fps")
+            .font(.system(size: 10, weight: .medium))
+            .monospacedDigit()
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(
+                RoundedRectangle(cornerRadius: 5)
+                    .fill(Color.primary.opacity(0.07))
+            )
+            .onAppear { counter.start() }
+            .onDisappear { counter.stop() }
+    }
+}
+
+private struct SidebarFooterButton: View {
+    let systemImage: String
+    let tooltip: LocalizedStringKey
+    /// Buttons near the sidebar's right edge anchor `.trailing` so the label
+    /// grows inward instead of off-panel.
+    var tooltipAlignment: HorizontalAlignment = .leading
+    let action: () -> Void
+
+    var body: some View {
+        ChromeIconButton(
+            systemImage: systemImage,
+            tooltip: tooltip,
+            tooltipEdge: .above,
+            tooltipAlignment: tooltipAlignment,
+            action: action
+        )
     }
 }
 
@@ -173,6 +238,7 @@ private struct SidebarProjectRow: View {
     let isDragging: Bool
     let onDrag: (CGPoint) -> Void
     let onDragEnded: () -> Void
+    let fontSize: Double
 
     @State private var isHovering = false
     @State private var isRenaming = false
@@ -233,8 +299,11 @@ private struct SidebarProjectRow: View {
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = false
-        panel.prompt = "Choose"
-        panel.message = "Choose the directory for “\(project.name)”."
+        panel.prompt = String(localized: "Choose", comment: "Button in the project directory picker.")
+        panel.message = String(
+            localized: "Choose the directory for “\(project.name)”.",
+            comment: "Message in the project directory picker. The placeholder is a project name."
+        )
         if let current = project.customDirectory
             ?? project.selectedSession?.currentDirectoryPath {
             panel.directoryURL = URL(fileURLWithPath: current, isDirectory: true)
@@ -255,12 +324,13 @@ private struct SidebarProjectRow: View {
             Image(systemName: "folder")
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(isSelected ? Color(nsColor: Theme.accent) : .secondary)
+                .frame(width: max(14, fontSize), alignment: .center)
 
             VStack(alignment: .leading, spacing: 1) {
                 if isRenaming {
                     TextField("", text: $renameDraft)
                         .textFieldStyle(.plain)
-                        .font(.system(size: 12, weight: .medium))
+                        .font(.system(size: projectTitleFontSize, weight: .medium))
                         .focused($renameFocused)
                         .onSubmit(commitRename)
                         .onExitCommand { isRenaming = false }
@@ -271,7 +341,7 @@ private struct SidebarProjectRow: View {
                         }
                 } else {
                     Text(project.name)
-                        .font(.system(size: 12))
+                        .font(.system(size: projectTitleFontSize))
                         .foregroundStyle(isSelected ? .primary : .secondary)
                         .lineLimit(1)
                 }
@@ -280,20 +350,32 @@ private struct SidebarProjectRow: View {
 
             Spacer(minLength: 0)
 
-            if isHovering, !isRenaming {
-                Button(action: close) {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 16, height: 16)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-            } else if index < 9, !isRenaming {
-                Text("⌘\(index + 1)")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.tertiary)
+            if let rollup = project.agentRollup, !isRenaming {
+                AgentStatusBadgeRepresentable(rollup: rollup)
+                    .fixedSize()
             }
+
+            // Fixed trailing slot: close and the ⌘N hint share the same
+            // width so hover does not reflow the row. Continuous title
+            // updates from the terminal re-render the strip; without a
+            // stable slot that reflow reads as jitter under the pointer.
+            ZStack(alignment: .trailing) {
+                if isHovering, !isRenaming {
+                    Button(action: close) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 16, height: 16)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                } else if index < 9, !isRenaming {
+                    Text(verbatim: "⌘\(index + 1)")
+                        .font(.system(size: supportingFontSize))
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            .frame(width: 24, height: 16, alignment: .trailing)
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 6)
@@ -309,8 +391,7 @@ private struct SidebarProjectRow: View {
     }
 
     private func commitRename() {
-        let trimmed = renameDraft.trimmingCharacters(in: .whitespacesAndNewlines)
-        project.customName = trimmed.isEmpty ? nil : trimmed
+        project.customName = Project.normalizedCustomName(renameDraft)
         isRenaming = false
     }
 
@@ -318,12 +399,26 @@ private struct SidebarProjectRow: View {
     private var subtitle: some View {
         if project.sessions.count > 1 {
             Text("\(project.sessions.count) sessions")
-                .font(.system(size: 10))
+                .font(.system(size: supportingFontSize))
                 .foregroundStyle(.tertiary)
                 .lineLimit(1)
         } else if let session = project.selectedSession {
-            SessionDirectoryLabel(session: session)
+            SessionDirectoryLabel(session: session, fontSize: supportingFontSize)
         }
+    }
+
+    private var supportingFontSize: Double {
+        10 * sidebarFontScale
+    }
+
+    /// Match the file-tree label's designed 11.5 pt size while following the
+    /// shared sidebar font-size setting.
+    private var projectTitleFontSize: Double {
+        11.5 * sidebarFontScale
+    }
+
+    private var sidebarFontScale: Double {
+        fontSize / AppSettings.defaultSidebarFontSize
     }
 }
 
@@ -331,11 +426,12 @@ private struct SidebarProjectRow: View {
 /// it observes the session's own published working directory.
 private struct SessionDirectoryLabel: View {
     @ObservedObject var session: TerminalSession
+    let fontSize: Double
 
     var body: some View {
         if let dir = session.directoryLabel {
             Text(dir)
-                .font(.system(size: 10))
+                .font(.system(size: fontSize))
                 .foregroundStyle(.tertiary)
                 .lineLimit(1)
         }

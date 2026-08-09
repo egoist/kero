@@ -1,114 +1,124 @@
 ---
 title: 配置
-description: Kero 的每一个选项、它做什么，以及存放它们的配置文件。
+description: Kero 的全部持久化选项、各自作用，以及它们存在哪里。
 ---
 
-Kero 能改的一切都在一个文件里：
+Kero 大多数持久化设置都在一个文件里：
 
 ```
 ~/.config/kero/config.toml
 ```
 
-设置窗口（<kbd>Cmd</kbd>+<kbd>,</kbd>）写的是同一个文件，用哪个都行——这个文件不是退而求其次
-的后门，设置本来就在这里。Kero 的全部选项都列在下面。
+设置窗口（<kbd>Cmd</kbd>+<kbd>,</kbd>）写的也是这个文件。少数由 macOS 管理的设置——语言和自动更新——存在别处，列在本页末尾。
 
 ## 这个文件的行为
 
 手动改之前值得先知道：
 
-- **启动时读一次。** Kero 运行中改文件不会有任何变化，得重启。在设置窗口里改则立即生效。
-- **只要有设置变化，Kero 就会重写它。** 文件是从头重新生成的，所以你**写的注释和 Kero 不认识
-  的键都会丢**——只要你下次在设置窗口里动了任何一个控件。二选一，或者把权威版本放在你的
-  dotfiles 里，让它覆盖过来。
-- **只写非默认值。** 一份没什么特别配置的文件几乎是空的。删掉某个键就恢复它的默认值，删掉
-  整个文件就全部恢复。
-- **解析器很小。** 支持扁平键（`font-size = 14`）、点号键（`editor.wrap-lines = true`）、
-  `[table]` 表头（会被摊平成点号形式）、`#` 注释，以及字符串 / 数字 / 布尔值。不支持数组、
-  内联表和多行字符串。
-- **错误的值会被忽略，而不是报错。** 超出范围的字号或拼错的主题名会退回默认值，而不是让程序
-  起不来。
+- **启动时读取。** Kero 运行中改文件不会立即生效，要重启。设置窗口里的改动通常立即生效，控件另有说明的除外。
+- **只要文件型设置有变化，Kero 就会重写它。** 文件会从头生成，所以你的注释和未知键会在下次使用这些控件时丢失。最好只选一种方式维护它，或者把权威版本放在 dotfiles 里。
+- **通常只写非默认值。** 唯一例外是 `font-size`，它总会出现。删掉其他键就恢复默认值。
+- **解析器有意保持精简。** 支持扁平键、点号键、`[table]` 表头、`#` 注释，以及字符串、数字和布尔值；不支持数组、内联表和多行字符串。
+- **错误值会安全回退。** 超出范围的字号、未知后端或拼错的主题名不会让 Kero 启动失败。
 
-## `theme`
+## 外观
+
+### `theme`
 
 `"system"` · `"light"` · `"dark"`——默认 `"system"`
 
-Kero 用哪种外观，和 macOS 其余部分无关。`"system"` 跟随系统一起切换；另外两个把 Kero 钉死在
-一种外观上，不管系统在做什么。
+选择应用外观。`"system"` 跟随 macOS，另外两个把 Kero 固定为浅色或深色。
 
-它决定的是下面**哪一个**配色主题生效——它本身不是配色选择。
-
-## `theme-dark` 和 `theme-light`
+### `theme-dark` 和 `theme-light`
 
 字符串——默认 `"Default Dark"` 和 `"Default Light"`
 
-两种外观各自使用的配色主题。Kero 始终同时持有这两个并在它们之间切换，所以跟随系统就意味着
-夜里是深色、白天是浅色，你什么都不用动。
+两种外观各自使用的配色主题。它会同时重绘终端、窗口装饰、侧边栏、编辑器和 diff。Kero 自带的默认主题保留半透明侧边栏，其他主题会把侧边栏刷成与自身配色一致。
 
-换主题会同时给终端、窗口装饰、侧边栏和编辑器重新上色，即时生效。可用的名字是：
+设置窗口列出两个终端后端共同支持的精选主题。手写名称必须与列表里的显示名完全一致，包括大小写；否则会回退到对应的默认主题。
 
-- `"Default Dark"` 和 `"Default Light"`——Kero 自己的，源自 GitHub 的配色。只有这两个保留半透明
-  侧边栏；其余每个主题都会把侧边栏刷成不透明，以匹配自身。
-- **内置 Ghostty 主题目录**里的任意一个，用它的确切显示名：`"Catppuccin Mocha"`、
-  `"Gruvbox Dark Hard"`、`"Tokyo Night"`、`"Nord"`、`"Solarized Dark"` 等等。匹配是精确的，
-  区分大小写。
+### `toolbar.visibility`
 
-认不出来的名字会静默退回默认值——这也是为什么一个笔误不会让你在设置里对着一个空选择器发呆。
+`"hide"` · `"auto"` · `"always"`——默认 `"hide"`
 
-没有什么拦着你把深色主题写进 `theme-light`。Kero 不会纠正你；只是设置里的选择器不会给你这个
-选项，因为它按背景明度把主题目录分成了两半。
+控制当前标签页下方的紧凑工具栏：
 
-## `font-family`
+- `"hide"` 始终隐藏。
+- `"auto"` 只在项目目录是 Git 仓库时显示。
+- `"always"` 在每个项目里显示；不是仓库时会显示 **No Git Repository**。
 
-字符串——默认 `""`，即内置的 JetBrains Mono
+它具体展示什么，见 [Git 工具栏](/zh/docs/git#git-工具栏)。
 
-凡是显示文字的地方用的都是它：终端、编辑器和 diff 视图都读这一个键，所以 diff 绝不会用和
-产生它的那个 shell 不同的字体来显示。
+## 文字
 
-Kero 内置 **JetBrains Mono**，并且只为自己这个进程注册它，不会往系统里装任何东西。它还挂了
-**Symbols Nerd Font** 作为后备，所以哪怕你选的字体不是打过补丁的 Nerd Font，powerline 分隔符和
-图标字形也能正常显示。不管你这里设成什么，这个后备都在。
+### `font-family`
 
-写字族名，不要写具体字重：`"IBM Plex Mono"`，不是 `"IBM Plex Mono Regular"`。不存在的名字或者
-非等宽字体会退回内置默认值，而设置窗口本来就只列出等宽字族。
+字符串——默认 `""`，表示内置的 JetBrains Mono
 
-## `font-size`
+终端、编辑器和 diff 共用这个字族。请写字族名，不要写具体字重：`"IBM Plex Mono"`，而不是
+`"IBM Plex Mono Regular"`。不存在或非等宽的字族会回退到内置默认值。
+
+Kero 还会附加 Symbols Nerd Font 作为后备，所以即使选中的字族不是打过补丁的 Nerd Font，
+Powerline 分隔符和图标字形也能正常显示。
+
+### `font-size`
 
 数字，8–32——默认 `13`
 
-磅值。超出范围的值会被丢弃，改用默认值。
+终端、编辑器和 diff 共用的字号，单位是磅。这是唯一一个即使等于默认值，Kero 也会写进文件的键。
 
-这是唯一一个即使等于默认值 Kero 也照写不误的键。
+### `sidebar.font-size`
 
-## `font-thicken`
+数字，9–18——默认 `14`
 
-布尔值——默认 `false`
+左右侧边栏的基础字号。调整后，分区标题、列表、元数据和控件仍会保持原本的大小层级。
 
-用更粗的笔画渲染终端字形，就像经典的 macOS 字体平滑那样。默认关闭，这样文字和原版 Ghostty
-一致。
-
-在非 Retina 屏上值得一试，那里默认的字看着可能偏细。在 Retina 屏上它基本只会让文字变糊。
-
-## `editor.wrap-lines`
+### `terminal.font-thicken`
 
 布尔值——默认 `false`
 
-在[文件编辑器](/zh/docs/files)里把长行按窗格宽度软折行。关闭时它们改为横向滚动。
+用稍粗的笔画渲染终端文字，效果类似经典 macOS 字体平滑。两个终端后端都支持，设置窗口里的预览也会反映效果。旧的 `font-thicken` 仍能读取，但保存后会改写成现在的点号键。
 
-只影响编辑器——终端里怎么折行是运行中的程序的事，而 diff 视图始终是滚动的。
-
-## `terminal.restore-history`
+### `editor.wrap-lines`
 
 布尔值——默认 `false`
 
-Kero 重启时恢复每个终端之前的滚动历史，位置在新启动的 shell 上方、`Session Contents
-Restored` 分隔线下方。
+在[文件编辑器](/zh/docs/files)里按窗格宽度软折行。关闭时长行横向滚动；它不会改变终端或 diff
+里的折行行为。
 
-它默认关闭，理由值得直说：打开它意味着 Kero 会捕获终端输出并**写到磁盘上**，以便之后重放。
-如果有密钥从你的终端里过，它也会进到那个文件里。
+## 终端
 
-回来的是静态文本——是「当时发生过什么」的记录，不是一个还活着的会话。
-[项目、标签页和窗格布局](/zh/docs/projects#重启后还剩下什么)无论如何都会恢复；这个选项只管
-它们里面的滚动历史。
+### `terminal.backend`
+
+`"libghostty"` · `"alacritty"`——默认 `"libghostty"`
+
+选择之后新建终端使用的模拟器；已经打开的窗格继续使用启动时的后端。两者都是原生 GPU 加速，都支持图片渲染并共用 Kero 主题；Alacritty 通常占用更少内存。
+
+环境变量与兼容约定见[终端后端](/zh/docs/terminal#终端后端)。
+
+### `terminal.macos-option-as-alt`
+
+布尔值——默认 `false`
+
+打开后，Option 组合键会作为 Alt/Meta 快捷键发送给终端程序。默认关闭，让 Option 继续交给当前 macOS 输入源，因此 Polish Pro 之类的键盘布局仍能输入组合字符。
+
+### `terminal.restore-history`
+
+布尔值——默认 `false`
+
+重启后，在全新 shell 上方恢复每个终端之前的滚动历史。恢复的是静态文本，不是仍在运行的进程。
+
+恢复的滚动历史会保存在磁盘上，所以终端里显示过的密钥也可能包含在内。这个设置默认关闭。[项目、标签页和窗格布局](/zh/docs/projects#重启后还剩下什么)无论如何都会恢复。
+
+## 自动化
+
+### `ai.enabled`
+
+布尔值——默认 `false`
+
+让受支持的编码 agent 使用 Kero 受保护的窗格与 agent 命令，并在界面里显示 agent 状态。推荐用设置窗口的开关，因为错误会直接显示出来，而且冲突的现有配置会保持原样。
+
+窗格与 agent 命令见 [Agent 与自动化](/zh/docs/automation)。
 
 ## 一份完整的例子
 
@@ -118,19 +128,23 @@ theme-dark = "Catppuccin Mocha"
 theme-light = "Catppuccin Latte"
 font-family = "IBM Plex Mono"
 font-size = 14
-font-thicken = false
-editor.wrap-lines = true
+sidebar.font-size = 13
+toolbar.visibility = "auto"
+terminal.font-thicken = true
+terminal.macos-option-as-alt = false
+terminal.backend = "alacritty"
 terminal.restore-history = true
+editor.wrap-lines = true
+ai.enabled = true
 ```
 
-每个键都是可选的，而这就是全部了。没出现在这份列表里的东西，Kero 就是不让你配。
+每个键都是可选的。删掉某个键，就让那项设置恢复默认值。
 
-## 不在这个文件里的东西
+## 不在这个文件里的设置
 
-- **自动检查更新。** **设置 → Updates** 里的那个开关属于 Sparkle，存在 macOS 的偏好设置里，
-  不在这儿。见[安装](/zh/docs/installation#更新)。
-- **窗口和布局状态**——窗口尺寸、侧边栏宽度、当时开着哪个面板、用来恢复项目的会话快照。它们都在
-  macOS 自己的偏好设置里，归属 `sh.kero`，也不适合手动改。
-- **Ghostty 的配置。** Kero 不读 `~/.config/ghostty`。终端内核是 libghostty，但它的设置就是上面
-  这些键；其余一切都用 Ghostty 的默认值。
+- **语言。** 设置里可选「跟随系统」、English、简体中文和日本語。它使用 macOS 的单应用语言偏好，并且要重启后生效，所以不存进 TOML。
+- **自动检查更新。** **设置 → Updates** 里的开关属于 Sparkle。见[安装](/zh/docs/installation#更新)。
+- **窗口与布局状态。** 窗口尺寸、侧边栏宽度、当前面板、项目、标签页、窗格、浏览器 URL 和
+  diff 控件偏好，都存在 Kero 的 macOS 偏好设置或会话快照里。
+- **后端自己的配置文件。** Kero 不读取 `~/.config/ghostty`，也不读取 Alacritty 配置。Kero 的设置就是两个后端共同支持的配置面。
 - **快捷键。** 目前[快捷键](/zh/docs/shortcuts)是固定的。

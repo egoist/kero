@@ -1,0 +1,4 @@
+Material Icon Theme 5.37.0
+Source: https://github.com/PKief/vscode-material-icon-theme
+Pinned commit: 850c06c7fb7ea73d873a0ce2f966bbd20850946d
+Kero includes a curated catalog of 300 logical file icons.

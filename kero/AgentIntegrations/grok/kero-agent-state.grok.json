@@ -1,0 +1,49 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ \"$KERO_AUTOMATION\" = \"1\" ] || exit 0; command -v kero >/dev/null 2>&1 || exit 0; exec kero +agent _integration grok working # KERO_INTEGRATION_ID=grok",
+            "timeout": 2
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ \"$KERO_AUTOMATION\" = \"1\" ] || exit 0; command -v kero >/dev/null 2>&1 || exit 0; exec kero +agent _integration grok idle --genuine-stop # KERO_INTEGRATION_ID=grok",
+            "timeout": 2
+          }
+        ]
+      }
+    ],
+    "StopFailure": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ \"$KERO_AUTOMATION\" = \"1\" ] || exit 0; command -v kero >/dev/null 2>&1 || exit 0; exec kero +agent _integration grok blocked # KERO_INTEGRATION_ID=grok",
+            "timeout": 2
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "matcher": "agent_error",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ \"$KERO_AUTOMATION\" = \"1\" ] || exit 0; command -v kero >/dev/null 2>&1 || exit 0; exec kero +agent _integration grok blocked # KERO_INTEGRATION_ID=grok",
+            "timeout": 2
+          }
+        ]
+      }
+    ]
+  }
+}
