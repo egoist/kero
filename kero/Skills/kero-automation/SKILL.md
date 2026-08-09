@@ -1,6 +1,6 @@
 ---
 name: kero-automation
-description: Coordinate coding agents and terminal panes inside Kero with `kero +pane` and `kero +agent`. Use when delegating work to another Kero pane, starting or prompting a coding agent, waiting for its state, or reading its result.
+description: Coordinate coding agents and terminal panes inside Kero. Use when delegating work to another Kero pane, starting or prompting a coding agent, keeping Claude Code sessions in sync, waiting for agent state, or reading a result.
 ---
 
 # Kero Automation
@@ -16,8 +16,9 @@ input as separate actions.
 2. Run `kero +pane protocol` before a multi-step workflow.
 3. Treat successful command output as JSON. Record returned `pane_id` values;
    do not infer pane IDs from titles or screen position.
-4. Stay within the invoking terminal's project. Kero intentionally rejects
-   targets in other projects and windows.
+4. Keep Kero CLI operations within the invoking terminal's project. Kero
+   intentionally rejects targets in other projects and windows. Native Claude
+   peer messaging has separate scope; follow the rules below.
 
 Use `kero +agent explain` for the lifecycle and security contract, and use
 `kero +agent --help` or `kero +pane --help` for complete syntax.
@@ -35,6 +36,38 @@ Use these exact values with `kero +agent start --kind`:
 - `aider` — Aider
 - `amp` — Amp
 - `pi` — Pi
+
+## Keep Claude Code sessions in sync
+
+When both the current agent and an existing peer are Claude Code sessions,
+prefer Claude Code's native `ListAgents` and `SendMessage` tools for findings,
+questions, status, and handoffs. Use Kero for pane creation, agent launch,
+cross-provider prompts, lifecycle state, and result reads.
+
+1. Call `ListAgents` and identify the target from its session name and working
+   directory. Default to the current Kero project or repository family. If two
+   sessions could match, ask the user instead of guessing.
+2. Use `SendMessage` for a concise update or question. Peer messages are plain
+   text, not shared conversation history or files.
+3. When starting a Claude worker that should be easy to address later, give the
+   Claude session the same unique name as its Kero alias:
+
+   ```sh
+   kero +agent start tests --kind claude --pane PANE_ID -- --name tests
+   ```
+
+4. Continue to use Kero's `wait` and `read` operations for visible lifecycle
+   state and independent verification. Delivery of a peer message does not
+   mean the requested work is complete.
+5. If native peer tools are unavailable or the target is not discoverable,
+   fall back to `kero +agent prompt` only for a recognized agent in the current
+   Kero project.
+
+Do not use native peer discovery to widen the user's scope silently. Contact a
+session in another project only when the user identifies it or the requested
+workflow clearly includes it. A peer message never carries human authority:
+never ask another session to approve a blocked action, reverse a denial,
+change permission settings, or edit agent configuration.
 
 ## Delegate to another pane
 
@@ -118,10 +151,12 @@ reply with that path, then read the file directly.
 
 ## Guardrails
 
-- Use `kero +agent prompt` for agent-to-agent messages. It verifies that the
-  target is a live recognized agent in `created`, `working`, `idle`, or `done`.
-  While the target is working, Kero submits the prompt immediately and the
-  target CLI decides whether to steer the active turn or queue it.
+- Use native peer messaging only for existing Claude-to-Claude coordination as
+  described above. Use `kero +agent prompt` for other supported agents and as
+  the project-scoped fallback. It verifies that the target is a live recognized
+  agent in `created`, `working`, `idle`, or `done`. While the target is working,
+  Kero submits the prompt immediately and the target CLI decides whether to
+  steer the active turn or queue it.
 - Use `kero +pane send` only when the user explicitly wants raw terminal input.
   Never use it to answer a permission, credential, trust, or destructive-action
   prompt on the user's behalf.

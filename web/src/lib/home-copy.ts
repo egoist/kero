@@ -142,7 +142,7 @@ const en: HomeCopy = {
         {
           name: 'Agent-aware',
           detail:
-            'let coding agents delegate background work while you follow status, notifications, and approvals',
+            'let coding agents delegate work and keep parallel sessions in sync while you follow status, notifications, and approvals',
         },
         {
           name: 'Desktop notifications',
@@ -310,7 +310,7 @@ const zh: HomeCopy = {
         },
         {
           name: '与 AI Agent 协作',
-          detail: '让编码 agent 分派后台工作，你通过状态、通知和批准掌握进度',
+          detail: '让编码 agent 分派工作、同步并行会话，你通过状态、通知和批准掌握进度',
         },
         {
           name: '桌面通知',

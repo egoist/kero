@@ -1,6 +1,6 @@
 ---
 title: Working with AI agents
-description: Let coding agents delegate background work across Kero while you stay focused and in control.
+description: Let coding agents delegate work and keep parallel sessions in sync while you stay focused and in control.
 ---
 
 Kero's automation is primarily for AI coding agents. It gives them a safe way
@@ -30,6 +30,9 @@ Tell your agent the outcome you want. For example:
 
 > Delegate this bug to another Codex agent, then review its result.
 
+> Ask the Claude session working on the API whether the schema is ready, then
+> pass the answer to the test session.
+
 > Start the dev server beside us, wait until it is ready, and give me the URL.
 
 > Check whether the background agent is finished. If it is blocked, tell me
@@ -37,6 +40,23 @@ Tell your agent the outcome you want. For example:
 
 The agent handles Kero's automation interface on your behalf. You do not need
 to type or memorize any Kero automation commands.
+
+## Let parallel sessions keep each other in sync
+
+With [Claude Code 2.1.224 or later](https://code.claude.com/docs/en/cross-session-messaging),
+Claude sessions running on the same Mac can pass findings, questions, and
+status directly to each other. You can ask one session to check on another,
+or let a session warn a peer when its work changes a shared API or unblocks a
+dependent task.
+
+This removes the copy-and-paste step from parallel work. Each conversation
+stays visible in its Kero pane while the agents exchange only the text they
+need. They do not share conversation history or files.
+
+A message from another agent is never treated as your approval. It cannot
+answer a permission prompt, change configuration, or bypass the receiving
+session's normal safety rules. If the next step needs your decision, the agent
+still becomes **Blocked** and hands it back to you.
 
 ## Keep working while it runs
 
@@ -67,8 +87,11 @@ needs your attention.
 
 ## You stay in control
 
-- Agent automation stays inside the current Kero project and cannot reach
-  panes in another project or window.
+- Kero's pane automation stays inside the current project and cannot operate
+  panes in another project or window. Claude Code's own session messaging has
+  separate controls. By default, agents use it only for related sessions in
+  the current project; another project is contacted only when you name that
+  target.
 - Background work does not take focus unless you explicitly ask for it.
 - Kero never answers permission, credential, trust, or destructive-action
   prompts for you. A blocked agent hands that decision back to you.
@@ -84,3 +107,5 @@ needs your attention.
 - Check Settings for an inline setup error.
 - Ask explicitly for a "background Kero pane" or a "delegated Kero agent" if
   you want the agent to use this workflow for a task.
+- For Claude-to-Claude updates, use Claude Code 2.1.224 or later and keep the
+  target session running.

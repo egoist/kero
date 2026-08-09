@@ -3391,8 +3391,15 @@
         }
       }
     },
-    "Installs Kero's coordination skill and lifecycle integrations" : {
-
+    "Lets agents delegate work and coordinate across Kero panes" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "让 agent 在 Kero 窗格间分派工作并协作"
+          }
+        }
+      }
     },
     "Insert Absolute Path in Terminal" : {
       "localizations" : {
