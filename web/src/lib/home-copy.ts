@@ -142,7 +142,7 @@ const en: HomeCopy = {
         {
           name: 'Agent-aware',
           detail:
-            'semantic status, completion notifications, and guarded project-scoped coordination commands',
+            'let coding agents delegate background work while you follow status, notifications, and approvals',
         },
         {
           name: 'Desktop notifications',
@@ -309,8 +309,8 @@ const zh: HomeCopy = {
           detail: '新窗格可选 Ghostty 或 Alacritty；两者都有 GPU 加速并支持图片',
         },
         {
-          name: '理解 agent 状态',
-          detail: '语义状态、完成通知，以及带保护、限制在当前项目内的协调命令',
+          name: '与 AI Agent 协作',
+          detail: '让编码 agent 分派后台工作，你通过状态、通知和批准掌握进度',
         },
         {
           name: '桌面通知',

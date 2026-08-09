@@ -1,73 +1,63 @@
 ---
-title: Agent 与自动化
-description: 通过 Kero 受保护的本地 CLI 协调项目内的窗格和编码 agent。
+title: 与 AI Agent 协作
+description: 让编码 agent 在 Kero 里分派后台工作，而你继续专注并掌握决定权。
 ---
 
-Kero 能识别终端窗格里运行的编码 agent，并提供一套经过本地认证的自动化 CLI。你可以新建后台布局、启动 agent、发送受保护的提示、等待状态并读取结果，全程不抢走正在使用的窗格焦点。
+Kero 的自动化主要是给 AI 编码 agent 用的。它让 agent 安全地操作 Kero 的窗格、协调其他 agent；你不需要再学一套命令。
 
-## 打开 agent 支持
+打开后，继续像平时一样和编码 agent 对话。它可以新建后台窗格、启动另一个 agent、运行命令、等待结果，再把结论带回来，全程不抢走你正在使用的窗格焦点。
 
-进入 **设置 → Automation**，打开 **AI**。受支持的编码 agent 随后就能使用 Kero 的协调命令；如果已经配置了 Pi、OpenCode 或 Grok Build，Kero 还会显示更准确的 **working**、**blocked** 和 **done** 状态。
+## 只需打开一次
 
-如果现有 agent 配置与这项功能冲突，Kero 会原样保留它，让开关回到之前的状态，并显示错误。第一次打开后，请重启已经在运行的 agent。
+进入 **设置 → Automation**，打开 **AI**。然后新建一个终端；如果编码 agent 已经在运行，请重启它。
 
-对应的显式命令是：
+Kero 支持 Codex、Claude Code、Gemini CLI、Grok Build、OpenCode、Cursor Agent、Aider、Amp 和 Pi。如果现有 agent 配置与这项功能冲突，Kero 会原样保留它，让开关回到之前的状态，并在设置里显示错误。
 
-```sh
-kero +agent skill install
-```
+## 直接说你想要什么
 
-同一命令组还支持 `status`、`uninstall` 和 `--provider NAME`。
+告诉 agent 最终要达到的结果。例如：
 
-## 窗格自动化
+> 在后台窗格里跑相关测试，然后告诉我哪里失败了。
 
-`kero +pane` 控制布局和原始终端 I/O。成功操作返回 JSON，其中的 ID 可以传给后续命令：
+> 把这个 bug 交给另一个 Codex agent，完成后再检查它的结果。
 
-```sh
-kero +pane current
-kero +pane list
-kero +pane split --right --cwd "$PWD"
-kero +pane run --pane PANE_ID -- bun test
-kero +pane read --pane PANE_ID --lines 120
-kero +pane wait-output --pane PANE_ID --contains "ready" --timeout 30000
-```
+> 在旁边启动开发服务器，等它就绪后把 URL 告诉我。
 
-默认目标是发起命令的那个终端。新分屏留在后台，只有显式加 `--focus` 才会抢焦点。`run` 在目标 shell 里启动命令；`send` 是单独的原始终端输入操作。
+> 看看后台 agent 做完没有。如果它卡住了，告诉我需要什么。
 
-## Agent 自动化
+Kero 的自动化接口由 agent 自己调用，你不需要输入或记住任何自动化命令。
 
-Kero 能识别 Codex、Claude Code、Gemini CLI、Grok Build、OpenCode、Cursor Agent、Aider、Amp 和 Pi。一套典型委派流程会把布局创建和 agent 创建分开写清楚：
+## 它运行时，你继续工作
 
-```sh
-# 1. 新建后台 shell，并从 JSON 响应里记下 pane_id。
-kero +pane split --right --cwd "$PWD"
+除非你要求查看，分派出去的窗格会留在后台。Kero 会在窗格和标签页上显示 agent 状态：
 
-# 2. 在这个已有 shell 里启动指定 CLI。
-kero +agent start tests --kind codex --pane PANE_ID
+| 状态 | 对你意味着什么 |
+| --- | --- |
+| **Working** | Agent 正在处理任务。 |
+| **Blocked** | 它需要你的输入、批准或决定。 |
+| **Done** | 它已经在后台完成，而你还没有查看那个窗格。 |
 
-# 3. 通过受保护的 agent 通道发送范围明确的任务。
-kero +agent prompt tests --text "Run the focused tests and report failures."
+Agent 完成或需要输入时还可以发通知。按 <kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>A</kbd>，会跳到下一个需要你处理的 agent。
 
-# 4. 不切过去，等它结束或阻塞，再读取稳定后的结果。
-kero +agent wait tests --state done,blocked --timeout 1800000
-kero +agent read tests --lines 160
-```
+## 一次典型的使用过程
 
-`start` 不会新建或关闭布局。`prompt` 要求目标是活着、已识别并且可以接收输入的 agent。`wait` 会在 Kero 报告指定状态时返回；`read` 不会把尚未查看的结果标成已读。
+1. 在 Kero 终端里启动你平时使用的编码 agent。
+2. 让它分派一个范围明确的任务、在后台运行某个程序，或协调另一个 agent。
+3. 继续在当前窗格工作；Kero 会把后台任务留在同一个项目布局里，随时看得见。
+4. 通过 **Working**、**Blocked** 或 **Done** 徽章掌握进度。想看完整对话或终端输出时，再打开对应窗格。
+5. 在 [Git 面板](/zh/docs/git)里审阅结果和 diff，只保留你认可的改动。
 
-完整的命令与生命周期约定见 `kero +agent --help`、`kero +pane --help` 和 `kero +agent explain`。
+## 决定权仍然在你手里
 
-## 界面里的状态
+- Agent 自动化只作用于当前 Kero 项目，不能操作其他项目或窗口里的窗格。
+- 后台工作默认不抢焦点。
+- Kero 不会替你回答权限、凭据、信任或破坏性操作提示。Agent 进入 **Blocked**，就是把决定交还给你。
+- **Done** 只表示可以开始审阅，不代表 Kero 自动批准了 agent 的改动。
 
-Kero 会在窗格和标签页上显示 **working**、**blocked** 和 **done** 状态，并在受支持的 agent 运行时自动更新。后台 agent 完成后会一直显示 **done**，直到你聚焦它的窗格。
+## Agent 没有使用 Kero 时
 
-完成或需要输入的 agent 可以发通知并显示待处理徽章。按
-<kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>A</kbd> 跳到下一个需要注意的 agent。
-
-## 安全边界
-
-- 自动化只作用于发起命令的那个项目；猜出来的其他项目或窗口 ID 会被拒绝。
-- 后台操作默认不抢焦点。
-- Agent 消息用 `+agent prompt`。`+pane send` 是原始终端输入，可以和任何程序交互。
-- Kero 不会替你回答权限、凭据、信任或破坏性操作提示。Agent 进入 blocked，就是把决定交还给你。
-- 如果终端是在自动化环境加入之前打开的，命令可能会要求你新开一个终端再试。
+- 确认 **设置 → Automation → AI** 已经打开。
+- 如果当前终端是在打开设置前创建的，请新建一个 Kero 终端。
+- 如果 agent 当时已经在运行，请重启它。
+- 看看设置里有没有直接显示的错误。
+- 如果希望这次任务使用自动化，可以明确说「在 Kero 后台窗格里运行」或「交给另一个 Kero agent」。

@@ -1,99 +1,86 @@
 ---
-title: Agents and automation
-description: Coordinate project-scoped panes and coding agents with Kero's guarded local CLI.
+title: Working with AI agents
+description: Let coding agents delegate background work across Kero while you stay focused and in control.
 ---
 
-Kero recognizes coding agents running in terminal panes and exposes a local,
-authenticated automation CLI. You can create background layout, start an
-agent, send a guarded prompt, wait for its state, and read its result without
-stealing focus from the pane you are using.
+Kero's automation is primarily for AI coding agents. It gives them a safe way
+to work with Kero's panes and coordinate other agents; it is not another
+command language you need to learn.
 
-## Turn on agent support
+After you enable it, keep talking to your coding agent normally. It can create
+a background pane, start a delegated worker, run a command, wait for the
+result, and bring the answer back without taking focus from the pane you are
+using.
 
-Open **Settings → Automation** and enable **AI**. Kero then:
+## Turn it on once
 
-- makes its coordination commands available to supported coding agents; and
-- provides more precise **working**, **blocked**, and **done** status for Pi,
-  OpenCode, and Grok Build when those tools are already configured.
+Open **Settings → Automation** and enable **AI**. Then start a new terminal or
+restart any coding agent that was already running.
 
-If Kero finds an existing agent setup that conflicts with this feature, it
-leaves that setup unchanged, returns the toggle to its previous state, and
-shows the error. Restart an already-running agent after enabling support for
-the first time.
+Kero supports Codex, Claude Code, Gemini CLI, Grok Build, OpenCode, Cursor
+Agent, Aider, Amp, and Pi. If Kero finds an existing agent setup that conflicts
+with this feature, it leaves that setup unchanged, returns the toggle to its
+previous state, and shows the error in Settings.
 
-The equivalent explicit command is:
+## Ask in plain language
 
-```sh
-kero +agent skill install
-```
+Tell your agent the outcome you want. For example:
 
-Use `status`, `uninstall`, or `--provider NAME` with the same command group for
-more control.
+> Run the focused tests in a background pane and tell me what fails.
 
-## Pane automation
+> Delegate this bug to another Codex agent, then review its result.
 
-`kero +pane` controls layout and raw terminal I/O. Successful operations return
-JSON containing IDs that can be passed to later commands:
+> Start the dev server beside us, wait until it is ready, and give me the URL.
 
-```sh
-kero +pane current
-kero +pane list
-kero +pane split --right --cwd "$PWD"
-kero +pane run --pane PANE_ID -- bun test
-kero +pane read --pane PANE_ID --lines 120
-kero +pane wait-output --pane PANE_ID --contains "ready" --timeout 30000
-```
+> Check whether the background agent is finished. If it is blocked, tell me
+> what it needs.
 
-Targets default to the terminal invoking the command. New splits stay in the
-background unless `--focus` is explicit. `run` starts a command in the target
-shell; `send` is deliberately separate raw terminal input.
+The agent handles Kero's automation interface on your behalf. You do not need
+to type or memorize any Kero automation commands.
 
-## Agent automation
+## Keep working while it runs
 
-Kero recognizes Codex, Claude Code, Gemini CLI, Grok Build, OpenCode, Cursor
-Agent, Aider, Amp, and Pi. A typical delegated workflow is explicit about both
-layout and agent creation:
+Delegated panes stay in the background unless you ask to see them. Kero shows
+the agent's state on its pane and tab:
 
-```sh
-# 1. Create a background shell and record pane_id from the JSON response.
-kero +pane split --right --cwd "$PWD"
+| State | What it means for you |
+| --- | --- |
+| **Working** | The agent is actively handling the task. |
+| **Blocked** | It needs input, approval, or another decision from you. |
+| **Done** | It finished in the background and you have not viewed the pane yet. |
 
-# 2. Start the chosen CLI in that existing shell.
-kero +agent start tests --kind codex --pane PANE_ID
+An agent that finishes or needs input can also send a notification. Press
+<kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>A</kbd> to jump to the next agent that
+needs your attention.
 
-# 3. Send a bounded task through the guarded agent channel.
-kero +agent prompt tests --text "Run the focused tests and report failures."
+## A typical workflow
 
-# 4. Wait without focusing it, then read the settled result.
-kero +agent wait tests --state done,blocked --timeout 1800000
-kero +agent read tests --lines 160
-```
+1. Start your usual coding agent in a Kero terminal.
+2. Ask it to delegate a bounded task, run something in the background, or
+   coordinate another agent.
+3. Continue working in your current pane while Kero keeps the delegated work
+   visible in the project layout.
+4. Follow the **Working**, **Blocked**, or **Done** badge. Open the pane when
+   you want the full conversation or terminal output.
+5. Review the resulting files in the [Git panel](/docs/git), inspect the diff,
+   and decide what to keep.
 
-`start` never creates or closes layout. `prompt` requires a live recognized
-agent that is ready for input. `wait` returns when Kero reports one of the
-requested states, and `read` does not mark unseen work as seen.
+## You stay in control
 
-Run `kero +agent --help`, `kero +pane --help`, or
-`kero +agent explain` for the complete command and lifecycle contract.
-
-## Status in the UI
-
-Kero shows **working**, **blocked**, and **done** status on panes and tabs. The
-status updates automatically while supported agents run. A completed agent in
-the background stays marked **done** until you focus its pane.
-
-Agents that finish or need input can post a notification and receive an
-attention badge. <kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>A</kbd> jumps to the next
-agent needing attention.
-
-## Guardrails
-
-- Automation is scoped to the invoking terminal's project. Guessed IDs in
-  other projects or windows are rejected.
-- Background operations do not take focus unless requested.
-- Use `+agent prompt` for agent messages. `+pane send` is raw terminal input
-  and can interact with any program.
+- Agent automation stays inside the current Kero project and cannot reach
+  panes in another project or window.
+- Background work does not take focus unless you explicitly ask for it.
 - Kero never answers permission, credential, trust, or destructive-action
-  prompts for you. A blocked agent is a handoff to the user.
-- Terminals opened before the automation environment was added may ask you to
-  open a new terminal before using these commands.
+  prompts for you. A blocked agent hands that decision back to you.
+- Completion is a signal to review the result, not an automatic approval of
+  the agent's changes.
+
+## If an agent does not use Kero
+
+- Confirm that **Settings → Automation → AI** is enabled.
+- Open a new Kero terminal if the current one existed before you enabled the
+  setting.
+- Restart an agent that was already running when you enabled it.
+- Check Settings for an inline setup error.
+- Ask explicitly for a "background Kero pane" or a "delegated Kero agent" if
+  you want the agent to use this workflow for a task.
