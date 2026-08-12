@@ -155,6 +155,55 @@ final class KeroTerminalView: AppTerminalView, TerminalBackendSurface {
         NSApp.isActive && window?.isKeyWindow == true && window?.firstResponder === self
     }
 
+    override func isAccessibilityElement() -> Bool { true }
+
+    override func isAccessibilityEnabled() -> Bool { true }
+
+    override func accessibilityRole() -> NSAccessibility.Role? { .textArea }
+
+    override func accessibilityRoleDescription() -> String? {
+        NSAccessibility.Role.description(for: self)
+    }
+
+    override func accessibilityLabel() -> String? {
+        String(localized: "Terminal")
+    }
+
+    override func accessibilityHelp() -> String? {
+        String(localized: "Type to enter terminal text.")
+    }
+
+    override func accessibilityValue() -> Any? { "" }
+
+    override func accessibilityNumberOfCharacters() -> Int { 0 }
+
+    override func accessibilitySelectedText() -> String? { "" }
+
+    override func setAccessibilitySelectedText(_ text: String?) {
+        guard let text, !text.isEmpty else { return }
+        sendText(text)
+    }
+
+    override func accessibilitySelectedTextRange() -> NSRange {
+        NSRange(location: 0, length: 0)
+    }
+
+    override func accessibilityVisibleCharacterRange() -> NSRange {
+        NSRange(location: 0, length: 0)
+    }
+
+    override func isAccessibilityFocused() -> Bool {
+        window?.firstResponder === self
+    }
+
+    override func setAccessibilityFocused(_ focused: Bool) {
+        if !focused, window?.firstResponder === self {
+            window?.makeFirstResponder(nil)
+        } else if focused {
+            window?.makeFirstResponder(self)
+        }
+    }
+
     override func becomeFirstResponder() -> Bool {
         let accepted = super.becomeFirstResponder()
         if accepted { onBecomeFirstResponder?() }
