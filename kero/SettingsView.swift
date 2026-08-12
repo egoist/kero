@@ -75,6 +75,14 @@ struct SettingsView: View {
                 }
             }
 
+            Section("Keyboard") {
+                GlobalShortcutSettingsRow(
+                    shortcut: settings.globalShortcut,
+                    onChange: { settings.globalShortcut = $0 }
+                )
+                .frame(minHeight: 44)
+            }
+
             Section("Colors") {
                 Picker("Dark theme", selection: $settings.themeDark) {
                     ForEach(Self.darkThemeNames, id: \.self) { name in
@@ -248,6 +256,7 @@ struct SettingsView: View {
                         && settings.themeDark == Theme.defaultDarkThemeName
                         && settings.themeLight == Theme.defaultLightThemeName
                         && settings.toolbarVisibility == AppSettings.defaultToolbarVisibility
+                        && settings.globalShortcut == nil
                         && !settings.wrapLines
                         && !settings.restoreTerminalHistory
                         && !settings.aiEnabled

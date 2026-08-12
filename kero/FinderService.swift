@@ -11,6 +11,7 @@ import AppKit
 final class KeroApplicationDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.servicesProvider = self
+        GlobalHotKeyController.shared.start()
     }
 
     /// Opens every directory Finder placed on the service pasteboard as a

@@ -176,6 +176,12 @@ final class AppSettings: nonisolated ObservableObject {
         didSet { save() }
     }
 
+    /// System-wide shortcut that brings Kero forward or hides it. `nil`
+    /// disables the shortcut.
+    @Published var globalShortcut: GlobalShortcut? {
+        didSet { save() }
+    }
+
     /// Render terminal glyphs with slightly heavier strokes, like classic
     /// macOS font smoothing. Each backend maps this to its own rasterizer.
     /// Persisted as `terminal.font-thicken`; off by default so Kero's text
@@ -248,6 +254,9 @@ final class AppSettings: nonisolated ObservableObject {
         toolbarVisibility = ToolbarVisibility(
             rawValue: toml["toolbar.visibility"]?.string ?? ""
         ) ?? Self.defaultToolbarVisibility
+        globalShortcut = toml["keyboard.global-shortcut"]?.string.flatMap {
+            GlobalShortcut(persistedValue: $0)
+        }
         fontThicken = toml["terminal.font-thicken"]?.bool
             ?? toml["font-thicken"]?.bool
             ?? false
@@ -300,6 +309,7 @@ final class AppSettings: nonisolated ObservableObject {
         themeDark = Theme.defaultDarkThemeName
         themeLight = Theme.defaultLightThemeName
         toolbarVisibility = Self.defaultToolbarVisibility
+        globalShortcut = nil
         macosOptionAsAlt = false
         wrapLines = false
         restoreTerminalHistory = false
@@ -372,6 +382,11 @@ final class AppSettings: nonisolated ObservableObject {
         }
         if toolbarVisibility != Self.defaultToolbarVisibility {
             lines.append("toolbar.visibility = \(TOML.quote(toolbarVisibility.rawValue))")
+        }
+        if let globalShortcut {
+            lines.append(
+                "keyboard.global-shortcut = \(TOML.quote(globalShortcut.persistedValue))"
+            )
         }
         if fontThicken {
             lines.append("terminal.font-thicken = true")
