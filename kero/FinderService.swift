@@ -9,6 +9,13 @@ import AppKit
 /// Info.plist; AppKit forwards matching service requests to this object.
 @MainActor
 final class KeroApplicationDelegate: NSObject, NSApplicationDelegate {
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        // AppSettings is first initialized from SwiftUI's App.init(), where
+        // NSApp may not exist yet. Reapply the saved override once AppKit is
+        // ready, before SwiftUI creates the first window.
+        AppSettings.shared.applyAppearance()
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.servicesProvider = self
     }

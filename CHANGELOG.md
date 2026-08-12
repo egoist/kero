@@ -16,6 +16,8 @@ the original feature bullet instead of adding separate entries for them.
 
 ## [unreleased]
 
+- Respect the selected System, Light, or Dark appearance when Kero launches
+
 ## [0.1.46]
 
 - Fix new terminal panes failing to start a shell after hours of coding-agent use: the Ghostty backend's screen exports leaked two file descriptors each, exhausting the process descriptor table
