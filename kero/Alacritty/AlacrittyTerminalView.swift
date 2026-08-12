@@ -170,7 +170,9 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
             rows: UInt16(size.rows),
             cellWidth: UInt16(metrics.cellWidth.rounded()),
             cellHeight: UInt16(metrics.cellHeight.rounded()),
-            scrollbackLines: Self.scrollbackLines
+            scrollbackLines: Self.scrollbackLines,
+            cursorShape: AppSettings.shared.cursorShape.alacrittyValue,
+            cursorBlinking: AppSettings.shared.cursorBlinking
         ) { config in
             withUnsafePointer(to: &theme) { themePointer in
                 kero_alacritty_new(
@@ -1993,6 +1995,8 @@ extension TerminalLaunch {
         cellWidth: UInt16,
         cellHeight: UInt16,
         scrollbackLines: Int,
+        cursorShape: UInt8,
+        cursorBlinking: Bool,
         _ body: (UnsafePointer<KeroConfig>) -> T
     ) -> T {
         let programCopy = strdup(program)
@@ -2022,7 +2026,9 @@ extension TerminalLaunch {
                     rows: rows,
                     cell_width: cellWidth,
                     cell_height: cellHeight,
-                    scrollback_lines: scrollbackLines
+                    scrollback_lines: scrollbackLines,
+                    cursor_shape: cursorShape,
+                    cursor_blinking: cursorBlinking
                 )
                 return withUnsafePointer(to: &config) { body($0) }
             }

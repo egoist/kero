@@ -207,6 +207,20 @@ pub struct KeroConfig {
     pub cell_width: u16,
     pub cell_height: u16,
     pub scrollback_lines: usize,
+    /// 0 block, 1 underline, 2 beam.
+    pub cursor_shape: u8,
+    pub cursor_blinking: bool,
+}
+
+fn configured_cursor_style(shape: u8, blinking: bool) -> CursorStyle {
+    CursorStyle {
+        shape: match shape {
+            1 => CursorShape::Underline,
+            2 => CursorShape::Beam,
+            _ => CursorShape::Block,
+        },
+        blinking,
+    }
 }
 
 // MARK: - OSC interception
@@ -1082,10 +1096,7 @@ pub unsafe extern "C" fn kero_alacritty_new(
 
     let term_config = Config {
         scrolling_history: config.scrollback_lines.max(1),
-        default_cursor_style: CursorStyle {
-            shape: CursorShape::Block,
-            blinking: true,
-        },
+        default_cursor_style: configured_cursor_style(config.cursor_shape, config.cursor_blinking),
         // Kero owns clipboard policy at the app level. Reads are enabled in
         // the emulator only so the host can present its confirmation sheet;
         // the bridge writes nothing back until that request is approved.
@@ -2008,6 +2019,21 @@ mod tests {
     fn intercept(interceptor: &mut OscInterceptor, input: &[u8]) -> (Vec<u8>, Vec<OscEvent>) {
         let (output, events) = interceptor.process(input);
         (output.into_owned(), events)
+    }
+
+    #[test]
+    fn configured_cursor_style_maps_shape_and_blinking() {
+        let block = configured_cursor_style(0, true);
+        assert_eq!(block.shape, CursorShape::Block);
+        assert!(block.blinking);
+
+        let underline = configured_cursor_style(1, false);
+        assert_eq!(underline.shape, CursorShape::Underline);
+        assert!(!underline.blinking);
+
+        let beam = configured_cursor_style(2, true);
+        assert_eq!(beam.shape, CursorShape::Beam);
+        assert!(beam.blinking);
     }
 
     #[test]

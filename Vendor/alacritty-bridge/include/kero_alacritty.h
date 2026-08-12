@@ -161,6 +161,9 @@ typedef struct {
   uint16_t cell_width;
   uint16_t cell_height;
   size_t scrollback_lines;
+  /// 0 block, 1 underline, 2 beam.
+  uint8_t cursor_shape;
+  bool cursor_blinking;
 } KeroConfig;
 
 /// Spawns a shell on a new PTY and starts reading it. Returns NULL on failure.

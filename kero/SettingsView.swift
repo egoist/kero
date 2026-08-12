@@ -177,6 +177,14 @@ struct SettingsView: View {
                     }
                 }
 
+                Picker("Cursor shape", selection: $settings.cursorShape) {
+                    ForEach(TerminalCursorShape.allCases) { shape in
+                        Text(verbatim: shape.title).tag(shape)
+                    }
+                }
+
+                Toggle("Blink cursor", isOn: $settings.cursorBlinking)
+
                 DescribedSettingsRow(
                     "Thicken font strokes",
                     description: "Renders terminal text with slightly heavier strokes, like classic macOS font smoothing"
@@ -242,6 +250,8 @@ struct SettingsView: View {
                         && settings.fontSize == AppSettings.defaultFontSize
                         && settings.sidebarFontSize == AppSettings.defaultSidebarFontSize
                         && !settings.fontThicken
+                        && settings.cursorShape == .block
+                        && settings.cursorBlinking
                         && !settings.macosOptionAsAlt
                         && settings.language == .system
                         && settings.theme == .system

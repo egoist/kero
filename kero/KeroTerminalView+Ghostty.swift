@@ -73,8 +73,8 @@ extension KeroTerminalView {
             // config injects the package default `font-thicken = true`, and
             // only a later entry in the rendered config overrides it.
             builder.withFontThicken(settings.fontThicken)
-            builder.withCursorStyle(.block)
-            builder.withCursorStyleBlink(true)
+            builder.withCursorStyle(settings.cursorShape.ghosttyValue)
+            builder.withCursorStyleBlink(settings.cursorBlinking)
             // Kero's insets around the grid live inside ghostty as
             // window-padding so that window-padding-color=extend can flood
             // them with the nearest cell's background — full-screen TUIs
