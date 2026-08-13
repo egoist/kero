@@ -17,6 +17,7 @@ the original feature bullet instead of adding separate entries for them.
 ## [unreleased]
 
 - Respect the selected System, Light, or Dark appearance when Kero launches
+- Stop inferring coding-agent progress from terminal text, preventing false Working, Blocked, and Done states from ordinary terminal output
 
 ## [0.1.46]
 

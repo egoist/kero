@@ -11,7 +11,7 @@ A native terminal workspace for macOS.
 - Integrated browser tabs and panes
 - File tree, Git status, and editable diffs
 - Command palette, project-wide file search, and local path links
-- AI agents can delegate background work and coordinate across Kero panes, with visible status and human-controlled approvals
+- AI agents can delegate background work and coordinate across Kero panes, with provider-reported status and human-controlled approvals
 
 ## Download
 

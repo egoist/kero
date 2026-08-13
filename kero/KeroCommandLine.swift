@@ -586,7 +586,7 @@ private func printHelp() {
 
         +pane provides project-scoped terminal layout, input, viewport reads,
         and output waits. +agent adds recognized-agent start, guarded prompts,
-        passive lifecycle waits, result reads, and an installable, auto-updating
+        lifecycle waits, result reads, and an installable, auto-updating
         skill for compatible coding agents. Run either command with --help for
         its complete contract.
         """)

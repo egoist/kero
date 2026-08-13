@@ -148,203 +148,10 @@ enum KeroAgentPhase: String, Codable, CaseIterable, Sendable {
 enum KeroAgentStateAuthority: String, Codable, Sendable {
     /// A native agent hook or plugin reported a complete lifecycle event.
     case integration
-    /// Kero classified the live terminal UI after repeated observations.
-    case screen
     /// Kero recognized the foreground executable.
     case process
-    /// Kero just launched or prompted the agent and is awaiting observation.
+    /// Kero just launched or prompted the agent and is awaiting a lifecycle event.
     case command
-}
-
-private enum KeroAgentScreenDisposition {
-    case working
-    case blocked
-    case idle
-    case hold
-}
-
-private struct KeroAgentScreenSnapshot {
-    let fingerprint: Int
-    let disposition: KeroAgentScreenDisposition
-}
-
-/// A compact, deliberately conservative subset of Herdr's terminal-manifest
-/// model. The process identity selects the rules; terminal text never decides
-/// which agent is running. Agents without a specific working rule still use
-/// the debounced, post-activity idle fallback instead of model self-reporting.
-private nonisolated enum KeroAgentScreenClassifier {
-    static func snapshot(
-        kind: KeroAgentKind,
-        title: String,
-        visibleText: String
-    ) -> KeroAgentScreenSnapshot {
-        var hasher = Hasher()
-        hasher.combine(title)
-        hasher.combine(visibleText)
-
-        let lowerTitle = title.lowercased()
-        let recentLines = visibleText
-            .split(separator: "\n", omittingEmptySubsequences: true)
-            .suffix(12)
-            .map { String($0).trimmingCharacters(in: .whitespaces) }
-        let recent = recentLines.joined(separator: "\n").lowercased()
-        let evidence = lowerTitle + "\n" + recent
-
-        let disposition: KeroAgentScreenDisposition
-        if isTranscriptOrPicker(kind: kind, recent: recent) {
-            disposition = .hold
-        } else if isBlocked(evidence) {
-            disposition = .blocked
-        } else if isWorking(
-            kind: kind,
-            lowerTitle: lowerTitle,
-            recent: recent,
-            recentLines: recentLines
-        ) {
-            disposition = .working
-        } else {
-            // This is Herdr's known-agent idle fallback: once task activity
-            // has actually been observed, no working/blocker rule means the
-            // interactive agent has settled. The caller debounces publication.
-            disposition = .idle
-        }
-
-        return KeroAgentScreenSnapshot(
-            fingerprint: hasher.finalize(), disposition: disposition
-        )
-    }
-
-    private static func isTranscriptOrPicker(
-        kind: KeroAgentKind,
-        recent: String
-    ) -> Bool {
-        if recent.contains("showing detailed transcript") { return true }
-        if recent.contains("select model")
-            && recent.contains("esc to cancel") { return true }
-        guard kind == .codex else { return false }
-        let scrolling = recent.contains("↑/↓ to scroll")
-            || recent.contains("pgup/pgdn")
-            || recent.contains("home/end to jump")
-        return scrolling && recent.contains("q to quit")
-    }
-
-    private static func isBlocked(_ recent: String) -> Bool {
-        let strongSignals = [
-            "action required",
-            "permission required",
-            "plugin confirmation needed",
-            "waiting for approval",
-            "waiting for user confirmation",
-            "waiting for permission",
-            "allow command?",
-            "allow execution",
-            "apply this change",
-            "run this command?",
-            "write to this file?",
-            "reject & propose changes",
-            "skip (esc or n)",
-            "keep (n)",
-            "invoke tool",
-            "allow editing file:",
-            "allow creating file:",
-            "confirm tool call",
-            "deny with feedback",
-            "enter to submit answer",
-            "enter to submit all",
-            "do you want to allow this connection?",
-            "tab to amend",
-            "ctrl+e to explain",
-            "review your answers",
-            "skip interview and plan immediately",
-            "(y) (enter)",
-            "[y/n]",
-        ]
-        if strongSignals.contains(where: recent.contains) { return true }
-        if recent.contains("do you want to proceed")
-            && (recent.contains("yes") || recent.contains("esc to cancel")) {
-            return true
-        }
-        if recent.contains("would you like to")
-            && (recent.contains("yes") || recent.contains("❯")) {
-            return true
-        }
-        return recent.contains("enter to confirm")
-            && recent.contains("esc to cancel")
-    }
-
-    private static func isWorking(
-        kind: KeroAgentKind,
-        lowerTitle: String,
-        recent: String,
-        recentLines: [String]
-    ) -> Bool {
-        switch kind {
-        case .pi:
-            return recent.contains("working...")
-        case .codex:
-            return hasBraillePrefix(lowerTitle)
-                || (recent.contains("working (")
-                    && recent.contains("esc to interrupt"))
-        case .claude:
-            return hasBraillePrefix(lowerTitle)
-                || (recent.contains("/btw") && recent.contains("esc to close"))
-        case .gemini:
-            return recent.contains("esc to cancel")
-        case .grok:
-            // Grok's default title begins with its spinner and includes the
-            // current activity label while a turn is active.
-            return hasBraillePrefix(lowerTitle)
-                || lowerTitle.contains("responding")
-                || lowerTitle.contains("running tool")
-                || lowerTitle.contains("compacting")
-                || lowerTitle.contains("retrying")
-        case .opencode:
-            return recent.contains("esc to interrupt")
-                || recent.contains("ctrl+c to interrupt")
-                || recent.contains("■■■■")
-                || recent.contains("⬝⬝⬝⬝")
-        case .cursor:
-            return recent.contains("ctrl+c to stop")
-                || recentLines.contains(where: hasCursorBackgroundTaskLine)
-                || recentLines.contains(where: hasSpinnerVerbPrefix)
-        case .amp:
-            return hasBraillePrefix(lowerTitle)
-                || recent.contains("esc to cancel")
-                || recentLines.contains(where: hasAmpStatusLine)
-        case .aider:
-            return false
-        }
-    }
-
-    private static func hasBraillePrefix(_ value: String) -> Bool {
-        guard let scalar = value.unicodeScalars.first else { return false }
-        return (0x2800...0x28ff).contains(Int(scalar.value))
-    }
-
-    private static func hasSpinnerVerbPrefix(_ line: String) -> Bool {
-        let trimmed = line.trimmingCharacters(in: .whitespaces)
-        guard let first = trimmed.unicodeScalars.first else { return false }
-        let spinner = first.value == 0x2b21 || first.value == 0x2b22
-            || (0x2800...0x28ff).contains(Int(first.value))
-        guard spinner else { return false }
-        let words = trimmed.lowercased().split(whereSeparator: { !$0.isLetter })
-        guard let verb = words.dropFirst().first else { return false }
-        return verb.hasSuffix("ing")
-    }
-
-    private static func hasCursorBackgroundTaskLine(_ line: String) -> Bool {
-        let words = line.lowercased().split(whereSeparator: { !$0.isLetter && !$0.isNumber })
-        guard let count = words.first, Int(count) != nil else { return false }
-        return words.dropFirst().first == "background"
-            && words.dropFirst(2).first?.hasPrefix("task") == true
-    }
-
-    private static func hasAmpStatusLine(_ line: String) -> Bool {
-        let lower = line.lowercased().trimmingCharacters(in: .whitespaces)
-        guard lower.hasPrefix("╰"), lower.contains("─") else { return false }
-        return [" thinking ", " streaming ", " running tools ", " waiting "]
-            .contains(where: lower.contains)
-    }
 }
 
 struct KeroAgentStatus: Equatable, Sendable {
@@ -383,11 +190,6 @@ final class KeroAgentObservationState {
     /// a turn. Track active-turn evidence so launching an already-idle CLI in
     /// the background never looks like a newly finished task.
     var integrationTurnActive = false
-    var screenPromptedAt: Date?
-    var lastScreenFingerprint: Int?
-    var screenChangeCount = 0
-    var screenObservedWorking = false
-    var screenIdleConfirmations = 0
     var isCollectingAlternateScreenHistory = false
     /// A Kero-launched process is `created` until its first guarded prompt.
     /// This lifecycle fact does not require guessing how the CLI renders UI.
@@ -396,22 +198,6 @@ final class KeroAgentObservationState {
     /// briefly so the monitor cannot mistake the still-foreground shell for
     /// an agent that already exited before it has consumed the command.
     var commandGraceDeadline: Date?
-
-    func beginScreenObservation(fingerprint: Int, at date: Date = Date()) {
-        screenPromptedAt = date
-        lastScreenFingerprint = fingerprint
-        screenChangeCount = 0
-        screenObservedWorking = false
-        screenIdleConfirmations = 0
-    }
-
-    func resetScreenObservation() {
-        screenPromptedAt = nil
-        lastScreenFingerprint = nil
-        screenChangeCount = 0
-        screenObservedWorking = false
-        screenIdleConfirmations = 0
-    }
 }
 
 @MainActor
@@ -623,7 +409,6 @@ extension TerminalSession {
         agentObservation.integrationPhase = nil
         agentObservation.integrationReason = nil
         agentObservation.integrationTurnActive = false
-        agentObservation.resetScreenObservation()
         agentObservation.awaitingInitialPrompt = true
         agentObservation.commandGraceDeadline = Date().addingTimeInterval(5)
         updateAutomationAgentStatus(
@@ -644,9 +429,6 @@ extension TerminalSession {
         agentObservation.integrationTurnActive = true
         agentObservation.awaitingInitialPrompt = false
         agentObservation.commandGraceDeadline = nil
-        agentObservation.beginScreenObservation(
-            fingerprint: automationAgentScreenSnapshot(kind: status.kind).fingerprint
-        )
         updateAutomationAgentStatus(
             alias: status.alias,
             kind: status.kind,
@@ -683,11 +465,6 @@ extension TerminalSession {
         agentObservation.commandGraceDeadline = nil
         if phase == .working || phase == .blocked {
             agentObservation.integrationTurnActive = true
-            agentObservation.beginScreenObservation(
-                fingerprint: automationAgentScreenSnapshot(kind: kind).fingerprint
-            )
-        } else {
-            agentObservation.resetScreenObservation()
         }
 
         // A newly launched interactive CLI commonly publishes its initial idle
@@ -738,17 +515,9 @@ extension TerminalSession {
             clearAutomationAgentStatus()
             return
         }
-        if status.authority == .screen {
-            agentObservation.integrationPhase = nil
-            agentObservation.integrationReason = nil
-            agentObservation.beginScreenObservation(
-                fingerprint: automationAgentScreenSnapshot(kind: status.kind).fingerprint
-            )
-        } else {
-            agentObservation.integrationPhase = .idle
-            agentObservation.integrationReason = "Completion viewed"
-            agentObservation.integrationTurnActive = false
-        }
+        agentObservation.integrationPhase = .idle
+        agentObservation.integrationReason = "Completion viewed"
+        agentObservation.integrationTurnActive = false
         updateAutomationAgentStatus(
             alias: status.alias,
             kind: status.kind,
@@ -760,74 +529,8 @@ extension TerminalSession {
         )
     }
 
-    private func automationAgentScreenSnapshot(
-        kind: KeroAgentKind
-    ) -> KeroAgentScreenSnapshot {
-        KeroAgentScreenClassifier.snapshot(
-            kind: kind,
-            title: title,
-            visibleText: automationVisibleText(maxLines: 80, maxColumns: 500)
-        )
-    }
-
-    /// Herdr treats a known agent with no matching working/blocker rule as
-    /// idle, then publishes that idle state as done when it is unseen. Kero
-    /// adds a post-prompt activity gate because its terminal exports are
-    /// sampled less frequently than Herdr's in-memory bottom-buffer reader.
-    private func automationScreenFallback(
-        kind: KeroAgentKind,
-        isFocused: Bool,
-        now: Date = Date()
-    ) -> (phase: KeroAgentPhase, reason: String)? {
-        guard terminalIsAtLiveBottom,
-              let promptedAt = agentObservation.screenPromptedAt else { return nil }
-        let snapshot = automationAgentScreenSnapshot(kind: kind)
-        if snapshot.fingerprint != agentObservation.lastScreenFingerprint {
-            agentObservation.lastScreenFingerprint = snapshot.fingerprint
-            agentObservation.screenChangeCount += 1
-            agentObservation.screenIdleConfirmations = 0
-        }
-
-        switch snapshot.disposition {
-        case .hold:
-            agentObservation.screenIdleConfirmations = 0
-            return nil
-        case .working:
-            agentObservation.screenObservedWorking = true
-            agentObservation.screenIdleConfirmations = 0
-            return (.working, "Working terminal UI detected")
-        case .blocked:
-            agentObservation.screenObservedWorking = true
-            agentObservation.screenIdleConfirmations = 0
-            return (.blocked, "Terminal UI is waiting for input")
-        case .idle:
-            let elapsed = now.timeIntervalSince(promptedAt)
-            let activityObserved = agentObservation.screenObservedWorking
-                || agentObservation.screenChangeCount >= 2
-                || (agentObservation.screenChangeCount >= 1 && elapsed >= 3)
-            guard activityObserved else { return nil }
-            agentObservation.screenIdleConfirmations += 1
-            guard agentObservation.screenIdleConfirmations >= 3 else { return nil }
-            let phase: KeroAgentPhase = isFocused ? .idle : .done
-            if phase == .idle {
-                // A completion observed in its focused pane is already seen.
-                // Make the settled screen the next-turn baseline so merely
-                // moving focus away cannot manufacture a new completion.
-                agentObservation.beginScreenObservation(
-                    fingerprint: snapshot.fingerprint,
-                    at: now
-                )
-            }
-            return (phase, "Terminal UI settled after task activity")
-        }
-    }
-
     fileprivate func refreshAutomationAgentState(isFocused: Bool) {
         if isFocused { markAutomationAgentSeen() }
-
-        // Collecting transcript pages deliberately moves a full-screen agent's
-        // own viewport. Those screen changes are reads, not lifecycle evidence.
-        if agentObservation.isCollectingAlternateScreenHistory { return }
 
         let foreground = surface.foregroundPid
         let shell = shellPid
@@ -867,16 +570,11 @@ extension TerminalSession {
         let declaredKind = agentObservation.declaredKind
         agentObservation.declaredKind = kind
 
-        // Directly launched CLIs have no `agent.start` declaration. Their
-        // recognized foreground process is enough to show an idle presence
-        // badge immediately, while this baseline lets later screen activity
-        // drive the same working/blocked/done lifecycle as guarded launches.
+        // Directly launched CLIs have no `agent.start` declaration. Process
+        // recognition records an idle presence, but terminal text never changes
+        // lifecycle state; only commands and native integrations do that.
         if agentStatus == nil,
-           agentObservation.integrationPhase == nil,
-           agentObservation.screenPromptedAt == nil {
-            agentObservation.beginScreenObservation(
-                fingerprint: automationAgentScreenSnapshot(kind: kind).fingerprint
-            )
+           agentObservation.integrationPhase == nil {
             updateAutomationAgentStatus(
                 alias: alias,
                 kind: kind,
@@ -924,41 +622,6 @@ extension TerminalSession {
                 unseen: false
             )
             return
-        }
-
-        let screenCanClassify = agentObservation.screenPromptedAt != nil
-            && (agentObservation.integrationPhase == nil
-                || agentObservation.integrationPhase == .working)
-            && (agentStatus?.authority == .command
-                || agentStatus?.authority == .screen
-                || agentStatus?.authority == .process
-                || agentStatus?.authority == .integration)
-        if screenCanClassify {
-            if let inferred = automationScreenFallback(kind: kind, isFocused: isFocused) {
-                if agentObservation.integrationPhase == .working,
-                   inferred.phase == .idle || inferred.phase == .done {
-                    // A freshly submitted full-screen agent can briefly paint
-                    // an idle-looking frame before its first response. Native
-                    // lifecycle owns completion once it has reported working;
-                    // the screen may refine that state to working/blocked but
-                    // must never manufacture an early completion.
-                    return
-                }
-                updateAutomationAgentStatus(
-                    alias: alias,
-                    kind: kind,
-                    phase: inferred.phase,
-                    authority: .screen,
-                    reason: inferred.reason,
-                    processID: foreground,
-                    unseen: inferred.phase == .done
-                )
-                return
-            }
-            // Transcript viewers and an idle candidate still inside its
-            // confirmation window must not erase the last screen result.
-            if agentStatus?.authority == .screen
-                || agentStatus?.authority == .process { return }
         }
 
         if let phase = agentObservation.integrationPhase {
@@ -1010,7 +673,6 @@ extension TerminalSession {
         agentObservation.integrationTurnActive = false
         agentObservation.awaitingInitialPrompt = false
         agentObservation.commandGraceDeadline = nil
-        agentObservation.resetScreenObservation()
     }
 
     private func updateAutomationAgentStatus(

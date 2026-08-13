@@ -6,11 +6,10 @@
 import Foundation
 
 /// Native lifecycle integrations for agent CLIs whose public event surfaces
-/// cover an interactive turn. Screen observation may refine native working
-/// state to an approval blocker, but native events remain authoritative for
-/// completion. Other supported agents use process identity plus screen
-/// detection alone. Managed integrations are links into the app bundle so a
-/// Kero update cannot leave copied hook/plugin code stale.
+/// cover an interactive turn. Kero never infers lifecycle state from rendered
+/// terminal text, so these events are the only source of blocked and completed
+/// transitions. Managed integrations are links into the app bundle so a Kero
+/// update cannot leave copied hook/plugin code stale.
 enum KeroAgentIntegrations {
     enum Kind: String, CaseIterable {
         case pi

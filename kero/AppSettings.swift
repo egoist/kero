@@ -205,8 +205,8 @@ final class AppSettings: nonisolated ObservableObject {
     }
 
     /// Link Kero's shared coordination skill plus the native lifecycle
-    /// integrations whose provider APIs provide semantic turn events. Every
-    /// other agent continues to use passive process/screen observation.
+    /// integrations whose provider APIs provide semantic turn events. Other
+    /// agents retain process recognition without inferred progress state.
     @Published private(set) var aiEnabled: Bool {
         didSet { save() }
     }

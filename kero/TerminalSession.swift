@@ -25,8 +25,8 @@ final class TerminalSession: NSObject, nonisolated ObservableObject, nonisolated
     @Published var hasExited = false
     @Published private(set) var commandLifecycle = TerminalCommandLifecycle()
     @Published private(set) var terminalCellSize: CGSize?
-    /// Recognized coding agent occupying this terminal, if any. Native lifecycle
-    /// events and passive screen detection are reconciled by the monitor.
+    /// Recognized coding agent occupying this terminal, if any. The monitor
+    /// reconciles foreground process identity with explicit lifecycle events.
     @Published var agentStatus: KeroAgentStatus?
 
     /// The emulator driving this session. Fixed for the session's lifetime —
@@ -48,8 +48,8 @@ final class TerminalSession: NSObject, nonisolated ObservableObject, nonisolated
     private var lastHistorySnapshot: String?
     private var isTerminating = false
     private var commandExecutionStartedAtNanos: UInt64?
-    /// Screen-based agent detection must follow the live prompt, never text
-    /// the user has scrolled back to inspect.
+    /// Alternate-screen transcript paging must begin at the live prompt, never
+    /// from text the user has scrolled back to inspect.
     var terminalIsAtLiveBottom = true
     let agentObservation = KeroAgentObservationState()
 
