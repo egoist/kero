@@ -7015,6 +7015,22 @@
         }
       }
     },
+    "Type to enter terminal text." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "入力するとターミナルにテキストが送信されます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "键入以向终端输入文本。"
+          }
+        }
+      }
+    },
     "Type to filter:" : {
       "localizations" : {
         "ja" : {
