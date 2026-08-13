@@ -16,6 +16,13 @@ the original feature bullet instead of adding separate entries for them.
 
 ## [unreleased]
 
+## [0.1.47]
+
+- Let dictation and other accessibility tools enter text in terminal panes
+- Choose a block, bar, or underline terminal cursor, with or without blinking
+- Respect the selected System, Light, or Dark appearance when Kero launches
+- Stop inferring coding-agent progress from terminal text, preventing false Working, Blocked, and Done states from ordinary terminal output
+
 ## [0.1.46]
 
 - Fix new terminal panes failing to start a shell after hours of coding-agent use: the Ghostty backend's screen exports leaked two file descriptors each, exhausting the process descriptor table

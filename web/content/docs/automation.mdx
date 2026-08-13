@@ -60,8 +60,9 @@ credentials, trust decisions, and destructive actions still come back to you.
 
 ## Keep working while it runs
 
-Delegated panes stay in the background unless you ask to see them. Kero shows
-the agent's state on its pane and tab:
+Delegated panes stay in the background unless you ask to see them. When a
+provider-native lifecycle integration reports state, Kero shows it on the
+agent's pane and tab:
 
 | State | What it means for you |
 | --- | --- |
@@ -69,9 +70,15 @@ the agent's state on its pane and tab:
 | **Blocked** | It needs input, approval, or another decision from you. |
 | **Done** | It finished in the background and you have not viewed the pane yet. |
 
-An agent that finishes or needs input can also send a notification. Press
-<kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>A</kbd> to jump to the next agent that
-needs your attention.
+Kero records a prompt it submits as **Working**, but it never scans rendered
+terminal text to guess what happens next. **Blocked** and **Done** transitions
+and their notifications require a provider lifecycle report. If an agent does
+not provide one, inspect its pane and the resulting project changes directly
+instead of relying on a guessed status.
+
+When an integration reports that an agent finished or needs input, Kero can
+also send a notification. Press <kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>A</kbd> to
+jump to the next reported agent that needs your attention.
 
 ## A typical workflow
 
@@ -80,8 +87,9 @@ needs your attention.
    coordinate another agent.
 3. Continue working in your current pane while Kero keeps the delegated work
    visible in the project layout.
-4. Follow the **Working**, **Blocked**, or **Done** badge. Open the pane when
-   you want the full conversation or terminal output.
+4. Follow a provider-reported **Working**, **Blocked**, or **Done** badge when
+   available. If the tool does not report lifecycle, open the pane to inspect
+   its conversation or terminal output instead.
 5. Review the resulting files in the [Git panel](/docs/git), inspect the diff,
    and decide what to keep.
 
@@ -91,9 +99,10 @@ needs your attention.
   panes in another project or window.
 - Background work does not take focus unless you explicitly ask for it.
 - Kero never answers permission, credential, trust, or destructive-action
-  prompts for you. A blocked agent hands that decision back to you.
-- Completion is a signal to review the result, not an automatic approval of
-  the agent's changes.
+  prompts for you. A provider-reported blocked agent hands that decision back
+  to you.
+- Reported completion is a signal to review the result, not an automatic
+  approval of the agent's changes.
 
 ## If an agent does not use Kero
 

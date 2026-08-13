@@ -190,6 +190,14 @@ final class AppSettings: nonisolated ObservableObject {
         didSet { save() }
     }
 
+    @Published var cursorShape: TerminalCursorShape {
+        didSet { save() }
+    }
+
+    @Published var cursorBlinking: Bool {
+        didSet { save() }
+    }
+
     /// Send Option-key chords to terminal programs as Alt/Meta instead of
     /// letting the active macOS input source produce text. Off by default so
     /// layouts such as Polish Pro can type their Option-composed characters.
@@ -211,8 +219,8 @@ final class AppSettings: nonisolated ObservableObject {
     }
 
     /// Link Kero's shared coordination skill plus the native lifecycle
-    /// integrations whose provider APIs provide semantic turn events. Every
-    /// other agent continues to use passive process/screen observation.
+    /// integrations whose provider APIs provide semantic turn events. Other
+    /// agents retain process recognition without inferred progress state.
     @Published private(set) var aiEnabled: Bool {
         didSet { save() }
     }
@@ -260,6 +268,10 @@ final class AppSettings: nonisolated ObservableObject {
         fontThicken = toml["terminal.font-thicken"]?.bool
             ?? toml["font-thicken"]?.bool
             ?? false
+        cursorShape = TerminalCursorShape(
+            rawValue: toml["terminal.cursor-shape"]?.string ?? ""
+        ) ?? .block
+        cursorBlinking = toml["terminal.cursor-blinking"]?.bool ?? true
         macosOptionAsAlt = toml["terminal.macos-option-as-alt"]?.bool ?? false
         wrapLines = toml["editor.wrap-lines"]?.bool ?? false
         restoreTerminalHistory = toml["terminal.restore-history"]?.bool ?? false
@@ -310,6 +322,8 @@ final class AppSettings: nonisolated ObservableObject {
         themeLight = Theme.defaultLightThemeName
         toolbarVisibility = Self.defaultToolbarVisibility
         globalShortcut = nil
+        cursorShape = .block
+        cursorBlinking = true
         macosOptionAsAlt = false
         wrapLines = false
         restoreTerminalHistory = false
@@ -390,6 +404,12 @@ final class AppSettings: nonisolated ObservableObject {
         }
         if fontThicken {
             lines.append("terminal.font-thicken = true")
+        }
+        if cursorShape != .block {
+            lines.append("terminal.cursor-shape = \(TOML.quote(cursorShape.rawValue))")
+        }
+        if !cursorBlinking {
+            lines.append("terminal.cursor-blinking = false")
         }
         if macosOptionAsAlt {
             lines.append("terminal.macos-option-as-alt = true")

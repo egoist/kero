@@ -36,6 +36,7 @@ final class KeroTerminalView: AppTerminalView, TerminalBackendSurface {
     private let progressBar = KeroTerminalProgressBarView(frame: .zero)
     private var isCapturingHistoryExport = false
     private var capturedHistoryExportPath: String?
+    private var isSurfaceVisible = false
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -52,6 +53,11 @@ final class KeroTerminalView: AppTerminalView, TerminalBackendSurface {
     }
 
     // MARK: - TerminalBackendSurface
+
+    override func setSurfaceVisible(_ visible: Bool) {
+        isSurfaceVisible = visible
+        super.setSurfaceVisible(visible)
+    }
 
     func clearScreen() {
         performBindingAction("clear_screen")
@@ -153,6 +159,78 @@ final class KeroTerminalView: AppTerminalView, TerminalBackendSurface {
     /// its window is key, and this exact surface owns the first responder.
     var hasEffectiveTerminalFocus: Bool {
         NSApp.isActive && window?.isKeyWindow == true && window?.firstResponder === self
+    }
+
+    override func isAccessibilityElement() -> Bool { isSurfaceVisible }
+
+    override func isAccessibilityEnabled() -> Bool { isSurfaceVisible }
+
+    override func accessibilityRole() -> NSAccessibility.Role? { .textArea }
+
+    override func accessibilityRoleDescription() -> String? {
+        NSAccessibility.Role.description(for: self)
+    }
+
+    override func accessibilityLabel() -> String? {
+        String(localized: "Terminal")
+    }
+
+    override func accessibilityHelp() -> String? {
+        String(localized: "Type to enter terminal text.")
+    }
+
+    override func accessibilityValue() -> Any? { "" }
+
+    override func setAccessibilityValue(_ value: Any?) {
+        insertAccessibilityText(value)
+    }
+
+    override func accessibilityNumberOfCharacters() -> Int { 0 }
+
+    override func accessibilitySelectedText() -> String? { "" }
+
+    override func setAccessibilitySelectedText(_ text: String?) {
+        insertAccessibilityText(text)
+    }
+
+    override func accessibilitySelectedTextRange() -> NSRange {
+        NSRange(location: 0, length: 0)
+    }
+
+    override func accessibilityVisibleCharacterRange() -> NSRange {
+        NSRange(location: 0, length: 0)
+    }
+
+    override func isAccessibilityFocused() -> Bool {
+        hasEffectiveTerminalFocus
+    }
+
+    override func setAccessibilityFocused(_ focused: Bool) {
+        if !focused, window?.firstResponder === self {
+            window?.makeFirstResponder(nil)
+        } else if focused, isSurfaceVisible {
+            window?.makeFirstResponder(self)
+        }
+    }
+
+    override func isAccessibilitySelectorAllowed(_ selector: Selector) -> Bool {
+        if selector == #selector(setAccessibilityValue(_:))
+            || selector == #selector(setAccessibilitySelectedText(_:)) {
+            // Keep the setter discoverable while Kero is inactive, but never
+            // advertise a parked or otherwise unfocused terminal as writable.
+            return isSurfaceVisible && window?.firstResponder === self
+        }
+        return super.isAccessibilitySelectorAllowed(selector)
+    }
+
+    /// A terminal is append-at-cursor rather than a document whose value can
+    /// be replaced. Both editable AX insertion routes therefore feed the PTY,
+    /// but only while this exact surface is the live text destination.
+    private func insertAccessibilityText(_ value: Any?) {
+        guard isSurfaceVisible, hasEffectiveTerminalFocus else { return }
+        let text = (value as? String) ?? (value as? NSAttributedString)?.string ?? ""
+        guard !text.isEmpty else { return }
+        sendText(text)
     }
 
     override func becomeFirstResponder() -> Bool {

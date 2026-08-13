@@ -221,7 +221,7 @@ enum KeroAutomationCommandLine {
 
     /// Private entry point for lifecycle hooks installed by Kero. It is
     /// intentionally absent from help and never appears in an agent prompt.
-    /// Hook failures stay passive: screen detection remains the fallback.
+    /// Hook failures stay passive; Kero does not guess state from terminal text.
     private static func runAgentIntegration(_ arguments: [String]) {
         guard arguments.count == 2 || arguments.count == 3,
               arguments[0] == "grok",
@@ -975,10 +975,11 @@ enum KeroAutomationCommandLine {
         Guarded prompts accept agents in created, working, idle, or done. While
         an agent is working, its CLI decides whether input steers the active
         turn or queues it. Use +pane send only when raw input is intentional.
-        Kero never asks a model to announce completion. Native lifecycle
-        hooks/plugins are authoritative when available; otherwise Kero
-        debounces the recognized agent's live terminal UI. A settled background
-        agent appears as done until its pane is focused. `skill install`
+        Kero never infers lifecycle from rendered terminal text. After Kero
+        submits a prompt, only a provider-native hook or plugin can advance it
+        to blocked, idle, or done. A reported idle background agent appears as
+        done until its pane is focused. Without an integration, inspect the
+        terminal output instead of relying on a lifecycle wait. `skill install`
         explicitly links Kero's bundled coordination skill into supported
         agents; it never changes user files unless invoked.
         """)
@@ -1024,10 +1025,10 @@ enum KeroAutomationCommandLine {
            lifecycle state. Raw +pane send is a visibly separate escape hatch
            and can interact with any terminal program.
         6. A recognized process Kero launched is created until its first prompt.
-           The model is never asked to report lifecycle. Kero uses provider-native
-           lifecycle events as semantic authorities when available and repeated
-           process-scoped live terminal observations otherwise. Unseen idle is
-           presented as done.
+           The model is never asked to report lifecycle, and Kero never guesses
+           from rendered terminal text. Provider-native lifecycle events are the
+           only source of blocked and completed transitions. Without one, inspect
+           the terminal output directly. Reported unseen idle is presented as done.
         7. The optional kero-automation Agent Skill teaches this workflow to
            compatible agents. Enable AI in Settings or install it explicitly
            with `kero +agent skill install`. The AI setting also manages only

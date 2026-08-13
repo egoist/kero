@@ -170,7 +170,9 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
             rows: UInt16(size.rows),
             cellWidth: UInt16(metrics.cellWidth.rounded()),
             cellHeight: UInt16(metrics.cellHeight.rounded()),
-            scrollbackLines: Self.scrollbackLines
+            scrollbackLines: Self.scrollbackLines,
+            cursorShape: AppSettings.shared.cursorShape.alacrittyValue,
+            cursorBlinking: AppSettings.shared.cursorBlinking
         ) { config in
             withUnsafePointer(to: &theme) { themePointer in
                 kero_alacritty_new(
@@ -420,6 +422,11 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
         var theme = AlacrittyTheme.current()
         if let handle {
             withUnsafePointer(to: &theme) { kero_alacritty_set_theme(handle, $0) }
+            kero_alacritty_set_cursor_style(
+                handle,
+                AppSettings.shared.cursorShape.alacrittyValue,
+                AppSettings.shared.cursorBlinking
+            )
         }
         // A new cell size means a different column count.
         synchronizeGridSize()
@@ -1847,6 +1854,78 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
         }
         return pasteboard.string(forType: .string)
     }
+
+    override func isAccessibilityElement() -> Bool { isSurfaceVisible }
+
+    override func isAccessibilityEnabled() -> Bool { isSurfaceVisible }
+
+    override func accessibilityRole() -> NSAccessibility.Role? { .textArea }
+
+    override func accessibilityRoleDescription() -> String? {
+        NSAccessibility.Role.description(for: self)
+    }
+
+    override func accessibilityLabel() -> String? {
+        String(localized: "Terminal")
+    }
+
+    override func accessibilityHelp() -> String? {
+        String(localized: "Type to enter terminal text.")
+    }
+
+    override func accessibilityValue() -> Any? { "" }
+
+    override func setAccessibilityValue(_ value: Any?) {
+        insertAccessibilityText(value)
+    }
+
+    override func accessibilityNumberOfCharacters() -> Int { 0 }
+
+    override func accessibilitySelectedText() -> String? { "" }
+
+    override func setAccessibilitySelectedText(_ text: String?) {
+        insertAccessibilityText(text)
+    }
+
+    override func accessibilitySelectedTextRange() -> NSRange {
+        NSRange(location: 0, length: 0)
+    }
+
+    override func accessibilityVisibleCharacterRange() -> NSRange {
+        NSRange(location: 0, length: 0)
+    }
+
+    override func isAccessibilityFocused() -> Bool {
+        hasEffectiveTerminalFocus
+    }
+
+    override func setAccessibilityFocused(_ focused: Bool) {
+        if !focused, window?.firstResponder === self {
+            window?.makeFirstResponder(nil)
+        } else if focused, isSurfaceVisible {
+            window?.makeFirstResponder(self)
+        }
+    }
+
+    override func isAccessibilitySelectorAllowed(_ selector: Selector) -> Bool {
+        if selector == #selector(setAccessibilityValue(_:))
+            || selector == #selector(setAccessibilitySelectedText(_:)) {
+            // Keep the setter discoverable while Kero is inactive, but never
+            // advertise a parked or otherwise unfocused terminal as writable.
+            return isSurfaceVisible && window?.firstResponder === self
+        }
+        return super.isAccessibilitySelectorAllowed(selector)
+    }
+
+    /// A terminal is append-at-cursor rather than a document whose value can
+    /// be replaced. Both editable AX insertion routes therefore feed the PTY,
+    /// but only while this exact surface is the live text destination.
+    private func insertAccessibilityText(_ value: Any?) {
+        guard isSurfaceVisible, hasEffectiveTerminalFocus else { return }
+        let text = (value as? String) ?? (value as? NSAttributedString)?.string ?? ""
+        guard !text.isEmpty else { return }
+        sendText(text)
+    }
 }
 
 // MARK: - Text input
@@ -1993,6 +2072,8 @@ extension TerminalLaunch {
         cellWidth: UInt16,
         cellHeight: UInt16,
         scrollbackLines: Int,
+        cursorShape: UInt8,
+        cursorBlinking: Bool,
         _ body: (UnsafePointer<KeroConfig>) -> T
     ) -> T {
         let programCopy = strdup(program)
@@ -2022,7 +2103,9 @@ extension TerminalLaunch {
                     rows: rows,
                     cell_width: cellWidth,
                     cell_height: cellHeight,
-                    scrollback_lines: scrollbackLines
+                    scrollback_lines: scrollbackLines,
+                    cursor_shape: cursorShape,
+                    cursor_blinking: cursorBlinking
                 )
                 return withUnsafePointer(to: &config) { body($0) }
             }

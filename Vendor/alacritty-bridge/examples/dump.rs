@@ -61,6 +61,8 @@ fn main() {
         cell_width: 8,
         cell_height: 16,
         scrollback_lines: 1000,
+        cursor_shape: 0,
+        cursor_blinking: true,
     };
 
     let mut theme = KeroTheme {
