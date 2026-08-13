@@ -422,6 +422,11 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
         var theme = AlacrittyTheme.current()
         if let handle {
             withUnsafePointer(to: &theme) { kero_alacritty_set_theme(handle, $0) }
+            kero_alacritty_set_cursor_style(
+                handle,
+                AppSettings.shared.cursorShape.alacrittyValue,
+                AppSettings.shared.cursorBlinking
+            )
         }
         // A new cell size means a different column count.
         synchronizeGridSize()

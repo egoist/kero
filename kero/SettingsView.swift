@@ -177,13 +177,15 @@ struct SettingsView: View {
                     }
                 }
 
-                Picker("Cursor shape", selection: $settings.cursorShape) {
-                    ForEach(TerminalCursorShape.allCases) { shape in
-                        Text(verbatim: shape.title).tag(shape)
-                    }
-                }
+                TerminalCursorShapeSettingsRow(
+                    shape: settings.cursorShape,
+                    onChange: { settings.cursorShape = $0 }
+                )
 
-                Toggle("Blink cursor", isOn: $settings.cursorBlinking)
+                TerminalCursorBlinkingSettingsRow(
+                    isBlinking: settings.cursorBlinking,
+                    onChange: { settings.cursorBlinking = $0 }
+                )
 
                 DescribedSettingsRow(
                     "Thicken font strokes",

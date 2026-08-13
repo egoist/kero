@@ -939,6 +939,7 @@ impl Dimensions for TermSize {
 
 pub struct KeroTerminal {
     term: Arc<FairMutex<Term<Proxy>>>,
+    term_config: Config,
     notifier: GraphicsNotifier,
     shared: Arc<FairMutex<Shared>>,
     kitty_graphics: Arc<FairMutex<KittyGraphicsStore>>,
@@ -1107,7 +1108,11 @@ pub unsafe extern "C" fn kero_alacritty_new(
         columns,
         screen_lines,
     };
-    let term = Arc::new(FairMutex::new(Term::new(term_config, &size, proxy.clone())));
+    let term = Arc::new(FairMutex::new(Term::new(
+        term_config.clone(),
+        &size,
+        proxy.clone(),
+    )));
     let kitty_graphics = Arc::new(FairMutex::new(KittyGraphicsStore::default()));
     let kitty_graphics_size = Arc::new(FairMutex::new(KittyGraphicsSize {
         columns,
@@ -1144,6 +1149,7 @@ pub unsafe extern "C" fn kero_alacritty_new(
 
     Box::into_raw(Box::new(KeroTerminal {
         term,
+        term_config,
         notifier: GraphicsNotifier(sender),
         shared,
         kitty_graphics,
@@ -1369,6 +1375,26 @@ pub unsafe extern "C" fn kero_alacritty_set_theme(
         return;
     }
     (*handle).shared.lock().theme = *theme;
+}
+
+/// Updates the default cursor used when the terminal application has not
+/// explicitly selected its own DECSCUSR style.
+///
+/// # Safety
+/// `handle` must be live.
+#[no_mangle]
+pub unsafe extern "C" fn kero_alacritty_set_cursor_style(
+    handle: *mut KeroTerminal,
+    shape: u8,
+    blinking: bool,
+) {
+    if handle.is_null() {
+        return;
+    }
+    let terminal = &mut *handle;
+    terminal.term_config.default_cursor_style = configured_cursor_style(shape, blinking);
+    let term_config = terminal.term_config.clone();
+    terminal.term.lock().set_options(term_config);
 }
 
 // MARK: - Selection
@@ -2034,6 +2060,23 @@ mod tests {
         let beam = configured_cursor_style(2, true);
         assert_eq!(beam.shape, CursorShape::Beam);
         assert!(beam.blinking);
+    }
+
+    #[test]
+    fn terminal_options_update_the_default_cursor_live() {
+        let size = TermSize {
+            columns: 40,
+            screen_lines: 3,
+        };
+        let mut config = Config::default();
+        let mut term = Term::new(config.clone(), &size, VoidListener);
+
+        config.default_cursor_style = configured_cursor_style(1, false);
+        term.set_options(config);
+
+        let cursor = term.cursor_style();
+        assert_eq!(cursor.shape, CursorShape::Underline);
+        assert!(!cursor.blinking);
     }
 
     #[test]

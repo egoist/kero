@@ -6,17 +6,19 @@
 import Foundation
 import GhosttyTerminal
 
-enum TerminalCursorShape: String, CaseIterable, Identifiable, Sendable {
+enum TerminalCursorShape: String, CaseIterable, Sendable {
     case block
     case bar
     case underline
 
-    var id: String { rawValue }
-
     var title: String {
         switch self {
         case .block: String(localized: "Block")
-        case .bar: String(localized: "Bar")
+        case .bar:
+            String(
+                localized: "Bar",
+                comment: "Thin vertical terminal cursor shape."
+            )
         case .underline: String(localized: "Underline")
         }
     }

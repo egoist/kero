@@ -747,6 +747,23 @@
         }
       }
     },
+    "Bar" : {
+      "comment" : "Thin vertical terminal cursor shape.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "縦線"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "竖线"
+          }
+        }
+      }
+    },
     "Backend" : {
       "localizations" : {
         "ja" : {
@@ -791,6 +808,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "正在执行 bisect"
+          }
+        }
+      }
+    },
+    "Blink cursor" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "カーソルを点滅させる"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "光标闪烁"
+          }
+        }
+      }
+    },
+    "Block" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ブロック"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "方块"
           }
         }
       }
@@ -1989,6 +2038,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "当前目录"
+          }
+        }
+      }
+    },
+    "Cursor shape" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "カーソルの形状"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "光标形状"
           }
         }
       }
@@ -7028,6 +7093,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "不可用"
+          }
+        }
+      }
+    },
+    "Underline" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下線"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下划线"
           }
         }
       }
