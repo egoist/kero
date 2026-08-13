@@ -471,7 +471,9 @@ private struct FileTreeRow: View {
 
     private var rowButton: some View {
         Button {
-            if item.isDirectory {
+            if !item.isDirectory && NSEvent.modifierFlags.contains(.command) {
+                NSWorkspace.shared.open(URL(fileURLWithPath: item.path))
+            } else if item.isDirectory {
                 model.toggle(item)
             } else {
                 openFile(item.path)
