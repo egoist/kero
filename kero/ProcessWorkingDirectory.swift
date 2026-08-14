@@ -81,3 +81,17 @@ func processArguments(pid: pid_t) -> [String]? {
     }
     return result.isEmpty ? nil : result
 }
+
+extension String {
+    /// This path with the user's home directory written as `~`.
+    ///
+    /// Both palettes show a session's directory in a single narrow row, where
+    /// the `/Users/<name>` prefix is the least distinguishing part of the path
+    /// and costs the width that identifies it.
+    var abbreviatingHomeDirectory: String {
+        let home = NSHomeDirectory()
+        if self == home { return "~" }
+        guard hasPrefix(home + "/") else { return self }
+        return "~" + String(dropFirst(home.count))
+    }
+}

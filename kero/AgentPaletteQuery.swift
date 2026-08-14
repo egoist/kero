@@ -21,9 +21,11 @@ struct AgentPaletteEntry {
     /// Alias, agent name, project, tab, and directory folded together so one
     /// unprefixed word can find a session by any of them.
     let searchText: String
-    let phase: KeroAgentPhase
-    let unseen: Bool
-    let updatedAt: Date
+    /// Status is restated in place while the palette is open, so a badge stays
+    /// truthful without its row moving.
+    var phase: KeroAgentPhase
+    var unseen: Bool
+    var updatedAt: Date
 
     /// Ordering for an unfiltered palette: whatever wants the user first. An
     /// unacknowledged completion outranks one already seen, the same

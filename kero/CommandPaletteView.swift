@@ -340,10 +340,7 @@ struct CommandPaletteView: View {
         guard let dir = session.workingDirectory else { return nil }
         let path = URL(string: dir)?.path ?? dir
         guard !path.isEmpty else { return nil }
-        let home = NSHomeDirectory()
-        if path == home { return "~" }
-        if path.hasPrefix(home + "/") { return "~" + String(path.dropFirst(home.count)) }
-        return path
+        return path.abbreviatingHomeDirectory
     }
 
     /// The current project's pinned/automatic panel root. Indexing starts only

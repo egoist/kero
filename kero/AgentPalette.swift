@@ -22,11 +22,6 @@ private enum AgentPaletteLayout {
     /// match does not leave a wall of empty space and a long list still fits.
     static let minBodyHeight: CGFloat = 216
     static let maxBodyHeight: CGFloat = 348
-    static let previewFontSize: CGFloat = 10
-    static let previewLines = 44
-    /// Wide enough to hold an agent's own box drawing without reflowing it.
-    /// Overflow is clipped rather than wrapped.
-    static let previewColumns = 200
 }
 
 /// ⌥⌘A overlay: every running agent across every project, filterable by typed
@@ -46,10 +41,7 @@ final class AgentPaletteViewController: NSViewController {
     private let summaryLabel = NSTextField(labelWithString: "")
     private let tableView = NSTableView()
     private let tableScrollView = NSScrollView()
-    private let previewTextView = NSTextView()
-    private let previewScrollView = NSScrollView()
-    private let previewWell = AgentPalettePreviewWell(frame: .zero)
-    private let previewPlaceholder = NSTextField(labelWithString: "")
+    private let preview = AgentPalettePreviewView(frame: .zero)
     private let emptyLabel = NSTextField(labelWithString: "")
     private var bodyHeightConstraint: NSLayoutConstraint?
 
@@ -58,13 +50,10 @@ final class AgentPaletteViewController: NSViewController {
     /// The rows on screen. Order is recomputed only when the query changes.
     private var visibleEntries: [AgentPaletteEntry] = []
     private var selectedSessionID: UUID?
+    /// The query the visible rows were built from, so the periodic refresh can
+    /// restate the header without re-parsing the field.
+    private var activeQuery = AgentPaletteQuery()
     private var refreshTimer: Timer?
-    private var previewWorkItem: DispatchWorkItem?
-    /// What the preview currently shows, so a periodic refresh that produces
-    /// identical output can leave the text storage — and the reader's scroll
-    /// position — untouched.
-    private var previewedSessionID: UUID?
-    private var previewedText = ""
 
     private static let fuzzyMatcher = FuzzyMatcher(config: .smithWaterman)
 
@@ -103,8 +92,7 @@ final class AgentPaletteViewController: NSViewController {
     private func stopTimers() {
         refreshTimer?.invalidate()
         refreshTimer = nil
-        previewWorkItem?.cancel()
-        previewWorkItem = nil
+        preview.clear()
     }
 
     // MARK: - Chrome
@@ -184,11 +172,10 @@ final class AgentPaletteViewController: NSViewController {
         filterHints.textColor = .quaternaryLabelColor
 
         buildList()
-        buildPreview()
 
         for subview in [
             magnifier, searchField, summaryLabel, headerRule, tableScrollView,
-            emptyLabel, verticalRule, previewWell, footerRule, keyHints,
+            emptyLabel, verticalRule, preview, footerRule, keyHints,
             filterHints,
         ] as [NSView] {
             panel.addSubview(subview)
@@ -271,16 +258,16 @@ final class AgentPaletteViewController: NSViewController {
             verticalRule.bottomAnchor.constraint(equalTo: footerRule.topAnchor),
             verticalRule.widthAnchor.constraint(equalToConstant: 1),
 
-            previewWell.leadingAnchor.constraint(
+            preview.leadingAnchor.constraint(
                 equalTo: verticalRule.trailingAnchor, constant: 8
             ),
-            previewWell.trailingAnchor.constraint(
+            preview.trailingAnchor.constraint(
                 equalTo: panel.trailingAnchor, constant: -8
             ),
-            previewWell.topAnchor.constraint(
+            preview.topAnchor.constraint(
                 equalTo: tableScrollView.topAnchor
             ),
-            previewWell.bottomAnchor.constraint(
+            preview.bottomAnchor.constraint(
                 equalTo: tableScrollView.bottomAnchor
             ),
 
@@ -349,72 +336,6 @@ final class AgentPaletteViewController: NSViewController {
         tableScrollView.autohidesScrollers = true
     }
 
-    private func buildPreview() {
-        previewWell.translatesAutoresizingMaskIntoConstraints = false
-        previewScrollView.translatesAutoresizingMaskIntoConstraints = false
-        previewScrollView.hasVerticalScroller = true
-        previewScrollView.hasHorizontalScroller = false
-        previewScrollView.drawsBackground = false
-        previewScrollView.autohidesScrollers = true
-
-        previewTextView.isEditable = false
-        // Selection would compete with the search field for the responder and
-        // give the terminal tail an I-beam it cannot act on.
-        previewTextView.isSelectable = false
-        previewTextView.drawsBackground = false
-        previewTextView.textContainerInset = NSSize(width: 12, height: 11)
-        previewTextView.isVerticallyResizable = true
-        previewTextView.isHorizontallyResizable = true
-        previewTextView.autoresizingMask = []
-        previewTextView.maxSize = NSSize(
-            width: CGFloat.greatestFiniteMagnitude,
-            height: CGFloat.greatestFiniteMagnitude
-        )
-        // Terminal output is already laid out in columns. Reflowing it to the
-        // pane width folds an agent's own box drawing onto itself, so give the
-        // container unbounded width and let the well clip the overflow.
-        previewTextView.textContainer?.widthTracksTextView = false
-        previewTextView.textContainer?.containerSize = NSSize(
-            width: CGFloat.greatestFiniteMagnitude,
-            height: CGFloat.greatestFiniteMagnitude
-        )
-        previewTextView.textContainer?.lineFragmentPadding = 0
-
-        previewPlaceholder.translatesAutoresizingMaskIntoConstraints = false
-        previewPlaceholder.font = .systemFont(ofSize: 11)
-        previewPlaceholder.textColor = .quaternaryLabelColor
-        previewPlaceholder.alignment = .center
-        previewPlaceholder.stringValue = String(
-            localized: "No output yet",
-            comment: "Agent palette preview pane with nothing to show."
-        )
-        previewPlaceholder.isHidden = true
-
-        previewWell.addSubview(previewScrollView)
-        previewWell.addSubview(previewPlaceholder)
-        NSLayoutConstraint.activate([
-            previewPlaceholder.centerXAnchor.constraint(
-                equalTo: previewWell.centerXAnchor
-            ),
-            previewPlaceholder.centerYAnchor.constraint(
-                equalTo: previewWell.centerYAnchor
-            ),
-            previewScrollView.leadingAnchor.constraint(
-                equalTo: previewWell.leadingAnchor
-            ),
-            previewScrollView.trailingAnchor.constraint(
-                equalTo: previewWell.trailingAnchor
-            ),
-            previewScrollView.topAnchor.constraint(
-                equalTo: previewWell.topAnchor
-            ),
-            previewScrollView.bottomAnchor.constraint(
-                equalTo: previewWell.bottomAnchor
-            ),
-        ])
-        previewScrollView.documentView = previewTextView
-    }
-
     // MARK: - Data
 
     /// Walks projects in window order so an unfiltered list matches the project
@@ -429,7 +350,7 @@ final class AgentPaletteViewController: NSViewController {
                 )
                 for session in tab.sessions {
                     guard let status = session.agentStatus else { continue }
-                    let directory = Self.abbreviated(session.currentDirectoryPath)
+                    let directory = session.currentDirectoryPath.abbreviatingHomeDirectory
                     entries.append(
                         AgentPaletteEntry(
                             sessionID: session.id,
@@ -458,6 +379,7 @@ final class AgentPaletteViewController: NSViewController {
     private func applyQuery() {
         rebuildSnapshot()
         let query = AgentPaletteQuery.parse(searchField.stringValue)
+        activeQuery = query
 
         var candidates = allEntries.filter { query.admits($0) }
         if query.freeText.isEmpty {
@@ -511,19 +433,31 @@ final class AgentPaletteViewController: NSViewController {
     /// appear here — both would disturb a selection the user is aiming at.
     /// Closed sessions do drop out, since jumping to one is a dead end.
     private func refreshStatuses() {
-        rebuildSnapshot()
-        let live = Dictionary(
-            allEntries.map { ($0.sessionID, $0) },
-            uniquingKeysWith: { first, _ in first }
-        )
-        let refreshed = visibleEntries.compactMap { live[$0.sessionID] }
+        // Only the three status fields can have changed, so look each visible
+        // row up by identity rather than rebuilding the whole snapshot. That
+        // keeps a sub-second timer off the walk over every project, tab, and
+        // session, and away from rebuilding search strings nothing reads here.
+        var refreshed: [AgentPaletteEntry] = []
+        refreshed.reserveCapacity(visibleEntries.count)
+        for var entry in visibleEntries {
+            guard let status = manager.session(withID: entry.sessionID)?.agentStatus
+            else { continue }
+            entry.phase = status.phase
+            entry.unseen = status.unseen
+            entry.updatedAt = status.updatedAt
+            refreshed.append(entry)
+        }
+
         let membershipChanged = refreshed.count != visibleEntries.count
         visibleEntries = refreshed
 
         tableView.reloadData()
         if membershipChanged {
+            // The count in the header is drawn from both lists, so the full
+            // snapshot is only worth rebuilding when one of them shrank.
+            rebuildSnapshot()
             updateBodyHeight()
-            updateSummary(AgentPaletteQuery.parse(searchField.stringValue))
+            updateSummary(activeQuery)
             updateEmptyState()
         }
         restoreSelection()
@@ -579,7 +513,7 @@ final class AgentPaletteViewController: NSViewController {
     private func select(row: Int, scroll: Bool) {
         guard visibleEntries.indices.contains(row) else {
             selectedSessionID = nil
-            showPreview(nil)
+            preview.clear()
             return
         }
         selectedSessionID = visibleEntries[row].sessionID
@@ -611,104 +545,21 @@ final class AgentPaletteViewController: NSViewController {
 
     // MARK: - Preview
 
-    /// Exporting a screen writes and reads a capture file, so coalesce the
-    /// bursts that key repeat produces while walking the list.
+    /// Hands the highlighted agent to the preview, which owns its own scroll
+    /// position, debounce, and change detection. `debounced` marks a move
+    /// through the list, where key repeat would otherwise export a screen per
+    /// row; the periodic refresh renders immediately.
     private func refreshPreview(debounced: Bool) {
-        previewWorkItem?.cancel()
         guard let row = selectedRow else {
-            showPreview(nil)
+            preview.clear()
             return
         }
         let sessionID = visibleEntries[row].sessionID
-        guard debounced else {
-            renderPreview(for: sessionID)
-            return
-        }
-        let work = DispatchWorkItem { [weak self] in
-            self?.renderPreview(for: sessionID)
-        }
-        previewWorkItem = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.06, execute: work)
-    }
-
-    private func renderPreview(for sessionID: UUID) {
-        guard let session = manager.session(withID: sessionID),
-              let capture = TerminalHistorySerializer.previewCapture(
-                  from: session.surface
-              )
-        else {
-            showPreview(nil, sessionID: sessionID)
-            return
-        }
-        let isDark = view.effectiveAppearance.bestMatch(
-            from: [.darkAqua, .aqua]
-        ) == .darkAqua
-        let font = NSFont(
-            descriptor: TerminalFont.current().fontDescriptor,
-            size: AgentPaletteLayout.previewFontSize
-        ) ?? .monospacedSystemFont(
-            ofSize: AgentPaletteLayout.previewFontSize, weight: .regular
+        preview.show(
+            manager.session(withID: sessionID),
+            id: sessionID,
+            debounced: debounced
         )
-        showPreview(
-            TerminalPreviewStyle.attributedPreview(
-                vt: capture,
-                maxLines: AgentPaletteLayout.previewLines,
-                maxColumns: AgentPaletteLayout.previewColumns,
-                theme: Theme.terminal(dark: isDark),
-                font: font
-            ),
-            sessionID: sessionID
-        )
-    }
-
-    private func showPreview(
-        _ text: NSAttributedString?, sessionID: UUID? = nil
-    ) {
-        guard let text, text.length > 0 else {
-            previewPlaceholder.isHidden = false
-            previewScrollView.isHidden = true
-            previewTextView.string = ""
-            previewedSessionID = sessionID
-            previewedText = ""
-            return
-        }
-        previewPlaceholder.isHidden = true
-        previewScrollView.isHidden = false
-
-        let isNewSelection = sessionID != previewedSessionID
-        // A still agent re-renders identically every tick. Replacing the text
-        // storage anyway would fight the scroll wheel, so do nothing at all.
-        guard isNewSelection || text.string != previewedText else { return }
-
-        let clipView = previewScrollView.contentView
-        let previousOrigin = clipView.bounds.origin
-        // Follow live output only for a reader who is already at the bottom.
-        // Someone who scrolled up is reading, and must not be yanked back.
-        let followTail = isNewSelection || isScrolledToTail
-
-        previewTextView.textStorage?.setAttributedString(text)
-        // The container is unbounded, so the text view has to be sized to its
-        // own laid-out content before the scroll view can position it.
-        previewTextView.sizeToFit()
-        previewedSessionID = sessionID
-        previewedText = text.string
-
-        if followTail {
-            // An agent's newest output is its last row — the question it is
-            // blocked on, or the prompt it waits at. Open on that, not on the
-            // banner that happens to sit at the top of the screen.
-            previewTextView.scrollToEndOfDocument(nil)
-        } else {
-            clipView.scroll(to: previousOrigin)
-            previewScrollView.reflectScrolledClipView(clipView)
-        }
-    }
-
-    private var isScrolledToTail: Bool {
-        let clipView = previewScrollView.contentView
-        let documentHeight = previewTextView.frame.height
-        guard documentHeight > clipView.bounds.height else { return true }
-        return clipView.bounds.maxY >= documentHeight - 6
     }
 
     // MARK: - Actions
@@ -742,18 +593,6 @@ final class AgentPaletteViewController: NSViewController {
             searchField.stringValue = ""
             applyQuery()
         }
-    }
-
-    /// Tilde-abbreviated directory, matching how the ⌘P palette writes a
-    /// session's path.
-    private static func abbreviated(_ path: String) -> String {
-        guard !path.isEmpty else { return "" }
-        let home = NSHomeDirectory()
-        if path == home { return "~" }
-        if path.hasPrefix(home + "/") {
-            return "~" + String(path.dropFirst(home.count))
-        }
-        return path
     }
 
     /// Score via the library's prepared-query, reusable-buffer UTF-8 API, the
@@ -868,200 +707,6 @@ private final class AgentPalettePanelView: NSView {
             layer?.backgroundColor = Theme.background.cgColor
             layer?.borderColor = NSColor.separatorColor.cgColor
         }
-    }
-}
-
-/// Recessed surface behind the terminal tail. Terminal output is a different
-/// kind of content from the list beside it, and a faint well says so without
-/// adding another border to the panel.
-private final class AgentPalettePreviewWell: NSView {
-    override init(frame frameRect: NSRect) {
-        super.init(frame: frameRect)
-        wantsLayer = true
-        layer?.cornerRadius = 8
-        layer?.cornerCurve = .continuous
-        // Clips the unwrapped terminal lines that overflow the pane.
-        layer?.masksToBounds = true
-        applyColors()
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
-    }
-
-    override func viewDidChangeEffectiveAppearance() {
-        super.viewDidChangeEffectiveAppearance()
-        applyColors()
-    }
-
-    private func applyColors() {
-        effectiveAppearance.performAsCurrentDrawingAppearance {
-            let isDark = effectiveAppearance.bestMatch(
-                from: [.darkAqua, .aqua]
-            ) == .darkAqua
-            layer?.backgroundColor = NSColor.labelColor
-                .withAlphaComponent(isDark ? 0.045 : 0.03).cgColor
-        }
-    }
-}
-
-/// Rounded selection fill matching the ⌘P palette's row highlight; AppKit's
-/// own regular and source-list styles both draw a full-bleed bar.
-private final class AgentPaletteRowBackgroundView: NSTableRowView {
-    override func drawSelection(in dirtyRect: NSRect) {
-        guard isSelected else { return }
-        let path = NSBezierPath(
-            roundedRect: bounds.insetBy(dx: 2, dy: 1), xRadius: 7, yRadius: 7
-        )
-        NSColor.labelColor.withAlphaComponent(0.085).setFill()
-        path.fill()
-    }
-}
-
-/// One agent row, in two lines: the agent's identity over the directory it is
-/// working in, with its state and age held in a fixed right-hand column.
-///
-/// The directory is the line that actually distinguishes two runs of the same
-/// CLI, so it gets the width and truncates from the head — the tail of a path
-/// carries the repository name, the head carries `/Users/someone`.
-private final class AgentPaletteCellView: NSTableCellView {
-    private let badge = AgentStatusBadgeView(frame: .zero)
-    private let aliasLabel = NSTextField(labelWithString: "")
-    private let directoryLabel = NSTextField(labelWithString: "")
-    private let phaseLabel = NSTextField(labelWithString: "")
-    private let ageLabel = NSTextField(labelWithString: "")
-
-    override init(frame frameRect: NSRect) {
-        super.init(frame: frameRect)
-
-        aliasLabel.font = .systemFont(ofSize: 13, weight: .semibold)
-        aliasLabel.textColor = .labelColor
-        aliasLabel.lineBreakMode = .byTruncatingTail
-
-        directoryLabel.font = .systemFont(ofSize: 10.5)
-        directoryLabel.textColor = .tertiaryLabelColor
-        directoryLabel.lineBreakMode = .byTruncatingHead
-
-        // The badge encodes state by shape and colour, which reads at a glance
-        // but not precisely; a resting ring and a starting ring are a pixel
-        // apart. In a picker whose whole job is choosing by state, the word
-        // has to be there too.
-        phaseLabel.font = .systemFont(ofSize: 10, weight: .medium)
-        phaseLabel.alignment = .right
-
-        ageLabel.font = .monospacedDigitSystemFont(ofSize: 10, weight: .regular)
-        ageLabel.textColor = .quaternaryLabelColor
-        ageLabel.alignment = .right
-
-        for label in [aliasLabel, directoryLabel, phaseLabel, ageLabel] {
-            label.translatesAutoresizingMaskIntoConstraints = false
-            addSubview(label)
-        }
-        addSubview(badge)
-
-        directoryLabel.setContentCompressionResistancePriority(
-            .defaultLow, for: .horizontal
-        )
-        directoryLabel.setContentHuggingPriority(.defaultLow, for: .horizontal)
-        for label in [aliasLabel, phaseLabel, ageLabel] {
-            label.setContentCompressionResistancePriority(
-                .defaultHigh, for: .horizontal
-            )
-        }
-
-        NSLayoutConstraint.activate([
-            badge.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 11),
-            badge.centerYAnchor.constraint(equalTo: centerYAnchor),
-
-            aliasLabel.leadingAnchor.constraint(
-                equalTo: badge.trailingAnchor, constant: 10
-            ),
-            aliasLabel.topAnchor.constraint(equalTo: topAnchor, constant: 5),
-            aliasLabel.trailingAnchor.constraint(
-                lessThanOrEqualTo: phaseLabel.leadingAnchor, constant: -8
-            ),
-
-            directoryLabel.leadingAnchor.constraint(
-                equalTo: aliasLabel.leadingAnchor
-            ),
-            directoryLabel.topAnchor.constraint(
-                equalTo: aliasLabel.bottomAnchor, constant: 1
-            ),
-            directoryLabel.trailingAnchor.constraint(
-                lessThanOrEqualTo: ageLabel.leadingAnchor, constant: -8
-            ),
-
-            phaseLabel.trailingAnchor.constraint(
-                equalTo: trailingAnchor, constant: -12
-            ),
-            phaseLabel.firstBaselineAnchor.constraint(
-                equalTo: aliasLabel.firstBaselineAnchor
-            ),
-
-            ageLabel.trailingAnchor.constraint(
-                equalTo: trailingAnchor, constant: -12
-            ),
-            ageLabel.firstBaselineAnchor.constraint(
-                equalTo: directoryLabel.firstBaselineAnchor
-            ),
-        ])
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
-    }
-
-    func apply(_ entry: AgentPaletteEntry) {
-        badge.apply(phase: entry.phase, count: 1)
-        aliasLabel.stringValue = entry.alias
-        directoryLabel.stringValue = entry.directory.isEmpty
-            ? entry.projectName
-            : entry.directory
-        directoryLabel.toolTip = entry.tabTitle
-        phaseLabel.stringValue = Self.phaseName(entry.phase)
-        phaseLabel.textColor = Self.phaseColor(entry.phase)
-        ageLabel.stringValue = Self.age(since: entry.updatedAt)
-
-        setAccessibilityElement(true)
-        setAccessibilityRole(.row)
-        setAccessibilityLabel(
-            "\(entry.alias), \(Self.phaseName(entry.phase)), \(directoryLabel.stringValue)"
-        )
-    }
-
-    /// Matches the vocabulary the status badge's own tooltips use.
-    private static func phaseName(_ phase: KeroAgentPhase) -> String {
-        switch phase {
-        case .created: return String(localized: "starting", comment: "Agent state.")
-        case .working: return String(localized: "working", comment: "Agent state.")
-        case .blocked: return String(localized: "needs you", comment: "Agent state.")
-        case .done: return String(localized: "finished", comment: "Agent state.")
-        case .idle: return String(localized: "idle", comment: "Agent state.")
-        case .unknown: return String(localized: "unknown", comment: "Agent state.")
-        }
-    }
-
-    /// Only the two states that also post a notification carry colour; the
-    /// resting states stay grey so a wall of running agents never shouts.
-    private static func phaseColor(_ phase: KeroAgentPhase) -> NSColor {
-        switch phase {
-        case .blocked: return .systemOrange
-        case .done: return .systemGreen
-        case .working: return .systemBlue
-        case .created, .idle, .unknown: return .tertiaryLabelColor
-        }
-    }
-
-    /// Compact elapsed time — a status column, not prose, so it has to stay
-    /// narrow and stable in width.
-    private static func age(since date: Date) -> String {
-        let seconds = max(0, Int(Date().timeIntervalSince(date)))
-        if seconds < 60 { return "\(seconds)s" }
-        if seconds < 3_600 { return "\(seconds / 60)m" }
-        if seconds < 86_400 { return "\(seconds / 3_600)h" }
-        return "\(seconds / 86_400)d"
     }
 }
 
