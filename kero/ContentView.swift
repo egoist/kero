@@ -272,6 +272,13 @@ struct ContentView: View {
             }
         }
         .overlay {
+            if manager.isAgentPaletteVisible {
+                AgentPaletteMount(manager: manager)
+                    .ignoresSafeArea()
+                    .zIndex(9)
+            }
+        }
+        .overlay {
             if tabSwitcher.isPresented, let project = manager.selectedProject {
                 TabSwitcherOverlay(project: project, controller: tabSwitcher)
                     .zIndex(10)

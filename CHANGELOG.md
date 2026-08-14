@@ -16,6 +16,8 @@ the original feature bullet instead of adding separate entries for them.
 
 ## [unreleased]
 
+- Find any coding agent across every project with ⌥⌘A: search by name, project, or folder, narrow the list with `status:`, `agent:`, and `project:` filters, and read the agent's latest terminal output beside the list before jumping to it
+
 ## [0.1.47]
 
 - Let dictation and other accessibility tools enter text in terminal panes

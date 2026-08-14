@@ -47,8 +47,39 @@ enum TerminalHistorySerializer {
         maxColumns: Int
     ) -> String? {
         guard maxLines > 0, maxColumns > 0,
-              let captureFile = validatedCaptureFile(for: surface.exportScreenFile())
+              let capture = previewCapture(from: surface)
         else { return nil }
+
+        var lines = capture
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .map { visibleText(in: String($0)) }
+
+        while let last = lines.last,
+              last.trimmingCharacters(in: .whitespaces).isEmpty {
+            lines.removeLast()
+        }
+        guard !lines.isEmpty else { return nil }
+
+        return lines.suffix(maxLines).map { line in
+            var cropped = String(line.prefix(maxColumns))
+            while cropped.last == " " || cropped.last == "\t" {
+                cropped.removeLast()
+            }
+            return cropped
+        }
+        .joined(separator: "\n")
+    }
+
+    /// The tail of a backend's screen export, newline-normalized but with its
+    /// escapes intact. Callers that want plain rows use `previewText`; callers
+    /// that render the agent's own colors parse this themselves.
+    @MainActor
+    static func previewCapture(
+        from surface: any TerminalBackendSurface
+    ) -> String? {
+        guard let captureFile = validatedCaptureFile(
+            for: surface.exportScreenFile()
+        ) else { return nil }
         defer { removeCaptureFile(captureFile) }
 
         guard let handle = try? FileHandle(forReadingFrom: captureFile.fileURL) else {
@@ -72,32 +103,13 @@ enum TerminalHistorySerializer {
 
         var capture = String(decoding: data, as: UTF8.self)
         // A tail read can start halfway through a UTF-8 scalar or ANSI run.
-        // Discard its first partial row so no fragment reaches the thumbnail.
+        // Discard its first partial row so no fragment reaches the preview.
         if start > 0, let newline = capture.firstIndex(of: "\n") {
             capture.removeSubrange(...newline)
         }
-        capture = capture
+        return capture
             .replacingOccurrences(of: "\r\n", with: "\n")
             .replacingOccurrences(of: "\r", with: "\n")
-
-        var lines = capture
-            .split(separator: "\n", omittingEmptySubsequences: false)
-            .map { visibleText(in: String($0)) }
-
-        while let last = lines.last,
-              last.trimmingCharacters(in: .whitespaces).isEmpty {
-            lines.removeLast()
-        }
-        guard !lines.isEmpty else { return nil }
-
-        return lines.suffix(maxLines).map { line in
-            var cropped = String(line.prefix(maxColumns))
-            while cropped.last == " " || cropped.last == "\t" {
-                cropped.removeLast()
-            }
-            return cropped
-        }
-        .joined(separator: "\n")
     }
 
     /// A positive-only probe for a primary-buffer scrollback snapshot. A

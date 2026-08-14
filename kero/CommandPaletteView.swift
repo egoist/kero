@@ -152,7 +152,7 @@ struct CommandPaletteView: View {
             PalettePointerEventMonitor(controller: pointerSelectionController)
         )
         .onExitCommand { handleEscapeFromKeyboard() }
-        .onDisappear { manager.restoreFocusAfterCommandPalette() }
+        .onDisappear { manager.restoreFocusAfterPalette() }
         .task(id: fileIndexRoot) {
             projectFiles = []
             guard let root = fileIndexRoot else { return }
@@ -232,6 +232,9 @@ struct CommandPaletteView: View {
             },
             PaletteCommand(id: "resize-pane-right", title: "Resize Pane Right", systemImage: "arrow.right.to.line", shortcut: "⌃⌘→") {
                 manager.resizePaneRight()
+            },
+            PaletteCommand(id: "find-agent", title: "Find Agent…", systemImage: "sparkle.magnifyingglass", shortcut: "⌥⌘A") {
+                manager.toggleAgentPalette()
             },
             PaletteCommand(id: "new-project", title: "New Project", systemImage: "folder.badge.plus", shortcut: "⌘N") {
                 manager.newProject()
@@ -337,10 +340,7 @@ struct CommandPaletteView: View {
         guard let dir = session.workingDirectory else { return nil }
         let path = URL(string: dir)?.path ?? dir
         guard !path.isEmpty else { return nil }
-        let home = NSHomeDirectory()
-        if path == home { return "~" }
-        if path.hasPrefix(home + "/") { return "~" + String(path.dropFirst(home.count)) }
-        return path
+        return path.abbreviatingHomeDirectory
     }
 
     /// The current project's pinned/automatic panel root. Indexing starts only

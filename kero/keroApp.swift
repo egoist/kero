@@ -258,6 +258,11 @@ private struct KeroCommands: Commands {
         }
 
         CommandMenu("Agents") {
+            Button("Find Agent…") {
+                manager?.toggleAgentPalette()
+            }
+            .keyboardShortcut("a", modifiers: [.command, .option])
+
             Button("Next Agent Needing Attention") {
                 manager?.focusNextAgentAttention()
             }
