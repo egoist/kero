@@ -56,6 +56,7 @@ final class TerminalManager: nonisolated ObservableObject {
     /// every launch starts with it hidden.
     @Published var isFPSCounterVisible = false
     @Published private(set) var isCommandPaletteVisible = false
+    @Published private(set) var isAgentPaletteVisible = false
 
     /// Projects publish their own changes (session list, session selection);
     /// re-publish them so views observing the manager stay current.
@@ -68,11 +69,12 @@ final class TerminalManager: nonisolated ObservableObject {
     private var settingsObservation: AnyCancellable?
     private var autosaveObservation: AnyCancellable?
     private var terminationObservation: AnyCancellable?
-    /// The stable terminal/editor responder displaced by the command palette's
-    /// search field. AppKit field editors are deliberately excluded because a
-    /// SwiftUI TextField can reuse the same responder for the palette itself.
-    private weak var commandPalettePreviousResponder: NSResponder?
-    private weak var commandPaletteWindow: NSWindow?
+    /// The stable terminal/editor responder displaced by a palette's search
+    /// field. AppKit field editors are deliberately excluded because a SwiftUI
+    /// TextField can reuse the same responder for the palette itself. Shared
+    /// by ⌘P and the ⌥⌘A agent palette, which are never open together.
+    private weak var palettePreviousResponder: NSResponder?
+    private weak var paletteWindow: NSWindow?
     /// Window hosting this manager, once SwiftUI has attached its content.
     /// Finder service requests use it to target the active Kero window.
     private weak var window: NSWindow?
@@ -470,6 +472,18 @@ final class TerminalManager: nonisolated ObservableObject {
         }
     }
 
+    /// The open session with this identifier in this window, or nil once it
+    /// has been closed. The agent palette holds identifiers rather than
+    /// sessions so a closed terminal drops out instead of lingering.
+    func session(withID id: UUID) -> TerminalSession? {
+        for project in projects {
+            if let session = project.sessions.first(where: { $0.id == id }) {
+                return session
+            }
+        }
+        return nil
+    }
+
     /// Activates Kero and reveals the session that emitted a desktop
     /// notification. Searches every open window; if the session is gone,
     /// still brings the app forward so the click isn't a dead end.
@@ -742,13 +756,8 @@ final class TerminalManager: nonisolated ObservableObject {
         if isCommandPaletteVisible {
             dismissCommandPalette()
         } else {
-            commandPaletteWindow = NSApp.keyWindow
-            if let responder = commandPaletteWindow?.firstResponder,
-               isStableWorkspaceResponder(responder) {
-                commandPalettePreviousResponder = responder
-            } else {
-                commandPalettePreviousResponder = nil
-            }
+            dismissAgentPalette()
+            capturePaletteFocus()
             isCommandPaletteVisible = true
         }
     }
@@ -758,13 +767,41 @@ final class TerminalManager: nonisolated ObservableObject {
         isCommandPaletteVisible = false
     }
 
-    /// Called by the palette after SwiftUI has actually removed its focused
-    /// search field from the window.
-    func restoreFocusAfterCommandPalette() {
-        let window = commandPaletteWindow
-        let responder = commandPalettePreviousResponder
-        commandPaletteWindow = nil
-        commandPalettePreviousResponder = nil
+    /// ⌥⌘A: the agent switcher across every project in this window.
+    func toggleAgentPalette() {
+        if isAgentPaletteVisible {
+            dismissAgentPalette()
+        } else {
+            dismissCommandPalette()
+            capturePaletteFocus()
+            isAgentPaletteVisible = true
+        }
+    }
+
+    func dismissAgentPalette() {
+        guard isAgentPaletteVisible else { return }
+        isAgentPaletteVisible = false
+    }
+
+    /// Remembers the terminal or editor a palette is about to displace, so its
+    /// dismissal can hand keyboard focus back where the user left it.
+    private func capturePaletteFocus() {
+        paletteWindow = NSApp.keyWindow
+        if let responder = paletteWindow?.firstResponder,
+           isStableWorkspaceResponder(responder) {
+            palettePreviousResponder = responder
+        } else {
+            palettePreviousResponder = nil
+        }
+    }
+
+    /// Called by a palette after its focused search field has actually left
+    /// the window.
+    func restoreFocusAfterPalette() {
+        let window = paletteWindow
+        let responder = palettePreviousResponder
+        paletteWindow = nil
+        palettePreviousResponder = nil
 
         // Let the removal transaction finish before restoring the displaced
         // AppKit responder.

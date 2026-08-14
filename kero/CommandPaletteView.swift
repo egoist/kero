@@ -152,7 +152,7 @@ struct CommandPaletteView: View {
             PalettePointerEventMonitor(controller: pointerSelectionController)
         )
         .onExitCommand { handleEscapeFromKeyboard() }
-        .onDisappear { manager.restoreFocusAfterCommandPalette() }
+        .onDisappear { manager.restoreFocusAfterPalette() }
         .task(id: fileIndexRoot) {
             projectFiles = []
             guard let root = fileIndexRoot else { return }
@@ -232,6 +232,9 @@ struct CommandPaletteView: View {
             },
             PaletteCommand(id: "resize-pane-right", title: "Resize Pane Right", systemImage: "arrow.right.to.line", shortcut: "⌃⌘→") {
                 manager.resizePaneRight()
+            },
+            PaletteCommand(id: "find-agent", title: "Find Agent…", systemImage: "sparkle.magnifyingglass", shortcut: "⌥⌘A") {
+                manager.toggleAgentPalette()
             },
             PaletteCommand(id: "new-project", title: "New Project", systemImage: "folder.badge.plus", shortcut: "⌘N") {
                 manager.newProject()
