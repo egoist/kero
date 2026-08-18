@@ -1080,8 +1080,16 @@ final class GitStatusModel: nonisolated ObservableObject {
             entry.repositoryRoot = result.topLevel
             return entry
         }
+        // Git reports one path more than once for legitimate states: a staged
+        // deletion whose file is still on disk arrives as both a `1 D.` record
+        // and a `? ` untracked record. Collapse those with the precedence
+        // directories already use, so the state that most needs attention wins
+        // instead of trapping on a duplicate key.
         fileDecorations = Dictionary(
-            uniqueKeysWithValues: entries.map { ($0.path, Self.fileDecoration(for: $0)) }
+            entries.map { ($0.path, Self.fileDecoration(for: $0)) },
+            uniquingKeysWith: {
+                $0.directoryPriority >= $1.directoryPriority ? $0 : $1
+            }
         )
         ignoredPaths = result.ignoredPaths
         mergeEntries = entries.filter(\.isConflict)
