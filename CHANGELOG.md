@@ -16,6 +16,8 @@ the original feature bullet instead of adding separate entries for them.
 
 ## [unreleased]
 
+- Fix Kero crashing seconds after launch when a project's repository has staged file deletions whose files are still on disk
+
 ## [0.1.47]
 
 - Let dictation and other accessibility tools enter text in terminal panes
