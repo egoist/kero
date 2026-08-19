@@ -1080,9 +1080,11 @@ final class GitStatusModel: nonisolated ObservableObject {
             entry.repositoryRoot = result.topLevel
             return entry
         }
-        // Git can report a path twice (a staged deletion whose file is still on
-        // disk is both deleted and untracked), so collapse duplicates instead
-        // of trapping on a repeated key.
+        // Git reports one path more than once for legitimate states: a staged
+        // deletion whose file is still on disk arrives as both a `1 D.` record
+        // and a `? ` untracked record. Collapse those with the precedence
+        // directories already use, so the state that most needs attention wins
+        // instead of trapping on a duplicate key.
         fileDecorations = Dictionary(
             entries.map { ($0.path, Self.fileDecoration(for: $0)) },
             uniquingKeysWith: {
