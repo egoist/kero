@@ -9,6 +9,15 @@ import MetalKit
 import QuartzCore
 import simd
 
+/// IME preedit state for one frame: the composed text plus the grid position
+/// it starts at. Captured separately from the snapshot's cursor fields so a
+/// hidden blink phase cannot take the preedit down with the cursor.
+struct TerminalMarkedText {
+    var text: String
+    var line: Int
+    var column: Int
+}
+
 /// GPU renderer for a terminal grid.
 ///
 /// One instanced draw call covers a frame: every cell background, glyph,
@@ -111,6 +120,7 @@ final class TerminalMetalRenderer {
     @discardableResult
     func render(
         snapshot: KeroSnapshot,
+        markedText: TerminalMarkedText?,
         kittyPlacements: [AlacrittyKittyPlacement],
         metrics: AlacrittyMetrics,
         padding: CGPoint,
@@ -131,7 +141,7 @@ final class TerminalMetalRenderer {
 
         let atlasGenerationBeforeBuild = atlas.generation
         build(
-            snapshot: snapshot, metrics: metrics, padding: padding,
+            snapshot: snapshot, markedText: markedText, metrics: metrics, padding: padding,
             atlas: atlas,
             dirtyRows: resetAtlas ? nil : dirtyRows,
             viewportSize: viewportSize
@@ -141,7 +151,7 @@ final class TerminalMetalRenderer {
             // frame. Its old UVs are invalid, including those in cached clean
             // rows, so rebuild the complete grid once against the new atlas.
             build(
-                snapshot: snapshot, metrics: metrics, padding: padding,
+                snapshot: snapshot, markedText: markedText, metrics: metrics, padding: padding,
                 atlas: atlas, dirtyRows: nil, viewportSize: viewportSize
             )
         }
@@ -306,6 +316,7 @@ final class TerminalMetalRenderer {
 
     private func build(
         snapshot: KeroSnapshot,
+        markedText: TerminalMarkedText?,
         metrics: AlacrittyMetrics,
         padding: CGPoint,
         atlas: TerminalGlyphAtlas,
@@ -361,6 +372,74 @@ final class TerminalMetalRenderer {
             padding: padding,
             blockInsertionIndex: blockCursorInsertionIndex(snapshot: snapshot)
         )
+        appendMarkedText(
+            markedText,
+            snapshot: snapshot,
+            metrics: metrics,
+            padding: padding,
+            atlas: atlas
+        )
+    }
+
+    /// IME preedit, drawn at its anchor cell with an underline so uncommitted
+    /// composition reads the way it does in a native text field. It lives
+    /// outside the per-row cache — it changes without grid damage — and above
+    /// all cell content, including the cursor.
+    private func appendMarkedText(
+        _ markedText: TerminalMarkedText?,
+        snapshot: KeroSnapshot,
+        metrics: AlacrittyMetrics,
+        padding: CGPoint,
+        atlas: TerminalGlyphAtlas
+    ) {
+        guard let markedText,
+              let cells = snapshot.cells,
+              markedText.line >= 0,
+              markedText.column >= 0,
+              markedText.line < snapshot.rows,
+              markedText.column < snapshot.columns
+        else { return }
+        let cellWidth = Float(metrics.cellWidth)
+        let cellHeight = Float(metrics.cellHeight)
+        let anchorCell = cells[markedText.line * snapshot.columns + markedText.column]
+        let color = Self.color(
+            AlacrittyRenderer.foreground(of: anchorCell, default: snapshot.background)
+        )
+        let top = Float(padding.y) + Float(markedText.line) * cellHeight
+        let baseline = top + Float(metrics.baseline)
+        var column = Float(markedText.column)
+        for character in markedText.text {
+            guard column < Float(snapshot.columns) else { break }
+            let left = Float(padding.x) + column * cellWidth
+            // Wide preedit characters (kana, hanzi) straddle two cells.
+            var advance: Float = 1
+            let key = TerminalGlyphAtlas.Key(
+                content: .cluster(Data(String(character).utf8)),
+                bold: false,
+                italic: false
+            )
+            if let entry = atlas.entry(for: key) {
+                if entry.size.x > cellWidth * 1.5 { advance = 2 }
+                instances.append(Instance(
+                    origin: SIMD2(
+                        left + entry.bearing.x,
+                        baseline - entry.bearing.y - entry.size.y
+                    ),
+                    size: entry.size,
+                    color: color,
+                    uvOrigin: entry.uvOrigin,
+                    uvSize: entry.uvSize,
+                    kind: entry.isColor ? 2 : 1
+                ))
+            }
+            instances.append(Instance(
+                origin: SIMD2(left, baseline + cellHeight * 0.12),
+                size: SIMD2(advance * cellWidth, 1),
+                color: color,
+                uvOrigin: .zero, uvSize: .zero, kind: 0
+            ))
+            column += advance
+        }
     }
 
     private func buildRow(

@@ -35,7 +35,6 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
     private var metrics: AlacrittyMetrics
     private var gridSize = (columns: 0, rows: 0)
     private var markedText = ""
-    private let markedTextField = NSTextField(labelWithString: "")
     private var isSurfaceVisible = false
     /// Covers Metal while a parked surface is moving back into a real pane.
     /// The cover lives above the drawable so the GPU can acquire and present
@@ -109,11 +108,6 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
         wantsLayer = true
         layerContentsRedrawPolicy = .onSetNeedsDisplay
         registerForDraggedTypes([.fileURL])
-        markedTextField.isHidden = true
-        markedTextField.isBezeled = false
-        markedTextField.drawsBackground = true
-        markedTextField.lineBreakMode = .byClipping
-        addSubview(markedTextField)
         addSubview(progressBar)
         AlacrittyRegistry.shared.register(self, for: token)
         NotificationCenter.default.addObserver(
@@ -623,9 +617,24 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
         kero_alacritty_snapshot(handle, &snapshot)
         applyHoveredURLUnderline(to: &snapshot)
         updateKittyGraphics(handle: handle)
-        updateMarkedTextOverlay(snapshot: snapshot)
+        // Capture the preedit anchor before the blink/focus logic below
+        // rewrites the snapshot's cursor: a hidden blink phase must not take
+        // the marked text down with the cursor.
+        let preedit: TerminalMarkedText? =
+            !markedText.isEmpty && snapshot.cursor_line >= 0 && snapshot.cursor_column >= 0
+                ? TerminalMarkedText(
+                    text: markedText,
+                    line: Int(snapshot.cursor_line),
+                    column: Int(snapshot.cursor_column)
+                )
+                : nil
         updateCursorBlinking(snapshot.cursor_blinking)
-        if cursorBlinking, !cursorVisible {
+        if preedit != nil {
+            // While the IME owns the text at the cursor, the cursor itself
+            // stays hidden, as in a native text field.
+            snapshot.cursor_line = -1
+            snapshot.cursor_column = -1
+        } else if cursorBlinking, !cursorVisible {
             snapshot.cursor_line = -1
             snapshot.cursor_column = -1
         } else if !(cursorHasFocus ?? hasEffectiveTerminalFocus),
@@ -656,6 +665,7 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
         }
         let submitted = renderer.render(
             snapshot: snapshot,
+            markedText: preedit,
             kittyPlacements: kittyPlacements,
             metrics: metrics,
             padding: Self.padding,
@@ -771,40 +781,6 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
         CATransaction.setDisableActions(true)
         presentationCoverLayer.isHidden = !visible
         CATransaction.commit()
-    }
-
-    private func updateMarkedTextOverlay(snapshot: KeroSnapshot) {
-        guard !markedText.isEmpty,
-              snapshot.cursor_line >= 0,
-              snapshot.cursor_column >= 0
-        else {
-            markedTextField.isHidden = true
-            return
-        }
-        let attributes: [NSAttributedString.Key: Any] = [
-            .font: metrics.regular,
-            .foregroundColor: Theme.terminal(
-                dark: NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-            ).foregroundNSColor,
-            .underlineStyle: NSUnderlineStyle.single.rawValue,
-        ]
-        let attributed = NSAttributedString(string: markedText, attributes: attributes)
-        markedTextField.attributedStringValue = attributed
-        markedTextField.backgroundColor = Theme.terminal(
-            dark: NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-        ).backgroundNSColor
-        let width = max(
-            attributed.size().width.rounded(.up) + 2,
-            metrics.cellWidth
-        )
-        markedTextField.frame = NSRect(
-            x: Self.padding.x + CGFloat(snapshot.cursor_column) * metrics.cellWidth,
-            y: bounds.height - Self.padding.y
-                - CGFloat(snapshot.cursor_line + 1) * metrics.cellHeight,
-            width: width,
-            height: metrics.cellHeight
-        )
-        markedTextField.isHidden = false
     }
 
     private func updateCursorBlinking(_ blinking: Bool) {
