@@ -22,7 +22,7 @@ extension KeroTerminalView {
         let controller = TerminalController(
             configSource: .none,
             theme: Self.ghosttyTheme(),
-            terminalConfiguration: Self.terminalConfiguration(command: launch.commandLine)
+            terminalConfiguration: terminalConfiguration(command: launch.commandLine)
         )
         ghosttyController = controller
         delegate = self
@@ -41,7 +41,7 @@ extension KeroTerminalView {
     func applyAppearance() {
         guard let ghosttyController else { return }
         _ = ghosttyController.setTerminalConfiguration(
-            Self.terminalConfiguration(command: launchCommand)
+            terminalConfiguration(command: launchCommand)
         )
         _ = ghosttyController.setTheme(Self.ghosttyTheme())
         let isDark = NSApp.effectiveAppearance.bestMatch(
@@ -59,7 +59,7 @@ extension KeroTerminalView {
 
     // MARK: - Configuration
 
-    private static func terminalConfiguration(command: String) -> TerminalConfiguration {
+    private func terminalConfiguration(command: String) -> TerminalConfiguration {
         let settings = AppSettings.shared
         let family = settings.fontFamily.isEmpty
             ? TerminalFont.bundledFamily : settings.fontFamily
@@ -128,6 +128,7 @@ extension KeroTerminalView {
                 settings.macosOptionAsAlt ? "true" : "false"
             )
             builder.withCustom("scrollbar", "never")
+            builder.withBackgroundOpacity(backgroundOpacity)
             // Terminal-program clipboard access via OSC 52, matching the
             // Ghostty app defaults: reads prompt the user per request
             // (TerminalSession presents the confirmation sheet), writes

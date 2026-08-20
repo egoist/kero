@@ -33,6 +33,7 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
     private var handle: OpaquePointer?
     private let token = AlacrittyRegistry.shared.nextToken()
     private var metrics: AlacrittyMetrics
+    private var backgroundOpacity: CGFloat = 1
     private var gridSize = (columns: 0, rows: 0)
     private var markedText = ""
     private let markedTextField = NSTextField(labelWithString: "")
@@ -200,7 +201,7 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
     }
 
     private var shouldKeepMetalLayerActive: Bool {
-        isSurfaceVisible && NSApp.isActive && window?.isKeyWindow == true
+        isSurfaceVisible && window?.isKeyWindow == true
     }
 
     private func updateBackingLayerActivity(forceFrame: Bool = false) {
@@ -245,8 +246,8 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
 
         presentationCoverLayer.removeFromSuperlayer()
         let frozenLayer = CALayer()
-        frozenLayer.isOpaque = true
-        frozenLayer.backgroundColor = Theme.background.cgColor
+        frozenLayer.isOpaque = false
+        frozenLayer.backgroundColor = terminalBackgroundColor
         frozenLayer.contents = lastPresentedSurface
         frozenLayer.contentsScale = lastPresentedScale
             ?? window?.backingScaleFactor
@@ -322,8 +323,7 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
 
     private func updateDirectoryPolling() {
         let shouldPoll =
-            !usesOSCWorkingDirectory
-            && isSurfaceVisible && NSApp.isActive && window?.isKeyWindow == true
+            !usesOSCWorkingDirectory && isSurfaceVisible && window?.isKeyWindow == true
         guard shouldPoll else {
             directoryTimer?.invalidate()
             directoryTimer = nil
@@ -395,8 +395,8 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
             // multi-tab memory.
             presentationCoverLayer.removeFromSuperlayer()
             let parkedLayer = CALayer()
-            parkedLayer.isOpaque = true
-            parkedLayer.backgroundColor = Theme.background.cgColor
+            parkedLayer.isOpaque = false
+            parkedLayer.backgroundColor = terminalBackgroundColor
             parkedLayer.autoresizingMask = [.layerWidthSizable, .layerHeightSizable]
             replaceBackingLayer(with: parkedLayer)
             lastPresentedSize = nil
@@ -418,7 +418,7 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
             size: CGFloat(AppSettings.shared.fontSize),
             fontThicken: AppSettings.shared.fontThicken
         )
-        presentationCoverLayer.backgroundColor = Theme.background.cgColor
+        presentationCoverLayer.backgroundColor = terminalBackgroundColor
         var theme = AlacrittyTheme.current()
         if let handle {
             withUnsafePointer(to: &theme) { kero_alacritty_set_theme(handle, $0) }
@@ -431,6 +431,17 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
         // A new cell size means a different column count.
         synchronizeGridSize()
         refreshFrozenFrame()
+    }
+
+    func setBackgroundOpacity(_ opacity: CGFloat) {
+        backgroundOpacity = min(max(opacity, 0), 1)
+        presentationCoverLayer.backgroundColor = terminalBackgroundColor
+        needsUnconditionalRedraw = true
+        if layer is CAMetalLayer {
+            scheduleRender(force: true)
+        } else {
+            refreshFrozenFrame()
+        }
     }
 
     var foregroundPid: pid_t? {
@@ -492,7 +503,7 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
 
     override var isFlipped: Bool { false }
 
-    override var isOpaque: Bool { true }
+    override var isOpaque: Bool { false }
 
     // MARK: - Drawing
 
@@ -505,7 +516,7 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
         layer.device = metalDevice
         layer.pixelFormat = .bgra8Unorm
         layer.framebufferOnly = true
-        layer.isOpaque = true
+        layer.isOpaque = false
         // Terminal frames are cheap enough to keep up with the display link;
         // a third full-window drawable only adds one pane-sized IOSurface
         // (~15 MiB on a large Retina window) without improving throughput.
@@ -517,7 +528,7 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
         layer.contentsGravity = .topLeft
         layer.autoresizingMask = [.layerWidthSizable, .layerHeightSizable]
         layer.needsDisplayOnBoundsChange = true
-        presentationCoverLayer.backgroundColor = Theme.background.cgColor
+        presentationCoverLayer.backgroundColor = terminalBackgroundColor
         presentationCoverLayer.frame = layer.bounds
         presentationCoverLayer.autoresizingMask = [.layerWidthSizable, .layerHeightSizable]
         presentationCoverLayer.isHidden = false
@@ -660,6 +671,7 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
             metrics: metrics,
             padding: Self.padding,
             scale: scale,
+            backgroundOpacity: backgroundOpacity,
             dirtyRows: dirtyRows,
             in: drawable,
             viewportSize: size,
@@ -677,6 +689,10 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
         }
         AlacrittyRenderStats.shared.rebuilt(rows: dirtyRows?.count ?? snapshot.rows)
         return submitted
+    }
+
+    private var terminalBackgroundColor: CGColor {
+        Theme.background.withAlphaComponent(backgroundOpacity).cgColor
     }
 
     /// Snapshot cells are rebuilt by the bridge for every frame, so adding the
@@ -1104,7 +1120,7 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
     }
 
     var hasEffectiveTerminalFocus: Bool {
-        NSApp.isActive && window?.isKeyWindow == true && window?.firstResponder === self
+        window?.isKeyWindow == true && window?.firstResponder === self
     }
 
     // MARK: - Find

@@ -18,6 +18,11 @@ final class KeroApplicationDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.servicesProvider = self
+        GlobalTerminalOverlay.shared.start()
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        GlobalTerminalOverlay.shared.stop()
     }
 
     /// Opens every directory Finder placed on the service pasteboard as a

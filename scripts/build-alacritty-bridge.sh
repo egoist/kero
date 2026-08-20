@@ -36,6 +36,25 @@ if ! command -v cargo > /dev/null 2>&1; then
   exit 1
 fi
 
+if ! command -v rustc > /dev/null 2>&1; then
+  echo "error: rustc not found. Kero's Alacritty backend needs a complete Rust toolchain." >&2
+  exit 1
+fi
+
+rust_target_is_installed() {
+  local target="$1"
+
+  if command -v rustup > /dev/null 2>&1; then
+    rustup target list --installed | grep -qx "${target}"
+    return
+  fi
+
+  # Homebrew Rust does not ship rustup; its installed targets live under rustc's sysroot.
+  local target_libdir
+  target_libdir="$(rustc --print target-libdir --target "${target}" 2>/dev/null)" || return 1
+  [[ -d "${target_libdir}" ]]
+}
+
 mkdir -p "${BUILD_DIR}" "${OUTPUT_DIR}"
 # Copy rather than symlink: cargo resolves the manifest's real path, and a
 # symlinked manifest lands back in the read-only source tree.
@@ -51,10 +70,15 @@ for arch in ${=ARCHS}; do
     *) echo "error: unsupported architecture ${arch}" >&2; exit 1 ;;
   esac
 
-  if ! rustup target list --installed 2>/dev/null | grep -qx "${target}"; then
+  if ! rust_target_is_installed "${target}"; then
     # Installing writes to ~/.rustup, which the script sandbox forbids, so say
     # so here instead of failing later with an unexplained linker error.
-    echo "error: Rust target ${target} is not installed. Run: rustup target add ${target}" >&2
+    if command -v rustup > /dev/null 2>&1; then
+      hint="Run: rustup target add ${target}"
+    else
+      hint="Install a Rust toolchain that includes ${target}."
+    fi
+    echo "error: Rust target ${target} is not installed. ${hint}" >&2
     exit 1
   fi
 

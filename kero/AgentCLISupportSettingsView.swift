@@ -62,7 +62,6 @@ final class AgentCLISupportSettingsView: NSView {
             textStack.trailingAnchor.constraint(lessThanOrEqualTo: toggle.leadingAnchor, constant: -16),
             toggle.trailingAnchor.constraint(equalTo: trailingAnchor),
             toggle.topAnchor.constraint(equalTo: topAnchor),
-            heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
         ])
     }
 
@@ -94,7 +93,7 @@ final class AgentCLISupportSettingsView: NSView {
     override var intrinsicContentSize: NSSize {
         NSSize(
             width: NSView.noIntrinsicMetric,
-            height: ceil(max(max(textStack.fittingSize.height, toggle.fittingSize.height), 44))
+            height: ceil(max(textStack.fittingSize.height, toggle.fittingSize.height))
         )
     }
 }

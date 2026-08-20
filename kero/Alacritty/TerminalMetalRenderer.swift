@@ -83,10 +83,9 @@ final class TerminalMetalRenderer {
         attachment.rgbBlendOperation = .add
         attachment.alphaBlendOperation = .add
         attachment.sourceRGBBlendFactor = .sourceAlpha
-        // The terminal framebuffer is always opaque. Preserve that alpha so
-        // the IOSurface retained for an inactive window composites exactly
-        // like the opaque CAMetalLayer; multiplying glyph coverage into alpha
-        // a second time makes antialiased edges look thinner after focus loss.
+        // Glyphs remain fully opaque over a potentially translucent terminal
+        // background, so their alpha must replace rather than inherit the
+        // background alpha in the retained IOSurface.
         attachment.sourceAlphaBlendFactor = .one
         attachment.destinationRGBBlendFactor = .oneMinusSourceAlpha
         attachment.destinationAlphaBlendFactor = .oneMinusSourceAlpha
@@ -115,6 +114,7 @@ final class TerminalMetalRenderer {
         metrics: AlacrittyMetrics,
         padding: CGPoint,
         scale: CGFloat,
+        backgroundOpacity: CGFloat,
         dirtyRows: [Int]?,
         in drawable: CAMetalDrawable,
         viewportSize: CGSize,
@@ -133,6 +133,7 @@ final class TerminalMetalRenderer {
         build(
             snapshot: snapshot, metrics: metrics, padding: padding,
             atlas: atlas,
+            backgroundOpacity: backgroundOpacity,
             dirtyRows: resetAtlas ? nil : dirtyRows,
             viewportSize: viewportSize
         )
@@ -142,7 +143,10 @@ final class TerminalMetalRenderer {
             // rows, so rebuild the complete grid once against the new atlas.
             build(
                 snapshot: snapshot, metrics: metrics, padding: padding,
-                atlas: atlas, dirtyRows: nil, viewportSize: viewportSize
+                atlas: atlas,
+                backgroundOpacity: backgroundOpacity,
+                dirtyRows: nil,
+                viewportSize: viewportSize
             )
         }
 
@@ -151,11 +155,13 @@ final class TerminalMetalRenderer {
         pass.colorAttachments[0].loadAction = .clear
         pass.colorAttachments[0].storeAction = .store
         let background = Self.color(snapshot.background)
+        let alpha = Double(backgroundOpacity)
+        // Core Animation composites this transparent drawable as premultiplied alpha.
         pass.colorAttachments[0].clearColor = MTLClearColor(
-            red: Double(background.x),
-            green: Double(background.y),
-            blue: Double(background.z),
-            alpha: 1
+            red: Double(background.x) * alpha,
+            green: Double(background.y) * alpha,
+            blue: Double(background.z) * alpha,
+            alpha: alpha
         )
 
         guard let commands = queue.makeCommandBuffer(),
@@ -309,6 +315,7 @@ final class TerminalMetalRenderer {
         metrics: AlacrittyMetrics,
         padding: CGPoint,
         atlas: TerminalGlyphAtlas,
+        backgroundOpacity: CGFloat,
         dirtyRows: [Int]?,
         viewportSize: CGSize
     ) {
@@ -345,7 +352,9 @@ final class TerminalMetalRenderer {
             rowInstances[row] = buildRow(
                 row: row, cells: cells, columns: columns,
                 snapshot: snapshot, metrics: metrics, padding: padding,
-                atlas: atlas, viewportSize: viewportSize
+                atlas: atlas,
+                backgroundOpacity: backgroundOpacity,
+                viewportSize: viewportSize
             )
         }
 
@@ -371,6 +380,7 @@ final class TerminalMetalRenderer {
         metrics: AlacrittyMetrics,
         padding: CGPoint,
         atlas: TerminalGlyphAtlas,
+        backgroundOpacity: CGFloat,
         viewportSize: CGSize
     ) -> RowInstances {
         var instances: [Instance] = []
@@ -410,7 +420,7 @@ final class TerminalMetalRenderer {
                 instances.append(Instance(
                     origin: SIMD2(left, runTop),
                     size: SIMD2(max(right - left, 0), max(bottom - runTop, 0)),
-                    color: Self.color(background),
+                    color: Self.color(background, alpha: Float(backgroundOpacity)),
                     uvOrigin: .zero,
                     uvSize: .zero,
                     kind: 0
@@ -568,12 +578,12 @@ final class TerminalMetalRenderer {
         return precedingInstances + rowInstances[row].backgroundCount
     }
 
-    private static func color(_ packed: UInt32) -> SIMD4<Float> {
+    private static func color(_ packed: UInt32, alpha: Float = 1) -> SIMD4<Float> {
         SIMD4(
             Float((packed >> 16) & 0xff) / 255,
             Float((packed >> 8) & 0xff) / 255,
             Float(packed & 0xff) / 255,
-            1
+            alpha
         )
     }
 

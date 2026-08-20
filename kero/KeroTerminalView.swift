@@ -37,6 +37,7 @@ final class KeroTerminalView: AppTerminalView, TerminalBackendSurface {
     private var isCapturingHistoryExport = false
     private var capturedHistoryExportPath: String?
     private var isSurfaceVisible = false
+    private(set) var backgroundOpacity = 1.0
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -57,6 +58,11 @@ final class KeroTerminalView: AppTerminalView, TerminalBackendSurface {
     override func setSurfaceVisible(_ visible: Bool) {
         isSurfaceVisible = visible
         super.setSurfaceVisible(visible)
+    }
+
+    func setBackgroundOpacity(_ opacity: CGFloat) {
+        backgroundOpacity = min(max(Double(opacity), 0), 1)
+        applyAppearance()
     }
 
     func clearScreen() {
@@ -155,10 +161,9 @@ final class KeroTerminalView: AppTerminalView, TerminalBackendSurface {
         return true
     }
 
-    /// The terminal is effectively focused only while Kero itself is active,
-    /// its window is key, and this exact surface owns the first responder.
+    /// The quick-terminal panel can be key without activating Kero.
     var hasEffectiveTerminalFocus: Bool {
-        NSApp.isActive && window?.isKeyWindow == true && window?.firstResponder === self
+        window?.isKeyWindow == true && window?.firstResponder === self
     }
 
     override func isAccessibilityElement() -> Bool { isSurfaceVisible }
