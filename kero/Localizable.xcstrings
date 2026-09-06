@@ -4640,6 +4640,22 @@
         }
       }
     },
+    "Opacity" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不透明度"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不透明度"
+          }
+        }
+      }
+    },
     "Paste" : {
       "localizations" : {
         "ja" : {
@@ -4732,6 +4748,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "端口"
+          }
+        }
+      }
+    },
+    "Press shortcut" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ショートカットを押してください"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按下快捷键"
           }
         }
       }
@@ -5020,6 +5052,86 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "推送"
+          }
+        }
+      }
+    },
+    "Quick Terminal" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "クイックターミナル"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "临时终端"
+          }
+        }
+      }
+    },
+    "Quick Terminal default opacity" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "クイックターミナルのデフォルト不透明度"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "临时终端默认不透明度"
+          }
+        }
+      }
+    },
+    "Quick Terminal default shortcut" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "クイックターミナルのデフォルトショートカット"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "临时终端默认快捷键"
+          }
+        }
+      }
+    },
+    "Quick Terminal default size" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "クイックターミナルのデフォルトサイズ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "临时终端默认大小"
+          }
+        }
+      }
+    },
+    "Quick Terminal shortcut" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "クイックターミナルのショートカット"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "临时终端快捷键"
           }
         }
       }
@@ -5880,6 +5992,22 @@
         }
       }
     },
+    "Shortcut" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ショートカット"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "快捷键"
+          }
+        }
+      }
+    },
     "Session" : {
       "localizations" : {
         "ja" : {
@@ -6624,6 +6752,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "标签页"
+          }
+        }
+      }
+    },
+    "Temporary terminal opacity" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一時ターミナルの不透明度"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "临时终端不透明度"
+          }
+        }
+      }
+    },
+    "Temporary terminal size" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一時ターミナルのサイズ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "临时终端大小"
           }
         }
       }

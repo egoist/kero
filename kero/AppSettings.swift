@@ -116,6 +116,11 @@ final class AppSettings: nonisolated ObservableObject {
     static let defaultSidebarFontSize: Double = 14
     static let sidebarFontSizeRange: ClosedRange<Double> = 9...18
     static let defaultToolbarVisibility: ToolbarVisibility = .hide
+    static let defaultQuickTerminalSize: Double = 0.75
+    static let quickTerminalSizeRange: ClosedRange<Double> = 0.35...0.95
+    static let defaultQuickTerminalOpacity: Double = 0.5
+    static let quickTerminalOpacityRange: ClosedRange<Double> = 0.05...1
+    static let defaultQuickTerminalShortcut = QuickTerminalShortcut.defaultValue
 
     /// The language this process launched with, kept separate from the pending
     /// selection so Settings can explain when a relaunch is required.
@@ -212,6 +217,20 @@ final class AppSettings: nonisolated ObservableObject {
         didSet { save() }
     }
 
+    /// Initial area and translucency for the global quick terminal. Per-use
+    /// adjustments stay with the overlay rather than changing these defaults.
+    @Published var quickTerminalSize: Double {
+        didSet { save() }
+    }
+
+    @Published var quickTerminalOpacity: Double {
+        didSet { save() }
+    }
+
+    @Published var quickTerminalShortcut: QuickTerminalShortcut {
+        didSet { save() }
+    }
+
     /// Link Kero's shared coordination skill plus the native lifecycle
     /// integrations whose provider APIs provide semantic turn events. Other
     /// agents retain process recognition without inferred progress state.
@@ -266,6 +285,19 @@ final class AppSettings: nonisolated ObservableObject {
         macosOptionAsAlt = toml["terminal.macos-option-as-alt"]?.bool ?? false
         wrapLines = toml["editor.wrap-lines"]?.bool ?? false
         restoreTerminalHistory = toml["terminal.restore-history"]?.bool ?? false
+        let quickTerminalSize = toml["quick-terminal.size"]?.double
+            ?? Self.defaultQuickTerminalSize
+        self.quickTerminalSize = Self.quickTerminalSizeRange.contains(quickTerminalSize)
+            ? quickTerminalSize
+            : Self.defaultQuickTerminalSize
+        let quickTerminalOpacity = toml["quick-terminal.opacity"]?.double
+            ?? Self.defaultQuickTerminalOpacity
+        self.quickTerminalOpacity = Self.quickTerminalOpacityRange.contains(quickTerminalOpacity)
+            ? quickTerminalOpacity
+            : Self.defaultQuickTerminalOpacity
+        quickTerminalShortcut = QuickTerminalShortcut(
+            persistedValue: toml["quick-terminal.shortcut"]?.string
+        ) ?? Self.defaultQuickTerminalShortcut
         aiEnabled = toml["ai.enabled"]?.bool ?? false
         terminalBackend = TerminalBackend(persisted: toml["terminal.backend"]?.string)
         applyAppearance()
@@ -317,6 +349,10 @@ final class AppSettings: nonisolated ObservableObject {
         macosOptionAsAlt = false
         wrapLines = false
         restoreTerminalHistory = false
+        quickTerminalSize = Self.defaultQuickTerminalSize
+        quickTerminalOpacity = Self.defaultQuickTerminalOpacity
+        quickTerminalShortcut = Self.defaultQuickTerminalShortcut
+        GlobalTerminalOverlay.shared.reloadHotkey()
         if aiEnabled {
             do {
                 try setAIEnabled(false)
@@ -404,6 +440,15 @@ final class AppSettings: nonisolated ObservableObject {
         }
         if restoreTerminalHistory {
             lines.append("terminal.restore-history = true")
+        }
+        if quickTerminalSize != Self.defaultQuickTerminalSize {
+            lines.append("quick-terminal.size = \(TOML.number(quickTerminalSize))")
+        }
+        if quickTerminalOpacity != Self.defaultQuickTerminalOpacity {
+            lines.append("quick-terminal.opacity = \(TOML.number(quickTerminalOpacity))")
+        }
+        if quickTerminalShortcut != Self.defaultQuickTerminalShortcut {
+            lines.append("quick-terminal.shortcut = \(TOML.quote(quickTerminalShortcut.persistedValue))")
         }
         if aiEnabled {
             lines.append("ai.enabled = true")

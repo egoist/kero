@@ -182,6 +182,10 @@ protocol TerminalBackendSurface: NSView {
     /// to pick up a new font, color theme, or input setting in place.
     func applyAppearance()
 
+    /// Adjusts only the terminal background's alpha. Pane terminals stay
+    /// opaque; the global quick terminal opts into this per surface.
+    func setBackgroundOpacity(_ opacity: CGFloat)
+
     /// Releases the emulator and its child process bookkeeping. The view
     /// itself outlives this call so teardown never pulls a pane out from
     /// under the layout mid-frame.

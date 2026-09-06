@@ -4,6 +4,7 @@
 //
 
 import AppKit
+import Carbon.HIToolbox
 import GhosttyTheme
 import SwiftUI
 
@@ -218,6 +219,11 @@ struct SettingsView: View {
                 }
             }
 
+            Section("Quick Terminal") {
+                QuickTerminalDefaultsSettingsView()
+                    .frame(height: 80)
+            }
+
             Section("Text Editing") {
                 Toggle("Wrap lines to editor width", isOn: $settings.wrapLines)
             }
@@ -227,7 +233,6 @@ struct SettingsView: View {
                     isEnabled: settings.aiEnabled,
                     onChange: { try settings.setAIEnabled($0) }
                 )
-                .frame(minHeight: 44)
             }
 
             Section("Updates") {
@@ -262,6 +267,9 @@ struct SettingsView: View {
                         && settings.toolbarVisibility == AppSettings.defaultToolbarVisibility
                         && !settings.wrapLines
                         && !settings.restoreTerminalHistory
+                        && settings.quickTerminalSize == AppSettings.defaultQuickTerminalSize
+                        && settings.quickTerminalOpacity == AppSettings.defaultQuickTerminalOpacity
+                        && settings.quickTerminalShortcut == AppSettings.defaultQuickTerminalShortcut
                         && !settings.aiEnabled
                         && settings.terminalBackend == .fallback)
                 }
@@ -441,6 +449,206 @@ private struct CappedIdealHeight: Layout {
             anchor: .topLeading,
             proposal: ProposedViewSize(bounds.size)
         )
+    }
+}
+
+private struct QuickTerminalDefaultsSettingsView: NSViewRepresentable {
+    @ObservedObject private var settings = AppSettings.shared
+
+    func makeNSView(context: Context) -> QuickTerminalDefaultsView {
+        QuickTerminalDefaultsView()
+    }
+
+    func updateNSView(_ view: QuickTerminalDefaultsView, context: Context) {
+        view.update(
+            size: settings.quickTerminalSize,
+            opacity: settings.quickTerminalOpacity,
+            shortcut: settings.quickTerminalShortcut
+        )
+    }
+}
+
+private final class QuickTerminalDefaultsView: NSView {
+    private let sizeSlider = NSSlider()
+    private let opacitySlider = NSSlider()
+    private let sizeValue = NSTextField(labelWithString: "")
+    private let opacityValue = NSTextField(labelWithString: "")
+    private let shortcutRecorder = QuickTerminalShortcutRecorder()
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+
+        sizeSlider.minValue = AppSettings.quickTerminalSizeRange.lowerBound
+        sizeSlider.maxValue = AppSettings.quickTerminalSizeRange.upperBound
+        sizeSlider.isContinuous = true
+        sizeSlider.target = self
+        sizeSlider.action = #selector(sizeChanged)
+        sizeSlider.setAccessibilityLabel(String(localized: "Quick Terminal default size"))
+
+        opacitySlider.minValue = AppSettings.quickTerminalOpacityRange.lowerBound
+        opacitySlider.maxValue = AppSettings.quickTerminalOpacityRange.upperBound
+        opacitySlider.isContinuous = true
+        opacitySlider.target = self
+        opacitySlider.action = #selector(opacityChanged)
+        opacitySlider.setAccessibilityLabel(String(localized: "Quick Terminal default opacity"))
+
+        shortcutRecorder.onShortcutChanged = { shortcut in
+            GlobalTerminalOverlay.shared.setHotkey(shortcut)
+        }
+
+        [sizeValue, opacityValue].forEach {
+            $0.alignment = .right
+            $0.font = .monospacedDigitSystemFont(
+                ofSize: NSFont.smallSystemFontSize,
+                weight: .regular
+            )
+            $0.textColor = .secondaryLabelColor
+            $0.translatesAutoresizingMaskIntoConstraints = false
+            $0.widthAnchor.constraint(equalToConstant: 44).isActive = true
+        }
+
+        let stack = NSStackView(views: [
+            shortcutRow(),
+            row(title: String(localized: "Size"), slider: sizeSlider, value: sizeValue),
+            row(title: String(localized: "Opacity"), slider: opacitySlider, value: opacityValue),
+        ])
+        stack.orientation = .vertical
+        stack.alignment = .leading
+        stack.spacing = 8
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(stack)
+        NSLayoutConstraint.activate([
+            stack.leadingAnchor.constraint(equalTo: leadingAnchor),
+            stack.trailingAnchor.constraint(equalTo: trailingAnchor),
+            stack.topAnchor.constraint(equalTo: topAnchor, constant: 2),
+            stack.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -2),
+        ])
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    func update(size: Double, opacity: Double, shortcut: QuickTerminalShortcut) {
+        sizeSlider.doubleValue = size
+        opacitySlider.doubleValue = opacity
+        sizeValue.stringValue = "\(Int((size * 100).rounded()))%"
+        opacityValue.stringValue = "\(Int((opacity * 100).rounded()))%"
+        shortcutRecorder.setShortcut(shortcut)
+    }
+
+    @objc private func sizeChanged() {
+        AppSettings.shared.quickTerminalSize = sizeSlider.doubleValue
+    }
+
+    @objc private func opacityChanged() {
+        AppSettings.shared.quickTerminalOpacity = opacitySlider.doubleValue
+    }
+
+    private func row(
+        title: String,
+        slider: NSSlider,
+        value: NSTextField
+    ) -> NSStackView {
+        let label = NSTextField(labelWithString: title)
+        label.widthAnchor.constraint(equalToConstant: 70).isActive = true
+        slider.widthAnchor.constraint(equalToConstant: 220).isActive = true
+        let row = NSStackView(views: [label, slider, value])
+        row.orientation = .horizontal
+        row.spacing = 8
+        return row
+    }
+
+    private func shortcutRow() -> NSStackView {
+        let label = NSTextField(labelWithString: String(localized: "Shortcut"))
+        label.widthAnchor.constraint(equalToConstant: 70).isActive = true
+        shortcutRecorder.widthAnchor.constraint(equalToConstant: 220).isActive = true
+        let row = NSStackView(views: [label, shortcutRecorder])
+        row.orientation = .horizontal
+        row.spacing = 8
+        return row
+    }
+}
+
+private final class QuickTerminalShortcutRecorder: NSButton {
+    var onShortcutChanged: ((QuickTerminalShortcut) -> Bool)?
+
+    private var shortcut = AppSettings.defaultQuickTerminalShortcut
+    private var isRecording = false
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        bezelStyle = .rounded
+        controlSize = .small
+        font = .monospacedSystemFont(ofSize: NSFont.smallSystemFontSize, weight: .regular)
+        target = self
+        action = #selector(startRecording)
+        setAccessibilityLabel(String(localized: "Quick Terminal shortcut"))
+        toolTip = String(localized: "Quick Terminal shortcut")
+        updateTitle()
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override var acceptsFirstResponder: Bool { true }
+
+    override func becomeFirstResponder() -> Bool {
+        guard super.becomeFirstResponder() else { return false }
+        guard !isRecording else { return true }
+        isRecording = true
+        title = String(localized: "Press shortcut")
+        GlobalTerminalOverlay.shared.beginHotkeyRecording()
+        return true
+    }
+
+    override func resignFirstResponder() -> Bool {
+        guard super.resignFirstResponder() else { return false }
+        guard isRecording else { return true }
+        isRecording = false
+        GlobalTerminalOverlay.shared.endHotkeyRecording()
+        updateTitle()
+        return true
+    }
+
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        guard isRecording else { return super.performKeyEquivalent(with: event) }
+        keyDown(with: event)
+        return true
+    }
+
+    override func keyDown(with event: NSEvent) {
+        if event.keyCode == UInt16(kVK_Escape) {
+            window?.makeFirstResponder(nil)
+            return
+        }
+        guard let shortcut = QuickTerminalShortcut(event: event) else {
+            NSSound.beep()
+            return
+        }
+        guard onShortcutChanged?(shortcut) ?? true else {
+            NSSound.beep()
+            return
+        }
+        self.shortcut = shortcut
+        window?.makeFirstResponder(nil)
+    }
+
+    func setShortcut(_ shortcut: QuickTerminalShortcut) {
+        self.shortcut = shortcut
+        guard !isRecording else { return }
+        updateTitle()
+    }
+
+    @objc private func startRecording() {
+        window?.makeFirstResponder(self)
+    }
+
+    private func updateTitle() {
+        title = shortcut.displayString
     }
 }
 
