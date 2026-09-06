@@ -1080,8 +1080,12 @@ final class GitStatusModel: nonisolated ObservableObject {
             entry.repositoryRoot = result.topLevel
             return entry
         }
+        // parseStatus already guarantees entries are unique per path, but a
+        // stray duplicate must degrade to a deterministic decoration instead of
+        // trapping the whole app on duplicate keys.
         fileDecorations = Dictionary(
-            uniqueKeysWithValues: entries.map { ($0.path, Self.fileDecoration(for: $0)) }
+            entries.map { ($0.path, Self.fileDecoration(for: $0)) },
+            uniquingKeysWith: { first, _ in first }
         )
         ignoredPaths = result.ignoredPaths
         mergeEntries = entries.filter(\.isConflict)
@@ -1405,6 +1409,17 @@ final class GitStatusModel: nonisolated ObservableObject {
         let records = output.split(separator: "\0", omittingEmptySubsequences: true).map(String.init)
         var result = StatusResult()
         var index = 0
+        // Porcelain v2 can report the same path twice: when a file was removed
+        // from the index (`git rm --cached`, `git update-index --force-remove`)
+        // but still exists in the worktree, git lists it as a staged deletion
+        // ("1 D.") and again as untracked ("? "). Git's own v1 short format
+        // shows only the deletion, and every consumer keys rows by path
+        // (Entry.id == path), so the first record for a path wins.
+        var parsedPaths: Set<String> = []
+        func addEntry(_ entry: Entry) {
+            guard parsedPaths.insert(entry.path).inserted else { return }
+            result.entries.append(entry)
+        }
         while index < records.count {
             let record = records[index]
             if record.hasPrefix("# branch.oid ") {
@@ -1426,7 +1441,7 @@ final class GitStatusModel: nonisolated ObservableObject {
                 let fields = record.split(separator: " ", maxSplits: 8)
                 if fields.count == 9, fields[1].count == 2 {
                     let xy = Array(fields[1])
-                    result.entries.append(
+                    addEntry(
                         Entry(path: String(fields[8]), staged: xy[0], unstaged: xy[1])
                     )
                 }
@@ -1436,7 +1451,7 @@ final class GitStatusModel: nonisolated ObservableObject {
                     let xy = Array(fields[1])
                     // With -z, the destination is in this record and the
                     // original path is the following NUL-delimited token.
-                    result.entries.append(
+                    addEntry(
                         Entry(
                             path: String(fields[9]), staged: xy[0], unstaged: xy[1],
                             origPath: records[index + 1]
@@ -1448,7 +1463,7 @@ final class GitStatusModel: nonisolated ObservableObject {
                 let fields = record.split(separator: " ", maxSplits: 10)
                 if fields.count == 11, fields[1].count == 2 {
                     let xy = Array(fields[1])
-                    result.entries.append(
+                    addEntry(
                         Entry(
                             path: String(fields[10]), staged: xy[0], unstaged: xy[1],
                             isConflict: true
@@ -1456,7 +1471,7 @@ final class GitStatusModel: nonisolated ObservableObject {
                     )
                 }
             } else if record.hasPrefix("? ") {
-                result.entries.append(
+                addEntry(
                     Entry(path: String(record.dropFirst(2)), staged: "?", unstaged: "?")
                 )
             } else if record.hasPrefix("! ") {
