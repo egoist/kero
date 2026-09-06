@@ -16,6 +16,8 @@ the original feature bullet instead of adding separate entries for them.
 
 ## [unreleased]
 
+- fix: crash on git status with file removed from index but present on disk
+
 ## [0.1.47]
 
 - Let dictation and other accessibility tools enter text in terminal panes
@@ -240,4 +242,5 @@ the original feature bullet instead of adding separate entries for them.
 ## [0.1]
 
 ### Added
+
 - Initial release.
