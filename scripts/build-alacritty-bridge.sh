@@ -51,7 +51,15 @@ for arch in ${=ARCHS}; do
     *) echo "error: unsupported architecture ${arch}" >&2; exit 1 ;;
   esac
 
-  if ! rustup target list --installed 2>/dev/null | grep -qx "${target}"; then
+  has_target=false
+  if command -v rustup > /dev/null 2>&1; then
+    if rustup target list --installed 2>/dev/null | grep -qx "${target}"; then
+      has_target=true
+    fi
+  elif [[ -d "$(rustc --print target-libdir --target "${target}" 2>/dev/null)" ]]; then
+    has_target=true
+  fi
+  if [[ "${has_target}" != true ]]; then
     # Installing writes to ~/.rustup, which the script sandbox forbids, so say
     # so here instead of failing later with an unexplained linker error.
     echo "error: Rust target ${target} is not installed. Run: rustup target add ${target}" >&2

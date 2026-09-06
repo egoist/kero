@@ -68,6 +68,7 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
     /// to a row instead of being discarded.
     private var scrollAccumulator: CGFloat = 0
     private var selectionAnchor: (line: Int, column: Int)?
+    private var selectionAutoscrollTimer: Timer?
     private let findState = AlacrittyFind()
     private var hoveredURL: URLHit?
 
@@ -150,6 +151,7 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
     deinit {
         directoryTimer?.invalidate()
         cursorTimer?.invalidate()
+        selectionAutoscrollTimer?.invalidate()
         if let modifierMonitor {
             NSEvent.removeMonitor(modifierMonitor)
         }
@@ -358,6 +360,7 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
         directoryTimer = nil
         cursorTimer?.invalidate()
         cursorTimer = nil
+        stopSelectionAutoscroll()
         isPointerInside = false
         isCommandPressed = false
         stopModifierMonitor()
@@ -382,6 +385,7 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
             updateActiveTimers()
             updateFocusReport()
         } else {
+            stopSelectionAutoscroll()
             isPointerInside = false
             stopModifierMonitor()
             updateHoveredURL(nil)
@@ -1265,6 +1269,7 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
     override func resignFirstResponder() -> Bool {
         let resigned = super.resignFirstResponder()
         if resigned {
+            stopSelectionAutoscroll()
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
                 self.updateActiveTimers()
@@ -1290,6 +1295,7 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
     }
 
     @objc private func applicationWillResignActive(_ notification: Notification) {
+        stopSelectionAutoscroll()
         isCommandPressed = false
         updateHoveredURL(nil)
         // Once the app is inactive, CAMetalLayer may stop vending drawables.
@@ -1381,6 +1387,7 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
     }
 
     override func mouseDown(with event: NSEvent) {
+        stopSelectionAutoscroll()
         focusForInteraction()
         guard let handle else { return }
         if event.modifierFlags.contains(.command),
@@ -1414,11 +1421,10 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
             return
         }
         guard let handle, selectionAnchor != nil else { return }
-        let point = gridPoint(for: event)
-        kero_alacritty_selection_update(
-            handle, Int32(point.line), point.column, point.rightHalf
-        )
+        let location = convert(event.locationInWindow, from: nil)
+        updateSelection(at: location, handle: handle)
         scheduleRender(force: true)
+        updateSelectionAutoscroll(at: location)
     }
 
     override func mouseUp(with event: NSEvent) {
@@ -1426,6 +1432,7 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
             reportingMouseButton = false
             sendMouse(code: 0, event: event, released: true)
         }
+        stopSelectionAutoscroll()
         selectionAnchor = nil
     }
 
@@ -1597,6 +1604,59 @@ final class AlacrittyTerminalView: NSView, TerminalBackendSurface, NSUserInterfa
         kero_alacritty_scroll(handle, Int32(lines))
         scheduleRender(force: true)
         reportScroll()
+    }
+
+    private func updateSelectionAutoscroll(at location: NSPoint) {
+        guard selectionAutoscrollDelta(at: location) != 0 else {
+            stopSelectionAutoscroll()
+            return
+        }
+        guard selectionAutoscrollTimer == nil else { return }
+
+        // Common modes keep the timer firing while AppKit tracks a mouse drag.
+        let timer = Timer(timeInterval: 1.0 / 30.0, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.autoscrollSelection() }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        selectionAutoscrollTimer = timer
+    }
+
+    private func selectionAutoscrollDelta(at location: NSPoint) -> Int32 {
+        if location.y < bounds.minY { return -1 }
+        if location.y > bounds.maxY { return 1 }
+        return 0
+    }
+
+    private func autoscrollSelection() {
+        guard let handle,
+              selectionAnchor != nil,
+              let window
+        else {
+            stopSelectionAutoscroll()
+            return
+        }
+        let location = convert(window.mouseLocationOutsideOfEventStream, from: nil)
+        let delta = selectionAutoscrollDelta(at: location)
+        guard delta != 0 else {
+            stopSelectionAutoscroll()
+            return
+        }
+        kero_alacritty_scroll(handle, delta)
+        updateSelection(at: location, handle: handle)
+        scheduleRender(force: true)
+        reportScroll()
+    }
+
+    private func stopSelectionAutoscroll() {
+        selectionAutoscrollTimer?.invalidate()
+        selectionAutoscrollTimer = nil
+    }
+
+    private func updateSelection(at location: NSPoint, handle: OpaquePointer) {
+        let point = gridPoint(at: location)
+        kero_alacritty_selection_update(
+            handle, Int32(point.line), point.column, point.rightHalf
+        )
     }
 
     private func gridPoint(for event: NSEvent) -> (line: Int, column: Int, rightHalf: Bool) {
