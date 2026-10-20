@@ -38,3 +38,29 @@ func TestStreamResizedInOrder(t *testing.T) {
 		t.Errorf("read %q, want before, resized, after", log)
 	}
 }
+
+// Output past what a frame carries, as a terminal's frame with the pixels
+// of an image, goes in frames of its own, which a stream reads as one.
+func TestStreamLargeOutput(t *testing.T) {
+	out := bytes.Repeat([]byte("0123456789abcdef"), 5<<20/16) // 5 MiB
+	wire := bytes.NewReader(proto.AppendFrames(nil, proto.FrameOutput, out))
+	frames := 0
+	for {
+		kind, payload, err := proto.ReadFrame(wire)
+		if err != nil {
+			break
+		}
+		if kind != proto.FrameOutput || len(payload) > 1<<20 {
+			t.Fatalf("a frame of kind %q and %d bytes", kind, len(payload))
+		}
+		frames++
+	}
+	if frames < 5 {
+		t.Errorf("%d frames", frames)
+	}
+	s := &Stream{r: bufio.NewReader(bytes.NewReader(proto.AppendFrames(nil, proto.FrameOutput, out))), Gone: make(chan struct{})}
+	got, _ := io.ReadAll(s)
+	if !bytes.Equal(got, out) {
+		t.Errorf("read %d bytes, not the %d written", len(got), len(out))
+	}
+}

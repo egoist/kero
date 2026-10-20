@@ -720,10 +720,7 @@ func newAttachment(conn net.Conn) *attachment {
 }
 
 func (a *attachment) send(kind byte, payload []byte) {
-	f := make([]byte, 5+len(payload))
-	f[0] = kind
-	f[1], f[2], f[3], f[4] = byte(len(payload)>>24), byte(len(payload)>>16), byte(len(payload)>>8), byte(len(payload))
-	copy(f[5:], payload)
+	f := proto.AppendFrames(nil, kind, payload)
 	select {
 	case a.out <- f:
 	case <-a.done:

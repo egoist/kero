@@ -512,7 +512,7 @@ func (d *Daemon) serveAttach(conn net.Conn, r *bufio.Reader, hello proto.Hello, 
 	if err := json.NewEncoder(conn).Encode(welcome); err != nil {
 		return
 	}
-	if err := proto.WriteFrame(conn, proto.FrameOutput, first); err != nil {
+	if _, err := conn.Write(proto.AppendFrames(nil, proto.FrameOutput, first)); err != nil {
 		return
 	}
 	go a.write()

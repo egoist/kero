@@ -63,6 +63,28 @@ func WriteFrame(w io.Writer, kind byte, payload []byte) error {
 	return err
 }
 
+// maxOutput bounds the payload of a FrameOutput, under maxFrame: output
+// past it goes in frames of its own, which the client reads as one stream.
+const maxOutput = 1 << 20
+
+// AppendFrames appends the frames that carry payload: output past
+// maxOutput, as a terminal's frame with the pixels of images, goes in
+// frames of its own.
+func AppendFrames(dst []byte, kind byte, payload []byte) []byte {
+	for {
+		n := len(payload)
+		if kind == FrameOutput {
+			n = min(n, maxOutput)
+		}
+		dst = append(dst, kind, byte(n>>24), byte(n>>16), byte(n>>8), byte(n))
+		dst = append(dst, payload[:n]...)
+		payload = payload[n:]
+		if len(payload) == 0 {
+			return dst
+		}
+	}
+}
+
 // ReadFrame reads one frame.
 func ReadFrame(r io.Reader) (kind byte, payload []byte, err error) {
 	var hdr [5]byte
