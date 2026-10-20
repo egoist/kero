@@ -45,6 +45,35 @@ func (s *pane) status(now time.Time) proto.Status {
 	return s.info.Status
 }
 
+func TestDetectAgent(t *testing.T) {
+	for _, c := range []struct {
+		name string
+		args []string
+		want string
+	}{
+		{"vibe", nil, "vibe"},
+		{"vibe-rs", nil, "vibe"},
+		{"vibe-rs.exe", nil, "vibe"},
+		{"vibe-rs", []string{"/opt/vibe/_bin/vibe-rs"}, "vibe"},
+		{"python3", []string{"python3", "/home/user/.local/bin/vibe"}, "vibe"},
+		{"claude", nil, "claude"},
+		{"codex", nil, "codex"},
+		{"pi", nil, "pi"},
+		{"opencode", nil, "opencode"},
+		{"node", []string{"node", "/usr/lib/node_modules/@openai/codex/bin/codex.js"}, "codex"},
+		{"python3", []string{"python3", "script.py"}, ""},
+		{"sh", []string{"sh", "-c", "printf hello"}, ""},
+		{"vibecoding", nil, ""},
+		{"pi-helper", nil, ""},
+	} {
+		t.Run(c.name+"/"+strings.Join(c.args, " "), func(t *testing.T) {
+			if got := detectAgent(c.name, c.args); got != c.want {
+				t.Errorf("agent %q, want %q", got, c.want)
+			}
+		})
+	}
+}
+
 // Claude Code at its prompt repaints its screen as the sidebar hides and
 // the pane resizes, over and over: still idle. Its turn is work, and the
 // prompt back is idle again.
@@ -190,8 +219,8 @@ func TestWorkingHeldBeforeIdle(t *testing.T) {
 	}
 }
 
-// A restore resumes Claude Code's and Codex's sessions, and nothing a
-// state file could slip in.
+// A restore resumes supported agents' sessions, and nothing a state file
+// could slip in.
 func TestResumeCommand(t *testing.T) {
 	for _, c := range []struct {
 		agent, id, want string
@@ -200,6 +229,10 @@ func TestResumeCommand(t *testing.T) {
 		{"codex", "019a2b3c-4d5e", "codex resume 019a2b3c-4d5e"},
 		{"pi", "0f3c2a1b-8e9d", "pi --session 0f3c2a1b-8e9d"},
 		{"opencode", "ses_ea7b9b964ffemfrVYxK9yw55Gz", "opencode --session ses_ea7b9b964ffemfrVYxK9yw55Gz"},
+		{"vibe", "13b997c3-f8b3-4b3e-bb8a-ca1b5d1b9787", "vibe --resume 13b997c3-f8b3-4b3e-bb8a-ca1b5d1b9787"},
+		{"vibe", "", ""},
+		{"vibe", "--continue", ""},
+		{"vibe", "x; rm -rf ~", ""},
 		{"claude", "x; rm -rf ~", ""},
 		{"claude", "", ""},
 		{"vim", "abc", ""},

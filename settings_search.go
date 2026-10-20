@@ -26,7 +26,7 @@ func settingsIndex() []searchEntry {
 		{"general", locales.SetSessionName(), "session-name title sidebar focused lead folder pane"},
 		{"general", locales.SetAskBeforeClosing(), "confirm-close quit kill"},
 		{"general", locales.SetRestoreSessions(), "restore-sessions reboot persist"},
-		{"general", locales.SetResumeAgents(), "resume-agents claude codex pi opencode conversation restore reboot"},
+		{"general", locales.SetResumeAgents(), "resume-agents claude codex pi opencode vibe conversation restore reboot"},
 		{"general", locales.SetOpenAtLogin(), "startup launch login items"},
 		{"general", locales.SetVersion(), "updates check for updates software update about"},
 		{"general", locales.SetAutoCheck(), "updates automatic background daily"},
@@ -66,7 +66,7 @@ func settingsIndex() []searchEntry {
 		{"agents", locales.SetRemoteControlRow(), "remote-control kero do focus automation"},
 		{"agents", locales.SetCliRow(), "cli command line tool install path"},
 		{"agents", "Claude Code", "skill agents install"},
-		{"agents", "Codex, OpenCode, Pi", "skill agents install"},
+		{"agents", "Codex, OpenCode, Pi, Vibe", "skill agents install"},
 		{"agents", locales.SetProgramStatus(), "osc 7501 report progress"},
 
 		{"advanced", locales.SetConfigFile(), "configuration ghostty edit file dotfiles"},
