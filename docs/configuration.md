@@ -54,6 +54,7 @@ kero config check             # report unknown keys and bad values
 | `language`           | `system` | The app's language: `system`, `en` or `zh-Hans`                 |
 | `background`         | `petal`  | The window's wash: `petal`, `mist`, `meadow`, `dusk` or `plain` |
 | `window-translucent` | `true`   | Let the desktop show through the window                         |
+| `dim-unfocused-panes` | `true`  | Fade the panes other than the focused one in a split            |
 
 ## Terminal
 

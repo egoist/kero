@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Panes other than the focused one in a split no longer have to fade:
+  `dim-unfocused-panes = false`, or the toggle in Settings › Appearance.
+
 ## 2.0.5
 
 - Find in a pane's scrollback with Cmd+F (Ctrl+F on Windows).

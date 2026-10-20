@@ -204,6 +204,8 @@
   "setLanguageSystem": "跟随系统",
   "setTranslucent": "半透明窗口",
   "setTranslucentDetail": "让桌面透过窗口背景显示出来。",
+  "setDimUnfocused": "调暗未聚焦的分屏",
+  "setDimUnfocusedDetail": "不在焦点中的分屏会连同文字一起变暗。关闭后每个分屏都以正常亮度显示。",
   "setBackground": "背景",
   "bgPetal": "花瓣",
   "bgMist": "薄雾",

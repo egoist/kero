@@ -159,7 +159,10 @@ func (a *App) divider(c *ui.Context, pal *palette, s *proto.Session, l *proto.La
 func (a *App) paneCard(c *ui.Context, pal *palette, bar ui.TitleBar, shown float32, s *proto.Session, p *proto.Pane, top, left, right, multi bool) {
 	focused := p.ID == a.focusOf(s)
 	bg := pal.card
-	if multi && !focused {
+	// dim tells that the pane is not the user's, and that they show in
+	// a split: only then do the other panes recede.
+	dim := multi && !focused && a.set.DimUnfocused
+	if dim {
 		bg = pal.cardDim
 	}
 	card := ui.Column(c.Key("pane-" + p.ID)).Grow(1).Basis(0).MinWidth(0).MinHeight(0).Radius(14).Clip().Bind(a.paneRef("card-" + p.ID))
@@ -196,9 +199,10 @@ func (a *App) paneCard(c *ui.Context, pal *palette, bar ui.TitleBar, shown float
 		dragging = a.paneHeader(c, pal, bar, shown, s, p, top, left, right, multi, focused, hovered)
 		a.paneTerminal(c, pal, s, p)
 		if multi {
-			// The panes the user is not in fade, text and all.
+			// The panes the user is not in fade, text and all, unless
+			// the user turned that off.
 			v := ui.Box(c.Key("veil")).Absolute().Top(0).Left(0).Right(0).Bottom(0).PassThrough().Background(pal.veil)
-			v.Opacity(v.Animate("on", b2f(!focused), 160*time.Millisecond))
+			v.Opacity(v.Animate("on", b2f(dim), 160*time.Millisecond))
 		}
 		if zone != zoneNone {
 			a.dropPreview(c, pal, p.ID, zone)

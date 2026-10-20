@@ -345,6 +345,8 @@
   "setLanguageSystem": "System",
   "setTranslucent": "Translucent window",
   "setTranslucentDetail": "Let the desktop show through the window’s background.",
+  "setDimUnfocused": "Dim the panes you are not in",
+  "setDimUnfocusedDetail": "The panes beside the one you are in fade, text and all. Turn it off to see every pane at full strength.",
   "setBackground": "Background",
   "bgPetal": "Petal",
   "bgMist": "Mist",
