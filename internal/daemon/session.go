@@ -105,9 +105,13 @@ func newPane(d *Daemon, sid string, info proto.Pane) (*pane, error) {
 	if sb == 0 {
 		sb = -1 // none
 	}
+	d.mu.Lock()
+	theme := d.theme
+	d.mu.Unlock()
 	term, err := terminal.New(terminal.Options{
 		Conn:       &headless{s: s, closed: make(chan struct{})},
 		Scrollback: sb,
+		Theme:      theme,
 		// Programs' reads of the clipboard go on to the clients, whose
 		// terminals answer them, asking the user as they would.
 		ClipboardRead: terminal.ClipboardForward,

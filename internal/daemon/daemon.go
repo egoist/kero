@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/egoist/mygo"
+	"github.com/egoist/mygo/plugins/terminal"
 
 	"kero/internal/clilink"
 	"kero/internal/proto"
@@ -46,6 +47,7 @@ type Daemon struct {
 	conns    int
 	idleAt   time.Time
 	ending   bool
+	theme    *terminal.Theme // the colors the window's terminals show
 
 	viewed   atomic.Pointer[string]
 	changeCh chan struct{}

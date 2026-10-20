@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/egoist/mygo/plugins/terminal"
+
 	"kero/internal/proto"
 )
 
@@ -28,6 +30,19 @@ func (d *Daemon) call(c *controlConn, method string, raw json.RawMessage) (any, 
 		return nil, fmt.Errorf("no session or pane %q", ref)
 	}
 	switch method {
+	case "appearance":
+		var theme terminal.Theme
+		if err := decode(&theme); err != nil {
+			return nil, err
+		}
+		d.mu.Lock()
+		d.theme = &theme
+		for _, p := range d.panes {
+			p.term.SetAppearance(&theme)
+		}
+		d.mu.Unlock()
+		return true, nil
+
 	case "state":
 		return d.state(), nil
 

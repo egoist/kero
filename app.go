@@ -89,6 +89,8 @@ type App struct {
 	layoutDirty string                // a session whose divider is dragged
 	viewSent    *string
 
+	appearanceSent terminal.Theme // the colors kerod last got
+
 	active   bool
 	focused  bool
 	statuses map[string]proto.Status // as last seen, for notifications
@@ -204,6 +206,8 @@ func (a *App) connect() {
 			cl.Go("subscribe", nil, nil)
 			a.viewSent = nil
 			a.reportView()
+			a.appearanceSent = terminal.Theme{}
+			a.reportAppearance()
 			go func() {
 				<-cl.Done()
 				a.update(func() { a.disconnected(cl) })
@@ -480,6 +484,24 @@ func (a *App) reportView() {
 	a.cl.Go("view", proto.ViewParams{ID: id}, nil)
 }
 
+// reportAppearance tells kerod the colors the window's terminals show,
+// with which its emulators answer programs' questions.
+func (a *App) reportAppearance() {
+	if a.cl == nil {
+		return
+	}
+	light, dark := a.termThemes()
+	theme := light
+	if mygo.Theme.IsDark() {
+		theme = dark
+	}
+	if *theme == a.appearanceSent {
+		return
+	}
+	a.appearanceSent = *theme
+	a.cl.Go("appearance", theme, nil)
+}
+
 // touch moves a terminal to the front of those kept attached, dropping
 // the one shown longest ago past the limit.
 func (a *App) touch(id string) {
@@ -711,6 +733,7 @@ func (a *App) apply(s settings.Settings, save bool) {
 		// Only in the running app: before it runs, the call waits for it.
 		mygo.Theme.SetSource(mygo.ThemeSource(s.Appearance))
 	}
+	a.reportAppearance()
 	if old.Language != s.Language && a.win != nil {
 		mygo.App.SetLocale(localeTag(s.Language))
 	}

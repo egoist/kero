@@ -22,7 +22,7 @@ import (
 
 // Version changes whenever the protocol does: a client refuses a daemon of
 // another version, which it offers to restart.
-const Version = 2
+const Version = 3
 
 // Hello opens a connection.
 type Hello struct {

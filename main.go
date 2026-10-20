@@ -81,6 +81,7 @@ func runApp() {
 	mygo.Use(native.Plugin)
 	a := newApp()
 	loadFonts()
+	mygo.Theme.OnUpdated(a.reportAppearance)
 	mygo.Theme.SetSource(mygo.ThemeSource(a.set.Appearance))
 	mygo.App.SetLocale(localeTag(a.set.Language))
 	mygo.App.SetMenu(a.menu())

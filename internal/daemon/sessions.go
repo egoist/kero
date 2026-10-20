@@ -276,6 +276,8 @@ func (d *Daemon) create(p proto.CreateParams) (proto.Session, error) {
 		}
 	}
 	d.sessions = slices.Insert(d.sessions, i, s)
+	// The colors may have changed since newPane read them.
+	pn.term.SetAppearance(d.theme)
 	d.panes[pn.info.ID] = pn
 	info := d.sessionInfo(s)
 	d.mu.Unlock()
@@ -332,6 +334,7 @@ func (d *Daemon) split(p proto.CreateParams) (proto.Session, error) {
 	s.layout = s.layout.Split(atID, pn.info.ID, p.Direction, p.Ratio)
 	s.panes = append(s.panes, pn)
 	s.focus, s.zoomed = pn.info.ID, ""
+	pn.term.SetAppearance(d.theme)
 	d.panes[pn.info.ID] = pn
 	info := d.sessionInfo(s)
 	d.mu.Unlock()
