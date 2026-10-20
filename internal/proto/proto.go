@@ -187,10 +187,9 @@ type Pane struct {
 	PID      int  `json:"pid,omitempty"`
 }
 
-// AgentSession is a coding agent's session: Claude Code's or Codex's,
-// by its id.
+// AgentSession is a coding agent's conversation, by its id.
 type AgentSession struct {
-	Agent string `json:"agent"` // "claude", "codex", "pi" or "opencode"
+	Agent string `json:"agent"` // "claude", "codex", "pi", "opencode" or "vibe"
 	ID    string `json:"id"`
 }
 

@@ -302,6 +302,7 @@ func TestSettingsSearch(t *testing.T) {
 			t.Errorf("%q: page %s, want %s", q, a.ss.page, page)
 		}
 	}
+	a.ss.page = "agents"
 	a.ss.query = "vibe"
 	tt.Frame()
 	if a.ss.page != "agents" || !searchHits["Codex, OpenCode, Pi, Vibe"] || !tt.HasText("Codex, OpenCode, Pi, Vibe") {
@@ -310,6 +311,15 @@ func TestSettingsSearch(t *testing.T) {
 	tt.Advance(time.Second)
 	tt.Frame()
 	shot(t, tt, "settings-search-vibe")
+
+	a.ss.page = "general"
+	tt.Frame()
+	if !searchHits["Resume agents"] || !tt.HasText("Resume agents") {
+		t.Errorf("Vibe resume not found: hits %v, texts %q", searchHits, tt.Texts())
+	}
+	tt.Advance(time.Second)
+	tt.Frame()
+	shot(t, tt, "settings-search-vibe-resume")
 
 	a.ss.query = "split right"
 	tt.Frame()
