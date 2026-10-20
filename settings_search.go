@@ -34,6 +34,7 @@ func settingsIndex() []searchEntry {
 		{"appearance", locales.SetAppearance(), "window-theme dark light mode system"},
 		{"appearance", locales.SetLanguage(), "language locale translation chinese english 语言 中文"},
 		{"appearance", locales.SetTranslucent(), "window-translucent vibrancy blur material transparency"},
+		{"appearance", locales.SetDimUnfocused(), "dim-unfocused-panes unfocused panes split split opacity fade faded inactive 分屏 调暗"},
 		{"appearance", locales.SetBackground(), "background wash petal mist meadow dusk plain gradient color"},
 
 		{"terminal", locales.SetFont(), "font-family typeface jetbrains mono nerd"},

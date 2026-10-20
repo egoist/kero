@@ -2090,6 +2090,26 @@ func (msgs Messages) SetTranslucentDetail() string {
 	return Catalog.Format(msgs.locale, "setTranslucentDetail", nil)
 }
 
+// SetDimUnfocused says "Dim the panes you are not in"
+// in the language the app shows.
+func SetDimUnfocused() string { return In(i18n.Locale()).SetDimUnfocused() }
+
+// SetDimUnfocused says "Dim the panes you are not in"
+// in the language of msgs.
+func (msgs Messages) SetDimUnfocused() string {
+	return Catalog.Format(msgs.locale, "setDimUnfocused", nil)
+}
+
+// SetDimUnfocusedDetail says "The panes beside the one you are in fade, text and all. Turn it off to see every pane at full strength."
+// in the language the app shows.
+func SetDimUnfocusedDetail() string { return In(i18n.Locale()).SetDimUnfocusedDetail() }
+
+// SetDimUnfocusedDetail says "The panes beside the one you are in fade, text and all. Turn it off to see every pane at full strength."
+// in the language of msgs.
+func (msgs Messages) SetDimUnfocusedDetail() string {
+	return Catalog.Format(msgs.locale, "setDimUnfocusedDetail", nil)
+}
+
 // SetBackground says "Background"
 // in the language the app shows.
 func SetBackground() string { return In(i18n.Locale()).SetBackground() }

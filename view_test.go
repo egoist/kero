@@ -383,3 +383,58 @@ func TestFindBar(t *testing.T) {
 		t.Errorf("Find Next did not search again: %+v, %+v", a.find.query, term.SearchStatus())
 	}
 }
+
+// Turning the dimming of the panes the user is not in off shows them at
+// full strength, as the pane they are in.
+func TestDimUnfocusedPanes(t *testing.T) {
+	a := testApp(t)
+	tt := ui.NewTester(a.view, 1100, 640)
+	// In the dark, where the veil and the card's dimming show.
+	tt.SetDark(true)
+	settle := func() {
+		for range 3 {
+			tt.Advance(400 * time.Millisecond)
+			tt.Frame()
+		}
+	}
+	settle()
+	// Pane b's card, under its title: empty, the veil over it.
+	if _, ok := tt.Find("zsh"); !ok {
+		t.Fatalf("no title of pane b; texts %q", tt.Texts())
+	}
+	mean := func() float64 {
+		img := tt.Image()
+		var sum float64
+		var n int
+		for y := 120; y < 600; y += 5 {
+			for x := 700; x < 1090; x += 5 {
+				c := img.RGBAAt(x, y)
+				sum += float64(c.R) + float64(c.G) + float64(c.B)
+				n++
+			}
+		}
+		if n == 0 {
+			t.Fatal("no pixels of pane b")
+		}
+		return sum / float64(n)
+	}
+	if !a.set.DimUnfocused {
+		t.Fatal("the dimming is off as the app starts")
+	}
+	dimmed := mean()
+	a.set.DimUnfocused = false
+	settle()
+	plain := mean()
+	if plain <= dimmed*1.05 {
+		t.Fatalf("pane b at %v with the dimming off, %v with it on: not brighter", plain, dimmed)
+	}
+	a.set.DimUnfocused = true
+	settle()
+	if back := mean(); back >= plain {
+		t.Fatalf("pane b at %v with the dimming back on, not dimmer than %v", back, plain)
+	}
+	shot(t, tt, "dim-back-on")
+	a.set.DimUnfocused = false
+	settle()
+	shot(t, tt, "dim-off")
+}
