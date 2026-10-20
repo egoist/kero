@@ -118,6 +118,7 @@ type App struct {
 	previewShown bool
 	arrived      map[string]bool
 	copyText     string
+	peek         peek // the image a path Command hovers shows
 }
 
 // confirmation is a question the app asks before something it cannot undo.
@@ -793,20 +794,45 @@ func (a *App) openLink(id, link string) bool {
 	if strings.Contains(link, "://") {
 		return false
 	}
+	path := a.resolvePath(id, link)
+	if path == "" {
+		return false
+	}
+	openPath(path)
+	return true
+}
+
+// resolvePath returns the file a path printed in a pane names, relative to
+// the directory of the program that printed it, or "" for no such file.
+// id is a pane's, or a session's for its pane in front.
+func (a *App) resolvePath(id, link string) string {
 	path := lineSuffix.ReplaceAllString(link, "")
 	if strings.HasPrefix(path, "~/") || runtime.GOOS == "windows" && strings.HasPrefix(path, `~`) {
 		path = filepath.Join(proto.Home(), path[2:])
 	}
 	if !filepath.IsAbs(path) {
-		if s := a.session(id); s != nil && s.WorkDir() != "" {
-			path = filepath.Join(s.WorkDir(), path)
+		if dir := a.workDir(id); dir != "" {
+			path = filepath.Join(dir, path)
 		}
 	}
 	if _, err := os.Stat(path); err != nil {
-		return false
+		return ""
 	}
-	openPath(path)
-	return true
+	return path
+}
+
+// workDir returns the working directory of the pane, or of the session's
+// pane in front, by id.
+func (a *App) workDir(id string) string {
+	for i := range a.st.Sessions {
+		if p := a.st.Sessions[i].PaneByID(id); p != nil {
+			return p.WorkDir()
+		}
+	}
+	if s := a.session(id); s != nil {
+		return s.WorkDir()
+	}
+	return ""
 }
 
 // --- actions ---

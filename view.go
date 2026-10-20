@@ -119,6 +119,12 @@ func (a *App) view(c *ui.Context) {
 		a.previewKey = ""
 	}
 	a.previewShown = false
+	// An image previewed no more closes, and lets go of its bitmap.
+	if !a.peek.shown {
+		a.closePeek()
+		a.peek = peek{}
+	}
+	a.peek.shown = false
 	if later := a.later; len(later) > 0 {
 		a.later = nil
 		for _, fn := range later {

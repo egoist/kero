@@ -493,6 +493,9 @@ func (a *App) paneTerminal(c *ui.Context, pal *palette, s *proto.Session, p *pro
 		case e != nil && e.term != nil:
 			ref := a.paneRef(p.ID)
 			terminal.View(c.Key("term"), e.term).Fill().Bind(ref)
+			if link, isPath, at := e.term.HoveredLink(); isPath {
+				a.imagePeek(p.ID, link, at, ref.Bounds(c))
+			}
 			if ref.Focused(c) && a.focusOf(s) != p.ID {
 				a.setFocus(s, p.ID)
 			}

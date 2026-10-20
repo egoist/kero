@@ -2,6 +2,9 @@ package main
 
 import (
 	"fmt"
+	"image"
+	"image/color"
+	"image/draw"
 	"image/png"
 	"os"
 	"path/filepath"
@@ -381,5 +384,76 @@ func TestFindBar(t *testing.T) {
 	tt.Frame()
 	if a.find.pane != "a" || a.find.query != "ERROR" || term.SearchStatus().Text != "ERROR" {
 		t.Errorf("Find Next did not search again: %+v, %+v", a.find.query, term.SearchStatus())
+	}
+}
+
+// Command over the path of an image a pane printed, relative to its
+// directory, shows the image beside it, until Command is let go of,
+// which lets go of the image too.
+func TestImagePeek(t *testing.T) {
+	if testing.Short() {
+		t.Skip("downloads libghostty-vt")
+	}
+	if err := terminal.Load(); err != nil {
+		t.Fatal(err)
+	}
+	a := testApp(t)
+	dir := t.TempDir()
+	a.st.Sessions[0].Panes[0].Dir = dir
+	f, err := os.Create(filepath.Join(dir, "shot.png"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	img := image.NewRGBA(image.Rect(0, 0, 30, 20))
+	draw.Draw(img, img.Bounds(), image.NewUniform(color.RGBA{230, 120, 40, 255}), image.Point{}, draw.Src)
+	png.Encode(f, img)
+	f.Close()
+	term, err := terminal.New(terminal.Options{Conn: idleConn{make(chan struct{})}, OpenLink: func(link string) bool { return a.openLink("a", link) }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer term.Close()
+	term.Feed([]byte("saved shot.png:3 and notes.txt\r\n"))
+	a.terms["a"] = &termEntry{term: term}
+	tt := ui.NewTester(a.view, 1100, 640)
+	tt.Frame()
+	b, ok := tt.Find("Terminal")
+	if !ok {
+		t.Fatalf("no terminal; texts %q", tt.Texts())
+	}
+	// Along the first row to the path, Command pressed with the pointer
+	// still.
+find:
+	for y := b.Y; y < b.Y+40; y += 4 {
+		for x := b.X; x < b.X+b.W/2; x += 3 {
+			tt.Move(x, y)
+			tt.HoldModifiers(ui.Cmd)
+			if link, _, _ := term.HoveredLink(); link != "" {
+				break find
+			}
+		}
+	}
+	tt.Frame()
+	if link, path, _ := term.HoveredLink(); link != "shot.png:3" || !path {
+		t.Fatalf("hovered %q, %v; text %q", link, path, term.Text())
+	}
+	if want := filepath.Join(dir, "shot.png"); a.peek.path != want {
+		t.Fatalf("peeks at %q, want %q", a.peek.path, want)
+	}
+	// The decoded image lands, as the window's update would bring it, and
+	// shows in the flyout.
+	data, _ := os.ReadFile(a.peek.path)
+	a.peek.bm, _ = ui.DecodeBitmap(data)
+	tt.Frame()
+	ft := ui.NewTester(a.peekView, peekMinW, 20+peekPad+peekCaption)
+	ft.Frame()
+	if !ft.HasText("shot.png") || !ft.HasText("30 × 20") {
+		t.Fatalf("no preview; texts %q", ft.Texts())
+	}
+	shot(t, ft, "peek")
+	tt.HoldModifiers(0)
+	tt.Frame()
+	if a.peek.bm != nil || a.peek.path != "" {
+		t.Errorf("the preview stays once Command is let go of: %+v", a.peek)
 	}
 }
