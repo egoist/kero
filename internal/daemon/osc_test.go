@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"strings"
 	"testing"
+	"time"
 
 	"kero/internal/proto"
 )
@@ -57,6 +58,69 @@ func TestParseStatus(t *testing.T) {
 	// Bidi overrides are dropped from messages shown outside the grid.
 	if r, _ := parseStatus("state=done:msg=" + b64("ok‮gnp.exe")); r.rec.Msg != "okgnp.exe" {
 		t.Errorf("bidi not neutralized: %q", r.rec.Msg)
+	}
+}
+
+// Vibe 3.0.1 reports its state natively, without screen detection rules.
+func TestVibeStatusReports(t *testing.T) {
+	for _, c := range []struct {
+		state, kind, msg string
+		status           proto.Status
+		unread           bool
+	}{
+		{"idle", "", "", proto.Idle, false},
+		{"working", "", "Fix login", proto.Working, false},
+		{"blocked", "permission", "Run the tests?", proto.Waiting, true},
+		{"blocked", "question", "Which project?", proto.Waiting, true},
+		{"done", "", "Fix login", proto.Idle, true},
+		{"error", "", "Request failed", proto.Failed, true},
+	} {
+		t.Run(c.state+"/"+c.kind, func(t *testing.T) {
+			s := testPane(t)
+			s.info.Agent = "vibe"
+			s.output([]byte("\x1b]0;Vibe\x1b\\\x1b]7501;state=working:app=vibe\x1b\\"))
+			s.status(time.Now())
+
+			report := "\x1b]7501;state=" + c.state
+			if c.kind != "" {
+				report += ":kind=" + c.kind
+			}
+			report += ":app=vibe"
+			if c.msg != "" {
+				report += ":msg=" + base64.StdEncoding.EncodeToString([]byte(c.msg))
+			}
+			report += "\x1b\\"
+			for i := range len(report) {
+				s.output([]byte{report[i]})
+			}
+			s.show("> ")
+			s.resize(80, 24, 0, 0)
+			if got := s.status(time.Now()); got != c.status {
+				t.Fatalf("status after redraw: %s, want %s", got, c.status)
+			}
+			if s.info.Message != c.msg || s.info.Kind != c.kind || s.info.Unread != c.unread {
+				t.Errorf("pane: message %q, kind %q, unread %v", s.info.Message, s.info.Kind, s.info.Unread)
+			}
+			if len(s.info.Records) != 1 {
+				t.Fatalf("records: %+v", s.info.Records)
+			}
+			r := s.info.Records[0]
+			if r.App != "vibe" || r.State != c.state || r.Kind != c.kind || r.Msg != c.msg {
+				t.Errorf("record: %+v", r)
+			}
+
+			s.input(nil)
+			if s.info.Unread {
+				t.Error("acknowledging the report left it unread")
+			}
+			if c.state == "done" || c.state == "error" {
+				if len(s.info.Records) != 0 || s.info.Status != proto.Idle {
+					t.Errorf("finished report not dismissed: %+v", s.info)
+				}
+			} else if s.info.Status != c.status {
+				t.Errorf("input changed a live report's status: %s", s.info.Status)
+			}
+		})
 	}
 }
 

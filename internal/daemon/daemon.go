@@ -392,7 +392,7 @@ func expandHome(p string) string {
 // their executable or script.
 var agents = []string{
 	"claude", "codex", "gemini", "opencode", "amp", "aider", "cursor-agent", "droid",
-	"qwen", "goose", "crush", "copilot", "kiro-cli", "cline", "auggie", "kimi", "pi",
+	"qwen", "goose", "crush", "copilot", "kiro-cli", "cline", "auggie", "kimi", "pi", "vibe",
 }
 
 func detectAgent(name string, args []string) string {

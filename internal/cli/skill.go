@@ -142,7 +142,7 @@ func skillCmd(args []string) error {
 		}
 		return nil
 	}
-	return usageErr("kero skill setup|show|status|remove [--agent claude|codex|pi|opencode|agents] [--dry-run]")
+	return usageErr("kero skill setup|show|status|remove [--agent claude|codex|pi|opencode|vibe|agents] [--dry-run]")
 }
 
 func sortedKeys(m map[string]string) []string {
@@ -198,7 +198,7 @@ func skillDirs(agent string) map[string]string {
 		if d, ok := all[agent]; ok {
 			return map[string]string{agent: d}
 		}
-		if agent == "codex" || agent == "opencode" || agent == "pi" {
+		if agent == "codex" || agent == "opencode" || agent == "pi" || agent == "vibe" {
 			return map[string]string{"agents": all["agents"]}
 		}
 	}

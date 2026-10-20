@@ -45,6 +45,35 @@ func (s *pane) status(now time.Time) proto.Status {
 	return s.info.Status
 }
 
+func TestDetectAgent(t *testing.T) {
+	for _, c := range []struct {
+		name string
+		args []string
+		want string
+	}{
+		{"vibe", nil, "vibe"},
+		{"vibe-rs", nil, "vibe"},
+		{"vibe-rs.exe", nil, "vibe"},
+		{"vibe-rs", []string{"/opt/vibe/_bin/vibe-rs"}, "vibe"},
+		{"python3", []string{"python3", "/home/user/.local/bin/vibe"}, "vibe"},
+		{"claude", nil, "claude"},
+		{"codex", nil, "codex"},
+		{"pi", nil, "pi"},
+		{"opencode", nil, "opencode"},
+		{"node", []string{"node", "/usr/lib/node_modules/@openai/codex/bin/codex.js"}, "codex"},
+		{"python3", []string{"python3", "script.py"}, ""},
+		{"sh", []string{"sh", "-c", "printf hello"}, ""},
+		{"vibecoding", nil, ""},
+		{"pi-helper", nil, ""},
+	} {
+		t.Run(c.name+"/"+strings.Join(c.args, " "), func(t *testing.T) {
+			if got := detectAgent(c.name, c.args); got != c.want {
+				t.Errorf("agent %q, want %q", got, c.want)
+			}
+		})
+	}
+}
+
 // Claude Code at its prompt repaints its screen as the sidebar hides and
 // the pane resizes, over and over: still idle. Its turn is work, and the
 // prompt back is idle again.

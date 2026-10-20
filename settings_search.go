@@ -66,7 +66,7 @@ func settingsIndex() []searchEntry {
 		{"agents", locales.SetRemoteControlRow(), "remote-control kero do focus automation"},
 		{"agents", locales.SetCliRow(), "cli command line tool install path"},
 		{"agents", "Claude Code", "skill agents install"},
-		{"agents", "Codex, OpenCode, Pi", "skill agents install"},
+		{"agents", "Codex, OpenCode, Pi, Vibe", "skill agents install"},
 		{"agents", locales.SetProgramStatus(), "osc 7501 report progress"},
 
 		{"advanced", locales.SetConfigFile(), "configuration ghostty edit file dotfiles"},
