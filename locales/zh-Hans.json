@@ -287,7 +287,7 @@
   "setNotifyError": "无法发送通知：{error}",
   "setRemoteControl": "远程控制",
   "setRemoteControlRow": "允许命令控制此窗口",
-  "setRemoteControlDetail": "kero do 和 kero focus 会像菜单一样执行应用的操作：拆分、切换会话、打开命令面板。",
+  "setRemoteControlDetail": "kero do 和 kero focus 会像菜单一样执行应用的操作：拆分、切换会话、打开命令面板。kero browser 可在浏览器面板中点击、输入和读取页面。",
   "setCli": "命令行工具",
   "setCliDetail": "在 Kero 中，每个窗格的 PATH 里已经有 kero 命令。",
   "setCliNotInstalled": "未安装：其他终端无法使用 kero 命令。",

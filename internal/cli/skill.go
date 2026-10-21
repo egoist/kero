@@ -51,6 +51,25 @@ or start it with --wait, which exits with the command's status:
     kero wait "$pane" --exit || kero read "$pane" -n 80
     kero split --down --wait -- make build    # the same, in one step
 
+## Use a web page
+
+A browser pane's page is yours to drive, as a user would, to check what
+you built: open it with kero split --url, then
+
+    kero browser open localhost:3000/todos     # go to a page, wait for it to load
+    kero browser type '#new-todo' "Buy milk"   # fill a field (--enter submits)
+    kero browser click 'button[type=submit]'   # click an element (CSS selector)
+    kero browser wait --text "Welcome"         # or wait <selector>; --timeout 30s
+    kero browser text [selector]               # the page's text, or an element's
+    kero browser html [selector]
+    kero browser eval 'document.title'         # run JavaScript, print its value
+    kero browser screenshot -o /tmp/page.png   # the pane must be on screen
+    kero browser back|forward|reload
+
+With no target, kero browser drives your session's browser pane; name
+one (kero browser <target> text) when there are several. It needs the app
+open and Remote Control on, in Settings › Agents.
+
 ## Tell the user
 
     kero report working "Migrating the database" --progress 40

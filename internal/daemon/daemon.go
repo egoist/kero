@@ -47,6 +47,10 @@ type Daemon struct {
 	conns    int
 	idleAt   time.Time
 	ending   bool
+	// asks are the browser calls waiting for the app's answer, by the
+	// number they went out with.
+	asks    map[int64]chan proto.BrowserAnswer
+	lastAsk int64
 
 	viewed atomic.Pointer[string]
 	// theme is the colors of the client that last told them, which the

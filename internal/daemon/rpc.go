@@ -200,6 +200,34 @@ func (d *Daemon) call(c *controlConn, method string, raw json.RawMessage) (any, 
 		}
 		return true, pn.setPage(p.URL, p.Title)
 
+	case "browser":
+		var p proto.BrowserParams
+		if err := decode(&p); err != nil {
+			return nil, err
+		}
+		pn, err := findPane(p.ID)
+		if err != nil {
+			return nil, err
+		}
+		return d.browse(c, pn, p)
+
+	case "browser.answer":
+		var p proto.BrowserAnswer
+		if err := decode(&p); err != nil {
+			return nil, err
+		}
+		d.mu.Lock()
+		ch := d.asks[p.Req]
+		d.mu.Unlock()
+		if ch == nil {
+			return false, nil
+		}
+		select {
+		case ch <- p:
+		default:
+		}
+		return true, nil
+
 	case "read":
 		var p proto.ReadParams
 		if err := decode(&p); err != nil {
@@ -443,6 +471,70 @@ func (d *Daemon) call(c *controlConn, method string, raw json.RawMessage) (any, 
 		return true, nil
 	}
 	return nil, fmt.Errorf("unknown method %q", method)
+}
+
+// browseGrace is how long kerod waits for the app's answer to a browser
+// call past the call's own timeout: what the page does may take a while,
+// and the app waits on the page.
+const browseGrace = 30 * time.Second
+
+// browse has the app do something on a browser pane's page, which lives
+// in the app, not in kerod, and waits for its answer. Every subscriber
+// is asked: one that shows the pane answers with the page's result, the
+// others why they can't; the first result wins, else the first refusal.
+func (d *Daemon) browse(c *controlConn, s *pane, p proto.BrowserParams) (any, error) {
+	s.mu.Lock()
+	id, browser := s.info.ID, s.info.Browser()
+	s.mu.Unlock()
+	if !browser {
+		return nil, fmt.Errorf("pane %s is a terminal, not a browser", id)
+	}
+	d.mu.Lock()
+	n := len(d.subs)
+	if n == 0 {
+		d.mu.Unlock()
+		return nil, errors.New("the app is not open: a browser pane's page lives in it")
+	}
+	if d.asks == nil {
+		d.asks = map[int64]chan proto.BrowserAnswer{}
+	}
+	d.lastAsk++
+	req := d.lastAsk
+	ch := make(chan proto.BrowserAnswer, n)
+	d.asks[req] = ch
+	for sub := range d.subs {
+		sub.event(proto.Message{Event: "browser", Browser: &proto.BrowserRequest{Req: req, Pane: id, BrowserParams: p}})
+	}
+	d.mu.Unlock()
+	defer func() {
+		d.mu.Lock()
+		delete(d.asks, req)
+		d.mu.Unlock()
+	}()
+	t := time.NewTimer(time.Duration(p.Timeout)*time.Millisecond + browseGrace)
+	defer t.Stop()
+	var refused error
+	for range n {
+		select {
+		case a := <-ch:
+			if a.Error == "" {
+				if a.Result == nil {
+					a.Result = &proto.BrowserResult{}
+				}
+				return a.Result, nil
+			}
+			if refused == nil {
+				refused = errors.New(a.Error)
+			}
+		case <-t.C:
+			return nil, errors.New("the app did not answer")
+		case <-c.done:
+			return nil, errors.New("canceled")
+		case <-d.quit:
+			return nil, errors.New("kerod exited")
+		}
+	}
+	return nil, refused
 }
 
 // wait waits for a pane's status to be one of p.Status.

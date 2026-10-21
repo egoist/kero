@@ -64,7 +64,7 @@ type Message struct {
 	Result any    `json:"result,omitempty"`
 	Error  string `json:"error,omitempty"`
 
-	Event string `json:"event,omitempty"` // "state", "select", "action", "notice"
+	Event string `json:"event,omitempty"` // "state", "select", "action", "notice", "browser"
 	State *State `json:"state,omitempty"`
 	// Select asks the app to show a session ("kero focus").
 	Select string `json:"select,omitempty"`
@@ -74,6 +74,9 @@ type Message struct {
 	Args   map[string]string `json:"args,omitempty"`
 	// Notice is a program's desktop notification, to show as it is.
 	Notice *Notice `json:"notice,omitempty"`
+	// Browser asks the app to do something on a browser pane's page
+	// ("kero browser"), which it answers with browser.answer.
+	Browser *BrowserRequest `json:"browser,omitempty"`
 }
 
 // Notice is a desktop notification a program in a session sent.
@@ -664,6 +667,42 @@ type (
 		ID    string `json:"id"`
 		URL   string `json:"url"`
 		Title string `json:"title,omitempty"`
+	}
+	// BrowserParams ask a browser pane's page to do something (browser),
+	// which the app showing it does.
+	BrowserParams struct {
+		ID string `json:"id"`
+		// Op is what to do: open, back, forward, reload, text, html,
+		// click, type, wait, eval or screenshot.
+		Op       string `json:"op"`
+		Selector string `json:"selector,omitempty"`
+		// Text is the URL to open, the text to type or wait for, or the
+		// script to evaluate.
+		Text  string `json:"text,omitempty"`
+		Enter bool   `json:"enter,omitempty"` // press Enter after typing
+		// Timeout is how long to wait for the element, or the page to
+		// load, in ms: 0 for the app's default.
+		Timeout int64 `json:"timeout,omitempty"`
+	}
+	// BrowserRequest is a browser call as kerod hands it to the app: Req
+	// is what the app answers it by, and Pane the browser pane's id.
+	BrowserRequest struct {
+		Req  int64  `json:"req"`
+		Pane string `json:"pane"`
+		BrowserParams
+	}
+	// BrowserResult is what the page answered: text for text, html and
+	// eval, an image for screenshot.
+	BrowserResult struct {
+		Text string `json:"text,omitempty"`
+		PNG  []byte `json:"png,omitempty"`
+	}
+	// BrowserAnswer answers a BrowserRequest (browser.answer): a result,
+	// or why there is none.
+	BrowserAnswer struct {
+		Req    int64          `json:"req"`
+		Result *BrowserResult `json:"result,omitempty"`
+		Error  string         `json:"error,omitempty"`
 	}
 	NotifyParams struct {
 		ID    string `json:"id"`

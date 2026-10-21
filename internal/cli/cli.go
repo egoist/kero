@@ -63,6 +63,23 @@ Usage:
                                 files too; --turn since its agent last
                                 started working; --branch since it left
                                 the default branch
+  kero browser [target] <command> [args…]
+                                drive a browser pane's page (needs Remote
+                                Control, in Settings › Agents); the target
+                                is a browser pane, or a session, for its
+                                browser (default: this session's)
+      open <url>                  go to a page, and wait for it to load
+      back, forward, reload       and wait for the page to load
+      text [selector]             print the page's text, or an element's
+      html [selector]             print the page's HTML, or an element's
+      click <selector>            click an element
+      type <selector> <text…>     type text into a field, in place of what
+                                  it holds (--enter: press Enter after it)
+      wait [selector] [--text t]  wait for an element to show (or the text
+                                  to), or without either, the page to load
+      eval <js…>                  run JavaScript, print its value
+      screenshot [-o file.png]    save a picture of the page, print where
+      -t, --timeout <dur>         how long to wait (default 10s)
   kero rename <session> <name>
   kero focus <target>           show a session (and pane) in the app
   kero close <target>           end a session (or, given a pane, the pane)
@@ -96,7 +113,7 @@ ambiguous one), 4 kerod unreachable.
 // Commands lists the subcommands, which main sends here.
 var Commands = []string{"ls", "list", "new", "split", "send", "key", "prompt", "read", "capture", "wait", "status", "diff",
 	"rename", "focus", "close", "kill", "restart", "notify", "report", "projects", "skill", "hook", "daemon", "do", "actions", "config",
-	"help", "--help", "-h", "version", "--version"}
+	"browser", "help", "--help", "-h", "version", "--version"}
 
 // Errors of exit statuses other than 1.
 var (
@@ -612,6 +629,9 @@ func run(args []string) error {
 			return errors.New("the app is not open")
 		}
 		return nil
+
+	case "browser":
+		return browserCmd(c, st, args)
 
 	case "notify":
 		f, err := parse(args, map[string]string{"session": "target", "s": "target", "title": "title"}, nil)

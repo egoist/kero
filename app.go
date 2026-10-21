@@ -262,6 +262,18 @@ func (a *App) event(cl *client.Client, m proto.Message) {
 		if act, ok := actions.Find(m.Action); ok && act.Remote {
 			a.run(act.ID, m.Args)
 		}
+	case "browser":
+		// kero browser waits on the answer, which refuses when Remote
+		// Control is off, not as an action does, silently.
+		if r := m.Browser; r != nil {
+			a.browse(r, func(res *proto.BrowserResult, err error) {
+				ans := proto.BrowserAnswer{Req: r.Req, Result: res}
+				if err != nil {
+					ans.Result, ans.Error = nil, err.Error()
+				}
+				cl.Go("browser.answer", ans, nil)
+			})
+		}
 	case "notice":
 		// A program's own notification, as a terminal shows it: not
 		// while the user looks at its session.

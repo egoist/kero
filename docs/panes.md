@@ -57,3 +57,10 @@ From a shell, or an agent, open one with `--url`:
 kero split --url localhost:5173
 kero new --url https://github.com/egoist/kero/pulls
 ```
+
+An agent can then use the page as you would, with `kero browser`: click, type, read its text, wait for it and take a screenshot. See [Command Line](./cli.md#browsing).
+
+```sh
+kero browser type 'input[name=q]' "kero" --enter
+kero browser text main
+```
