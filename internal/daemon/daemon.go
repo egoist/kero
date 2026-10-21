@@ -280,10 +280,16 @@ func (d *Daemon) projectFor(ref, dir string) string {
 	return p.ID
 }
 
-// repoRoot returns the root of the git repository holding dir, or dir.
+// repoRoot returns the root of the git repository holding dir, or dir. A
+// linked worktree's is its repository's main checkout, wherever it lies.
 func repoRoot(dir string) string {
 	for d := dir; ; {
-		if _, err := os.Stat(filepath.Join(d, ".git")); err == nil {
+		if fi, err := os.Stat(filepath.Join(d, ".git")); err == nil {
+			if !fi.IsDir() {
+				if main := worktreeMain(d); main != "" {
+					return main
+				}
+			}
 			return d
 		}
 		parent := filepath.Dir(d)
@@ -292,6 +298,43 @@ func repoRoot(dir string) string {
 		}
 		d = parent
 	}
+}
+
+// worktreeMain returns the main checkout of the linked worktree at dir,
+// whose .git is a file, or "" when it is none: a submodule's, or a bare
+// repository's worktree. The file names the worktree's git directory, and
+// that directory's commondir file the repository's.
+func worktreeMain(dir string) string {
+	b, err := os.ReadFile(filepath.Join(dir, ".git"))
+	if err != nil {
+		return ""
+	}
+	gitdir, ok := strings.CutPrefix(strings.TrimSpace(string(b)), "gitdir:")
+	if !ok {
+		return ""
+	}
+	gitdir = gitPath(dir, strings.TrimSpace(gitdir))
+	b, err = os.ReadFile(filepath.Join(gitdir, "commondir"))
+	if err != nil {
+		return ""
+	}
+	common := gitPath(gitdir, strings.TrimSpace(string(b)))
+	if filepath.Base(common) != ".git" {
+		return ""
+	}
+	if fi, err := os.Stat(common); err != nil || !fi.IsDir() {
+		return ""
+	}
+	return filepath.Dir(common)
+}
+
+// gitPath returns a path as git writes it, against dir when relative.
+func gitPath(dir, path string) string {
+	path = filepath.FromSlash(path)
+	if !filepath.IsAbs(path) {
+		path = filepath.Join(dir, path)
+	}
+	return filepath.Clean(path)
 }
 
 // environment returns the environment of a session's shell.

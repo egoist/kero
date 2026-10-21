@@ -32,12 +32,12 @@ What's missing, or wrong:
 
 - **Nothing reads git.** The only git awareness is `repoRoot` looking for a
   `.git` entry.
-- **`repoRoot` misreads linked worktrees.** In a worktree, `.git` is a file,
-  so `os.Stat` succeeds and the worktree's own root counts as a repository's.
-  A worktree inside its repository, such as `.claude/worktrees/x`, still lands
-  in the right project, because `projectFor` matches the existing project's
-  directory first. A worktree elsewhere becomes a project of its own in the
-  sidebar.
+- **`repoRoot` misread linked worktrees** (fixed since; see Phase 3). In a
+  worktree, `.git` is a file, so `os.Stat` succeeded and the worktree's own
+  root counted as a repository's. A worktree inside its repository, such as
+  `.claude/worktrees/x`, still landed in the right project, because
+  `projectFor` matches the existing project's directory first. A worktree
+  elsewhere became a project of its own in the sidebar.
 - **No diff view.** The Swift app had one; the MyGo app doesn't, and MyGo
   has no diff component yet.
 
@@ -217,12 +217,12 @@ without `--force` where the dialog would warn.
 
 ### Fixing `repoRoot`
 
-- Resolve a directory's repository with
-  `git rev-parse --show-toplevel --git-common-dir`. The common directory's
-  parent is the repository's root, for the main checkout and every linked
-  worktree alike.
-- Fall back to today's `.git` walk when `git` isn't installed.
-- This fix is worth shipping on its own, before the rest of this plan.
+Done. When `.git` is a file, `repoRoot` follows it to the worktree's git
+directory, then that directory's `commondir` to the repository's. When that
+is a `.git` directory, its parent is the main checkout. It reads the two
+files rather than running `git`, so it holds `d.mu` for no subprocess and
+opens no console window on Windows. A submodule, or a bare repository's
+worktree, stays a root of its own.
 
 ## Phase 4: a few actions
 
@@ -258,7 +258,7 @@ worktree add and remove.
 
 ## Order and rough size
 
-1. **`repoRoot` fix:** small. Ship it first.
+1. **`repoRoot` fix:** done.
 2. **Phase 1, branch and changes:** small to medium. kerod's watcher and
    cache, the proto field, the row label, tooltip, title bar and CLI.
 3. **Phase 2, changes panel:** large. Mostly the MyGo diff component; the
