@@ -38,8 +38,13 @@ What's missing, or wrong:
   `.claude/worktrees/x`, still landed in the right project, because
   `projectFor` matches the existing project's directory first. A worktree
   elsewhere became a project of its own in the sidebar.
-- **No diff view.** The Swift app had one; the MyGo app doesn't, and MyGo
-  has no diff component yet.
+- **No diff view in the app yet,** but MyGo has one: `editor.DiffView` in
+  `github.com/egoist/mygo/ui/editor` (MyGo's `docs/ui/diff-viewer.md`). It
+  compares two texts as git's histogram diff does, side by side or unified,
+  with changed words highlighted, unchanged lines collapsed and expandable,
+  and syntax highlighting from the code editor. It can also edit the new side,
+  revert or keep a hunk, attach comments under lines, and show a bare
+  `git diff` patch (`editor.ParsePatch`, `DiffState.SetPatch`).
 
 ## Principles
 
@@ -52,7 +57,8 @@ What's missing, or wrong:
 - **Never get in an agent's way.** Every command kerod runs takes
   `--no-optional-locks`, so a background `git status` never holds
   `index.lock` while an agent commits. kerod never writes to the repository's
-  index or working tree.
+  index, and writes to the working tree only when the user reverts a change
+  in the panel while no agent is working there (Phase 2).
 - **Quiet by default.** The sidebar row stays as it is unless git has
   something worth saying.
 
@@ -87,6 +93,8 @@ What's missing, or wrong:
     ahead/behind and changed files.
   - `git diff --numstat HEAD` gives the line counts.
   - Both take `--no-optional-locks`, a timeout (2s), and a niced process.
+  - On Windows, `git.exe` starts with `CREATE_NO_WINDOW`. kerod has no
+    console, so without it every refresh would flash one.
 - **When it refreshes,** never on a fast poll:
   - when a pane's directory changes;
   - when a pane's agent goes from working to idle, done or blocked, which is
@@ -167,20 +175,65 @@ when an agent's turn starts.
 
 ### Diff view
 
-- A MyGo component: unified diff, syntax-highlighted, with hunks folded
-  beyond a few lines of context. Side by side can come later.
-- Line numbers on both sides. ⌘-click a line to open the file there in
-  `$EDITOR`, as ⌘-clicking a path in a pane does.
-- Large or binary files show a summary instead of their diff.
-- It reads its colors from the app's theme, light and dark.
+MyGo's `editor.DiffView`, one `editor.DiffState` per open file.
+
+- **Fed whole texts, not patches.** kerod sends the file's old text (the
+  blob in the tab's base: the turn's tree, `HEAD` or the merge-base) and its
+  text now. With both, the viewer highlights changed words, lets the user
+  expand the lines between changes, and can revert a hunk. `editor.LanguageFor`
+  picks the highlighting from the path.
+- **Patches for the large.** Above a size limit (1 MB, say), kerod sends the
+  file's patch from `git diff` instead, shown with `SetPatch`: the hunks under
+  their headers, no expanding. Binary files show a summary.
+- **It follows the agent.** While a diff is open, kerod's watcher (Phase 1)
+  tells the app when the file changes, and the app replaces `New`'s text. The
+  viewer diffs again only around the edit, so a working agent's changes show
+  as it makes them.
+- **Layout:** unified (`DiffUnified`) while the drawer is narrow, side by side
+  (`DiffSplit`) once it's widened past a width, unless the user picked one.
+  `diff-layout = auto|unified|split` sets it.
+- **Navigation:** the file list says "2 of 5" for the current change (`Hunks`,
+  `CurrentHunk`), and ⌘F8 / ⇧⌘F8 step through changes, as the viewer's keys
+  do. ⌘-click a line to open the file there in `$EDITOR`, as ⌘-clicking a path
+  in a pane does.
+- **Looks:** the `Theme` comes from the app's palette, light and dark. Its
+  `Added`, `Deleted` and `Modified` take the terminal theme's green, red and
+  yellow, so the diff matches the pane beside it. Separators and hunk actions
+  are Kero's own (`RenderSeparator`, `RenderHunkActions`): no borders in light
+  mode, Framework7 icons.
+- **Read-only to start** (`Editable` off). Editing in the panel would make it
+  an editor, and `$EDITOR` is one click away.
+
+### Reviewing a turn, hunk by hunk
+
+The viewer's `HunkActions` give each change Revert and Keep, which suit the
+**Last turn** tab: review what the agent just did, one change at a time.
+
+- **Revert** puts the old lines back. kerod writes the file, and only when:
+  - no agent in the worktree is working, since writing under a working agent
+    races its edits;
+  - the file on disk is still the text the viewer showed (compared by hash),
+    or the revert is refused and the diff reloads.
+- **Keep** marks the change as seen (`Accept`): it leaves the diff, and the
+  file's entry shows how many changes are left. Kept changes are kept in the
+  app's memory for that turn only. The next turn's snapshot starts the
+  review afresh anyway.
+- **Uncommitted** and **Branch** show no hunk actions. Reverting there means
+  undoing commits or the user's own edits, which is git's job, not the
+  panel's.
 
 ### Protocol
 
-- `git.diff {pane, against: "turn"|"head"|"base", path?}` returns the file
-  list, or one file's diff. Diffs are fetched on demand, never put in
+- `git.changes {pane, against: "turn"|"head"|"base"}` returns the changed
+  files, each with its status (added, modified, deleted, renamed) and line
+  counts. It's fetched when the panel opens or the tab changes, never put in
   `proto.State`.
-- `kero diff <target> [--turn|--base] [path]` prints the same, for agents and
-  scripts.
+- `git.file {pane, against, path}` returns the file's old and new text, or
+  its patch when large, or that it's binary.
+- `git.revert {pane, path, hash, text}` writes `text` to the file when its
+  content still hashes to `hash` and no agent in the worktree is working.
+- `kero diff <target> [--turn|--base] [path]` prints the changes as `git diff`
+  would, for agents and scripts.
 
 ## Phase 3: sessions in their own worktree
 
@@ -237,9 +290,18 @@ In the changes panel's menu, the title bar's branch menu, and `kero do`:
 - **Ask the Agent to Commit / Open a PR:** types a prompt into the agent's
   pane, through what `kero prompt` uses, and lets the agent do it its way. The
   prompt text is a setting.
+- **Comment on lines, then send the comments to the agent,** as a code review
+  does:
+  - The diff's gutter button (`OnGutterButton`) adds a comment under a line,
+    and dragging over line numbers (`LineSelection`) comments on a range.
+    Comments show under their lines (`Annotations`, `RenderAnnotation`).
+  - **Send to Agent** types them into the agent's pane as one prompt, each as
+    `path:line: comment`, through what `kero prompt` uses.
+  - Comments live in the app until sent or discarded. They're dropped when
+    their file changes under them.
 
 Nothing here writes to the repository from Kero itself, except Phase 3's
-worktree add and remove.
+worktree add and remove. The only other write is Phase 2's Revert.
 
 ## Security notes
 
@@ -255,17 +317,23 @@ worktree add and remove.
     repository can't run a program just by being looked at in the panel.
 - **Snapshots stay local:** they are loose objects in the repository, never
   referenced, never pushed.
+- **`git.file` and `git.revert` take a path from the client.** kerod accepts
+  it only when git lists it as changed in that tab, and only inside the pane's
+  worktree once symbolic links are resolved, so neither reads nor writes any
+  other file.
 
 ## Order and rough size
 
 1. **`repoRoot` fix:** done.
 2. **Phase 1, branch and changes:** small to medium. kerod's watcher and
    cache, the proto field, the row label, tooltip, title bar and CLI.
-3. **Phase 2, changes panel:** large. Mostly the MyGo diff component; the
-   snapshots and `git.diff` RPC are medium.
+3. **Phase 2, changes panel:** medium. MyGo's `editor.DiffView` does the
+   diffing and drawing. The work is the drawer and file list, the snapshots,
+   the `git.*` RPCs, live updates, and guarding reverts.
 4. **Phase 3, worktree sessions:** medium. Creating, the close dialog, and
    the settings.
-5. **Phase 4, actions:** small.
+5. **Phase 4, actions:** small to medium. Mostly the review comments; the
+   viewer already has the gutter button and the room under lines.
 
 ## Open questions
 
@@ -284,6 +352,9 @@ worktree add and remove.
 - **Remote hosts:** everything runs in kerod, so it should just work there.
   Check that opening a file from the diff resolves on the host, as
   `plans/remote-servers.md` requires for ⌘-clicked paths.
+- **Should Keep outlive the app's memory?** Persisting it means a baseline
+  per file in kerod beside the turn's tree. Try the review with in-memory Keep
+  first.
 - **Agents that already make worktrees,** such as Claude Code under
   `.claude/worktrees`: should Kero offer to remove those on close too, or only
   its own?
