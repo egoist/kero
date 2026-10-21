@@ -67,6 +67,11 @@
   "toastCopied": "Copied",
   "toastCopiedToClipboard": "Copied to clipboard",
   "toastSaveSettingsFailed": "Couldn’t save the settings: {error}",
+  "toastPasteImageFailed": "Couldn’t paste the image: {error}. Try again, or drop the image file on the pane.",
+  "toastPasteImageDenied": "Couldn’t paste the image: Kero can’t write to {dir}. Make it writable, or drop the image file on the pane.",
+  "toastPasteImageDiskFull": "Couldn’t paste the image: the disk is full. Free some space and try again.",
+  "toastPasteClipboardUnreadable": "Couldn’t read the clipboard. Copy it again and paste.",
+  "toastPasteImageUnsupported": "Couldn’t paste the image: {format} isn’t supported. Copy it as PNG or JPEG, or drop the image file on the pane.",
   "toastConfigProblems": "{count, plural, one {Your config has # problem: see Settings › Advanced} other {Your config has # problems: see Settings › Advanced}}",
   "@toastConfigProblems": {
     "placeholders": {

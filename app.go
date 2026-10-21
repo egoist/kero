@@ -760,6 +760,9 @@ func (a *App) termOptions(id string, conn *gated) terminal.Options {
 			return false
 		},
 		OpenLink: func(link string) bool { return a.openLink(id, link) },
+		// An image alone on the clipboard pastes as the path of a file
+		// with it, which agents take as an image they attach.
+		OnPaste: func(d transfer.Data) bool { return a.pasteImage(id, d) },
 		// A selection copied as it ends shows nothing else: say so.
 		OnCopy: func(_ string, by terminal.CopySource) {
 			if by == terminal.CopySelect {
@@ -774,7 +777,7 @@ func (a *App) termOptions(id string, conn *gated) terminal.Options {
 		o.CopyOnSelect = terminal.CopyOnSelectClipboard
 	}
 	// Files and images pasted into a pane of another machine go there; a
-	// local pane's paste reads only what it takes, as it did.
+	// local pane's image alone pastes as the path of a file with it.
 	if a.hostOf(id).remote() {
 		o.OnPaste = func(d transfer.Data) bool { return a.remotePaste(id, d) }
 	}
