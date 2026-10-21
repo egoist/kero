@@ -135,21 +135,30 @@ func (a *App) divider(c *ui.Context, pal *palette, s *proto.Session, l *proto.La
 		})
 	}
 	if dx, dy, ok := d.Dragged(); ok {
+		// The ratio shares out the room the panes take, the split's less
+		// the divider's.
 		b := a.paneRef(key).Bounds(c)
-		size, delta := b.W, dx
+		size, delta := b.W-paneGap, dx
 		if !l.Row {
-			size, delta = b.H, dy
+			size, delta = b.H-paneGap, dy
 		}
 		if size > 0 {
-			r := l.Ratio
-			if r <= 0 || r >= 1 {
-				r = 0.5
+			// The ratio goes on past its bounds, unclamped, so the divider
+			// comes back as the pointer comes back to it.
+			if a.layoutDrag.split != key {
+				r := l.Ratio
+				if r <= 0 || r >= 1 {
+					r = 0.5
+				}
+				a.layoutDrag.session, a.layoutDrag.split, a.layoutDrag.ratio = s.ID, key, r
 			}
-			l.Ratio = math.Min(math.Max(r+float64(delta/size), 0.12), 0.88)
-			a.layoutDirty = s.ID
+			a.layoutDrag.ratio += float64(delta / size)
+			l.Ratio = math.Min(math.Max(a.layoutDrag.ratio, 0.12), 0.88)
 		}
-	} else if a.layoutDirty == s.ID && !d.Pressed() {
-		a.layoutDirty = ""
+	} else if a.layoutDrag.split == key && !d.Pressed() {
+		// Only the divider dragged saves the layout: another of the same
+		// session would save it every frame of the drag.
+		a.layoutDrag.session, a.layoutDrag.split = "", ""
 		a.call("layout", proto.LayoutParams{Session: s.ID, Layout: s.Layout.Clone()}, nil)
 	}
 	if d.DoubleClicked() {

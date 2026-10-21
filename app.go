@@ -80,18 +80,21 @@ type App struct {
 	st        proto.State
 	loaded    bool // a state came
 
-	prefs       prefs
-	set         settings.Settings // the user's settings: Settings' controls edit it
-	applied     settings.Settings // set, as last applied and saved
-	setWin      *mygo.Window      // the Settings window, while open
-	ss          settingsState
-	selected    string
-	terms       map[string]*termEntry
-	lru         []string
-	refs        map[string]*ui.Handle // panes' terminals, and splits, by id
-	focus       map[string]string     // the pane the user is in, by session
-	layoutDirty string                // a session whose divider is dragged
-	viewSent    *string
+	prefs      prefs
+	set        settings.Settings // the user's settings: Settings' controls edit it
+	applied    settings.Settings // set, as last applied and saved
+	setWin     *mygo.Window      // the Settings window, while open
+	ss         settingsState
+	selected   string
+	terms      map[string]*termEntry
+	lru        []string
+	refs       map[string]*ui.Handle // panes' terminals, and splits, by id
+	focus      map[string]string     // the pane the user is in, by session
+	layoutDrag struct {              // the split whose divider is dragged
+		session, split string
+		ratio          float64 // where the pointer puts it, past its bounds
+	}
+	viewSent *string
 
 	active   bool
 	focused  bool
@@ -276,7 +279,16 @@ func (a *App) event(cl *client.Client, m proto.Message) {
 
 func (a *App) setState(st proto.State) {
 	first := !a.loaded
+	// A divider dragged keeps the ratios it set, which the daemon hears of
+	// only once it is let go.
+	var dragged *proto.Layout
+	if s := a.session(a.layoutDrag.session); s != nil {
+		dragged = s.Layout
+	}
 	a.st, a.loaded = st, true
+	if s := a.session(a.layoutDrag.session); s != nil && s.Layout.SameShape(dragged) {
+		s.Layout = dragged
+	}
 	// Terminals of panes gone go too.
 	live := map[string]bool{}
 	for _, s := range a.st.Sessions {

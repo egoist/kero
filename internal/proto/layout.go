@@ -36,6 +36,15 @@ func (l *Layout) Clone() *Layout {
 	return &c
 }
 
+// SameShape reports whether o splits the same panes the same ways as l,
+// whatever its ratios.
+func (l *Layout) SameShape(o *Layout) bool {
+	if l == nil || o == nil {
+		return l == o
+	}
+	return l.Pane == o.Pane && l.Row == o.Row && l.A.SameShape(o.A) && l.B.SameShape(o.B)
+}
+
 // Split returns the layout with pane at, the leaf of an existing pane,
 // split to show pane next to it: right, down, left or up of it, taking
 // ratio of the room.
