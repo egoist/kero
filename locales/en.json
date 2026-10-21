@@ -326,6 +326,8 @@
   "setNameFocused": "Pane You’re In",
   "setNameLead": "Pane That Needs You",
   "setNameFolder": "Folder",
+  "setFocusFollowsMouse": "Focus follows mouse",
+  "setFocusFollowsMouseDetail": "A pane takes the focus when the pointer moves into it, without a click.",
   "setAskBeforeClosing": "Ask before closing a running program",
   "setAskBeforeClosingDetail": "When a pane or session you close has a program other than the shell running.",
   "setRestoreSessions": "Restore sessions after a restart",

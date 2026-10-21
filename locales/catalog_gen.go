@@ -1898,6 +1898,26 @@ func (msgs Messages) SetNameFolder() string {
 	return Catalog.Format(msgs.locale, "setNameFolder", nil)
 }
 
+// SetFocusFollowsMouse says "Focus follows mouse"
+// in the language the app shows.
+func SetFocusFollowsMouse() string { return In(i18n.Locale()).SetFocusFollowsMouse() }
+
+// SetFocusFollowsMouse says "Focus follows mouse"
+// in the language of msgs.
+func (msgs Messages) SetFocusFollowsMouse() string {
+	return Catalog.Format(msgs.locale, "setFocusFollowsMouse", nil)
+}
+
+// SetFocusFollowsMouseDetail says "A pane takes the focus when the pointer moves into it, without a click."
+// in the language the app shows.
+func SetFocusFollowsMouseDetail() string { return In(i18n.Locale()).SetFocusFollowsMouseDetail() }
+
+// SetFocusFollowsMouseDetail says "A pane takes the focus when the pointer moves into it, without a click."
+// in the language of msgs.
+func (msgs Messages) SetFocusFollowsMouseDetail() string {
+	return Catalog.Format(msgs.locale, "setFocusFollowsMouseDetail", nil)
+}
+
 // SetAskBeforeClosing says "Ask before closing a running program"
 // in the language the app shows.
 func SetAskBeforeClosing() string { return In(i18n.Locale()).SetAskBeforeClosing() }

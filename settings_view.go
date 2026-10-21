@@ -461,6 +461,9 @@ func (a *App) generalPage(c *ui.Context, pal *palette) {
 			segmented(c, "sessionname", &s.SessionName, []string{proto.NameFocused, proto.NameLead, proto.NameFolder},
 				[]string{locales.SetNameFocused(), locales.SetNameLead(), locales.SetNameFolder()})
 		})
+		settingRow(c, pal, locales.SetFocusFollowsMouse(), locales.SetFocusFollowsMouseDetail(), func() {
+			toggle(c.Key("focusmouse"), &s.FocusFollowsMouse, pal)
+		})
 		settingRow(c, pal, locales.SetAskBeforeClosing(), locales.SetAskBeforeClosingDetail(), func() {
 			toggle(c.Key("confirm"), &s.ConfirmClose, pal)
 		})
