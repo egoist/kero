@@ -54,6 +54,7 @@ On Windows and Linux, <kbd>Ctrl</kbd> with a letter belongs to the shell (<kbd>C
 | Action         | macOS                     | Windows & Linux                               | Action id        |
 | -------------- | ------------------------- | --------------------------------------------- | ---------------- |
 | Toggle Sidebar | <kbd>⌘</kbd> <kbd>B</kbd> | <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>B</kbd> | `sidebar.toggle` |
+| Toggle Changes | <kbd>⌥</kbd> <kbd>⌘</kbd> <kbd>G</kbd> | <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>G</kbd> | `changes.toggle` |
 | Bigger         | <kbd>⌘</kbd> <kbd>=</kbd> | <kbd>Ctrl</kbd> <kbd>=</kbd>                  | `text.bigger`    |
 | Smaller        | <kbd>⌘</kbd> <kbd>-</kbd> | <kbd>Ctrl</kbd> <kbd>-</kbd>                  | `text.smaller`   |
 | Actual Size    | <kbd>⌘</kbd> <kbd>0</kbd> | <kbd>Ctrl</kbd> <kbd>0</kbd>                  | `text.reset`     |

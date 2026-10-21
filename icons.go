@@ -45,6 +45,10 @@ var (
 	unzoomIcon      = glyph("f7-arrow-down-right-arrow-up-left")
 	closeIcon       = glyph("f7-xmark")
 	swapIcon        = glyph("f7-arrow-right-arrow-left")
+	branchIcon      = glyph("f7-arrow-branch")
+	diffIcon        = glyph("octicon-file-diff-16")
+	revertIcon      = glyph("f7-arrow-uturn-left")
+	openFileIcon    = glyph("f7-arrow-up-right-square")
 )
 
 // programIcons are the logos of programs a pane may run, by the name kerod

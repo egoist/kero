@@ -44,6 +44,10 @@ type prefs struct {
 	SidebarHidden bool            `json:"sidebarHidden,omitempty"`
 	Collapsed     map[string]bool `json:"collapsed,omitempty"`
 	FontSize      float32         `json:"fontSize,omitempty"`
+	// Side is the view the side panel shows, "" while it is hidden, and
+	// SideWidth its width.
+	Side      string  `json:"side,omitempty"`
+	SideWidth float32 `json:"sideWidth,omitempty"`
 }
 
 const (
@@ -118,7 +122,8 @@ type App struct {
 	previewShown bool
 	arrived      map[string]bool
 	copyText     string
-	peek         peek // the image a path Command hovers shows
+	peek         peek      // the image a path Command hovers shows
+	side         sideState // the side panel, beside a session's panes
 }
 
 // confirmation is a question the app asks before something it cannot undo.

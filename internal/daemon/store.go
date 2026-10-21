@@ -38,8 +38,10 @@ type savedPane struct {
 	ID      string   `json:"id"`
 	Dir     string   `json:"dir,omitempty"`
 	Command []string `json:"command,omitempty"`
-	// Agent is the agent's session that ran in it, to resume.
+	// Agent is the agent's session that ran in it, to resume, and Turn
+	// where its last turn started.
 	Agent   *proto.AgentSession `json:"agent,omitempty"`
+	Turn    *proto.Turn         `json:"turn,omitempty"`
 	Created int64               `json:"created"`
 	Cols    int                 `json:"cols"`
 	Rows    int                 `json:"rows"`
@@ -74,7 +76,7 @@ func (d *Daemon) saveState() {
 		for _, p := range s.panes {
 			p.mu.Lock()
 			ss.Panes = append(ss.Panes, savedPane{ID: p.info.ID, Dir: p.info.Dir, Command: p.info.Command,
-				Agent: p.info.AgentSession, Created: p.info.Created, Cols: p.info.Cols, Rows: p.info.Rows})
+				Agent: p.info.AgentSession, Turn: p.info.Turn, Created: p.info.Created, Cols: p.info.Cols, Rows: p.info.Rows})
 			p.mu.Unlock()
 		}
 		st.Sessions = append(st.Sessions, ss)
@@ -164,7 +166,7 @@ func (d *Daemon) restorePane(sid string, sp savedPane, when string) *pane {
 	now := time.Now().UnixMilli()
 	p, err := newPane(d, sid, proto.Pane{
 		ID: sp.ID, Dir: sp.Dir, Command: sp.Command, Status: proto.Idle, Since: now,
-		Created: sp.Created, Cols: sp.Cols, Rows: sp.Rows, Restored: true, AgentSession: sp.Agent,
+		Created: sp.Created, Cols: sp.Cols, Rows: sp.Rows, Restored: true, AgentSession: sp.Agent, Turn: sp.Turn,
 	})
 	if err != nil {
 		d.log.Printf("restoring %s: %v", sp.ID, err)

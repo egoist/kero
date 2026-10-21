@@ -64,6 +64,10 @@ type Settings struct {
 	// Agents
 	RemoteControl bool `json:"remoteControl"` // kero focus and kero do drive the app
 
+	// Git
+	GitStatus  bool   `json:"gitStatus"`  // each pane's branch and changes, which kerod follows
+	DiffLayout string `json:"diffLayout"` // the changes panel's diffs: "auto", "unified" or "split"
+
 	// Keyboard: accelerators by action, over the defaults; "" unbinds.
 	Shortcuts map[string]string `json:"shortcuts,omitempty"`
 }
@@ -98,6 +102,8 @@ func Default() Settings {
 		NotifyFailed:    true,
 		DockBadge:       true,
 		RemoteControl:   true,
+		GitStatus:       true,
+		DiffLayout:      "auto",
 	}
 }
 
@@ -244,6 +250,7 @@ func (s *Settings) normalize() {
 	oneOf(&s.Cursor, d.Cursor, "block", "bar", "underline")
 	oneOf(&s.Clipboard, d.Clipboard, "ask", "allow", "deny")
 	oneOf(&s.RightClick, d.RightClick, "menu", "paste", "copyOrPaste")
+	oneOf(&s.DiffLayout, d.DiffLayout, "auto", "unified", "split")
 	known := false
 	for _, b := range Backgrounds {
 		known = known || b.ID == s.Background

@@ -185,6 +185,41 @@ type Pane struct {
 	Cols     int  `json:"cols"`
 	Rows     int  `json:"rows"`
 	PID      int  `json:"pid,omitempty"`
+	// Git is the git worktree the pane works in (WorkDir), nil for none,
+	// or while the configuration's git-status is off.
+	Git *GitInfo `json:"git,omitempty"`
+	// Turn is where the pane's agent last started working: a snapshot of
+	// its worktree, which its changes since are of.
+	Turn *Turn `json:"turn,omitempty"`
+}
+
+// GitInfo is a git worktree's branch and changes, as kerod last found
+// them. kerod replaces it whole, never changing one it sent.
+type GitInfo struct {
+	Root     string `json:"root"`             // the worktree's top level
+	Branch   string `json:"branch,omitempty"` // "" when detached
+	Head     string `json:"head,omitempty"`   // the commit, "" before the first
+	Upstream string `json:"upstream,omitempty"`
+	Ahead    int    `json:"ahead,omitempty"`
+	Behind   int    `json:"behind,omitempty"`
+	// Default is the repository's default branch: origin's HEAD, else
+	// main or master.
+	Default string `json:"default,omitempty"`
+	// Files changed since HEAD, untracked ones too, and the lines they
+	// add and remove.
+	Files   int `json:"files,omitempty"`
+	Added   int `json:"added,omitempty"`
+	Removed int `json:"removed,omitempty"`
+	// State is an operation in progress: merge, rebase, cherry-pick or
+	// revert.
+	State string `json:"state,omitempty"`
+}
+
+// Turn is a snapshot of a worktree, as an agent's turn started from it.
+type Turn struct {
+	Tree string `json:"tree"` // the tree's id
+	Root string `json:"root"` // the worktree's
+	At   int64  `json:"at"`   // unix ms
 }
 
 // AgentSession is a coding agent's session: Claude Code's or Codex's,
@@ -633,6 +668,58 @@ type (
 		Index int    `json:"index"`
 	}
 	ReadResult struct {
+		Text string `json:"text"`
+	}
+
+	// GitParams ask about a pane's worktree, since a base: "turn" (its
+	// Turn), "head" or "branch" (where HEAD left the default branch).
+	// Path and OldPath name a file, slash-separated from the worktree's
+	// root, the file of a rename was OldPath in the base.
+	GitParams struct {
+		Pane    string `json:"pane"`
+		Base    string `json:"base"`
+		Path    string `json:"path,omitempty"`
+		OldPath string `json:"oldPath,omitempty"`
+		// Known is the hash of the file's text the client has (GitText),
+		// which git.file then sends again only when it changed.
+		Known string `json:"known,omitempty"`
+	}
+	// GitChanges are the files changed since a base.
+	GitChanges struct {
+		Root string `json:"root"`
+		// BaseName is what the base is to show: "HEAD", or the default
+		// branch's name for "branch"; "" for a turn.
+		BaseName string    `json:"baseName,omitempty"`
+		Files    []GitFile `json:"files"`
+	}
+	GitFile struct {
+		Path    string `json:"path"`
+		OldPath string `json:"oldPath,omitempty"`
+		// Status is added, modified, deleted, renamed, or type (a file
+		// that became a link, or one that stopped being one).
+		Status  string `json:"status"`
+		Added   int    `json:"added,omitempty"`
+		Removed int    `json:"removed,omitempty"`
+		Binary  bool   `json:"binary,omitempty"`
+	}
+	// GitText is a file's text in the base and now. Same: as Known, so
+	// nothing else is sent.
+	GitText struct {
+		Old    string `json:"old,omitempty"`
+		New    string `json:"new,omitempty"`
+		Hash   string `json:"hash"`
+		Same   bool   `json:"same,omitempty"`
+		Binary bool   `json:"binary,omitempty"`
+		Large  bool   `json:"large,omitempty"`
+		Patch  string `json:"patch,omitempty"`
+	}
+	// GitWriteParams write a file of a pane's worktree back as it was in
+	// part (git.revert): Text, when its content still hashes to Hash.
+	GitWriteParams struct {
+		Pane string `json:"pane"`
+		Base string `json:"base"`
+		Path string `json:"path"`
+		Hash string `json:"hash"`
 		Text string `json:"text"`
 	}
 )

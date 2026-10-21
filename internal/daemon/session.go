@@ -268,9 +268,16 @@ func (s *pane) setStatus(st proto.Status) {
 	if s.info.Status == st {
 		return
 	}
+	// An agent going to work from idle starts a turn, which a snapshot of
+	// its worktree marks; one going on after the user answered it, from
+	// waiting, goes on with its turn.
+	if st == proto.Working && (s.info.Status == proto.Idle || s.info.Status == proto.Failed) && s.info.Agent != "" {
+		go s.d.git.snapshot(s, s.info.WorkDir(), time.Now())
+	}
 	s.info.Status = st
 	s.info.Since = time.Now().UnixMilli()
 	s.wake()
+	s.d.git.poke(s.info.WorkDir())
 }
 
 // wake wakes those waiting on the pane; s.mu is held.
@@ -332,6 +339,7 @@ func (s *pane) tick(now time.Time) bool {
 			s.info.Dir = dir
 			changed = true
 			s.d.save()
+			s.d.git.poke(dir)
 		}
 		// The program's own, from its group's leader, as an agent's that
 		// went into a worktree: the shell under it stays where it was.
@@ -345,6 +353,7 @@ func (s *pane) tick(now time.Time) bool {
 		if pdir != s.info.ProcessDir {
 			s.info.ProcessDir = pdir
 			changed = true
+			s.d.git.poke(s.info.WorkDir())
 		}
 	}
 	if s.look(now) {

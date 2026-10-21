@@ -27,6 +27,8 @@ func settingsIndex() []searchEntry {
 		{"general", locales.SetAskBeforeClosing(), "confirm-close quit kill"},
 		{"general", locales.SetRestoreSessions(), "restore-sessions reboot persist"},
 		{"general", locales.SetResumeAgents(), "resume-agents claude codex pi opencode conversation restore reboot"},
+		{"general", locales.SetGitStatus(), "git-status branch changes diff repository worktree"},
+		{"general", locales.SetDiffLayout(), "diff-layout diff unified split side by side changes"},
 		{"general", locales.SetOpenAtLogin(), "startup launch login items"},
 		{"general", locales.SetVersion(), "updates check for updates software update about"},
 		{"general", locales.SetAutoCheck(), "updates automatic background daily"},
@@ -84,9 +86,15 @@ func searchEntries(shortcuts map[string]string) []searchEntry {
 	for _, act := range actions.All {
 		keys := actions.Keys(act, shortcuts)
 		out = append(out, searchEntry{"keyboard", strings.TrimSuffix(actionTitle(act.ID), "…"),
-			act.ID + " shortcut keybind " + act.Menu + " " + strings.ToLower(keys) + " " + actions.Glyphs(keys)})
+			act.ID + " shortcut keybind " + act.Menu + " " + strings.ToLower(keys) + " " + actions.Glyphs(keys) + " " + actionWords[act.ID]})
 	}
 	return out
+}
+
+// actionWords find actions besides their titles: what one looks for an
+// action by when its title doesn't say it.
+var actionWords = map[string]string{
+	"changes.toggle": "git diff branch panel",
 }
 
 // matches reports whether every word of a query is in a text.

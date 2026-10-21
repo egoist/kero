@@ -52,6 +52,7 @@ type Daemon struct {
 	// theme is the colors of the client that last told them, which the
 	// panes answer programs' questions about the colors with.
 	theme    atomic.Pointer[terminal.Theme]
+	git      *gitFollow
 	changeCh chan struct{}
 	saveCh   chan struct{}
 	quit     chan struct{}
@@ -104,6 +105,7 @@ func Run() error {
 		quit:     make(chan struct{}),
 		idleAt:   time.Now(),
 	}
+	d.git = newGitFollow(d)
 	empty := ""
 	d.viewed.Store(&empty)
 	lg.Printf("kerod %d started (pid %d, %s)", proto.Version, os.Getpid(), exe)
@@ -125,6 +127,7 @@ func Run() error {
 	go d.broadcastLoop()
 	go d.saveLoop()
 	go d.tickLoop()
+	go d.git.loop()
 	go func() {
 		for {
 			conn, err := ln.Accept()

@@ -93,6 +93,16 @@ kero notify "Need your input"             # flag this pane as needing you
 
 See [Status & Notifications](./status.md) for the states.
 
+## Changes
+
+```sh
+kero diff                                 # the pane's uncommitted changes, as git diff prints them
+kero diff --turn                          # what its agent changed in its last turn
+kero diff review --branch                 # since the default branch
+```
+
+See [Changes](./changes.md).
+
 ## Configuration and setup
 
 ```sh

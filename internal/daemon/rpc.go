@@ -210,7 +210,10 @@ func (d *Daemon) call(c *controlConn, method string, raw json.RawMessage) (any, 
 		for _, pn := range panes {
 			pn.mu.Lock()
 			pn.info.Unread = false
+			dir := pn.info.WorkDir()
 			pn.mu.Unlock()
+			// What the user looks at is up to date.
+			d.git.poke(dir)
 		}
 		d.changed()
 		return true, nil
@@ -383,6 +386,26 @@ func (d *Daemon) call(c *controlConn, method string, raw json.RawMessage) (any, 
 		}
 		d.changed()
 		return true, nil
+
+	case "git.changes", "git.file", "git.diff":
+		var p proto.GitParams
+		if err := decode(&p); err != nil {
+			return nil, err
+		}
+		switch method {
+		case "git.changes":
+			return d.gitChanges(p)
+		case "git.file":
+			return d.gitText(p)
+		}
+		return d.gitPatch(p)
+
+	case "git.revert":
+		var p proto.GitWriteParams
+		if err := decode(&p); err != nil {
+			return nil, err
+		}
+		return d.gitRevert(p)
 
 	case "shutdown":
 		d.mu.Lock()

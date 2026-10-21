@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -53,6 +54,12 @@ Usage:
       -x, --exit                  instead wait for the command it started
                                   with to end, exit with its status
   kero status [target] [--json]
+  kero diff [target] [--turn | --branch] [path…]
+                                the changes in the pane's git worktree, as
+                                git diff prints them: since HEAD, untracked
+                                files too; --turn since its agent last
+                                started working; --branch since it left
+                                the default branch
   kero rename <session> <name>
   kero focus <target>           show a session (and pane) in the app
   kero close <target>           end a session (or, given a pane, the pane)
@@ -84,7 +91,7 @@ ambiguous one), 4 kerod unreachable.
 `
 
 // Commands lists the subcommands, which main sends here.
-var Commands = []string{"ls", "list", "new", "split", "send", "key", "prompt", "read", "capture", "wait", "status",
+var Commands = []string{"ls", "list", "new", "split", "send", "key", "prompt", "read", "capture", "wait", "status", "diff",
 	"rename", "focus", "close", "kill", "restart", "notify", "report", "projects", "skill", "hook", "daemon", "do", "actions", "config",
 	"help", "--help", "-h", "version", "--version"}
 
@@ -477,6 +484,57 @@ func run(args []string) error {
 		fmt.Println(line)
 		return nil
 
+	case "diff":
+		f, err := parse(args, nil, map[string]string{"turn": "turn", "branch": "branch", "base": "branch"})
+		if err != nil {
+			return err
+		}
+		if f.set["turn"] && f.set["branch"] {
+			return usageErr("kero diff: --turn or --branch, not both")
+		}
+		// A target first, unless it names none: then every argument is a
+		// path, of the pane the command runs in.
+		var t target
+		paths := f.pos
+		if len(f.pos) > 0 {
+			if t, err = find(st, f.pos[0]); err == nil {
+				paths = f.pos[1:]
+			} else if current() == "" {
+				return err
+			}
+		}
+		if t.s.ID == "" {
+			if t, err = findOrCurrent(st, nil); err != nil {
+				return err
+			}
+		}
+		base := "head"
+		switch {
+		case f.set["turn"]:
+			base = "turn"
+		case f.set["branch"]:
+			base = "branch"
+		}
+		pane := diffPane(t, base == "turn")
+		if pane == nil || pane.Git == nil {
+			return errors.New("not in a git repository (or git-status is off)")
+		}
+		var res proto.ReadResult
+		if len(paths) == 0 {
+			paths = []string{""}
+		}
+		for _, p := range paths {
+			rel, err := repoPath(pane.Git.Root, p)
+			if err != nil {
+				return err
+			}
+			if err := c.Call("git.diff", proto.GitParams{Pane: pane.ID, Base: base, Path: rel}, &res); err != nil {
+				return err
+			}
+			fmt.Print(res.Text)
+		}
+		return nil
+
 	case "rename":
 		if len(args) < 2 {
 			return usageErr("kero rename <session> <name>")
@@ -614,6 +672,46 @@ func find(st proto.State, ref string) (target, error) {
 	}
 	slices.Sort(ids)
 	return target{}, fmt.Errorf("%w: %q names several: %s", errNotFound, ref, strings.Join(ids, ", "))
+}
+
+// diffPane is the pane whose worktree kero diff shows: the target's, or
+// for a turn, the pane of its session whose agent started one, the
+// target first.
+func diffPane(t target, turn bool) *proto.Pane {
+	p := t.s.PaneByID(t.pane)
+	if p == nil {
+		p = t.s.FocusPane()
+	}
+	if !turn || p == nil || p.Turn != nil {
+		return p
+	}
+	for i := range t.s.Panes {
+		if t.s.Panes[i].Turn != nil {
+			return &t.s.Panes[i]
+		}
+	}
+	return p
+}
+
+// repoPath writes a path given on the command line, relative to the
+// current directory, as one from a worktree's root, slash-separated; ""
+// stays "", for every file.
+func repoPath(root, p string) (string, error) {
+	if p == "" {
+		return "", nil
+	}
+	abs, err := filepath.Abs(p)
+	if err != nil {
+		return "", err
+	}
+	rel, err := filepath.Rel(root, abs)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf("%s is not in the worktree %s", p, proto.ShortDir(root))
+	}
+	if rel == "." {
+		return "", nil
+	}
+	return filepath.ToSlash(rel), nil
 }
 
 // current is the pane a command runs in, inside kero.

@@ -67,7 +67,9 @@ func (a *App) focusTerminal() {
 }
 
 // panes shows a session's panes in their layout: the zoomed one alone.
-func (a *App) panes(c *ui.Context, pal *palette, bar ui.TitleBar, shown float32, s *proto.Session) {
+// right tells that they reach the window's right edge, which the side
+// panel takes while it shows.
+func (a *App) panes(c *ui.Context, pal *palette, bar ui.TitleBar, shown float32, s *proto.Session, right bool) {
 	multi := len(s.Panes) > 1
 	if z := s.PaneByID(s.Zoomed); z != nil || s.Layout == nil || !multi {
 		p := z
@@ -75,11 +77,11 @@ func (a *App) panes(c *ui.Context, pal *palette, bar ui.TitleBar, shown float32,
 			p = s.FocusPane()
 		}
 		if p != nil {
-			a.paneCard(c, pal, bar, shown, s, p, true, true, true, multi)
+			a.paneCard(c, pal, bar, shown, s, p, true, true, right, multi)
 		}
 		return
 	}
-	a.layoutNode(c, pal, bar, shown, s, s.Layout, "", true, true, true)
+	a.layoutNode(c, pal, bar, shown, s, s.Layout, "", true, true, right)
 }
 
 func (a *App) layoutNode(c *ui.Context, pal *palette, bar ui.TitleBar, shown float32, s *proto.Session, l *proto.Layout, path string, top, left, right bool) {
@@ -392,6 +394,9 @@ func (a *App) paneHeader(c *ui.Context, pal *palette, bar ui.TitleBar, shown flo
 				ui.Text(c, dir).FontSize(13).TextColor(pal.textFaint).SingleLine().Ellipsis("…").Shrink(2).MinWidth(0)
 			}
 		})
+		if p.Git != nil {
+			a.gitChip(c, pal, s, p)
+		}
 		// The header's empty stretch moves the window, as a title bar
 		// does, and zooms it on a double click: the header around it
 		// takes clicks, which focus the pane.

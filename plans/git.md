@@ -1,6 +1,8 @@
 # Plan: git in Kero
 
-Status: future plan, not started. Written 2026-10-21, after 2.0.9.
+Status: Phases 1 and 2 built, and the `repoRoot` fix; Phases 3 and 4 not
+started. Written 2026-10-21, after 2.0.9. Where the build differs from what
+follows, "As built" notes under each phase say how.
 
 ## Goal
 
@@ -131,6 +133,21 @@ What's missing, or wrong:
 - `kero status --json` and `kero ls --json` include `git` per pane.
 - `kero status` prints the branch and diffstat on its directory line.
 
+### As built
+
+- `internal/git` runs git; `internal/daemon/git.go` follows the worktrees
+  (`gitFollow`). Instead of a file watcher, kerod stats the git directory's
+  files once a second, which is portable and cheap.
+- The sidebar's branch label shows when a session's branch isn't the
+  repository's default (`GitInfo.Default`), not compared with the main
+  checkout's branch. The project header shows no branch: the row's label
+  says what matters.
+- `kero status` prints as before; its `--json`, and `kero ls --json`, carry
+  `git`. git isn't niced.
+- On Windows git starts with `CREATE_NO_WINDOW`; on macOS kerod runs no git
+  when `/usr/bin/git` is the stub that asks to install the command line
+  tools.
+
 ## Phase 2: the changes panel
 
 A drawer on the right of the selected session (⌘⇧G, and the title bar's
@@ -235,6 +252,29 @@ The viewer's `HunkActions` give each change Revert and Keep, which suit the
 - `kero diff <target> [--turn|--base] [path]` prints the changes as `git diff`
   would, for agents and scripts.
 
+### As built
+
+- The panel is a side panel of views (`side.go`), Changes the first: a
+  header and a resizable edge. Changes is one scroll of the files, each a
+  header (sticky while its diff scrolls past) and its diff (`FitContent`),
+  folded on a click, and from the start for a binary or huge file. A Files
+  view, the worktree's tree, is meant to join it as another view.
+- A file's text is fetched as its section shows, a few at a time, and again
+  as the list counts its change anew, rather than on a timer.
+- It toggles with ⌥⌘G (Ctrl+Shift+G elsewhere), `changes.toggle`: ⇧⌘G is
+  Find Previous.
+- A turn starts as an agent goes to work from idle or error, not from
+  waiting: answering its question goes on with the same turn.
+- The RPCs are `git.changes`, `git.file`, `git.revert` (which returns the
+  hash of what it wrote) and `git.diff` for `kero diff`, whose flags are
+  `--turn` and `--branch`.
+- While an agent works in the session, the list is fetched again every few
+  seconds, and an open file every moment or so (with `Known`); Revert and
+  Keep show only while none works.
+- `git.file` and `git.revert` refuse a path outside the worktree, through a
+  link, or in `.git`; `git.revert` writes only a file whose text differs
+  from the base's.
+
 ## Phase 3: sessions in their own worktree
 
 ### Starting one
@@ -325,11 +365,8 @@ worktree add and remove. The only other write is Phase 2's Revert.
 ## Order and rough size
 
 1. **`repoRoot` fix:** done.
-2. **Phase 1, branch and changes:** small to medium. kerod's watcher and
-   cache, the proto field, the row label, tooltip, title bar and CLI.
-3. **Phase 2, changes panel:** medium. MyGo's `editor.DiffView` does the
-   diffing and drawing. The work is the drawer and file list, the snapshots,
-   the `git.*` RPCs, live updates, and guarding reverts.
+2. **Phase 1, branch and changes:** done.
+3. **Phase 2, changes panel:** done.
 4. **Phase 3, worktree sessions:** medium. Creating, the close dialog, and
    the settings.
 5. **Phase 4, actions:** small to medium. Mostly the review comments; the

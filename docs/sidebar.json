@@ -5,7 +5,7 @@
   },
   {
     "title": "Using kero",
-    "items": ["sessions", "panes", "status"]
+    "items": ["sessions", "panes", "status", "changes"]
   },
   {
     "title": "Automation",

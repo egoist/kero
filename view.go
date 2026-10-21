@@ -375,6 +375,10 @@ func (a *App) sessionRow(c *ui.Context, pal *palette, s *proto.Session, n *int) 
 	if s.Message != "" {
 		tip = s.Message + "\n" + tip
 	}
+	g := sessionGit(s)
+	if g != nil {
+		tip += "\n" + gitSummary(g)
+	}
 	pointerTooltip(c, row, "tip-"+s.ID, tip)
 	row.ContextMenu(func(m *ui.Menu) { a.sessionMenu(m, s) })
 	row.Children(func() {
@@ -392,13 +396,18 @@ func (a *App) sessionRow(c *ui.Context, pal *palette, s *proto.Session, n *int) 
 			}
 			return
 		}
-		name := ui.Text(c, s.DisplayName(a.set.SessionName)).FontSize(13.5).SingleLine().Ellipsis("…").Grow(1).MinWidth(0).TextColor(pal.text)
+		name := ui.Text(c, s.DisplayName(a.set.SessionName)).FontSize(13.5).SingleLine().Ellipsis("…").Shrink(1).MinWidth(0).TextColor(pal.text)
 		if s.Unread {
 			name.FontWeight(650)
 		}
 		if s.Status == proto.Exited && !s.Unread {
 			name.TextColor(pal.textMuted)
 		}
+		// A branch of its own, as an agent's in a worktree, by the name.
+		if b := offBranch(g); b != "" {
+			ui.Text(c, b).FontSize(12).TextColor(pal.textFaint).SingleLine().Ellipsis("…").Shrink(3).MinWidth(24).MaxWidth(120)
+		}
+		ui.Spacer(c)
 		cmd := c.Modifiers() == ui.Cmd
 		if cmd && index <= 9 {
 			ui.Text(c, actions.Glyphs(fmt.Sprintf("CmdOrCtrl+%d", index))).FontSize(12).TextColor(pal.textMuted).FontFeatures("tnum").SingleLine()
@@ -666,7 +675,21 @@ func statusIconP(c *ui.Context, pal *palette, st proto.Status, unread bool, prog
 func (a *App) card(c *ui.Context, pal *palette, bar ui.TitleBar, shown float32) {
 	s := a.session(a.selected)
 	if s != nil && a.conn != connVersion && a.loaded {
-		a.panes(c, pal, bar, shown, s)
+		if a.prefs.Side == "" {
+			a.panes(c, pal, bar, shown, s, true)
+			return
+		}
+		// The panes, then the side panel, which takes the window's
+		// right edge.
+		row := ui.Row(c.Key("with-side")).Grow(1).MinHeight(0).AlignItems(ui.Stretch).Bind(a.paneRef("with-side"))
+		w := a.paneRef("with-side").Bounds(c).W
+		row.Children(func() {
+			ui.Column(c.Key("panes")).Grow(1).Basis(0).MinWidth(0).AlignItems(ui.Stretch).Children(func() {
+				a.panes(c, pal, bar, shown, s, false)
+			})
+			a.sideEdge(c, pal, w)
+			a.sidePanel(c, pal, s, a.sideWidth(w), true)
+		})
 		return
 	}
 	// No session: one card, for what the app has to say.

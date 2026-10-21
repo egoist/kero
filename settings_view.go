@@ -473,6 +473,15 @@ func (a *App) generalPage(c *ui.Context, pal *palette) {
 			})
 		}
 	})
+	settingsGroup(c, pal, locales.SetGit(), locales.SetGitDetail(), func() {
+		settingRow(c, pal, locales.SetGitStatus(), locales.SetGitStatusDetail(), func() {
+			toggle(c.Key("git-status"), &s.GitStatus, pal)
+		})
+		settingRow(c, pal, locales.SetDiffLayout(), locales.SetDiffLayoutDetail(), func() {
+			segmented(c, "diff-layout", &s.DiffLayout, []string{"auto", "unified", "split"},
+				[]string{locales.SetDiffAuto(), locales.ChangesUnified(), locales.ChangesSplit()})
+		})
+	})
 	settingsGroup(c, pal, locales.SetStartup(), "", func() {
 		settingRow(c, pal, locales.SetOpenAtLogin(), "", func() {
 			toggle(c.Key("login"), &a.ss.loginOpen, pal).OnChange(func() {

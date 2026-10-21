@@ -466,5 +466,65 @@
   "findPlaceholder": "Find",
   "findCount": "{selected} of {total}",
   "findNoMatches": "No matches",
-  "findClose": "Close Find Bar"
+  "findClose": "Close Find Bar",
+  "actionToggleChanges": "Toggle Changes",
+  "sideChanges": "Changes",
+  "sideClose": "Close Panel",
+  "changesTurn": "Last Turn",
+  "changesUncommitted": "Uncommitted",
+  "changesBranch": "Branch",
+  "changesTurnTip": "What the agent changed since it last started working",
+  "changesUncommittedTip": "What isn't committed, untracked files too",
+  "changesBranchTip": "What this branch changed since it left {branch}",
+  "changesFiles": "{count, plural, one {# file} other {# files}}",
+  "@changesFiles": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "changesSince": "since {base}",
+  "changesNone": "No changes",
+  "changesNoneTurn": "The agent hasn't changed any files since it started working.",
+  "changesNoneUncommitted": "Everything is committed.",
+  "changesNoneBranch": "Nothing changed since {branch}.",
+  "changesNoRepo": "Not a git repository",
+  "changesNoRepoDetail": "A session's changes show here while it works in a git repository.",
+  "changesGitOff": "Git status is off",
+  "changesGitOffDetail": "Turn on Show Git Status in Settings to see the changes here.",
+  "changesCantRead": "Can't read the changes",
+  "changesOpenFile": "Open File",
+  "changesUnified": "Unified",
+  "changesSplit": "Side by Side",
+  "changesBinary": "Binary file",
+  "changesTooLarge": "Too large to show",
+  "changesRevert": "Revert",
+  "changesKeep": "Keep",
+  "changesRevertTip": "Put the old lines back in the file",
+  "changesKeepTip": "Mark this change as reviewed",
+  "changesRevertFailed": "Couldn't revert: {error}",
+  "gitShowChanges": "Show Changes",
+  "gitMerging": "merging",
+  "gitRebasing": "rebasing",
+  "gitCherryPicking": "cherry-picking",
+  "gitReverting": "reverting",
+  "setGit": "Git",
+  "setGitDetail": "Branches and changes of the repositories sessions work in.",
+  "setGitStatus": "Show git status",
+  "setGitStatusDetail": "Each session's branch and changes, by its panes' titles and in the sidebar.",
+  "setDiffLayout": "Diffs",
+  "setDiffLayoutDetail": "Auto shows diffs unified while the changes panel is narrow, and side by side once it's wide.",
+  "setDiffAuto": "Auto",
+  "changesUnmodified": "{count, plural, one {# unmodified line} other {# unmodified lines}}",
+  "@changesUnmodified": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "changesExpandUp": "Expand Up",
+  "changesExpandDown": "Expand Down",
+  "changesExpandAll": "Expand All"
 }

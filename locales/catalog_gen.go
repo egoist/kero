@@ -3315,3 +3315,463 @@ func FindClose() string { return In(i18n.Locale()).FindClose() }
 func (msgs Messages) FindClose() string {
 	return Catalog.Format(msgs.locale, "findClose", nil)
 }
+
+// ActionToggleChanges says "Toggle Changes"
+// in the language the app shows.
+func ActionToggleChanges() string { return In(i18n.Locale()).ActionToggleChanges() }
+
+// ActionToggleChanges says "Toggle Changes"
+// in the language of msgs.
+func (msgs Messages) ActionToggleChanges() string {
+	return Catalog.Format(msgs.locale, "actionToggleChanges", nil)
+}
+
+// SideChanges says "Changes"
+// in the language the app shows.
+func SideChanges() string { return In(i18n.Locale()).SideChanges() }
+
+// SideChanges says "Changes"
+// in the language of msgs.
+func (msgs Messages) SideChanges() string {
+	return Catalog.Format(msgs.locale, "sideChanges", nil)
+}
+
+// SideClose says "Close Panel"
+// in the language the app shows.
+func SideClose() string { return In(i18n.Locale()).SideClose() }
+
+// SideClose says "Close Panel"
+// in the language of msgs.
+func (msgs Messages) SideClose() string {
+	return Catalog.Format(msgs.locale, "sideClose", nil)
+}
+
+// ChangesTurn says "Last Turn"
+// in the language the app shows.
+func ChangesTurn() string { return In(i18n.Locale()).ChangesTurn() }
+
+// ChangesTurn says "Last Turn"
+// in the language of msgs.
+func (msgs Messages) ChangesTurn() string {
+	return Catalog.Format(msgs.locale, "changesTurn", nil)
+}
+
+// ChangesUncommitted says "Uncommitted"
+// in the language the app shows.
+func ChangesUncommitted() string { return In(i18n.Locale()).ChangesUncommitted() }
+
+// ChangesUncommitted says "Uncommitted"
+// in the language of msgs.
+func (msgs Messages) ChangesUncommitted() string {
+	return Catalog.Format(msgs.locale, "changesUncommitted", nil)
+}
+
+// ChangesBranch says "Branch"
+// in the language the app shows.
+func ChangesBranch() string { return In(i18n.Locale()).ChangesBranch() }
+
+// ChangesBranch says "Branch"
+// in the language of msgs.
+func (msgs Messages) ChangesBranch() string {
+	return Catalog.Format(msgs.locale, "changesBranch", nil)
+}
+
+// ChangesTurnTip says "What the agent changed since it last started working"
+// in the language the app shows.
+func ChangesTurnTip() string { return In(i18n.Locale()).ChangesTurnTip() }
+
+// ChangesTurnTip says "What the agent changed since it last started working"
+// in the language of msgs.
+func (msgs Messages) ChangesTurnTip() string {
+	return Catalog.Format(msgs.locale, "changesTurnTip", nil)
+}
+
+// ChangesUncommittedTip says "What isn't committed, untracked files too"
+// in the language the app shows.
+func ChangesUncommittedTip() string { return In(i18n.Locale()).ChangesUncommittedTip() }
+
+// ChangesUncommittedTip says "What isn't committed, untracked files too"
+// in the language of msgs.
+func (msgs Messages) ChangesUncommittedTip() string {
+	return Catalog.Format(msgs.locale, "changesUncommittedTip", nil)
+}
+
+// ChangesBranchTip says "What this branch changed since it left {branch}"
+// in the language the app shows.
+func ChangesBranchTip(branch string) string { return In(i18n.Locale()).ChangesBranchTip(branch) }
+
+// ChangesBranchTip says "What this branch changed since it left {branch}"
+// in the language of msgs.
+func (msgs Messages) ChangesBranchTip(branch string) string {
+	return Catalog.Format(msgs.locale, "changesBranchTip", map[string]any{"branch": branch})
+}
+
+// ChangesFiles says "{count, plural, one {# file} other {# files}}"
+// in the language the app shows.
+func ChangesFiles(count int) string { return In(i18n.Locale()).ChangesFiles(count) }
+
+// ChangesFiles says "{count, plural, one {# file} other {# files}}"
+// in the language of msgs.
+func (msgs Messages) ChangesFiles(count int) string {
+	return Catalog.Format(msgs.locale, "changesFiles", map[string]any{"count": count})
+}
+
+// ChangesSince says "since {base}"
+// in the language the app shows.
+func ChangesSince(base string) string { return In(i18n.Locale()).ChangesSince(base) }
+
+// ChangesSince says "since {base}"
+// in the language of msgs.
+func (msgs Messages) ChangesSince(base string) string {
+	return Catalog.Format(msgs.locale, "changesSince", map[string]any{"base": base})
+}
+
+// ChangesNone says "No changes"
+// in the language the app shows.
+func ChangesNone() string { return In(i18n.Locale()).ChangesNone() }
+
+// ChangesNone says "No changes"
+// in the language of msgs.
+func (msgs Messages) ChangesNone() string {
+	return Catalog.Format(msgs.locale, "changesNone", nil)
+}
+
+// ChangesNoneTurn says "The agent hasn't changed any files since it started working."
+// in the language the app shows.
+func ChangesNoneTurn() string { return In(i18n.Locale()).ChangesNoneTurn() }
+
+// ChangesNoneTurn says "The agent hasn't changed any files since it started working."
+// in the language of msgs.
+func (msgs Messages) ChangesNoneTurn() string {
+	return Catalog.Format(msgs.locale, "changesNoneTurn", nil)
+}
+
+// ChangesNoneUncommitted says "Everything is committed."
+// in the language the app shows.
+func ChangesNoneUncommitted() string { return In(i18n.Locale()).ChangesNoneUncommitted() }
+
+// ChangesNoneUncommitted says "Everything is committed."
+// in the language of msgs.
+func (msgs Messages) ChangesNoneUncommitted() string {
+	return Catalog.Format(msgs.locale, "changesNoneUncommitted", nil)
+}
+
+// ChangesNoneBranch says "Nothing changed since {branch}."
+// in the language the app shows.
+func ChangesNoneBranch(branch string) string { return In(i18n.Locale()).ChangesNoneBranch(branch) }
+
+// ChangesNoneBranch says "Nothing changed since {branch}."
+// in the language of msgs.
+func (msgs Messages) ChangesNoneBranch(branch string) string {
+	return Catalog.Format(msgs.locale, "changesNoneBranch", map[string]any{"branch": branch})
+}
+
+// ChangesNoRepo says "Not a git repository"
+// in the language the app shows.
+func ChangesNoRepo() string { return In(i18n.Locale()).ChangesNoRepo() }
+
+// ChangesNoRepo says "Not a git repository"
+// in the language of msgs.
+func (msgs Messages) ChangesNoRepo() string {
+	return Catalog.Format(msgs.locale, "changesNoRepo", nil)
+}
+
+// ChangesNoRepoDetail says "A session's changes show here while it works in a git repository."
+// in the language the app shows.
+func ChangesNoRepoDetail() string { return In(i18n.Locale()).ChangesNoRepoDetail() }
+
+// ChangesNoRepoDetail says "A session's changes show here while it works in a git repository."
+// in the language of msgs.
+func (msgs Messages) ChangesNoRepoDetail() string {
+	return Catalog.Format(msgs.locale, "changesNoRepoDetail", nil)
+}
+
+// ChangesGitOff says "Git status is off"
+// in the language the app shows.
+func ChangesGitOff() string { return In(i18n.Locale()).ChangesGitOff() }
+
+// ChangesGitOff says "Git status is off"
+// in the language of msgs.
+func (msgs Messages) ChangesGitOff() string {
+	return Catalog.Format(msgs.locale, "changesGitOff", nil)
+}
+
+// ChangesGitOffDetail says "Turn on Show Git Status in Settings to see the changes here."
+// in the language the app shows.
+func ChangesGitOffDetail() string { return In(i18n.Locale()).ChangesGitOffDetail() }
+
+// ChangesGitOffDetail says "Turn on Show Git Status in Settings to see the changes here."
+// in the language of msgs.
+func (msgs Messages) ChangesGitOffDetail() string {
+	return Catalog.Format(msgs.locale, "changesGitOffDetail", nil)
+}
+
+// ChangesCantRead says "Can't read the changes"
+// in the language the app shows.
+func ChangesCantRead() string { return In(i18n.Locale()).ChangesCantRead() }
+
+// ChangesCantRead says "Can't read the changes"
+// in the language of msgs.
+func (msgs Messages) ChangesCantRead() string {
+	return Catalog.Format(msgs.locale, "changesCantRead", nil)
+}
+
+// ChangesOpenFile says "Open File"
+// in the language the app shows.
+func ChangesOpenFile() string { return In(i18n.Locale()).ChangesOpenFile() }
+
+// ChangesOpenFile says "Open File"
+// in the language of msgs.
+func (msgs Messages) ChangesOpenFile() string {
+	return Catalog.Format(msgs.locale, "changesOpenFile", nil)
+}
+
+// ChangesUnified says "Unified"
+// in the language the app shows.
+func ChangesUnified() string { return In(i18n.Locale()).ChangesUnified() }
+
+// ChangesUnified says "Unified"
+// in the language of msgs.
+func (msgs Messages) ChangesUnified() string {
+	return Catalog.Format(msgs.locale, "changesUnified", nil)
+}
+
+// ChangesSplit says "Side by Side"
+// in the language the app shows.
+func ChangesSplit() string { return In(i18n.Locale()).ChangesSplit() }
+
+// ChangesSplit says "Side by Side"
+// in the language of msgs.
+func (msgs Messages) ChangesSplit() string {
+	return Catalog.Format(msgs.locale, "changesSplit", nil)
+}
+
+// ChangesBinary says "Binary file"
+// in the language the app shows.
+func ChangesBinary() string { return In(i18n.Locale()).ChangesBinary() }
+
+// ChangesBinary says "Binary file"
+// in the language of msgs.
+func (msgs Messages) ChangesBinary() string {
+	return Catalog.Format(msgs.locale, "changesBinary", nil)
+}
+
+// ChangesTooLarge says "Too large to show"
+// in the language the app shows.
+func ChangesTooLarge() string { return In(i18n.Locale()).ChangesTooLarge() }
+
+// ChangesTooLarge says "Too large to show"
+// in the language of msgs.
+func (msgs Messages) ChangesTooLarge() string {
+	return Catalog.Format(msgs.locale, "changesTooLarge", nil)
+}
+
+// ChangesRevert says "Revert"
+// in the language the app shows.
+func ChangesRevert() string { return In(i18n.Locale()).ChangesRevert() }
+
+// ChangesRevert says "Revert"
+// in the language of msgs.
+func (msgs Messages) ChangesRevert() string {
+	return Catalog.Format(msgs.locale, "changesRevert", nil)
+}
+
+// ChangesKeep says "Keep"
+// in the language the app shows.
+func ChangesKeep() string { return In(i18n.Locale()).ChangesKeep() }
+
+// ChangesKeep says "Keep"
+// in the language of msgs.
+func (msgs Messages) ChangesKeep() string {
+	return Catalog.Format(msgs.locale, "changesKeep", nil)
+}
+
+// ChangesRevertTip says "Put the old lines back in the file"
+// in the language the app shows.
+func ChangesRevertTip() string { return In(i18n.Locale()).ChangesRevertTip() }
+
+// ChangesRevertTip says "Put the old lines back in the file"
+// in the language of msgs.
+func (msgs Messages) ChangesRevertTip() string {
+	return Catalog.Format(msgs.locale, "changesRevertTip", nil)
+}
+
+// ChangesKeepTip says "Mark this change as reviewed"
+// in the language the app shows.
+func ChangesKeepTip() string { return In(i18n.Locale()).ChangesKeepTip() }
+
+// ChangesKeepTip says "Mark this change as reviewed"
+// in the language of msgs.
+func (msgs Messages) ChangesKeepTip() string {
+	return Catalog.Format(msgs.locale, "changesKeepTip", nil)
+}
+
+// ChangesRevertFailed says "Couldn't revert: {error}"
+// in the language the app shows.
+func ChangesRevertFailed(error string) string { return In(i18n.Locale()).ChangesRevertFailed(error) }
+
+// ChangesRevertFailed says "Couldn't revert: {error}"
+// in the language of msgs.
+func (msgs Messages) ChangesRevertFailed(error string) string {
+	return Catalog.Format(msgs.locale, "changesRevertFailed", map[string]any{"error": error})
+}
+
+// GitShowChanges says "Show Changes"
+// in the language the app shows.
+func GitShowChanges() string { return In(i18n.Locale()).GitShowChanges() }
+
+// GitShowChanges says "Show Changes"
+// in the language of msgs.
+func (msgs Messages) GitShowChanges() string {
+	return Catalog.Format(msgs.locale, "gitShowChanges", nil)
+}
+
+// GitMerging says "merging"
+// in the language the app shows.
+func GitMerging() string { return In(i18n.Locale()).GitMerging() }
+
+// GitMerging says "merging"
+// in the language of msgs.
+func (msgs Messages) GitMerging() string {
+	return Catalog.Format(msgs.locale, "gitMerging", nil)
+}
+
+// GitRebasing says "rebasing"
+// in the language the app shows.
+func GitRebasing() string { return In(i18n.Locale()).GitRebasing() }
+
+// GitRebasing says "rebasing"
+// in the language of msgs.
+func (msgs Messages) GitRebasing() string {
+	return Catalog.Format(msgs.locale, "gitRebasing", nil)
+}
+
+// GitCherryPicking says "cherry-picking"
+// in the language the app shows.
+func GitCherryPicking() string { return In(i18n.Locale()).GitCherryPicking() }
+
+// GitCherryPicking says "cherry-picking"
+// in the language of msgs.
+func (msgs Messages) GitCherryPicking() string {
+	return Catalog.Format(msgs.locale, "gitCherryPicking", nil)
+}
+
+// GitReverting says "reverting"
+// in the language the app shows.
+func GitReverting() string { return In(i18n.Locale()).GitReverting() }
+
+// GitReverting says "reverting"
+// in the language of msgs.
+func (msgs Messages) GitReverting() string {
+	return Catalog.Format(msgs.locale, "gitReverting", nil)
+}
+
+// SetGit says "Git"
+// in the language the app shows.
+func SetGit() string { return In(i18n.Locale()).SetGit() }
+
+// SetGit says "Git"
+// in the language of msgs.
+func (msgs Messages) SetGit() string {
+	return Catalog.Format(msgs.locale, "setGit", nil)
+}
+
+// SetGitDetail says "Branches and changes of the repositories sessions work in."
+// in the language the app shows.
+func SetGitDetail() string { return In(i18n.Locale()).SetGitDetail() }
+
+// SetGitDetail says "Branches and changes of the repositories sessions work in."
+// in the language of msgs.
+func (msgs Messages) SetGitDetail() string {
+	return Catalog.Format(msgs.locale, "setGitDetail", nil)
+}
+
+// SetGitStatus says "Show git status"
+// in the language the app shows.
+func SetGitStatus() string { return In(i18n.Locale()).SetGitStatus() }
+
+// SetGitStatus says "Show git status"
+// in the language of msgs.
+func (msgs Messages) SetGitStatus() string {
+	return Catalog.Format(msgs.locale, "setGitStatus", nil)
+}
+
+// SetGitStatusDetail says "Each session's branch and changes, by its panes' titles and in the sidebar."
+// in the language the app shows.
+func SetGitStatusDetail() string { return In(i18n.Locale()).SetGitStatusDetail() }
+
+// SetGitStatusDetail says "Each session's branch and changes, by its panes' titles and in the sidebar."
+// in the language of msgs.
+func (msgs Messages) SetGitStatusDetail() string {
+	return Catalog.Format(msgs.locale, "setGitStatusDetail", nil)
+}
+
+// SetDiffLayout says "Diffs"
+// in the language the app shows.
+func SetDiffLayout() string { return In(i18n.Locale()).SetDiffLayout() }
+
+// SetDiffLayout says "Diffs"
+// in the language of msgs.
+func (msgs Messages) SetDiffLayout() string {
+	return Catalog.Format(msgs.locale, "setDiffLayout", nil)
+}
+
+// SetDiffLayoutDetail says "Auto shows diffs unified while the changes panel is narrow, and side by side once it's wide."
+// in the language the app shows.
+func SetDiffLayoutDetail() string { return In(i18n.Locale()).SetDiffLayoutDetail() }
+
+// SetDiffLayoutDetail says "Auto shows diffs unified while the changes panel is narrow, and side by side once it's wide."
+// in the language of msgs.
+func (msgs Messages) SetDiffLayoutDetail() string {
+	return Catalog.Format(msgs.locale, "setDiffLayoutDetail", nil)
+}
+
+// SetDiffAuto says "Auto"
+// in the language the app shows.
+func SetDiffAuto() string { return In(i18n.Locale()).SetDiffAuto() }
+
+// SetDiffAuto says "Auto"
+// in the language of msgs.
+func (msgs Messages) SetDiffAuto() string {
+	return Catalog.Format(msgs.locale, "setDiffAuto", nil)
+}
+
+// ChangesUnmodified says "{count, plural, one {# unmodified line} other {# unmodified lines}}"
+// in the language the app shows.
+func ChangesUnmodified(count int) string { return In(i18n.Locale()).ChangesUnmodified(count) }
+
+// ChangesUnmodified says "{count, plural, one {# unmodified line} other {# unmodified lines}}"
+// in the language of msgs.
+func (msgs Messages) ChangesUnmodified(count int) string {
+	return Catalog.Format(msgs.locale, "changesUnmodified", map[string]any{"count": count})
+}
+
+// ChangesExpandUp says "Expand Up"
+// in the language the app shows.
+func ChangesExpandUp() string { return In(i18n.Locale()).ChangesExpandUp() }
+
+// ChangesExpandUp says "Expand Up"
+// in the language of msgs.
+func (msgs Messages) ChangesExpandUp() string {
+	return Catalog.Format(msgs.locale, "changesExpandUp", nil)
+}
+
+// ChangesExpandDown says "Expand Down"
+// in the language the app shows.
+func ChangesExpandDown() string { return In(i18n.Locale()).ChangesExpandDown() }
+
+// ChangesExpandDown says "Expand Down"
+// in the language of msgs.
+func (msgs Messages) ChangesExpandDown() string {
+	return Catalog.Format(msgs.locale, "changesExpandDown", nil)
+}
+
+// ChangesExpandAll says "Expand All"
+// in the language the app shows.
+func ChangesExpandAll() string { return In(i18n.Locale()).ChangesExpandAll() }
+
+// ChangesExpandAll says "Expand All"
+// in the language of msgs.
+func (msgs Messages) ChangesExpandAll() string {
+	return Catalog.Format(msgs.locale, "changesExpandAll", nil)
+}

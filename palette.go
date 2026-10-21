@@ -31,6 +31,7 @@ type paletteItem struct {
 	keys    string
 	run     func()
 	score   int
+	words   string // what finds it besides its title and detail, unshown
 }
 
 func (a *App) openPalette() {
@@ -58,7 +59,7 @@ func (a *App) paletteItems() []paletteItem {
 	for _, act := range actions.All {
 		id := act.ID
 		cmds = append(cmds, paletteItem{title: strings.TrimSuffix(actionTitle(act.ID), "…"), keys: actions.Glyphs(actions.Keys(act, a.set.Shortcuts)),
-			run: func() { a.run(id, nil) }})
+			words: actionWords[id], run: func() { a.run(id, nil) }})
 	}
 	for _, page := range settingsPages {
 		id := page.id
@@ -111,6 +112,9 @@ func (a *App) paletteView(c *ui.Context, pal *palette) {
 	var items []paletteItem
 	for _, it := range a.paletteItems() {
 		sc := fuzzy(a.pal.query, it.title+" "+it.detail)
+		if w := fuzzy(a.pal.query, it.words); w > sc && it.words != "" {
+			sc = w
+		}
 		if t := fuzzy(a.pal.query, it.title); t >= 0 {
 			sc = max(sc, t+50)
 		}

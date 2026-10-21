@@ -182,6 +182,8 @@ var keys = []key{
 	boolKey("dock-bounce", "once, when a session comes to need you", func(s *Settings) *bool { return &s.BounceDock }),
 
 	boolKey("remote-control", "kero do and kero focus drive the app", func(s *Settings) *bool { return &s.RemoteControl }),
+	boolKey("git-status", "show the git branch and changes of each session", func(s *Settings) *bool { return &s.GitStatus }),
+	choiceKey("diff-layout", "the changes panel's diffs: unified while the panel is narrow and side by side once it's wide, or always one", func(s *Settings) *string { return &s.DiffLayout }, "auto", "unified", "split"),
 	{name: "keybind", doc: "<keys>=<action>, over the defaults, as cmd+shift+d=pane.split.down; <keys>=unbind frees keys; see kero actions", list: true,
 		get: func(s *Settings) []string {
 			var out []string

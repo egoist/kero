@@ -7,8 +7,8 @@ import (
 	"testing"
 )
 
-// git runs git in dir, failing the test when it fails.
-func git(t *testing.T, dir string, args ...string) {
+// gitIn runs git in dir, failing the test when it fails.
+func gitIn(t *testing.T, dir string, args ...string) {
 	t.Helper()
 	cmd := exec.Command("git", append([]string{"-c", "user.name=t", "-c", "user.email=t@t", "-c", "init.defaultBranch=main", "-c", "protocol.file.allow=always"}, args...)...)
 	cmd.Dir = dir
@@ -37,19 +37,19 @@ func TestRepoRoot(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(repo, "src", "pkg"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	git(t, repo, "init", "-q")
-	git(t, repo, "commit", "-q", "--allow-empty", "-m", "init")
+	gitIn(t, repo, "init", "-q")
+	gitIn(t, repo, "commit", "-q", "--allow-empty", "-m", "init")
 
 	lib := filepath.Join(tmp, "lib")
 	if err := os.Mkdir(lib, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	git(t, lib, "init", "-q")
-	git(t, lib, "commit", "-q", "--allow-empty", "-m", "init")
-	git(t, repo, "submodule", "add", "-q", lib, "lib")
+	gitIn(t, lib, "init", "-q")
+	gitIn(t, lib, "commit", "-q", "--allow-empty", "-m", "init")
+	gitIn(t, repo, "submodule", "add", "-q", lib, "lib")
 
-	git(t, repo, "worktree", "add", "-q", "-b", "inside", filepath.Join(repo, ".claude", "worktrees", "inside"))
-	git(t, repo, "worktree", "add", "-q", "-b", "outside", filepath.Join(tmp, "outside"))
+	gitIn(t, repo, "worktree", "add", "-q", "-b", "inside", filepath.Join(repo, ".claude", "worktrees", "inside"))
+	gitIn(t, repo, "worktree", "add", "-q", "-b", "outside", filepath.Join(tmp, "outside"))
 	// --relative-paths came in git 2.48.
 	relative := filepath.Join(tmp, "relative")
 	cmd := exec.Command("git", "worktree", "add", "-q", "--relative-paths", "-b", "relative", relative)
@@ -59,8 +59,8 @@ func TestRepoRoot(t *testing.T) {
 	}
 
 	bare := filepath.Join(tmp, "bare.git")
-	git(t, tmp, "clone", "-q", "--bare", repo, bare)
-	git(t, bare, "worktree", "add", "-q", filepath.Join(tmp, "of-bare"), "main")
+	gitIn(t, tmp, "clone", "-q", "--bare", repo, bare)
+	gitIn(t, bare, "worktree", "add", "-q", filepath.Join(tmp, "of-bare"), "main")
 
 	plain := filepath.Join(tmp, "plain")
 	if err := os.Mkdir(plain, 0o755); err != nil {
