@@ -457,3 +457,22 @@ find:
 		t.Errorf("the preview stays once Command is let go of: %+v", a.peek)
 	}
 }
+
+// A split top to bottom, with one side by side inside it, gives every
+// split element a key of its own: MyGo panics on two elements with one key
+// under one parent, as when a column split made a Row before its Column.
+func TestNestedSplitKeys(t *testing.T) {
+	a := testApp(t)
+	s := &a.st.Sessions[0]
+	s.Panes = append(s.Panes, proto.Pane{ID: "c", Shell: "bash", Dir: "/tmp", Status: proto.Idle, Progress: -1})
+	s.Layout = &proto.Layout{Ratio: 0.5, A: &proto.Layout{Pane: "a"},
+		B: &proto.Layout{Row: true, Ratio: 0.5, A: &proto.Layout{Pane: "b"}, B: &proto.Layout{Pane: "c"}}}
+	tt := ui.NewTester(a.view, 1100, 640)
+	tt.Frame()
+	tt.Frame()
+	for _, title := range []string{"fish", "zsh", "bash"} {
+		if !tt.HasText(title) {
+			t.Errorf("no pane %s; texts %q", title, tt.Texts())
+		}
+	}
+}

@@ -93,9 +93,13 @@ func (a *App) layoutNode(c *ui.Context, pal *palette, bar ui.TitleBar, shown flo
 	if ratio <= 0 || ratio >= 1 {
 		ratio = 0.5
 	}
+	// Row and Column each build an element, so make only the one used: a
+	// Row made and replaced would stay, an empty sibling under the key.
 	key := "split-" + s.ID + path
-	box := ui.Row(c.Key(key))
-	if !l.Row {
+	var box ui.Element
+	if l.Row {
+		box = ui.Row(c.Key(key))
+	} else {
 		box = ui.Column(c.Key(key))
 	}
 	box.Grow(1).Basis(0).MinWidth(0).MinHeight(0).AlignItems(ui.Stretch).Bind(a.paneRef(key))
