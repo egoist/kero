@@ -116,11 +116,15 @@ type App struct {
 	// it is built.
 	later []func()
 
+	// Focus follows the mouse: the pane the pointer went into, and where
+	// the pointer was last over a pane, in the window.
+	hoverPane string
+	hoverAt   [2]float32
+
 	// Panes dragged: the zone last under the pointer, the pane whose
 	// drop preview shows and since when, and the panes just moved, which
 	// spring in.
 	lastZone     dropZone
-	hoverPane    string
 	previewKey   string
 	previewSince time.Time
 	previewShown bool

@@ -180,14 +180,8 @@ func (a *App) paneCard(c *ui.Context, pal *palette, bar ui.TitleBar, shown float
 	card := ui.Column(c.Key("pane-" + p.ID)).Grow(1).Basis(0).MinWidth(0).MinHeight(0).Radius(14).Clip().Bind(a.paneRef("card-" + p.ID))
 	raised(card.Background(card.AnimateColor("bg", bg, ui.Animation{Duration: 140 * time.Millisecond})), pal)
 	hovered := card.Hovered()
-	if hovered && a.hoverPane != p.ID {
-		a.hoverPane = p.ID
-		if a.set.FocusFollowsMouse && multi && !focused {
-			a.setFocus(s, p.ID)
-			a.paneRef(p.ID).Focus()
-		}
-	} else if !hovered && a.hoverPane == p.ID {
-		a.hoverPane = ""
+	if a.set.FocusFollowsMouse && multi {
+		a.followMouse(c, s, p, card, hovered, focused)
 	}
 	// The card takes presses: one on its padding, beside the terminal,
 	// focuses the pane, rather than going on to what drags the window.
@@ -241,6 +235,35 @@ func (a *App) paneCard(c *ui.Context, pal *palette, bar ui.TitleBar, shown float
 		c.Invalidate()
 	}
 	card.AnimatePose(pose, ui.Animation{Spring: ui.SpringOptions{Duration: 420 * time.Millisecond, Bounce: 0.18}})
+}
+
+// followMouse focuses the pane the pointer moves into. Only the pointer
+// moving does: a pane that comes under a pointer standing still, as another
+// session shows or the layout changes, leaves the focus where the keyboard
+// put it. And only going in does, so the keyboard can take the focus from
+// the pane the pointer rests in.
+func (a *App) followMouse(c *ui.Context, s *proto.Session, p *proto.Pane, card ui.Element, hovered, focused bool) {
+	x, y, over := card.PointerPosition()
+	if !over {
+		if a.hoverPane == p.ID {
+			a.hoverPane = ""
+		}
+		return
+	}
+	b := a.paneRef("card-" + p.ID).Bounds(c)
+	at := [2]float32{b.X + x, b.Y + y}
+	moved := at != a.hoverAt
+	a.hoverAt = at
+	// A press begun in another pane, as a selection dragged on past its
+	// edge, does not hover this one.
+	if !hovered || a.hoverPane == p.ID {
+		return
+	}
+	a.hoverPane = p.ID
+	if moved && !focused {
+		a.setFocus(s, p.ID)
+		a.paneRef(p.ID).Focus()
+	}
 }
 
 // paneDrag is a pane dragged by its title to another place.

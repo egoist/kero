@@ -476,3 +476,57 @@ func TestNestedSplitKeys(t *testing.T) {
 		}
 	}
 }
+
+// With focus-follows-mouse, the pointer going into a pane focuses it, but
+// a pane that comes under a pointer standing still does not.
+func TestFocusFollowsMouse(t *testing.T) {
+	a := testApp(t)
+	a.set.FocusFollowsMouse = true
+	s := &a.st.Sessions[0]
+	tt := ui.NewTester(a.view, 1100, 640)
+	tt.Frame()
+	ar, _ := tt.Find("fish") // pane a's title
+	br, _ := tt.Find("zsh")  // pane b's
+	move := func(x float32) {
+		tt.Move(x, 340)
+		tt.Advance(16 * time.Millisecond)
+		tt.Frame()
+	}
+	move(ar.X + 40)
+	if got := a.focusOf(s); got != "a" {
+		t.Fatalf("over a, focus %q", got)
+	}
+	move(br.X + 40)
+	if got := a.focusOf(s); got != "b" {
+		t.Fatalf("into b, focus %q, want b", got)
+	}
+
+	// The keyboard takes the focus back to a: b, under the pointer, keeps
+	// it from there, as the pointer moves on in it.
+	a.setFocus(s, "a")
+	tt.Frame()
+	move(br.X + 60)
+	if got := a.focusOf(s); got != "a" {
+		t.Fatalf("moving in b after the keyboard focused a, focus %q", got)
+	}
+
+	// The panes swap places under the pointer standing still, and back.
+	var l *proto.Layout
+	s.Layout = l.Split("b", "a", "right", 0)
+	tt.Advance(time.Second)
+	tt.Frame()
+	s.Layout = l.Split("a", "b", "right", 0)
+	tt.Advance(time.Second)
+	tt.Frame()
+	if got := a.focusOf(s); got != "a" {
+		t.Fatalf("b came under the pointer standing still, and took the focus")
+	}
+
+	// Off, the pointer leaves the focus be.
+	a.set.FocusFollowsMouse = false
+	move(ar.X + 40)
+	move(br.X + 40)
+	if got := a.focusOf(s); got != "a" {
+		t.Fatalf("with the setting off, focus %q", got)
+	}
+}
