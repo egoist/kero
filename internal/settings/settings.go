@@ -18,12 +18,13 @@ import (
 // choice of its own: Load fills defaults in.
 type Settings struct {
 	// General
-	NewSessionDir   string `json:"newSessionDir"`   // "current", "project" or "home"
-	SessionName     string `json:"sessionName"`     // what names an unnamed session: proto.NameFocused, NameLead or NameFolder
-	ConfirmClose    bool   `json:"confirmClose"`    // before closing a pane a program runs in
-	RestoreSessions bool   `json:"restoreSessions"` // after kerod restarts, as after a reboot
-	ResumeAgents    bool   `json:"resumeAgents"`    // as it restores sessions: the agents' own
-	QuitConfirm     bool   `json:"quitConfirm"`     // tell, the first time, that quitting keeps sessions
+	NewSessionDir     string `json:"newSessionDir"`     // "current", "project" or "home"
+	SessionName       string `json:"sessionName"`       // what names an unnamed session: proto.NameFocused, NameLead or NameFolder
+	FocusFollowsMouse bool   `json:"focusFollowsMouse"` // a pane the pointer enters takes the focus
+	ConfirmClose      bool   `json:"confirmClose"`      // before closing a pane a program runs in
+	RestoreSessions   bool   `json:"restoreSessions"`   // after kerod restarts, as after a reboot
+	ResumeAgents      bool   `json:"resumeAgents"`      // as it restores sessions: the agents' own
+	QuitConfirm       bool   `json:"quitConfirm"`       // tell, the first time, that quitting keeps sessions
 
 	// Appearance
 	Appearance string `json:"appearance"` // "system", "light" or "dark"

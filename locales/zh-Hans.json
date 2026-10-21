@@ -182,6 +182,8 @@
   "setNameFocused": "当前窗格",
   "setNameLead": "需要你的窗格",
   "setNameFolder": "文件夹",
+  "setFocusFollowsMouse": "焦点跟随鼠标",
+  "setFocusFollowsMouseDetail": "指针移入窗格时，该窗格无需点击即获得焦点。",
   "setAskBeforeClosing": "关闭正在运行的程序前询问",
   "setAskBeforeClosingDetail": "当你关闭的窗格或会话中正运行着 Shell 以外的程序时。",
   "setRestoreSessions": "重启后恢复会话",

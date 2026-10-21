@@ -120,6 +120,7 @@ type App struct {
 	// drop preview shows and since when, and the panes just moved, which
 	// spring in.
 	lastZone     dropZone
+	hoverPane    string
 	previewKey   string
 	previewSince time.Time
 	previewShown bool
