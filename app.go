@@ -16,6 +16,7 @@ import (
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/plugins/terminal"
+	"github.com/egoist/mygo/transfer"
 	"github.com/egoist/mygo/ui"
 
 	"kero/internal/actions"
@@ -629,6 +630,9 @@ func (a *App) termOptions(id string, conn *gated) terminal.Options {
 			return true
 		},
 		OpenLink: func(link string) bool { return a.openLink(id, link) },
+		// An image alone on the clipboard pastes as the path of a file
+		// with it, which agents take as an image they attach.
+		OnPaste: func(d transfer.Data) bool { return a.pasteImage(id, d) },
 		// A selection copied as it ends shows nothing else: say so.
 		OnCopy: func(_ string, by terminal.CopySource) {
 			if by == terminal.CopySelect {

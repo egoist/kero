@@ -676,6 +676,60 @@ func (msgs Messages) ToastSaveSettingsFailed(error string) string {
 	return Catalog.Format(msgs.locale, "toastSaveSettingsFailed", map[string]any{"error": error})
 }
 
+// ToastPasteImageFailed says "Couldn’t paste the image: {error}. Try again, or drop the image file on the pane."
+// in the language the app shows.
+func ToastPasteImageFailed(error string) string {
+	return In(i18n.Locale()).ToastPasteImageFailed(error)
+}
+
+// ToastPasteImageFailed says "Couldn’t paste the image: {error}. Try again, or drop the image file on the pane."
+// in the language of msgs.
+func (msgs Messages) ToastPasteImageFailed(error string) string {
+	return Catalog.Format(msgs.locale, "toastPasteImageFailed", map[string]any{"error": error})
+}
+
+// ToastPasteImageDenied says "Couldn’t paste the image: Kero can’t write to {dir}. Make it writable, or drop the image file on the pane."
+// in the language the app shows.
+func ToastPasteImageDenied(dir string) string { return In(i18n.Locale()).ToastPasteImageDenied(dir) }
+
+// ToastPasteImageDenied says "Couldn’t paste the image: Kero can’t write to {dir}. Make it writable, or drop the image file on the pane."
+// in the language of msgs.
+func (msgs Messages) ToastPasteImageDenied(dir string) string {
+	return Catalog.Format(msgs.locale, "toastPasteImageDenied", map[string]any{"dir": dir})
+}
+
+// ToastPasteImageDiskFull says "Couldn’t paste the image: the disk is full. Free some space and try again."
+// in the language the app shows.
+func ToastPasteImageDiskFull() string { return In(i18n.Locale()).ToastPasteImageDiskFull() }
+
+// ToastPasteImageDiskFull says "Couldn’t paste the image: the disk is full. Free some space and try again."
+// in the language of msgs.
+func (msgs Messages) ToastPasteImageDiskFull() string {
+	return Catalog.Format(msgs.locale, "toastPasteImageDiskFull", nil)
+}
+
+// ToastPasteClipboardUnreadable says "Couldn’t read the clipboard. Copy it again and paste."
+// in the language the app shows.
+func ToastPasteClipboardUnreadable() string { return In(i18n.Locale()).ToastPasteClipboardUnreadable() }
+
+// ToastPasteClipboardUnreadable says "Couldn’t read the clipboard. Copy it again and paste."
+// in the language of msgs.
+func (msgs Messages) ToastPasteClipboardUnreadable() string {
+	return Catalog.Format(msgs.locale, "toastPasteClipboardUnreadable", nil)
+}
+
+// ToastPasteImageUnsupported says "Couldn’t paste the image: {format} isn’t supported. Copy it as PNG or JPEG, or drop the image file on the pane."
+// in the language the app shows.
+func ToastPasteImageUnsupported(format string) string {
+	return In(i18n.Locale()).ToastPasteImageUnsupported(format)
+}
+
+// ToastPasteImageUnsupported says "Couldn’t paste the image: {format} isn’t supported. Copy it as PNG or JPEG, or drop the image file on the pane."
+// in the language of msgs.
+func (msgs Messages) ToastPasteImageUnsupported(format string) string {
+	return Catalog.Format(msgs.locale, "toastPasteImageUnsupported", map[string]any{"format": format})
+}
+
 // ToastConfigProblems says "{count, plural, one {Your config has # problem: see Settings › Advanced} other {Your config has # problems: see Set…"
 // in the language the app shows.
 func ToastConfigProblems(count int) string { return In(i18n.Locale()).ToastConfigProblems(count) }
