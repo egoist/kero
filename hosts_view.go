@@ -24,34 +24,23 @@ var (
 )
 
 // The sidebar is flat: groups, a remote host's tagged with its name (see
-// groupView). A host has a row of its own only while it has no group to
-// show it, or one that needs fixing: hostNeedsRow.
+// groupView). A host shows only by its groups, and has no row of its own
+// unless something there wants the user: hostNeedsRow. One with no
+// sessions shows nowhere; Open Project and Settings › Hosts reach it.
 
 // hostNeedsRow reports whether a host has a row of its own in the
-// sidebar, of its groups: while it connects for the first time, can't be
-// reached, wants updating first, is busy with what the user asked, or has
-// no sessions, which leave no group to tell of it.
-func (a *App) hostNeedsRow(h *host, groups []group) bool {
-	switch {
-	case h.busy != "", h.conn == connFailed, h.conn == connVersion:
-		return true
-	case h.conn == connConnecting:
-		return !h.loaded
-	}
-	return h.loaded && len(groups) == 0
+// sidebar, besides its groups: while it can't be reached, wants updating
+// first, or is busy with what the user asked, as installing Kero.
+func (a *App) hostNeedsRow(h *host) bool {
+	return h.busy != "" || h.conn == connFailed || h.conn == connVersion
 }
 
 // hostLine is a host in the sidebar while it needs a row of its own: its
 // header, which tells how the app stands with it, then what keeps its
-// sessions from showing, or that it has none.
+// sessions from showing, and what to do about it.
 func (a *App) hostLine(c *ui.Context, pal *palette, h *host, top float32) {
 	a.hostHeader(c, pal, h, top)
-	if h.conn != connReady && h.conn != connConnecting || h.busy != "" {
-		a.hostNote(c, pal, h)
-	}
-	if h.loaded && h.conn == connReady && h.busy == "" && len(a.hostGroups(h)) == 0 {
-		ui.Text(c, locales.SidebarNoSessions()).FontSize(12.5).TextColor(pal.textFaint).Padding(4, 10)
-	}
+	a.hostNote(c, pal, h)
 }
 
 // hostHeader is a remote host's name, with how the app stands with it: a

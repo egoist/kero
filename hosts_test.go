@@ -114,8 +114,8 @@ func TestSidebarHosts(t *testing.T) {
 }
 
 // The sidebar is flat: a remote group carries its host's name, and the
-// host has a row of its own only while it needs one, as with no sessions,
-// or one it can't be reached.
+// host has a row of its own only while it wants the user, as when it can't
+// be reached; one with no sessions shows nowhere.
 func TestSidebarFlat(t *testing.T) {
 	a := testApp(t)
 	a.mergeState(a.local(), a.st)
@@ -134,19 +134,21 @@ func TestSidebarFlat(t *testing.T) {
 	if !ok || !ok2 || abs32(tag.Y+tag.H/2-(api.Y+api.H/2)) > 1 || tag.X <= api.X {
 		t.Errorf("build's tag %+v is not after its group's name %+v", tag, api)
 	}
-	if !tt.HasText("empty") || !tt.HasText("No sessions") {
-		t.Errorf("no row for the host without sessions: %q", tt.Texts())
+	// A host with no sessions shows nowhere, nor one connecting first.
+	if tt.HasText("empty") || tt.HasText("No sessions") {
+		t.Errorf("a host without sessions shows: %q", tt.Texts())
 	}
-	if a.hostNeedsRow(build, a.hostGroups(build)) || !a.hostNeedsRow(empty, nil) {
-		t.Error("rows for the wrong hosts")
+	empty.conn, empty.loaded = connConnecting, false
+	if a.hostNeedsRow(build) || a.hostNeedsRow(empty) {
+		t.Error("rows for hosts that want nothing")
 	}
-	// Lost, its groups stay, its tag faded; failing, it has a row again.
+	// Lost, its groups stay, its tag faded; failing, it has a row.
 	build.conn = connConnecting
-	if a.hostNeedsRow(build, a.hostGroups(build)) {
+	if a.hostNeedsRow(build) {
 		t.Error("a host reconnecting has a row")
 	}
 	build.conn, build.err = connFailed, "Connection refused"
-	if !a.hostNeedsRow(build, a.hostGroups(build)) {
+	if !a.hostNeedsRow(build) {
 		t.Error("a host the app can't reach has no row")
 	}
 	tt.Frame()

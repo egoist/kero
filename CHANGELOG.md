@@ -19,9 +19,9 @@
   only once you turn on its Remote Control.
 - The sidebar stays flat with hosts: their projects follow yours, each
   tagged with its host's name, so the same repository on two machines
-  sits side by side. A host has a row of its own only while it needs
-  one, as when it can't be reached or has no sessions, and its menu is in
-  its projects'. Each host wears a color, picked from its name or set
+  sits side by side. A host has a row of its own only when it needs you,
+  as when it can't be reached; one with no sessions doesn't show. Its
+  menu is in its projects'. Each host wears a color, picked from its name or set
   with `color=`, on its tag and its name in a pane's header. With hosts,
   Open Project lists any machine's folders in Kero, with a switch
   between them.
