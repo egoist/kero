@@ -167,3 +167,37 @@ func TestBrowse(t *testing.T) {
 		t.Errorf("a terminal's page: %v", err)
 	}
 }
+
+// Asked to show a session, the apps hear of it first: a session just made
+// is in no state they had, as the state of a burst of changes goes out
+// once it settles. The browser of a pane of one would never show.
+func TestSelectSendsStateFirst(t *testing.T) {
+	d := testDaemon(t)
+	app := &controlConn{out: make(chan proto.Message, 4), done: make(chan struct{})}
+	d.subs = map[*controlConn]struct{}{app: {}}
+	s, err := d.create(proto.CreateParams{URL: "localhost:3000"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.removeSession(s.ID)
+	raw, _ := json.Marshal(proto.FocusParams{Session: s.ID})
+	if _, err := d.call(&controlConn{done: make(chan struct{})}, "select", raw); err != nil {
+		t.Fatal(err)
+	}
+	next := func() proto.Message {
+		select {
+		case m := <-app.out:
+			return m
+		case <-time.After(time.Second):
+			t.Fatal("no event")
+			return proto.Message{}
+		}
+	}
+	first, second := next(), next()
+	if first.Event != "state" || first.State == nil || len(first.State.Sessions) != 1 || first.State.Sessions[0].ID != s.ID {
+		t.Fatalf("first %+v", first)
+	}
+	if second.Event != "select" || second.Select != s.ID {
+		t.Fatalf("then %+v", second)
+	}
+}

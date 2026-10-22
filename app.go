@@ -215,6 +215,11 @@ func (a *App) event(h *host, cl *client.Client, m proto.Message) {
 		if !a.remoteControl(h) || a.hostOf(m.Select) != h {
 			return
 		}
+		// In the pane kerod has it focus, as kero focus <pane> asks: the
+		// state with it came just before.
+		if s := a.session(m.Select); s != nil && s.PaneByID(s.Focus) != nil {
+			a.focus[s.ID] = s.Focus
+		}
 		a.selectSession(m.Select)
 		if a.win != nil {
 			a.win.Show()

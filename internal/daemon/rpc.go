@@ -276,17 +276,22 @@ func (d *Daemon) call(c *controlConn, method string, raw json.RawMessage) (any, 
 				s.focus = pn.info.ID
 			}
 		}
-		n := 0
-		if s != nil {
-			for sub := range d.subs {
-				sub.event(proto.Message{Event: "select", Select: s.id})
-			}
-			n = len(d.subs)
-		}
 		d.mu.Unlock()
 		if s == nil {
 			return nil, fmt.Errorf("no session %q", p.Session)
 		}
+		// The state goes first: the subscribers hear of a session just
+		// made, as by kero new --focus, only once a burst of changes
+		// settles (broadcastLoop), and the app shows no session it does
+		// not know of.
+		st := d.state()
+		d.mu.Lock()
+		for sub := range d.subs {
+			sub.event(proto.Message{Event: "state", State: &st})
+			sub.event(proto.Message{Event: "select", Select: s.id})
+		}
+		n := len(d.subs)
+		d.mu.Unlock()
 		d.changed()
 		return n > 0, nil
 
