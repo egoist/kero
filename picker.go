@@ -27,6 +27,7 @@ type folderPicker struct {
 	index  int
 	hidden bool
 	scroll ui.ScrollState
+	reveal bool // the chosen folder scrolls into view, once
 }
 
 // pickerItem is a folder the picker offers.
@@ -51,7 +52,7 @@ func (a *App) pickerGo(dir string) {
 	p := &a.picker
 	p.gen++
 	gen, hidden := p.gen, p.hidden
-	p.err, p.query, p.index = "", "", 0
+	p.err, p.query, p.index, p.reveal = "", "", 0, true
 	cl := p.host.cl
 	if cl == nil {
 		p.err = locales.HostNotConnected(p.host.name)
@@ -162,13 +163,13 @@ func (a *App) pickerView(c *ui.Context, pal *palette) {
 			ui.Icon(c, folderIcon).Size(16, 16).TextColor(pal.textMuted)
 			in := ui.TextInputBase(c.Key("q"), &p.query).Grow(1).FontSize(15).Placeholder(locales.PickerPlaceholder()).AutoFocus()
 			if in.Changed() {
-				p.index = 0
+				p.index, p.reveal = 0, true
 			}
 			if c.Shortcut(0, ui.KeyDown) || c.Shortcut(ui.Ctrl, ui.KeyN) {
-				p.index = min(p.index+1, len(items)-1)
+				p.index, p.reveal = min(p.index+1, len(items)-1), true
 			}
 			if c.Shortcut(0, ui.KeyUp) || c.Shortcut(ui.Ctrl, ui.KeyP) {
-				p.index = max(p.index-1, 0)
+				p.index, p.reveal = max(p.index-1, 0), true
 			}
 			q := strings.TrimSpace(p.query)
 			switch {
@@ -185,6 +186,8 @@ func (a *App) pickerView(c *ui.Context, pal *palette) {
 			}
 		})
 		list := ui.Scroll(c.Key("folders")).Grow(1).MinHeight(0).Padding(6).TrackScroll(&p.scroll)
+		reveal := p.reveal
+		p.reveal = false
 		list.Children(func() {
 			switch {
 			case p.err != "":
@@ -198,7 +201,9 @@ func (a *App) pickerView(c *ui.Context, pal *palette) {
 				row := ui.Row(c.Key(it.path)).Height(34).Padding(0, 10).Gap(10).AlignItems(ui.Center).Radius(8)
 				if i == p.index {
 					row.Background(pal.accent.Alpha(0.12))
-					row.ScrollIntoView()
+					if reveal {
+						row.ScrollIntoView()
+					}
 				} else if row.Hovered() {
 					row.Background(pal.rowHover)
 				}

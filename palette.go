@@ -22,6 +22,7 @@ type paletteState struct {
 	query  string
 	index  int
 	scroll ui.ScrollState
+	reveal bool // the chosen item scrolls into view, once
 }
 
 // paletteItem is a session or a command the palette offers.
@@ -37,7 +38,7 @@ type paletteItem struct {
 }
 
 func (a *App) openPalette() {
-	a.pal = paletteState{open: true}
+	a.pal = paletteState{open: true, reveal: true}
 }
 
 func (a *App) paletteItems() []paletteItem {
@@ -188,19 +189,21 @@ func (a *App) paletteView(c *ui.Context, pal *palette) {
 			ui.Icon(c, searchIcon).Size(16, 16).TextColor(pal.textMuted)
 			in := ui.TextInputBase(c.Key("q"), &a.pal.query).Grow(1).FontSize(15).Placeholder(locales.PalettePlaceholder()).AutoFocus()
 			if in.Changed() {
-				a.pal.index = 0
+				a.pal.index, a.pal.reveal = 0, true
 			}
 			if c.Shortcut(0, ui.KeyDown) || c.Shortcut(ui.Ctrl, ui.KeyN) {
-				a.pal.index = min(a.pal.index+1, len(items)-1)
+				a.pal.index, a.pal.reveal = min(a.pal.index+1, len(items)-1), true
 			}
 			if c.Shortcut(0, ui.KeyUp) || c.Shortcut(ui.Ctrl, ui.KeyP) {
-				a.pal.index = max(a.pal.index-1, 0)
+				a.pal.index, a.pal.reveal = max(a.pal.index-1, 0), true
 			}
 			if (in.Submitted() || c.Shortcut(0, ui.KeyEnter)) && len(items) > 0 {
 				chosen = items[a.pal.index].run
 			}
 		})
 		list := ui.Scroll(c.Key("results")).Grow(1).MinHeight(0).Padding(6).TrackScroll(&a.pal.scroll)
+		reveal := a.pal.reveal
+		a.pal.reveal = false
 		list.Children(func() {
 			if len(items) == 0 {
 				ui.Text(c, locales.PaletteNoMatches()).FontSize(13).TextColor(pal.textFaint).Padding(12, 12)
@@ -215,7 +218,9 @@ func (a *App) paletteView(c *ui.Context, pal *palette) {
 				row := ui.Row(c.Key(i)).Height(38).Padding(0, 10).Gap(10).AlignItems(ui.Center).Radius(8)
 				if i == a.pal.index {
 					row.Background(pal.accent.Alpha(0.12))
-					row.ScrollIntoView()
+					if reveal {
+						row.ScrollIntoView()
+					}
 				} else if row.Hovered() {
 					row.Background(pal.rowHover)
 				}

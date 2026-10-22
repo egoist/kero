@@ -36,3 +36,21 @@ func TestPaletteKeywords(t *testing.T) {
 		t.Error("keywords matched letters in order")
 	}
 }
+
+// The wheel scrolls the palette's list away from the one chosen.
+func TestPaletteScrolls(t *testing.T) {
+	a := testApp(t)
+	tt := ui.NewTester(a.view, 1100, 900)
+	a.openPalette()
+	tt.Frame()
+	r, ok := tt.Find(a.paletteItems()[3].title)
+	if !ok {
+		t.Fatalf("no commands shown; texts %q", tt.Texts())
+	}
+	tt.Scroll(r.X+20, r.Y, 0, 300)
+	tt.Frame()
+	tt.Frame()
+	if y := a.pal.scroll.Y; y < 100 {
+		t.Errorf("the wheel scrolled the palette to %g, want 300", y)
+	}
+}
