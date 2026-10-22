@@ -8,6 +8,7 @@ import (
 	"image/png"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -635,5 +636,58 @@ func TestFocusFollowsMouse(t *testing.T) {
 	move(br.X + 40)
 	if got := a.focusOf(s); got != "a" {
 		t.Fatalf("with the setting off, focus %q", got)
+	}
+}
+
+// writes is a Conn that keeps what the terminal sends to the program.
+type writes struct {
+	idleConn
+	got chan []byte
+}
+
+func (w writes) Write(b []byte) (int, error) {
+	w.got <- append([]byte(nil), b...)
+	return len(b), nil
+}
+
+// ⌘⌫ sends Control+U, which clears the line, and only on a Mac, where
+// ⌘ is not the terminal's Control.
+func TestCommandBackspaceClearsLine(t *testing.T) {
+	if testing.Short() {
+		t.Skip("downloads libghostty-vt")
+	}
+	if err := terminal.Load(); err != nil {
+		t.Fatal(err)
+	}
+	a := testApp(t)
+	conn := writes{idleConn{make(chan struct{})}, make(chan []byte, 8)}
+	term, err := terminal.New(terminal.Options{Conn: conn})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer term.Close()
+	a.terms["a"] = &termEntry{term: term}
+	o := a.termOptions("a", nil)
+	if took := o.OnKey(ui.Super, ui.KeyBackspace); took != (runtime.GOOS == "darwin") {
+		t.Fatalf("⌘⌫ taken: %v", took)
+	}
+	if runtime.GOOS != "darwin" {
+		return
+	}
+	select {
+	case b := <-conn.got:
+		if string(b) != "\x15" {
+			t.Errorf("⌘⌫ sent %q, want Control+U", b)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("⌘⌫ sent nothing")
+	}
+	for _, k := range []struct {
+		mods ui.Modifiers
+		key  ui.Key
+	}{{0, ui.KeyBackspace}, {ui.Super | ui.Shift, ui.KeyBackspace}, {ui.Super, ui.KeyDelete}} {
+		if o.OnKey(k.mods, k.key) {
+			t.Errorf("%v+%v taken", k.mods, k.key)
+		}
 	}
 }

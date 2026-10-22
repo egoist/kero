@@ -739,6 +739,19 @@ func (a *App) termOptions(id string, conn *gated) terminal.Options {
 			conn.Clear(proto.ClearScreen)
 			return true
 		},
+		// ⌘⌫ clears the line the shell is on, as in Ghostty: it sends
+		// Control+U, which shells take as kill-line.
+		OnKey: func(mods ui.Modifiers, key ui.Key) bool {
+			if runtime.GOOS != "darwin" || mods != ui.Super || key != ui.KeyBackspace {
+				return false
+			}
+			e := a.terms[id]
+			if e == nil || e.term == nil {
+				return false
+			}
+			e.term.Send([]byte{0x15})
+			return true
+		},
 		// The wheel, the user's even over a window not focused, tells they
 		// are in this pane, which then takes this window's size back from
 		// another machine's app (Stream.Claim); it scrolls as it would.
