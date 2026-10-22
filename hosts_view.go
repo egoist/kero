@@ -66,7 +66,7 @@ func (a *App) hostHeader(c *ui.Context, pal *palette, h *host, top float32, coll
 	pointerTooltip(c, hdr, "tip-host-"+h.name, a.hostTip(h))
 	hdr.ContextMenu(func(m *ui.Menu) { a.hostMenu(m, h) })
 	hdr.Children(func() {
-		ui.Icon(c, hostIcon).Size(14, 14).TextColor(pal.textMuted).Shrink(0)
+		ui.Icon(c, hostIcon).Size(14, 14).TextColor(pal.hostColor(h)).Shrink(0)
 		ui.Text(c, h.name).FontSize(13).FontWeight(650).TextColor(pal.text).SingleLine().Ellipsis("…").MinWidth(0).Shrink(1)
 		chev := ui.Icon(c, chevronIcon).Size(11, 11).TextColor(pal.textFaint)
 		turn := chev.AnimateTo("turn", 90*(1-b2f(collapsed)), ui.Snappy)
@@ -241,6 +241,7 @@ func (a *App) hostMenu(m *ui.Menu, h *host) {
 			a.installOnHost(h)
 		}
 	}
+	a.colorMenu(m, h)
 	m.Separator()
 	if m.Item(locales.HostCopyAddress()).Chosen() {
 		a.copyText = h.addr.String()

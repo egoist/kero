@@ -184,13 +184,16 @@ var keys = []key{
 	boolKey("dock-bounce", "once, when a session comes to need you", func(s *Settings) *bool { return &s.BounceDock }),
 
 	boolKey("remote-control", "kero do, kero focus and kero browser drive the app", func(s *Settings) *bool { return &s.RemoteControl }),
-	{name: "host", doc: "another machine whose sessions the app shows, as name=address: [user@]host or ssh://… over SSH, wsl://distro, http(s)://… for kerod's tailnet listener; add remote-control after it to let its programs drive the app; repeat it", list: true,
+	{name: "host", doc: "another machine whose sessions the app shows, as name=address: [user@]host or ssh://… over SSH, wsl://distro, http(s)://… for kerod's tailnet listener; add remote-control after it to let its programs drive the app, and color=red, orange, amber, green, teal, blue, purple or pink to mark its sessions; repeat it", list: true,
 		get: func(s *Settings) []string {
 			var out []string
 			for _, h := range s.Hosts {
 				v := h.Name + "=" + h.Addr
 				if h.RemoteControl {
 					v += " remote-control"
+				}
+				if h.Color != "" {
+					v += " color=" + h.Color
 				}
 				out = append(out, v)
 			}

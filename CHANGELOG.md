@@ -16,6 +16,11 @@
   pasting an image or files (which copies them to the host) all act on
   the host. Its programs drive the app with `kero focus` and `kero do`
   only once you turn on its Remote Control.
+- A strip at the foot of the sidebar shows one machine's sessions at a
+  time, or all of them, as Arc's spaces do: Control-0 to 9 (Alt
+  elsewhere), with a badge counting the sessions that need you on each.
+  Each host wears a color, picked from its name or set with `color=`, on
+  its sidebar icon, its button and its name in a pane's header.
 - The server build of Kero runs kerod and the CLI on Linux, macOS and
   Windows with no app, display or GTK: `curl -fsSL
   https://github.com/egoist/kero/releases/latest/download/install-server.sh

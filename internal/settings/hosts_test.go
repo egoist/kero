@@ -9,7 +9,7 @@ import (
 func TestHostKeys(t *testing.T) {
 	file := `host = devbox=me@devbox
 host = build=ssh://ci@build.lab:2222 remote-control
-host = wsl=wsl://Ubuntu
+host = wsl=wsl://Ubuntu color=teal
 listen = tailnet://:7400
 listen = tailnet-serve://
 listen-allow = alice@example.com
@@ -22,7 +22,7 @@ listen-allow = tag:ci
 	want := []Host{
 		{Name: "devbox", Addr: "me@devbox"},
 		{Name: "build", Addr: "ci@build.lab:2222", RemoteControl: true},
-		{Name: "wsl", Addr: "wsl://Ubuntu"},
+		{Name: "wsl", Addr: "wsl://Ubuntu", Color: "teal"},
 	}
 	if !reflect.DeepEqual(s.Hosts, want) {
 		t.Errorf("hosts %+v", s.Hosts)
@@ -35,7 +35,7 @@ listen-allow = tag:ci
 	}
 	// Written back as read, an address as ParseAddr writes it.
 	out := format(s, "")
-	for _, line := range []string{"host = build=ci@build.lab:2222 remote-control", "listen-allow = tag:ci"} {
+	for _, line := range []string{"host = build=ci@build.lab:2222 remote-control", "host = wsl=wsl://Ubuntu color=teal", "listen-allow = tag:ci"} {
 		if !strings.Contains(out, line+"\n") {
 			t.Errorf("formatted without %q:\n%s", line, out)
 		}
@@ -58,6 +58,7 @@ func TestHostKeyProblems(t *testing.T) {
 		"host = a b=me@devbox",
 		"host = devbox=ftp://devbox",
 		"host = devbox=me@devbox sudo",
+		"host = devbox=me@devbox color=chartreuse",
 		"host = a=x\nhost = A=y",
 		"listen = tcp://:80",
 	} {

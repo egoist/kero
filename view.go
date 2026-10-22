@@ -239,17 +239,22 @@ func (a *App) sidebar(c *ui.Context, pal *palette, bar ui.TitleBar) {
 		n := 0  // the rows shown, for ⌘1–9 (Ctrl+1–9 elsewhere)
 		gi := 0 // the groups shown, the first of which sits higher
 		// This machine's projects first, unlabeled; then each host's,
-		// under its name.
-		if local := a.local(); local.loaded {
-			for _, g := range a.hostGroups(local) {
+		// under its name: those of the host the strip picks alone.
+		sh := a.spaceHost()
+		if local := a.local(); local.loaded && a.shows(local) {
+			groups := a.hostGroups(local)
+			for _, g := range groups {
 				a.groupView(c, pal, g, gi, &n)
 				gi++
 			}
-			if len(a.st.Sessions) == 0 && local.conn == connReady && len(a.hosts) == 1 {
+			if len(groups) == 0 && local.conn == connReady && (len(a.hosts) == 1 || sh == local) {
 				ui.Text(c, locales.SidebarNoSessions()).FontSize(12.5).TextColor(pal.textFaint).Padding(8, 10)
 			}
 		}
 		for _, h := range a.hosts[1:] {
+			if !a.shows(h) {
+				continue
+			}
 			top := float32(18)
 			if gi == 0 {
 				top = 2
@@ -258,6 +263,7 @@ func (a *App) sidebar(c *ui.Context, pal *palette, bar ui.TitleBar) {
 			a.hostSection(c, pal, h, top, &gi, &n)
 		}
 	})
+	a.hostStrip(c, pal)
 	a.sidebarFooter(c, pal)
 	c.After(20 * time.Second) // times ago move on
 }

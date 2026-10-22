@@ -534,6 +534,17 @@
   "changesExpandAll": "Expand All",
   "pageHosts": "Hosts",
   "hostThisComputer": "This Computer",
+  "hostAllMachines": "All Machines",
+  "hostColor": "Color",
+  "hostColorAuto": "From Its Name",
+  "colorRed": "Red",
+  "colorOrange": "Orange",
+  "colorAmber": "Amber",
+  "colorGreen": "Green",
+  "colorTeal": "Teal",
+  "colorBlue": "Blue",
+  "colorPurple": "Purple",
+  "colorPink": "Pink",
   "hostNotConnected": "Not connected to {host}",
   "@hostNotConnected": {
     "placeholders": {

@@ -438,10 +438,16 @@ func (a *App) paneHeader(c *ui.Context, pal *palette, bar ui.TitleBar, shown flo
 			// already say; another machine's, as scp writes it: devbox:~/api.
 			h := a.hostOf(p.ID)
 			if dir := h.shortDir(p.WorkDir()); dir != title || h.remote() {
-				if h.remote() {
-					dir = h.name + ":" + dir
+				if !h.remote() {
+					ui.Text(c, dir).FontSize(13).TextColor(pal.textFaint).SingleLine().Ellipsis("…").Shrink(2).MinWidth(0)
+				} else {
+					// The host's name in its color, as the sidebar's strip
+					// marks it: no pane passes for another machine's.
+					ui.Row(c.Key("where")).Shrink(2).MinWidth(0).AlignItems(ui.Center).Children(func() {
+						ui.Text(c, h.name+":").FontSize(13).FontWeight(500).TextColor(pal.hostColor(h)).SingleLine().Shrink(0)
+						ui.Text(c, dir).FontSize(13).TextColor(pal.textFaint).SingleLine().Ellipsis("…").Shrink(1).MinWidth(0)
+					})
 				}
-				ui.Text(c, dir).FontSize(13).TextColor(pal.textFaint).SingleLine().Ellipsis("…").Shrink(2).MinWidth(0)
 			}
 		})
 		if p.Git != nil {

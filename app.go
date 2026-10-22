@@ -46,7 +46,11 @@ type prefs struct {
 	SidebarWidth  float32         `json:"sidebarWidth,omitempty"`
 	SidebarHidden bool            `json:"sidebarHidden,omitempty"`
 	Collapsed     map[string]bool `json:"collapsed,omitempty"`
-	FontSize      float32         `json:"fontSize,omitempty"`
+	// Space is the host the sidebar shows alone (its space), "" every
+	// host; LastSelected the session the user looked at last in each.
+	Space        string            `json:"space,omitempty"`
+	LastSelected map[string]string `json:"lastSelected,omitempty"`
+	FontSize     float32           `json:"fontSize,omitempty"`
 	// Side is the view the side panel shows, "" while it is hidden, and
 	// SideWidth its width.
 	Side      string  `json:"side,omitempty"`
@@ -178,6 +182,9 @@ func (a *App) loadPrefs() {
 	}
 	if a.prefs.Collapsed == nil {
 		a.prefs.Collapsed = map[string]bool{}
+	}
+	if a.prefs.LastSelected == nil {
+		a.prefs.LastSelected = map[string]string{}
 	}
 }
 
@@ -474,10 +481,14 @@ func (a *App) collapsed(g group) bool {
 }
 
 // visibleOrder returns the sessions in the sidebar's order, those of
-// collapsed projects left out unless selected.
+// collapsed projects, and of hosts it does not show, left out unless
+// selected.
 func (a *App) visibleOrder() []string {
 	var ids []string
 	for _, g := range a.groups() {
+		if !a.shows(g.host) {
+			continue
+		}
 		for _, s := range g.sessions {
 			if !a.collapsed(g) || s.ID == a.selected {
 				ids = append(ids, s.ID)
@@ -493,6 +504,7 @@ func (a *App) selectSession(id string) {
 	}
 	changed := a.selected != id
 	a.selected = id
+	a.followSelection()
 	s := a.session(id)
 	for _, p := range s.Panes {
 		a.ensureTerm(p.ID)
@@ -946,7 +958,7 @@ func (a *App) toast(msg string) { a.pendingToast = msg }
 // session shown when it is the project's, as a terminal's new tab does,
 // else the project's. With no project, it is the shown session's host's.
 func (a *App) newSession(projectID string) {
-	h := a.selectedHost()
+	h := a.spaceOrSelectedHost()
 	if projectID != "" {
 		h = a.hostOf(projectID)
 	}
@@ -1024,7 +1036,7 @@ func (a *App) addPending(h *host, s proto.Session) {
 // project: of this machine, with the system's dialog, or of the shown
 // session's host, which the app lists.
 func (a *App) openProject() {
-	if h := a.selectedHost(); h.remote() {
+	if h := a.spaceOrSelectedHost(); h.remote() {
 		a.openProjectOn(h)
 		return
 	}

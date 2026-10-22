@@ -3846,6 +3846,116 @@ func (msgs Messages) HostThisComputer() string {
 	return Catalog.Format(msgs.locale, "hostThisComputer", nil)
 }
 
+// HostAllMachines says "All Machines"
+// in the language the app shows.
+func HostAllMachines() string { return In(i18n.Locale()).HostAllMachines() }
+
+// HostAllMachines says "All Machines"
+// in the language of msgs.
+func (msgs Messages) HostAllMachines() string {
+	return Catalog.Format(msgs.locale, "hostAllMachines", nil)
+}
+
+// HostColor says "Color"
+// in the language the app shows.
+func HostColor() string { return In(i18n.Locale()).HostColor() }
+
+// HostColor says "Color"
+// in the language of msgs.
+func (msgs Messages) HostColor() string {
+	return Catalog.Format(msgs.locale, "hostColor", nil)
+}
+
+// HostColorAuto says "From Its Name"
+// in the language the app shows.
+func HostColorAuto() string { return In(i18n.Locale()).HostColorAuto() }
+
+// HostColorAuto says "From Its Name"
+// in the language of msgs.
+func (msgs Messages) HostColorAuto() string {
+	return Catalog.Format(msgs.locale, "hostColorAuto", nil)
+}
+
+// ColorRed says "Red"
+// in the language the app shows.
+func ColorRed() string { return In(i18n.Locale()).ColorRed() }
+
+// ColorRed says "Red"
+// in the language of msgs.
+func (msgs Messages) ColorRed() string {
+	return Catalog.Format(msgs.locale, "colorRed", nil)
+}
+
+// ColorOrange says "Orange"
+// in the language the app shows.
+func ColorOrange() string { return In(i18n.Locale()).ColorOrange() }
+
+// ColorOrange says "Orange"
+// in the language of msgs.
+func (msgs Messages) ColorOrange() string {
+	return Catalog.Format(msgs.locale, "colorOrange", nil)
+}
+
+// ColorAmber says "Amber"
+// in the language the app shows.
+func ColorAmber() string { return In(i18n.Locale()).ColorAmber() }
+
+// ColorAmber says "Amber"
+// in the language of msgs.
+func (msgs Messages) ColorAmber() string {
+	return Catalog.Format(msgs.locale, "colorAmber", nil)
+}
+
+// ColorGreen says "Green"
+// in the language the app shows.
+func ColorGreen() string { return In(i18n.Locale()).ColorGreen() }
+
+// ColorGreen says "Green"
+// in the language of msgs.
+func (msgs Messages) ColorGreen() string {
+	return Catalog.Format(msgs.locale, "colorGreen", nil)
+}
+
+// ColorTeal says "Teal"
+// in the language the app shows.
+func ColorTeal() string { return In(i18n.Locale()).ColorTeal() }
+
+// ColorTeal says "Teal"
+// in the language of msgs.
+func (msgs Messages) ColorTeal() string {
+	return Catalog.Format(msgs.locale, "colorTeal", nil)
+}
+
+// ColorBlue says "Blue"
+// in the language the app shows.
+func ColorBlue() string { return In(i18n.Locale()).ColorBlue() }
+
+// ColorBlue says "Blue"
+// in the language of msgs.
+func (msgs Messages) ColorBlue() string {
+	return Catalog.Format(msgs.locale, "colorBlue", nil)
+}
+
+// ColorPurple says "Purple"
+// in the language the app shows.
+func ColorPurple() string { return In(i18n.Locale()).ColorPurple() }
+
+// ColorPurple says "Purple"
+// in the language of msgs.
+func (msgs Messages) ColorPurple() string {
+	return Catalog.Format(msgs.locale, "colorPurple", nil)
+}
+
+// ColorPink says "Pink"
+// in the language the app shows.
+func ColorPink() string { return In(i18n.Locale()).ColorPink() }
+
+// ColorPink says "Pink"
+// in the language of msgs.
+func (msgs Messages) ColorPink() string {
+	return Catalog.Format(msgs.locale, "colorPink", nil)
+}
+
 // HostNotConnected says "Not connected to {host}"
 // in the language the app shows.
 func HostNotConnected(host string) string { return In(i18n.Locale()).HostNotConnected(host) }

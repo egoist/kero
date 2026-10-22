@@ -94,7 +94,13 @@ type Host struct {
 	// and kero do, which remote-control lets this machine's: off unless the
 	// user trusts the host with it.
 	RemoteControl bool `json:"remoteControl,omitempty"`
+	// Color marks the host's sessions in the sidebar and its panes: one of
+	// HostColors, "" for the one its name picks.
+	Color string `json:"color,omitempty"`
 }
+
+// HostColors are the colors a host takes.
+var HostColors = []string{"red", "orange", "amber", "green", "teal", "blue", "purple", "pink"}
 
 // Host returns the host of a name, else nil.
 func (s *Settings) Host(name string) *Host {
@@ -316,7 +322,8 @@ func (s *Settings) normalize() {
 }
 
 // ParseHost reads a host as the configuration's host key writes it:
-// name=address, then its options: remote-control.
+// name=address, then its options: remote-control, color=<one of
+// HostColors>.
 func ParseHost(line string) (Host, error) {
 	name, rest, ok := strings.Cut(strings.TrimSpace(line), "=")
 	name = strings.TrimSpace(name)
@@ -333,11 +340,15 @@ func ParseHost(line string) (Host, error) {
 	}
 	h := Host{Name: name, Addr: a.String()}
 	for _, o := range fields[1:] {
-		switch o {
-		case "remote-control":
+		switch k, v, _ := strings.Cut(o, "="); {
+		case o == "remote-control":
 			h.RemoteControl = true
+		case k == "color" && slices.Contains(HostColors, v):
+			h.Color = v
+		case k == "color":
+			return Host{}, fmt.Errorf("%s: no color %q (%s)", name, v, strings.Join(HostColors, ", "))
 		default:
-			return Host{}, fmt.Errorf("%s: no option %q (remote-control)", name, o)
+			return Host{}, fmt.Errorf("%s: no option %q (remote-control, color=…)", name, o)
 		}
 	}
 	return h, nil

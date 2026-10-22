@@ -107,7 +107,7 @@ Other machines whose sessions the app shows, and `kero -H` reaches. See [Remote 
 
 | Key            | Default | Description |
 | -------------- | ------- | ----------- |
-| `host`         |         | A host, as `name=address`: `me@devbox` or `ssh://…` over SSH, `wsl://distro`, `http(s)://…` for kerod's tailnet listener. Add ` remote-control` after it to let its programs drive the app. Repeat it for each host |
+| `host`         |         | A host, as `name=address`: `me@devbox` or `ssh://…` over SSH, `wsl://distro`, `http(s)://…` for kerod's tailnet listener. Add ` remote-control` after it to let its programs drive the app, and ` color=teal` (red, orange, amber, green, teal, blue, purple or pink) to mark its sessions. Repeat it for each host |
 | `listen`       |         | Let Kero on other machines reach this one: `tailnet://:7373` on its Tailscale addresses, `tailnet-serve://` for Tailscale Serve. Repeat it for each |
 | `listen-allow` |         | Who besides the machine's owner may connect: a tailnet login, `tag:name`, or `*` for anyone on the tailnet. Repeat it for each |
 
