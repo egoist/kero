@@ -15,8 +15,24 @@ const (
 	tiocptygname = 0x40807453
 )
 
+// openPTYFile leaves the PTY in blocking mode. os.OpenFile registers character
+// devices with Go's poller, which changes them to nonblocking mode; a PTY read
+// must instead wait for terminal input.
+func openPTYFile(name string, flags int) (*os.File, error) {
+	fd, err := syscall.Open(name, flags|syscall.O_CLOEXEC, 0)
+	if err != nil {
+		return nil, err
+	}
+	f := os.NewFile(uintptr(fd), name)
+	if f == nil {
+		_ = syscall.Close(fd)
+		return nil, fmt.Errorf("pty: invalid file descriptor for %s", name)
+	}
+	return f, nil
+}
+
 func openMaster() (*os.File, string, error) {
-	master, err := os.OpenFile("/dev/ptmx", os.O_RDWR|syscall.O_NOCTTY|syscall.O_CLOEXEC, 0)
+	master, err := openPTYFile("/dev/ptmx", os.O_RDWR|syscall.O_NOCTTY)
 	if err != nil {
 		return nil, "", fmt.Errorf("pty: %w", err)
 	}
