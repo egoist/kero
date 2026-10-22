@@ -285,7 +285,7 @@ func (a *App) paneBrowser(c *ui.Context, pal *palette, bar ui.TitleBar, shown fl
 // clear of the traffic lights and the sidebar's buttons.
 func (a *App) browserBar(c *ui.Context, pal *palette, bar ui.TitleBar, shown float32, s *proto.Session, p *proto.Pane, e *webEntry, top, left, right, multi, focused, hovered bool) (ui.Element, bool) {
 	pad := float32(16)
-	if left {
+	if top && left {
 		pad = a.chrome.headerPad
 	}
 	// The first button's icon starts where a header's title does.

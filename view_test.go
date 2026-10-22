@@ -158,6 +158,32 @@ func TestSidebarAnimationNoHolds(t *testing.T) {
 	}
 }
 
+// With the sidebar hidden, only the header at the window's top left
+// keeps clear of the traffic lights: a pane under it starts its title
+// where any card does.
+func TestHeaderPadBelowTopLeft(t *testing.T) {
+	a := testApp(t)
+	a.prefs.SidebarHidden = true
+	var l *proto.Layout
+	a.st.Sessions[0].Layout = l.Split("a", "b", "down", 0)
+	tt := ui.NewTester(a.view, 1100, 640)
+	tt.Frame()
+	tt.Advance(time.Second)
+	tt.Frame()
+	top, ok1 := tt.Find("fish")
+	below, ok2 := tt.Find("zsh")
+	if !ok1 || !ok2 {
+		t.Fatalf("no titles; texts %q", tt.Texts())
+	}
+	if below.Y <= top.Y {
+		t.Fatalf("pane b is not under a: %v, %v", top, below)
+	}
+	if below.X >= top.X {
+		t.Errorf("the title under the top left's starts at %v, as far in as the top left's %v", below.X, top.X)
+	}
+	shot(t, tt, "header-pad-below")
+}
+
 // The window moves from the panes' headers and the gaps around them, and
 // not from a press on a pane, which focuses it.
 func TestWindowDragRegions(t *testing.T) {
