@@ -23,91 +23,50 @@ var (
 	hostIcon = glyph("f7-desktopcomputer")
 )
 
-// hostSection is a remote host in the sidebar: its header, which tells
-// how the app stands with it, then its projects, or what keeps them from
-// showing.
-func (a *App) hostSection(c *ui.Context, pal *palette, h *host, top float32, gi *int, n *int) {
-	collapsed := a.prefs.Collapsed[hostKey(h)]
-	a.hostHeader(c, pal, h, top, collapsed)
-	groups := a.hostGroups(h)
-	if collapsed {
-		// The session shown stays in view.
-		for _, g := range groups {
-			for _, s := range g.sessions {
-				if s.ID == a.selected {
-					a.sessionRow(c, pal, s, n)
-				}
-			}
-		}
-		return
+// The sidebar is flat: groups, a remote host's tagged with its name (see
+// groupView). A host has a row of its own only while it has no group to
+// show it, or one that needs fixing: hostNeedsRow.
+
+// hostNeedsRow reports whether a host has a row of its own in the
+// sidebar, of its groups: while it connects for the first time, can't be
+// reached, wants updating first, is busy with what the user asked, or has
+// no sessions, which leave no group to tell of it.
+func (a *App) hostNeedsRow(h *host, groups []group) bool {
+	switch {
+	case h.busy != "", h.conn == connFailed, h.conn == connVersion:
+		return true
+	case h.conn == connConnecting:
+		return !h.loaded
 	}
+	return h.loaded && len(groups) == 0
+}
+
+// hostLine is a host in the sidebar while it needs a row of its own: its
+// header, which tells how the app stands with it, then what keeps its
+// sessions from showing, or that it has none.
+func (a *App) hostLine(c *ui.Context, pal *palette, h *host, top float32) {
+	a.hostHeader(c, pal, h, top)
 	if h.conn != connReady && h.conn != connConnecting || h.busy != "" {
 		a.hostNote(c, pal, h)
 	}
-	for i, g := range groups {
-		// The first right under the header.
-		a.groupView(c, pal, g, min(i, 1), n)
-		*gi++
-	}
-	if len(groups) == 0 && h.loaded && h.conn == connReady && h.busy == "" {
+	if h.loaded && h.conn == connReady && h.busy == "" && len(a.hostGroups(h)) == 0 {
 		ui.Text(c, locales.SidebarNoSessions()).FontSize(12.5).TextColor(pal.textFaint).Padding(4, 10)
 	}
 }
 
 // hostHeader is a remote host's name, with how the app stands with it: a
 // dot while it connects or failed to, a chip when Kero there wants
-// updating; a click folds it.
-func (a *App) hostHeader(c *ui.Context, pal *palette, h *host, top float32, collapsed bool) {
+// updating.
+func (a *App) hostHeader(c *ui.Context, pal *palette, h *host, top float32) {
 	hdr := ui.Row(c.Key("host-"+h.name)).Height(30).Margin(top, 0, 2, 0).Padding(0, 6, 0, 8).Gap(7).AlignItems(ui.Center).Radius(6)
 	hovered := hdr.Hovered()
-	if hdr.Clicked() {
-		a.toggleProject(hostKey(h))
-	}
 	pointerTooltip(c, hdr, "tip-host-"+h.name, a.hostTip(h))
 	hdr.ContextMenu(func(m *ui.Menu) { a.hostMenu(m, h) })
 	hdr.Children(func() {
 		ui.Icon(c, hostIcon).Size(14, 14).TextColor(pal.hostColor(h)).Shrink(0)
 		ui.Text(c, h.name).FontSize(13).FontWeight(650).TextColor(pal.text).SingleLine().Ellipsis("…").MinWidth(0).Shrink(1)
-		chev := ui.Icon(c, chevronIcon).Size(11, 11).TextColor(pal.textFaint)
-		turn := chev.AnimateTo("turn", 90*(1-b2f(collapsed)), ui.Snappy)
-		chev.Rotate(turn).Opacity(chev.Animate("shown", b2f(hovered || collapsed), 120*time.Millisecond))
 		ui.Spacer(c)
-		switch {
-		case h.busy != "":
-			ui.Spinner(c).Size(12, 12)
-		case h.conn == connConnecting && h.loaded:
-			a.hostDot(c, pal, pal.attention, locales.HostReconnecting())
-		case h.conn == connConnecting:
-			a.hostDot(c, pal, pal.textFaint, locales.StatusConnecting())
-		case h.conn == connFailed:
-			a.hostDot(c, pal, pal.danger, a.hostProblem(h))
-		case h.conn == connVersion || h.behind():
-			b := ui.ButtonBase(c.Key("update")).Height(22).Padding(0, 7).Gap(5).Radius(11).AlignItems(ui.Center).
-				Label(locales.HostUpdateAction(h.name)).Tooltip(a.hostVersionDetail(h))
-			if b.Hovered() {
-				b.Background(pal.rowHover)
-			}
-			b.Children(func() {
-				ui.Box(c).Size(6, 6).Radius(3).Background(pal.attention)
-				ui.Text(c, locales.CommonUpdate()).FontSize(12).FontWeight(500).TextColor(pal.attention).SingleLine()
-			})
-			if b.Clicked() {
-				a.offerHostUpdate(h)
-			}
-		case h.stale():
-			b := ui.ButtonBase(c.Key("restart")).Height(22).Padding(0, 7).Gap(5).Radius(11).AlignItems(ui.Center).
-				Label(locales.HostRestartAction(h.name)).Tooltip(locales.HostStaleTip(h.name, h.daemonApp, h.info.Kero))
-			if b.Hovered() {
-				b.Background(pal.rowHover)
-			}
-			b.Children(func() {
-				ui.Box(c).Size(6, 6).Radius(3).Background(pal.attention)
-				ui.Text(c, locales.CommonRestart()).FontSize(12).FontWeight(500).TextColor(pal.attention).SingleLine()
-			})
-			if b.Clicked() {
-				a.offerHostRestart(h)
-			}
-		}
+		a.hostState(c, pal, h)
 		if hovered && h.conn == connReady {
 			b := ui.ButtonBase(c.Key("add")).Size(20, 20).Radius(5).Center().TextColor(pal.textMuted).
 				Label(locales.NewSessionIn(h.name)).Tooltip(locales.ActionNewSession())
@@ -120,6 +79,62 @@ func (a *App) hostHeader(c *ui.Context, pal *palette, h *host, top float32, coll
 			}
 		}
 	})
+}
+
+// hostTag names a remote host in its color, after the name of one of its
+// groups, faded while the app has lost it.
+func (a *App) hostTag(c *ui.Context, pal *palette, h *host) {
+	col := pal.hostColor(h)
+	tag := ui.Row(c.Key("host")).Height(18).Padding(0, 6).Radius(5).AlignItems(ui.Center).Shrink(0).
+		Background(col.Alpha(0.14)).Tooltip(a.hostTip(h))
+	if h.conn != connReady {
+		tag.Opacity(0.55)
+	}
+	tag.Children(func() {
+		ui.Text(c, h.name).FontSize(11.5).FontWeight(600).TextColor(col).SingleLine()
+	})
+}
+
+// hostState says how the app stands with a host, at the end of its row,
+// or of its first group's header: a dot while it connects or failed to,
+// a chip when Kero there wants updating or kerod restarting.
+func (a *App) hostState(c *ui.Context, pal *palette, h *host) {
+	switch {
+	case h.busy != "":
+		ui.Spinner(c).Size(12, 12)
+	case h.conn == connConnecting && h.loaded:
+		a.hostDot(c, pal, pal.attention, locales.HostReconnecting())
+	case h.conn == connConnecting:
+		a.hostDot(c, pal, pal.textFaint, locales.StatusConnecting())
+	case h.conn == connFailed:
+		a.hostDot(c, pal, pal.danger, a.hostProblem(h))
+	case h.conn == connVersion || h.behind():
+		b := ui.ButtonBase(c.Key("update")).Height(22).Padding(0, 7).Gap(5).Radius(11).AlignItems(ui.Center).
+			Label(locales.HostUpdateAction(h.name)).Tooltip(a.hostVersionDetail(h))
+		if b.Hovered() {
+			b.Background(pal.rowHover)
+		}
+		b.Children(func() {
+			ui.Box(c).Size(6, 6).Radius(3).Background(pal.attention)
+			ui.Text(c, locales.CommonUpdate()).FontSize(12).FontWeight(500).TextColor(pal.attention).SingleLine()
+		})
+		if b.Clicked() {
+			a.offerHostUpdate(h)
+		}
+	case h.stale():
+		b := ui.ButtonBase(c.Key("restart")).Height(22).Padding(0, 7).Gap(5).Radius(11).AlignItems(ui.Center).
+			Label(locales.HostRestartAction(h.name)).Tooltip(locales.HostStaleTip(h.name, h.daemonApp, h.info.Kero))
+		if b.Hovered() {
+			b.Background(pal.rowHover)
+		}
+		b.Children(func() {
+			ui.Box(c).Size(6, 6).Radius(3).Background(pal.attention)
+			ui.Text(c, locales.CommonRestart()).FontSize(12).FontWeight(500).TextColor(pal.attention).SingleLine()
+		})
+		if b.Clicked() {
+			a.offerHostRestart(h)
+		}
+	}
 }
 
 // hostDot says how the app stands with a host: a dot, and its words as

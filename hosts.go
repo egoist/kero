@@ -194,15 +194,6 @@ func (a *App) hostNamed(name string) *host {
 // none is.
 func (a *App) selectedHost() *host { return a.hostOf(a.selected) }
 
-// spaceOrSelectedHost is the host New Session and Open Project act on: the
-// one the sidebar shows alone, else the shown session's.
-func (a *App) spaceOrSelectedHost() *host {
-	if h := a.spaceHost(); h != nil {
-		return h
-	}
-	return a.selectedHost()
-}
-
 // syncHosts follows the configuration's hosts: it connects to those added,
 // lets go of those removed, and again of those whose address changed.
 func (a *App) syncHosts() {

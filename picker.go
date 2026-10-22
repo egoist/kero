@@ -12,9 +12,8 @@ import (
 	"kero/locales"
 )
 
-// folderPicker lists the folders of a remote host, to open a project in,
-// as the system's dialog does this machine's: kerod there lists them
-// (fs.list).
+// folderPicker lists the folders of a host, to open a project in, as the
+// system's dialog does this machine's: kerod there lists them (fs.list).
 type folderPicker struct {
 	open bool
 	host *host
@@ -132,10 +131,15 @@ func (a *App) pickerView(c *ui.Context, pal *palette) {
 	ui.DialogBase(c.Key("picker"), &p.open, func(backdrop, panel ui.Element) {
 		backdrop.Background(pal.overlay).Justify(ui.Start).Padding(84, 0, 0, 0)
 		floating(panel.Width(600).MaxHeight(500).Radius(14).Background(pal.popover), pal).Clip().
-			Label(locales.PickerTitle(h.name))
+			Label(locales.PickerTitle(h.label()))
 		ui.Row(c).Height(42).Shrink(0).Padding(0, 16).Gap(8).AlignItems(ui.Center).Children(func() {
-			ui.Icon(c, hostIcon).Size(14, 14).TextColor(pal.textMuted)
-			ui.Text(c, locales.PickerTitle(h.name)).FontSize(13).FontWeight(600).TextColor(pal.text).SingleLine().Shrink(0)
+			ui.Icon(c, hostIcon).Size(14, 14).TextColor(pal.hostColor(h))
+			// The machine it lists, which any other can take the place of.
+			if len(a.hosts) > 1 {
+				a.pickerHosts(c, pal, h)
+			} else {
+				ui.Text(c, locales.PickerTitle(h.label())).FontSize(13).FontWeight(600).TextColor(pal.text).SingleLine().Shrink(0)
+			}
 			if p.list != nil {
 				ui.Text(c, h.shortDir(p.list.Dir)).FontSize(12.5).TextColor(pal.textFaint).SingleLine().Ellipsis("…").MinWidth(0).Shrink(1)
 			}
@@ -250,4 +254,33 @@ func (a *App) pickerChosen(items []pickerItem) string {
 		return p.list.Dir
 	}
 	return ""
+}
+
+// pickerHosts is the picker's switch of machines: the one it lists, and
+// each other, which a click lists instead.
+func (a *App) pickerHosts(c *ui.Context, pal *palette, shown *host) {
+	ui.Row(c.Key("hosts")).Gap(2).AlignItems(ui.Center).MinWidth(0).Shrink(1).Children(func() {
+		for _, h := range a.hosts {
+			label := h.label()
+			b := ui.ButtonBase(c.Key("host-"+h.name)).Height(24).Padding(0, 8).Radius(6).AlignItems(ui.Center).
+				Label(locales.PickerTitle(label))
+			fg := pal.textMuted
+			switch {
+			case h == shown:
+				b.Background(pal.rowSelected).InsetShadow(0, 0, 0, 1, pal.rowSelBorder)
+				fg = pal.text
+			case b.Hovered():
+				b.Background(pal.rowHover)
+			}
+			if h.remote() && h.conn != connReady {
+				b.Opacity(0.5)
+			}
+			b.Children(func() {
+				ui.Text(c, label).FontSize(12.5).FontWeight(600).TextColor(fg).SingleLine()
+			})
+			if b.Clicked() && h != shown {
+				a.openProjectOn(h)
+			}
+		}
+	})
 }

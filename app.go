@@ -46,11 +46,7 @@ type prefs struct {
 	SidebarWidth  float32         `json:"sidebarWidth,omitempty"`
 	SidebarHidden bool            `json:"sidebarHidden,omitempty"`
 	Collapsed     map[string]bool `json:"collapsed,omitempty"`
-	// Space is the host the sidebar shows alone (its space), "" every
-	// host; LastSelected the session the user looked at last in each.
-	Space        string            `json:"space,omitempty"`
-	LastSelected map[string]string `json:"lastSelected,omitempty"`
-	FontSize     float32           `json:"fontSize,omitempty"`
+	FontSize      float32         `json:"fontSize,omitempty"`
 	// Side is the view the side panel shows, "" while it is hidden, and
 	// SideWidth its width.
 	Side      string  `json:"side,omitempty"`
@@ -182,9 +178,6 @@ func (a *App) loadPrefs() {
 	}
 	if a.prefs.Collapsed == nil {
 		a.prefs.Collapsed = map[string]bool{}
-	}
-	if a.prefs.LastSelected == nil {
-		a.prefs.LastSelected = map[string]string{}
 	}
 }
 
@@ -421,6 +414,9 @@ type group struct {
 	host     *host
 	project  proto.Project
 	sessions []*proto.Session
+	// first: the first of its host's in the sidebar, whose header tells
+	// how the app stands with the host.
+	first bool
 }
 
 // key is what the group's collapse is remembered by: its project's id,
@@ -431,10 +427,6 @@ func (g group) key() string {
 	}
 	return g.project.ID
 }
-
-// hostKey is what a remote host's collapse in the sidebar is remembered
-// by.
-func hostKey(h *host) string { return "host:" + h.name }
 
 // groups returns the projects of every host, as the sidebar lists them.
 func (a *App) groups() []group {
@@ -474,21 +466,14 @@ func (a *App) hostGroups(h *host) []group {
 	return gs
 }
 
-// collapsed reports whether a group's sessions are hidden in the sidebar:
-// its project's, or its host's.
-func (a *App) collapsed(g group) bool {
-	return a.prefs.Collapsed[g.key()] || g.host.remote() && a.prefs.Collapsed[hostKey(g.host)]
-}
+// collapsed reports whether a group's sessions are hidden in the sidebar.
+func (a *App) collapsed(g group) bool { return a.prefs.Collapsed[g.key()] }
 
 // visibleOrder returns the sessions in the sidebar's order, those of
-// collapsed projects, and of hosts it does not show, left out unless
-// selected.
+// collapsed projects left out unless selected.
 func (a *App) visibleOrder() []string {
 	var ids []string
 	for _, g := range a.groups() {
-		if !a.shows(g.host) {
-			continue
-		}
 		for _, s := range g.sessions {
 			if !a.collapsed(g) || s.ID == a.selected {
 				ids = append(ids, s.ID)
@@ -504,7 +489,6 @@ func (a *App) selectSession(id string) {
 	}
 	changed := a.selected != id
 	a.selected = id
-	a.followSelection()
 	s := a.session(id)
 	for _, p := range s.Panes {
 		a.ensureTerm(p.ID)
@@ -958,7 +942,7 @@ func (a *App) toast(msg string) { a.pendingToast = msg }
 // session shown when it is the project's, as a terminal's new tab does,
 // else the project's. With no project, it is the shown session's host's.
 func (a *App) newSession(projectID string) {
-	h := a.spaceOrSelectedHost()
+	h := a.selectedHost()
 	if projectID != "" {
 		h = a.hostOf(projectID)
 	}
@@ -1033,10 +1017,12 @@ func (a *App) addPending(h *host, s proto.Session) {
 }
 
 // openProject asks for a folder, and starts a session there, in its
-// project: of this machine, with the system's dialog, or of the shown
-// session's host, which the app lists.
+// project: of this machine, with the system's dialog, else, with hosts,
+// of any machine, with the app's picker, from the shown session's.
 func (a *App) openProject() {
-	if h := a.spaceOrSelectedHost(); h.remote() {
+	// With hosts, the app's picker, which goes to any machine, this one
+	// too, as the sidebar has no host of its own to start on.
+	if h := a.selectedHost(); h.remote() || len(a.hosts) > 1 {
 		a.openProjectOn(h)
 		return
 	}
@@ -1070,9 +1056,6 @@ func (a *App) openProjectAt(h *host, dir string) {
 			return
 		}
 		a.update(func() {
-			if h.remote() {
-				delete(a.prefs.Collapsed, hostKey(h))
-			}
 			a.create(h, proto.CreateParams{Project: p.ID, Dir: dir}, p.ID)
 		})
 	}()
@@ -1206,9 +1189,6 @@ func (a *App) jumpTo(want func(*proto.Session) bool) bool {
 		id := ids[(i+k+len(ids))%len(ids)]
 		if s := a.session(id); s != nil && id != a.selected && want(s) {
 			delete(a.prefs.Collapsed, s.Project)
-			if h := a.hostOf(id); h.remote() {
-				delete(a.prefs.Collapsed, hostKey(h))
-			}
 			a.selectSession(id)
 			return true
 		}

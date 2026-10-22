@@ -21,7 +21,7 @@ On Windows, in PowerShell:
 irm https://github.com/egoist/kero/releases/latest/download/install-server.ps1 | iex
 ```
 
-On your computer, open **Settings › Hosts**, type the address you'd give `ssh`, such as `me@devbox`, and press **Add**. The host's sessions appear in the sidebar under its name.
+On your computer, open **Settings › Hosts**, type the address you'd give `ssh`, such as `me@devbox`, and press **Add**. The host's projects appear in the sidebar with yours, each tagged with the host's name.
 
 The same from the command line:
 
@@ -119,10 +119,10 @@ On Linux this first enables lingering (`loginctl enable-linger`), which keeps yo
 
 ## Working on a host
 
-- **One host at a time.** With hosts added, a strip at the foot of the sidebar has a button for **All Machines**, this computer and each host. A host's button shows only that machine's sessions, and brings back the one you last looked at there, like a space in Arc. Its badge counts the sessions there that need you, so nothing waiting goes unseen. <kbd>⌃</kbd> <kbd>0</kbd> shows all, and <kbd>⌃</kbd> <kbd>1</kbd>–<kbd>9</kbd> the machines in order (<kbd>Alt</kbd> <kbd>0</kbd>–<kbd>9</kbd> on Windows and Linux). Selecting a session on another machine, as with <kbd>⌘</kbd> <kbd>J</kbd> or a notification, shows that machine.
-- **Colors.** Each host has a color, picked from its name: its icon in the sidebar, its button and its name in a pane's header wear it, so a remote pane is plain to see. Pick another from the host's menu, **Color**, or with `color=` after its address (`host = devbox=me@devbox color=teal`).
-- **New sessions.** <kbd>⌘</kbd> <kbd>T</kbd> and **New Session** start a session on the machine the sidebar shows alone, else on the host of the session you're looking at. Each host's header in the sidebar has its own **+** and menu.
-- **Open Project.** On a host, <kbd>⌘</kbd> <kbd>O</kbd> lists the host's folders instead of showing your computer's dialog. Type to filter, or type a path such as `~/code`. <kbd>↩</kbd> goes into a folder, and <kbd>⌘</kbd> <kbd>↩</kbd> or **Open** opens it as a project.
+- **The sidebar.** It lists projects, yours first, then each host's in the order of **Settings › Hosts**. A host's projects carry its name after theirs, as `api` `devbox`, so the same repository on two machines sits side by side. A host gets a row of its own only while it needs one: while it first connects, when Kero can't reach it, wants updating or isn't installed there, or when it has no sessions. Right-click one of a host's projects for the host's menu: reconnect, restart kerod, update Kero, its color, its settings.
+- **Colors.** Each host has a color, picked from its name: its tag in the sidebar and its name in a pane's header wear it, so a remote pane is plain to see. Pick another from the host's menu, **Color**, or with `color=` after its address (`host = devbox=me@devbox color=teal`).
+- **New sessions.** <kbd>⌘</kbd> <kbd>T</kbd> and **New Session** start a session on the host of the session you're looking at. A project's **+** starts one in it, on its machine.
+- **Open Project.** With hosts added, <kbd>⌘</kbd> <kbd>O</kbd> lists folders in Kero instead of your computer's dialog, starting on the machine of the session you're looking at; the switch at its top lists another's. Type to filter, or type a path such as `~/code`. <kbd>↩</kbd> goes into a folder, and <kbd>⌘</kbd> <kbd>↩</kbd> or **Open** opens it as a project.
 - **Paths.** <kbd>⌘</kbd>-clicking a file path in a remote pane opens the file in the host's `$EDITOR`, in a pane below. A folder opens in a new session there. Kero never opens a file of your computer that happens to have the same path. Hovering an image's path with <kbd>⌘</kbd> previews the host's image.
 - **Pasting images and files.** Pasting an image or files into a remote pane copies them to a private temporary folder on the host and pastes their paths there, so agents that read image paths, such as Claude Code, keep working. Dragging files onto a remote pane still pastes your computer's paths.
 - **Agents.** Inside a remote pane, `kero` talks to that host's kerod, so the agent skill works there unchanged. Run `kero skill setup` on the host.
@@ -142,7 +142,7 @@ Appearance, keyboard and notifications are the app's. A host's shell, `env`, scr
 
 ## Versions and updates
 
-The app and a host can run different versions of Kero. When the host runs an older release than the app, the host's header shows **Update**. It downloads the app's version of Kero onto the host, checks it against the key Kero's own updates are signed with, for that version and platform, and then restarts kerod there. Restarting starts the host's sessions again where they were, with their history, and the programs running in them end, so Kero asks first.
+The app and a host can run different versions of Kero. When the host runs an older release than the app, its first project in the sidebar shows **Update**. It downloads the app's version of Kero onto the host, checks it against the key Kero's own updates are signed with, for that version and platform, and then restarts kerod there. Restarting starts the host's sessions again where they were, with their history, and the programs running in them end, so Kero asks first.
 
 - Kero updates a host only when you ask, never on a reconnect, and never back to an older version.
 - When the host runs a newer Kero than the app, update the app instead (**Settings › General**).

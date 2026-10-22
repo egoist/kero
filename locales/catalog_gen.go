@@ -3846,16 +3846,6 @@ func (msgs Messages) HostThisComputer() string {
 	return Catalog.Format(msgs.locale, "hostThisComputer", nil)
 }
 
-// HostAllMachines says "All Machines"
-// in the language the app shows.
-func HostAllMachines() string { return In(i18n.Locale()).HostAllMachines() }
-
-// HostAllMachines says "All Machines"
-// in the language of msgs.
-func (msgs Messages) HostAllMachines() string {
-	return Catalog.Format(msgs.locale, "hostAllMachines", nil)
-}
-
 // HostColor says "Color"
 // in the language the app shows.
 func HostColor() string { return In(i18n.Locale()).HostColor() }

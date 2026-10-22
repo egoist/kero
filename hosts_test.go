@@ -7,12 +7,15 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 
 	"kero/internal/proto"
 	"kero/internal/remote"
 	"kero/internal/settings"
+
+	"kero/locales"
 )
 
 // withHost adds a remote host to a test app, connected, with a session of
@@ -103,10 +106,69 @@ func TestSidebarHosts(t *testing.T) {
 	if got := a.hostedName(a.session("s1")); got != "demo" {
 		t.Errorf("this machine's session is named %q", got)
 	}
-	// Folded, the host shows its selected session alone.
-	a.toggleProject(hostKey(a.hosts[1]))
+	// A remote group folds as this machine's do.
+	a.toggleProject("rp-build")
 	if ids := a.visibleOrder(); len(ids) != 1 {
 		t.Errorf("folded: %q", ids)
+	}
+}
+
+// The sidebar is flat: a remote group carries its host's name, and the
+// host has a row of its own only while it needs one, as with no sessions,
+// or one it can't be reached.
+func TestSidebarFlat(t *testing.T) {
+	a := testApp(t)
+	a.mergeState(a.local(), a.st)
+	build := withHost(t, a, "build")
+	empty := withHost(t, a, "empty")
+	a.mergeState(empty, proto.State{})
+	tt := ui.NewTester(a.view, 1100, 700)
+	tt.Frame()
+	shot(t, tt, "sidebar-flat")
+	// build is named once, by its tag: no header.
+	if n := countText(tt.Texts(), "build"); n != 1 {
+		t.Errorf("build shows %d times: %q", n, tt.Texts())
+	}
+	tag, ok := tt.Find("build")
+	api, ok2 := tt.Find("api")
+	if !ok || !ok2 || abs32(tag.Y+tag.H/2-(api.Y+api.H/2)) > 1 || tag.X <= api.X {
+		t.Errorf("build's tag %+v is not after its group's name %+v", tag, api)
+	}
+	if !tt.HasText("empty") || !tt.HasText("No sessions") {
+		t.Errorf("no row for the host without sessions: %q", tt.Texts())
+	}
+	if a.hostNeedsRow(build, a.hostGroups(build)) || !a.hostNeedsRow(empty, nil) {
+		t.Error("rows for the wrong hosts")
+	}
+	// Lost, its groups stay, its tag faded; failing, it has a row again.
+	build.conn = connConnecting
+	if a.hostNeedsRow(build, a.hostGroups(build)) {
+		t.Error("a host reconnecting has a row")
+	}
+	build.conn, build.err = connFailed, "Connection refused"
+	if !a.hostNeedsRow(build, a.hostGroups(build)) {
+		t.Error("a host the app can't reach has no row")
+	}
+	tt.Frame()
+	if !tt.HasText("Connection refused") || !tt.HasText("agent on build") {
+		t.Errorf("failing: %q", tt.Texts())
+	}
+}
+
+// With hosts, Open Project lists any machine's folders, this one's too,
+// with a switch between them.
+func TestPickerHosts(t *testing.T) {
+	a := testApp(t)
+	a.mergeState(a.local(), a.st)
+	withHost(t, a, "build")
+	a.picker = folderPicker{open: true, host: a.local(), list: &proto.FSList{Dir: "/home/me", Entries: []proto.FSEntry{{Name: "api", Dir: true}}}}
+	tt := ui.NewTester(a.view, 1100, 700)
+	tt.Frame()
+	shot(t, tt, "picker-hosts")
+	for _, h := range a.hosts {
+		if _, ok := tt.Find(locales.PickerTitle(h.label())); !ok {
+			t.Errorf("no switch to %s: %q", h.label(), tt.Texts())
+		}
 	}
 }
 
@@ -330,4 +392,48 @@ func TestPickerChosen(t *testing.T) {
 	if got := a.pickerChosen(items); got != "/home/me/api" {
 		t.Errorf("with api chosen, Open opens %q", got)
 	}
+}
+
+func countText(texts []string, s string) int {
+	n := 0
+	for _, t := range texts {
+		if t == s {
+			n++
+		}
+	}
+	return n
+}
+
+// A host's color is its own, else its name's, which stays.
+func TestHostColor(t *testing.T) {
+	h := &host{name: "devbox"}
+	if hostColorName(h) != hostColorName(&host{name: "DevBox"}) {
+		t.Error("the color of a name changes with its case")
+	}
+	h.cfg.Color = "teal"
+	if hostColorName(h) != "teal" {
+		t.Error("the configured color is not taken")
+	}
+	if lightPalette.hostColor(h) == darkPalette.hostColor(h) {
+		t.Error("one color for light and dark")
+	}
+	if lightPalette.hostColor(&host{}) != lightPalette.textMuted {
+		t.Error("this machine is colored")
+	}
+}
+
+// Dark, a remote group's tag and a remote pane's header in its host's
+// color ($KERO_SHOTS).
+func TestSidebarFlatDarkShot(t *testing.T) {
+	a := testApp(t)
+	a.mergeState(a.local(), a.st)
+	withHost(t, a, "build").cfg.Color = "teal"
+	withHost(t, a, "gpu")
+	a.selectSession("rs-build")
+	tt := ui.NewTester(a.view, 1100, 700)
+	tt.SetDark(true)
+	tt.Frame()
+	tt.Advance(time.Second) // colors ease from the light frame's
+	tt.Frame()
+	shot(t, tt, "sidebar-flat-dark")
 }
