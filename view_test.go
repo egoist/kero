@@ -797,3 +797,57 @@ func TestProjectDrag(t *testing.T) {
 		t.Errorf("order %v, want p2 then p1", a.prefs.ProjectOrder)
 	}
 }
+
+// The Order choice sorts a project's sessions by created or updated time.
+func TestSidebarOrder(t *testing.T) {
+	a := testApp(t)
+	a.st.Sessions[0].Created, a.st.Sessions[0].Activity = 100, 200
+	a.st.Sessions = append(a.st.Sessions,
+		proto.Session{ID: "s2", Project: "p1", Created: 200, Activity: 100},
+		proto.Session{ID: "s3", Project: "p1", Created: 300, Activity: 400})
+	ids := func() []string {
+		var out []string
+		for _, g := range a.hostGroups(a.local()) {
+			for _, s := range g.sessions {
+				out = append(out, s.ID)
+			}
+		}
+		return out
+	}
+	a.prefs.SidebarOrder = "created"
+	if got := ids(); !slices.Equal(got, []string{"s1", "s2", "s3"}) {
+		t.Errorf("created: %v", got)
+	}
+	a.prefs.SidebarOrder = "updated"
+	if got := ids(); !slices.Equal(got, []string{"s3", "s1", "s2"}) {
+		t.Errorf("updated: %v", got)
+	}
+	a.prefs.SidebarGroup = "none"
+	if got := a.visibleOrder(); !slices.Equal(got, []string{"s3", "s1", "s2"}) {
+		t.Errorf("flat updated: %v", got)
+	}
+}
+
+// By Date groups sessions under the day they were created, the newest
+// day first.
+func TestSidebarDateGroups(t *testing.T) {
+	a := testApp(t)
+	now := time.Now()
+	a.st.Sessions[0].Created = now.UnixMilli()
+	a.st.Sessions = append(a.st.Sessions,
+		proto.Session{ID: "s2", Project: "p1", Created: now.Add(-24 * time.Hour).UnixMilli()})
+	dgs := a.dateGroups(a.local())
+	if len(dgs) != 2 {
+		t.Fatalf("%d date groups, want 2", len(dgs))
+	}
+	if !dgs[0].day.After(dgs[1].day) {
+		t.Errorf("days %v then %v", dgs[0].day, dgs[1].day)
+	}
+	if got := dgs[0].sessions[0].ID; got != "s1" {
+		t.Errorf("today's first session %s", got)
+	}
+	a.prefs.SidebarGroup = "date"
+	if got := a.visibleOrder(); !slices.Equal(got, []string{"s1", "s2"}) {
+		t.Errorf("date order: %v", got)
+	}
+}

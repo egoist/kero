@@ -230,6 +230,7 @@ func kbd(c *ui.Context, pal *palette, keys string) {
 
 func (a *App) sidebar(c *ui.Context, pal *palette, bar ui.TitleBar) {
 	ui.Row(c).Height(topBar).Shrink(0).AlignItems(ui.Center).Padding(0, 12, 0, lead(bar)).Gap(2).DragWindow().Children(func() {
+		a.sortButton(c, pal)
 		// After the traffic lights on macOS, at the right; elsewhere the
 		// window controls are at the right, and the buttons at the left,
 		// where they stay as the sidebar hides (chrome.buttonsLeft).
@@ -240,7 +241,11 @@ func (a *App) sidebar(c *ui.Context, pal *palette, bar ui.TitleBar) {
 		iconButton(c, "new-session", plusIcon, a.tip(locales.ActionNewSession(), "session.new"), pal, func() { a.newSession("") })
 	})
 	ui.Scroll(c.Key("sessions")).Grow(1).Padding(0, 10, 16, 10).Children(func() {
-		n := 0  // the rows shown, for ⌘1–9 (Ctrl+1–9 elsewhere)
+		n := 0 // the rows shown, for ⌘1–9 (Ctrl+1–9 elsewhere)
+		if g := a.prefs.SidebarGroup; g == "none" || g == "date" {
+			a.sessionSidebar(c, pal, g, &n)
+			return
+		}
 		gi := 0 // the groups shown, the first of which sits higher
 		// This machine's projects first, unlabeled; then each host's,
 		// under its name.
@@ -276,6 +281,115 @@ func (a *App) sidebar(c *ui.Context, pal *palette, bar ui.TitleBar) {
 	c.After(20 * time.Second) // times ago move on
 }
 
+// sortButton opens the sidebar's Group and Order menu, as Otty's sort
+// icon does: how sessions group, and which order they take.
+func (a *App) sortButton(c *ui.Context, pal *palette) {
+	b := ui.ButtonBase(c.Key("sort-sidebar")).Size(28, 26).Radius(6).Center().TextColor(pal.textMuted).
+		Label(locales.SidebarSort()).Tooltip(locales.SidebarSort())
+	if b.Hovered() {
+		b.Background(pal.rowHover).TextColor(pal.text)
+	}
+	b.Menu(func(m *ui.Menu) {
+		group := a.prefs.SidebarGroup
+		if group == "" {
+			group = "project"
+		}
+		order := a.prefs.SidebarOrder
+		if order == "" {
+			order = "created"
+		}
+		m.Item(locales.SidebarGroup()).Disabled(true)
+		if m.Item(locales.SidebarGroupProject()).Checked(group == "project").Chosen() {
+			a.prefs.SidebarGroup = "project"
+			a.savePrefs()
+		}
+		if m.Item(locales.SidebarGroupNone()).Checked(group == "none").Chosen() {
+			a.prefs.SidebarGroup = "none"
+			a.savePrefs()
+		}
+		if m.Item(locales.SidebarGroupDate()).Checked(group == "date").Chosen() {
+			a.prefs.SidebarGroup = "date"
+			a.savePrefs()
+		}
+		m.Separator()
+		m.Item(locales.SidebarOrder()).Disabled(true)
+		if m.Item(locales.SidebarOrderCreated()).Checked(order == "created").Chosen() {
+			a.prefs.SidebarOrder = "created"
+			a.savePrefs()
+		}
+		if m.Item(locales.SidebarOrderUpdated()).Checked(order == "updated").Chosen() {
+			a.prefs.SidebarOrder = "updated"
+			a.savePrefs()
+		}
+	})
+	b.Children(func() { ui.Icon(c, sortIcon).Size(16, 16) })
+}
+
+// sessionSidebar lists every session, without projects: flat, or under
+// the day it was created.
+func (a *App) sessionSidebar(c *ui.Context, pal *palette, group string, n *int) {
+	gi := 0
+	local := a.local()
+	for _, h := range a.hosts {
+		if h == local && !h.loaded {
+			continue
+		}
+		empty := true
+		if group == "date" {
+			dgs := a.dateGroups(h)
+			empty = len(dgs) == 0
+			if h.remote() && (!empty || a.hostNeedsRow(h)) {
+				top := float32(18)
+				if gi == 0 && *n == 0 {
+					top = 2
+				}
+				a.hostLine(c, pal, h, top)
+				gi++
+			}
+			for _, dg := range dgs {
+				top := float32(18)
+				if gi == 0 && *n == 0 {
+					top = 2
+				}
+				a.dateHeader(c, pal, "date-"+h.name+"-"+dateLabel(dg.day, c.Now()), dateLabel(dg.day, c.Now()), len(dg.sessions), top)
+				gi++
+				for _, s := range dg.sessions {
+					a.sessionRow(c, pal, s, n)
+				}
+			}
+		} else {
+			ss := a.flatSessions(h)
+			empty = len(ss) == 0
+			if h.remote() && (!empty || a.hostNeedsRow(h)) {
+				top := float32(18)
+				if gi == 0 && *n == 0 {
+					top = 2
+				}
+				a.hostLine(c, pal, h, top)
+				gi++
+			}
+			for _, s := range ss {
+				a.sessionRow(c, pal, s, n)
+			}
+		}
+		if h == local && empty && h.conn == connReady && len(a.hosts) == 1 {
+			ui.Text(c, locales.SidebarNoSessions()).FontSize(12.5).TextColor(pal.textFaint).Padding(8, 10)
+		}
+	}
+}
+
+// dateHeader is a day in the sidebar's By Date.
+func (a *App) dateHeader(c *ui.Context, pal *palette, key, label string, count int, top float32) {
+	inset := float32(rowInset)
+	if pal.dark {
+		inset++
+	}
+	ui.Row(c.Key(key)).Height(28).Margin(top, 0, 3, 0).Padding(0, 6, 0, inset).Gap(6).AlignItems(ui.Center).Children(func() {
+		ui.Text(c, label).FontSize(12.5).FontWeight(600).TextColor(pal.textMuted).SingleLine().Shrink(1)
+		ui.Textf(c, "%d", count).FontSize(12.5).TextColor(pal.textFaint).FontFeatures("tnum")
+	})
+}
+
 func (a *App) groupView(c *ui.Context, pal *palette, g group, gi int, n *int) {
 	id, key := g.project.ID, g.key()
 	collapsed := a.prefs.Collapsed[key]
@@ -309,6 +423,7 @@ func (a *App) groupView(c *ui.Context, pal *palette, g group, gi int, n *int) {
 		if d, over := ui.DragOver[projectDrag](hdr); over && d.host == g.host && d.id != id {
 			y, _, _ := hdr.PointerPosition()
 			after := y > 14
+			a.projectAt, a.projectAfter = id, after
 			hdr.Background(pal.rowHover)
 			hdr.Draw(func(p *ui.Painter, r ui.Rect) {
 				ly := r.Y
@@ -320,7 +435,12 @@ func (a *App) groupView(c *ui.Context, pal *palette, g group, gi int, n *int) {
 		}
 		if d, ok := ui.Drop[projectDrag](hdr); ok && d.host == g.host && d.id != id {
 			y, _, _ := hdr.PointerPosition()
-			after, target := y > 14, id
+			after := y > 14
+			if a.projectAt == id {
+				// The side the insertion line last showed.
+				after = a.projectAfter
+			}
+			target := id
 			a.defer_(func() { a.moveProject(d, target, after) })
 		}
 	}
@@ -482,6 +602,12 @@ func (a *App) sessionRow(c *ui.Context, pal *palette, s *proto.Session, n *int) 
 		// A branch of its own, as an agent's in a worktree, by the name.
 		if b := offBranch(g); b != "" {
 			ui.Text(c, b).FontSize(12).TextColor(pal.textFaint).SingleLine().Ellipsis("…").Shrink(3).MinWidth(24).MaxWidth(120)
+		}
+		// Without project headers, the project says which list it is.
+		if a.prefs.SidebarGroup == "none" || a.prefs.SidebarGroup == "date" {
+			if p := a.projectName(s.Project); p != "" {
+				ui.Text(c, p).FontSize(12).TextColor(pal.textFaint).SingleLine().Ellipsis("…").Shrink(2).MinWidth(0).MaxWidth(90)
+			}
 		}
 		ui.Spacer(c)
 		cmd := c.Modifiers() == ui.Cmd
