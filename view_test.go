@@ -872,3 +872,19 @@ func TestSidebarDateGroups(t *testing.T) {
 		t.Errorf("date order: %v", got)
 	}
 }
+
+// A project's square takes its first letter, and keeps its color by id.
+func TestProjectBadge(t *testing.T) {
+	for name, want := range map[string]string{"feature-4.3": "F", "dora-go": "D", "呆蛙精灵": "呆"} {
+		if got := projectInitial(name); got != want {
+			t.Errorf("%q: %q, want %q", name, got, want)
+		}
+	}
+	p1 := proto.Project{ID: "p1", Name: "one"}
+	if projectBadgeColor(p1) != projectBadgeColor(proto.Project{ID: "p1", Name: "renamed"}) {
+		t.Error("the badge's color changed with the name")
+	}
+	if projectBadgeColor(proto.Project{}) == projectBadgeColor(p1) {
+		t.Error("the other project has the same color as a project")
+	}
+}

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/egoist/mygo/ui"
@@ -27,7 +28,11 @@ const (
 	// rowInset is where a sidebar row's text starts: a project's name, and
 	// a session's when it has no project header.
 	rowInset = 12
-	// childIndent steps a session's row in from its project's header, so a
+	// projectBadge is the square before a project's name, with its first
+	// letter; projectBadgeGap is the room after it.
+	projectBadge    = 20
+	projectBadgeGap = 6
+	// childIndent steps a session's row in from its project's name, so a
 	// list reads as the project's sessions rather than its siblings.
 	childIndent = 14
 )
@@ -357,7 +362,7 @@ func (a *App) sessionSidebar(c *ui.Context, pal *palette, group string, n *int) 
 				a.dateHeader(c, pal, "date-"+h.name+"-"+dateLabel(dg.day, c.Now()), dateLabel(dg.day, c.Now()), len(dg.sessions), top)
 				gi++
 				for _, s := range dg.sessions {
-					a.sessionRow(c, pal, s, n, float32(rowInset)+childIndent)
+					a.sessionRow(c, pal, s, n, float32(rowInset+projectBadge+projectBadgeGap+childIndent))
 				}
 			}
 		} else {
@@ -484,6 +489,10 @@ func (a *App) groupView(c *ui.Context, pal *palette, g group, gi int, n *int) {
 		}
 	})
 	hdr.Children(func() {
+		ui.Box(c.Key("project-icon-"+key)).Size(projectBadge, projectBadge).Radius(5).Center().Shrink(0).
+			Background(projectBadgeColor(g.project)).Children(func() {
+			ui.Text(c, projectInitial(g.project.Name)).FontSize(10.5).FontWeight(700).TextColor(ui.Hex("#ffffff"))
+		})
 		if renaming {
 			in := ui.TextInputBase(c.Key("rename"), &a.renameBuf).Grow(1).MinWidth(0).FontSize(12.5).FontWeight(600).AutoFocus()
 			if in.Shortcut(0, ui.KeyEscape) {
@@ -526,14 +535,42 @@ func (a *App) groupView(c *ui.Context, pal *palette, g group, gi int, n *int) {
 		// The session shown stays in view.
 		for _, s := range g.sessions {
 			if s.ID == a.selected {
-				a.sessionRow(c, pal, s, n, float32(rowInset)+childIndent)
+				a.sessionRow(c, pal, s, n, float32(rowInset+projectBadge+projectBadgeGap+childIndent))
 			}
 		}
 		return
 	}
 	for _, s := range g.sessions {
-		a.sessionRow(c, pal, s, n, float32(rowInset)+childIndent)
+		a.sessionRow(c, pal, s, n, float32(rowInset+projectBadge+projectBadgeGap+childIndent))
 	}
+}
+
+// projectBadges are the colors of the squares before project names: muted
+// enough to sit under the names, each project keeping one.
+var projectBadges = []ui.Color{
+	ui.Hex("#8a5a3c"), ui.Hex("#8a4f6a"), ui.Hex("#9a6a2c"), ui.Hex("#3f6f92"),
+	ui.Hex("#7b5ea7"), ui.Hex("#6f5aa8"), ui.Hex("#4f8a6a"), ui.Hex("#a35d5d"),
+}
+
+// projectBadgeColor is a project's square, by its id, so that renaming it
+// keeps the color; the "other" project gets a neutral one.
+func projectBadgeColor(p proto.Project) ui.Color {
+	if p.ID == "" {
+		return ui.Hex("#8b8b95")
+	}
+	var h uint32
+	for _, r := range p.ID {
+		h = h*31 + uint32(r)
+	}
+	return projectBadges[h%uint32(len(projectBadges))]
+}
+
+// projectInitial is the first letter of a project's name, for its square.
+func projectInitial(name string) string {
+	for _, r := range name {
+		return strings.ToUpper(string(r))
+	}
+	return ""
 }
 
 func (a *App) sessionRow(c *ui.Context, pal *palette, s *proto.Session, n *int, inset float32) {
