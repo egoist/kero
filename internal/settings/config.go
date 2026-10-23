@@ -132,6 +132,7 @@ var keys = []key{
 			s.WindowOpacity = float32(n)
 			return nil
 		}},
+	boolKey("window-blur", "blur the desktop behind the translucent background; off, the wash is plain transparency", func(s *Settings) *bool { return &s.WindowBlur }),
 	boolKey("pet", "Kero the frog on the window's top edge, who follows your sessions", func(s *Settings) *bool { return &s.Pet }),
 	choiceKey("pet-position", "where Kero stands on the window's top edge", func(s *Settings) *string { return &s.PetPosition }, "left", "center", "right"),
 

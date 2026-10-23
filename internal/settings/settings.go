@@ -36,6 +36,7 @@ type Settings struct {
 	Background    string  `json:"background"`    // a wash, see Backgrounds
 	Vibrancy      bool    `json:"vibrancy"`      // the window's material under the wash
 	WindowOpacity float32 `json:"windowOpacity"` // how much of the wash covers the window, 0 to 1
+	WindowBlur    bool    `json:"windowBlur"`    // blur the desktop behind the wash
 	Pet           bool    `json:"pet"`           // the frog on the window's top edge
 	PetPosition   string  `json:"petPosition"`   // where it stands: "left", "center" or "right"
 
@@ -143,6 +144,7 @@ func Default() Settings {
 		Background:      "rex",
 		Vibrancy:        true,
 		WindowOpacity:   DefaultWindowOpacity,
+		WindowBlur:      true,
 		Pet:             true,
 		PetPosition:     "right",
 		DimUnfocused:    true,

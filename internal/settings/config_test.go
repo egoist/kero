@@ -163,6 +163,23 @@ func TestWindowOpacity(t *testing.T) {
 	}
 }
 
+// The background's blur is on unless the configuration turns it off.
+func TestWindowBlur(t *testing.T) {
+	if !Default().WindowBlur {
+		t.Fatal("blur is off by default")
+	}
+	s, probs := parse("window-blur = false\n")
+	if s.WindowBlur || len(probs) != 0 {
+		t.Fatalf("window-blur = false: %v, problems %q", s.WindowBlur, probs)
+	}
+	if out := format(s, ""); !strings.Contains(out, "window-blur = false\n") {
+		t.Errorf("formatted:\n%s", out)
+	}
+	if back, _ := parse(format(s, "")); back.WindowBlur {
+		t.Error("the blur came back on")
+	}
+}
+
 // Kero elsewhere updates the app here only once the user lets it.
 func TestRemoteUpdatesOptIn(t *testing.T) {
 	if Default().RemoteUpdates {

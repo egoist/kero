@@ -185,9 +185,9 @@ func washOpacity(s settings.Settings) float32 {
 
 // backdrop paints the window's wash of color, under the sidebar and
 // between the cards: the base on the root, a glow from the top right on
-// row, which holds everything else. It lies over the window's material,
-// which shows through as much as the setting says; the plain one is the
-// material alone.
+// row, which holds everything else. It lies over the window's material
+// where there is one, and over the desktop when the window is blurless;
+// the plain one is the material or the desktop alone.
 func backdrop(c *ui.Context, pal *palette, row ui.Element, s settings.Settings) {
 	base, glow := washes(s.Background, pal.dark)
 	if s.Background == "plain" {
@@ -195,16 +195,16 @@ func backdrop(c *ui.Context, pal *palette, row ui.Element, s settings.Settings) 
 		// under it: a base of the sidebar's color keeps the text legible,
 		// letting the desktop show a little.
 		bg := pal.sidebar
-		if c.Vibrancy() {
+		if s.Vibrancy {
 			bg = bg.Alpha(washOpacity(s))
 		}
 		c.Root().Background(bg)
 		return
 	}
 	alpha := float32(1)
-	if c.Vibrancy() {
-		// The material shows through the wash, which keeps the text
-		// legible.
+	if s.Vibrancy {
+		// The wash is translucent over the material, or over the desktop
+		// when the window is blurless.
 		alpha = washOpacity(s)
 	}
 	stops := make([]ui.GradientStop, len(base.Stops))
@@ -213,7 +213,7 @@ func backdrop(c *ui.Context, pal *palette, row ui.Element, s settings.Settings) 
 	}
 	base.Stops = stops
 	c.Root().LinearGradient(base)
-	if c.Vibrancy() {
+	if s.Vibrancy {
 		// The glow is part of the wash: at 0% none of it shows either.
 		for i := range glow.Stops {
 			glow.Stops[i].Color = glow.Stops[i].Color.Alpha(alpha)
