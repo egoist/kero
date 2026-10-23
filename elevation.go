@@ -91,6 +91,16 @@ func fieldButton(c *ui.Context, key, label string, primary bool, pal *palette) b
 }
 
 func sizedButton(c *ui.Context, key, label, keys string, primary bool, height, radius float32, pal *palette) bool {
+	return sizedButtonEl(c, key, label, keys, primary, height, radius, pal).Clicked()
+}
+
+func buttonEl(c *ui.Context, key, label, keys string, primary bool, pal *palette) ui.Element {
+	return sizedButtonEl(c, key, label, keys, primary, 30, 8, pal)
+}
+
+// sizedButtonEl is the button of sizedButton, before its click is read, for
+// one to take the focus, as AutoFocus.
+func sizedButtonEl(c *ui.Context, key, label, keys string, primary bool, height, radius float32, pal *palette) ui.Element {
 	b := ui.ButtonBase(c.Key(key)).Height(height).Padding(0, 14).Gap(8).Radius(radius).AlignItems(ui.Center).Label(label)
 	bg, fg := pal.control, pal.text
 	if primary {
@@ -111,7 +121,7 @@ func sizedButton(c *ui.Context, key, label, keys string, primary bool, height, r
 			ui.Text(c, keys).FontSize(12).TextColor(fg.Alpha(0.55)).SingleLine()
 		}
 	})
-	return b.Clicked()
+	return b
 }
 
 // borderless returns the theme with kero's look: its accent, and no lines

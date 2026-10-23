@@ -63,3 +63,11 @@ kero daemon status       # kerod 是否在运行？
 kero daemon restart      # 重启它（会话会重新启动）
 kero daemon stop         # 停止它，并结束所有会话
 ```
+
+### 退出
+
+退出 Kero 后，会话继续运行，再次打开时原样呈现。若希望退出时一并结束它们（与**退出并结束所有会话**相同），请设置 `quit-ends-sessions = true`：此后无论是点关闭按钮、按 ⌘Q 还是使用菜单，退出都会结束本机的全部会话及其中的程序，并停止 kerod；有程序在运行时，会按 `confirm-close` 的设置先确认。其他机器上的会话继续运行。
+
+```ini
+quit-ends-sessions = true
+```

@@ -155,6 +155,10 @@ type App struct {
 	from   *host
 	picker folderPicker // the folders of a host, to open a project in
 	side   sideState    // the side panel, beside a session's panes
+
+	// quitting is set while the quit quit-ends-sessions makes ends the
+	// sessions, either while it asks or once its answer does.
+	quitting bool
 }
 
 // confirmation is a question the app asks before something it cannot undo.
@@ -164,7 +168,10 @@ type confirmation struct {
 	detail  string
 	action  string
 	destroy bool
-	run     func()
+	// ends marks a question whose answer ends programs: it takes a click,
+	// not the Return a key typed in a program sends.
+	ends bool
+	run  func()
 }
 
 func newApp() *App {
@@ -1547,16 +1554,107 @@ func (a *App) quitAndEnd() {
 		detail:  quitAllDetail(n, len(a.hosts) > 1),
 		action:  locales.ConfirmQuitAllAction(),
 		destroy: true,
-		run: func() {
-			cl := a.local().cl
-			go func() {
-				if cl != nil {
-					cl.Call("shutdown", nil, nil)
-				}
-				mygo.App.Quit()
-			}()
-		},
+		ends:    true,
+		run:     a.endSessionsAndQuit,
 	}
+}
+
+// endSessionsAndQuit ends every session of this machine, and its kerod,
+// then quits: other machines' keep running. A shutdown that takes a
+// while is the daemon's to finish, as it is for Quit and End All
+// Sessions: the app does not wait on it.
+func (a *App) endSessionsAndQuit() {
+	h := a.local()
+	cl := h.cl
+	go func() {
+		if cl == nil {
+			a.quitEndsSession()
+		} else if cl.Call("shutdown", nil, nil) != nil {
+			// kerod went before it answered, or speaks another version:
+			// stop the one this machine runs.
+			stopDaemon()
+		}
+		mygo.App.Quit()
+	}()
+}
+
+// quitRequested is mygo's quit request, from Cmd+Q, the menu, the window's
+// close, or the Dock, and reports whether the quit goes ahead. With
+// quit-ends-sessions, a quit ends this machine's sessions as
+// endSessionsAndQuit does, so it asks what Quit and End All Sessions asks
+// while a program runs, and closes nothing until the answer says so.
+func (a *App) quitRequested() bool {
+	a.savePrefs()
+	if !a.set.QuitEndsSessions || a.quitting {
+		// A quit taken back before, or the one its answer makes: either
+		// way it is over.
+		a.quitting = false
+		return true
+	}
+	busy := a.busyCount(a.local())
+	switch {
+	case busy > 0 && a.set.ConfirmClose:
+		a.quitting = true
+		a.confirm = &confirmation{
+			open:    true,
+			title:   locales.ConfirmQuitAllTitle(),
+			detail:  quitAllDetail(busy, len(a.hosts) > 1),
+			action:  locales.ConfirmQuitAllAction(),
+			destroy: true,
+			ends:    true, // Return may be a program's to read
+			run:     a.endSessionsAndQuit,
+		}
+		return false
+	case busy == 0 && a.hostsLoaded():
+		// Nothing runs that the user could lose: the quit ends the
+		// sessions itself, as it goes.
+		return true
+	case !a.hostsLoaded():
+		// The sessions have not come yet, and with them what runs: take
+		// the quit back while the app shows them, and ask again when the
+		// user quits after.
+		a.quitting = true
+		a.bringToFront()
+		return false
+	default:
+		// Nothing runs, and the sessions are not all in sight, as when
+		// the app quits from the Dock while hidden: let it end them.
+		return true
+	}
+}
+
+// bringToFront shows the window, and brings it forward, so that the user
+// sees what the app asks, or ends.
+func (a *App) bringToFront() {
+	if a.win == nil {
+		return
+	}
+	a.win.Show() // it has no native window, as in tests
+	a.win.Restore()
+	a.win.Focus()
+}
+
+// quitEndsSession ends this machine's sessions without kerod to ask, as
+// when the app quits before it connects: the quit-ends-sessions the user
+// chose then takes the sessions' state, so that none starts again.
+func (a *App) quitEndsSession() {
+	for _, s := range a.sessionsOf(a.local()) {
+		if cl, err := client.Connect(true); err == nil {
+			cl.Call("close", proto.IDParams{ID: s.ID}, nil)
+			cl.Close()
+		}
+	}
+}
+
+// hostsLoaded reports whether every host has shown its sessions, as the
+// app asks before it ends this machine's.
+func (a *App) hostsLoaded() bool {
+	for _, h := range a.hosts {
+		if h.conn == connConnecting || (h.cl != nil && !h.loaded) {
+			return false
+		}
+	}
+	return true
 }
 
 // daemonStale reports whether kerod runs another version of Kero than

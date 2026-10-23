@@ -26,6 +26,7 @@ func settingsIndex() []searchEntry {
 		{"general", locales.SetSessionName(), "session-name title sidebar focused lead folder pane"},
 		{"general", locales.SetFocusFollowsMouse(), "focus-follows-mouse hover pointer niri hyprland sloppy"},
 		{"general", locales.SetAskBeforeClosing(), "confirm-close quit kill"},
+		{"general", locales.SetQuitEndsSessions(), "quit-ends-sessions quit exit stop kill end clean cleanly leave window close background process"},
 		{"general", locales.SetRestoreSessions(), "restore-sessions reboot persist"},
 		{"general", locales.SetResumeAgents(), "resume-agents claude codex pi opencode conversation restore reboot"},
 		{"general", locales.SetGitStatus(), "git-status branch changes diff repository worktree"},

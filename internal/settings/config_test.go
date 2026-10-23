@@ -255,3 +255,18 @@ func TestAdLists(t *testing.T) {
 		t.Errorf("the default lists were written:\n%s", out)
 	}
 }
+
+// Quitting keeps the sessions running unless the configuration says
+// otherwise, with quit-ends-sessions.
+func TestQuitEndsSessions(t *testing.T) {
+	if Default().QuitEndsSessions {
+		t.Fatal("quit-ends-sessions is on by default")
+	}
+	s, probs := parse("quit-ends-sessions = true\n")
+	if len(probs) != 0 || !s.QuitEndsSessions {
+		t.Fatalf("quit-ends-sessions: %v, problems %q", s.QuitEndsSessions, probs)
+	}
+	if out := format(s, ""); !strings.Contains(out, "quit-ends-sessions = true\n") {
+		t.Errorf("formatted:\n%s", out)
+	}
+}

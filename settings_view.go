@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/egoist/mygo"
@@ -488,6 +489,9 @@ func (a *App) generalPage(c *ui.Context, pal *palette) {
 		settingRow(c, pal, locales.SetAskBeforeClosing(), locales.SetAskBeforeClosingDetail(), func() {
 			toggle(c.Key("confirm"), &s.ConfirmClose, pal)
 		})
+		settingRow(c, pal, locales.SetQuitEndsSessions(), locales.SetQuitEndsSessionsDetail(), func() {
+			toggle(c.Key("quit-ends"), &s.QuitEndsSessions, pal)
+		})
 		settingRow(c, pal, locales.SetRestoreSessions(), locales.SetRestoreSessionsDetail(), func() {
 			toggle(c.Key("restore"), &s.RestoreSessions, pal)
 		})
@@ -719,17 +723,18 @@ var fontChoices = []string{"JetBrains Mono Nerd Font", "System", "SF Mono", "Men
 // system's, the common coding fonts, and every monospaced family the
 // machine has, so that a font installed with the system is there to pick.
 // Fonts installed while kero runs show after a restart, as MyGo lists
-// them once.
-var fontOptionList []string
-
+// them once. The system's is named in the language the app shows now.
 func fontOptions() []string {
-	if fontOptionList != nil {
-		return fontOptionList
-	}
-	opts := []string{fontChoices[0], locales.SetFontSystem()}
-	seen := map[string]bool{opts[0]: true, opts[1]: true}
+	return append([]string{fontChoices[0], locales.SetFontSystem()}, otherFonts()...)
+}
+
+// otherFonts are the families of fontOptions after kero's own and the
+// system's, listed once.
+var otherFonts = sync.OnceValue(func() []string {
+	var opts []string
+	seen := map[string]bool{fontChoices[0]: true, bundledFont: true}
 	add := func(name string) {
-		if name == "" || name == bundledFont || seen[name] {
+		if name == "" || seen[name] {
 			return
 		}
 		seen[name] = true
@@ -743,9 +748,8 @@ func fontOptions() []string {
 			add(f.Name)
 		}
 	}
-	fontOptionList = opts
 	return opts
-}
+})
 
 func (a *App) terminalPage(c *ui.Context, pal *palette) {
 	s := &a.set

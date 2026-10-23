@@ -114,8 +114,12 @@ func runApp() {
 			a.win.Show()
 		}
 	})
-	mygo.App.OnBeforeQuit(func(*mygo.QuitEvent) {
-		a.savePrefs()
+	// The question quit-ends-sessions may ask comes before the windows
+	// close, and takes the quit back.
+	mygo.App.OnBeforeQuit(func(e *mygo.QuitEvent) {
+		if !a.quitRequested() {
+			e.PreventDefault()
+		}
 	})
 	mygo.App.WhenReady(func() {
 		a.win = mygo.NewWindow(framed(mygo.WindowOptions{

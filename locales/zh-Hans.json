@@ -205,6 +205,8 @@
   "setFocusFollowsMouseDetail": "指针移入窗格时，该窗格无需点击即获得焦点。",
   "setAskBeforeClosing": "关闭正在运行的程序前询问",
   "setAskBeforeClosingDetail": "当你关闭的窗格或会话中正运行着 Shell 以外的程序时。",
+  "setQuitEndsSessions": "退出 Kero 时结束会话",
+  "setQuitEndsSessionsDetail": "退出 Kero（包括点关闭按钮、按 ⌘Q 或使用菜单）时，结束本机的全部会话及其中的程序，并停止后台服务，与“退出并结束所有会话”相同。打开“关闭仍在运行的程序前先确认”时，会先询问。其他机器上的会话继续运行。",
   "setRestoreSessions": "重启后恢复会话",
   "setRestoreSessionsDetail": "如果后台服务停止（例如 Mac 重启），会话会在各自的文件夹中重新开始，并保留历史记录。",
   "setResumeAgents": "恢复智能体",

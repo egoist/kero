@@ -2102,6 +2102,26 @@ func (msgs Messages) SetAskBeforeClosingDetail() string {
 	return Catalog.Format(msgs.locale, "setAskBeforeClosingDetail", nil)
 }
 
+// SetQuitEndsSessions says "End sessions when Kero quits"
+// in the language the app shows.
+func SetQuitEndsSessions() string { return In(i18n.Locale()).SetQuitEndsSessions() }
+
+// SetQuitEndsSessions says "End sessions when Kero quits"
+// in the language of msgs.
+func (msgs Messages) SetQuitEndsSessions() string {
+	return Catalog.Format(msgs.locale, "setQuitEndsSessions", nil)
+}
+
+// SetQuitEndsSessionsDetail says "Quitting, as with the close button, ⌘Q or the menu, ends this machine’s sessions and their programs, and stops th…"
+// in the language the app shows.
+func SetQuitEndsSessionsDetail() string { return In(i18n.Locale()).SetQuitEndsSessionsDetail() }
+
+// SetQuitEndsSessionsDetail says "Quitting, as with the close button, ⌘Q or the menu, ends this machine’s sessions and their programs, and stops th…"
+// in the language of msgs.
+func (msgs Messages) SetQuitEndsSessionsDetail() string {
+	return Catalog.Format(msgs.locale, "setQuitEndsSessionsDetail", nil)
+}
+
 // SetRestoreSessions says "Restore sessions after a restart"
 // in the language the app shows.
 func SetRestoreSessions() string { return In(i18n.Locale()).SetRestoreSessions() }
