@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"maps"
 	"net/url"
 	"os"
@@ -1136,20 +1137,56 @@ func (a *App) openProject() {
 
 // openProjectAt starts a session in a folder of a host, in its project.
 func (a *App) openProjectAt(h *host, dir string) {
-	cl := h.cl
+	cl, local := h.cl, !h.remote()
 	if cl == nil {
 		return
 	}
-	go func() {
+	go a.openProjectDirs(h, cl, []string{dir}, local)
+}
+
+// openProjectDirs runs off the UI thread with the host and client captured.
+func (a *App) openProjectDirs(h *host, cl *client.Client, dirs []string, local bool) {
+	seen := map[string]bool{}
+	var errs []error
+	for _, dir := range dirs {
+		// Remote paths are validated by their host, not this machine's path rules.
+		if local && !filepath.IsAbs(dir) {
+			errs = append(errs, fmt.Errorf("not an absolute directory: %s", dir))
+			continue
+		}
 		var p proto.Project
 		if err := cl.Call("project.create", proto.ProjectParams{Dir: dir}, &p); err != nil {
-			a.update(func() { a.toast(err.Error()) })
-			return
+			errs = append(errs, fmt.Errorf("%s: %w", dir, err))
+			continue
+		}
+		if seen[p.ID] {
+			continue
+		}
+		seen[p.ID] = true
+		var s proto.Session
+		if err := cl.Call("create", proto.CreateParams{Project: p.ID, Dir: dir}, &s); err != nil {
+			errs = append(errs, fmt.Errorf("%s: %w", dir, err))
+			continue
 		}
 		a.update(func() {
-			a.create(h, proto.CreateParams{Project: p.ID, Dir: dir}, p.ID)
+			if h.cl != cl {
+				return
+			}
+			delete(a.prefs.Collapsed, p.ID)
+			if a.project(p.ID) == nil {
+				a.st.Projects = append(a.st.Projects, p)
+			}
+			a.addPending(h, s)
+			a.selectSession(s.ID)
 		})
-	}()
+	}
+	if err := errors.Join(errs...); err != nil {
+		a.update(func() {
+			if h.cl == cl {
+				a.toast(err.Error())
+			}
+		})
+	}
 }
 
 // busy reports whether closing a session would end a program the user may

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -361,7 +362,29 @@ func (d *Daemon) call(c *controlConn, method string, raw json.RawMessage) (any, 
 		if err := decode(&p); err != nil {
 			return nil, err
 		}
-		dir := expandHome(p.Dir)
+		dir, err := d.cleanDir(p.Dir)
+		if err != nil {
+			return nil, err
+		}
+		var info os.FileInfo
+		if dir != "" {
+			// Opening "." checks read and search access without changing the working directory.
+			f, err := os.OpenInRoot(dir, ".")
+			if err != nil {
+				return nil, err
+			}
+			info, err = f.Stat()
+			closeErr := f.Close()
+			if err != nil {
+				return nil, err
+			}
+			if closeErr != nil {
+				return nil, closeErr
+			}
+			if err := checkProjectDir(dir); err != nil {
+				return nil, err
+			}
+		}
 		name := strings.TrimSpace(p.Name)
 		if name == "" && dir != "" {
 			name = filepath.Base(dir)
@@ -369,18 +392,40 @@ func (d *Daemon) call(c *controlConn, method string, raw json.RawMessage) (any, 
 		if name == "" {
 			return nil, errors.New("a project needs a name or a directory")
 		}
-		d.mu.Lock()
-		for _, pr := range d.projects {
-			if dir != "" && pr.Dir == dir {
-				d.mu.Unlock()
-				return pr, nil
+		for {
+			d.mu.Lock()
+			projects := slices.Clone(d.projects)
+			d.mu.Unlock()
+			var existing proto.Project
+			for _, pr := range projects {
+				if dir == "" || pr.Dir == "" {
+					continue
+				}
+				if pr.Dir == dir {
+					existing = pr
+					break
+				}
+				if old, err := os.Stat(pr.Dir); err == nil && os.SameFile(info, old) {
+					existing = pr
+					break
+				}
 			}
+			d.mu.Lock()
+			// Filesystem probes can block on a share; retry if projects changed meanwhile.
+			if !slices.Equal(projects, d.projects) {
+				d.mu.Unlock()
+				continue
+			}
+			if existing.ID != "" {
+				d.mu.Unlock()
+				return existing, nil
+			}
+			pr := proto.Project{ID: newID(), Name: name, Dir: dir}
+			d.projects = append(d.projects, pr)
+			d.mu.Unlock()
+			d.changed()
+			return pr, nil
 		}
-		pr := proto.Project{ID: newID(), Name: name, Dir: dir}
-		d.projects = append(d.projects, pr)
-		d.mu.Unlock()
-		d.changed()
-		return pr, nil
 
 	case "project.rename":
 		var p proto.ProjectParams

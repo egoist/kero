@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"runtime"
+	"slices"
 	"time"
 
 	"github.com/egoist/mygo/ui"
@@ -102,6 +103,16 @@ func (a *App) view(c *ui.Context) {
 	row.Children(func() {
 		w := a.chrome.sideW
 		side := ui.Row(c).Width(w).Shrink(0).AlignItems(ui.Stretch).ClipX()
+		if h := a.local(); h.conn == connReady && h.cl != nil && !a.prefs.SidebarHidden && !a.pal.open && !a.picker.open && (a.confirm == nil || !a.confirm.open) {
+			if files := side.DroppedFiles(); len(files) > 0 {
+				go a.openProjectDirs(h, h.cl, slices.Clone(files), true)
+			}
+			if side.FileDragOver() {
+				side.Background(pal.accent.Alpha(0.08)).Draw(func(p *ui.Painter, r ui.Rect) {
+					p.Stroke(ui.Rect{X: r.X + 4, Y: r.Y + 4, W: r.W - 8, H: r.H - 8}, pal.accent.Alpha(0.55), 8, 1)
+				})
+			}
+		}
 		side.Children(func() {
 			ui.Column(c).Width(a.prefs.SidebarWidth).Shrink(0).Margin(0, 0, 0, w-a.prefs.SidebarWidth).
 				Opacity(0.4 + 0.6*shown).Children(func() { a.sidebar(c, pal, bar) })
