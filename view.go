@@ -296,8 +296,35 @@ func (a *App) groupView(c *ui.Context, pal *palette, g group, gi int, n *int) {
 		inset++
 	}
 	hdr := ui.Row(c.Key("project-"+key)).Height(28).Margin(top, 0, 3, 0).Padding(0, 6, 0, inset).Gap(6).AlignItems(ui.Center).Radius(6)
-	hovered := hdr.Hovered()
 	renaming := id != "" && a.renamingProject == id
+	// The name is the project's handle: dragged, it moves the project to
+	// another place under its host.
+	if id != "" && !renaming {
+		hdr.Drag(projectDrag{host: g.host, id: id}).Cursor(ui.CursorGrab)
+		if hdr.Dragging() {
+			hdr.Opacity(0.35)
+		}
+	}
+	if id != "" {
+		if d, over := ui.DragOver[projectDrag](hdr); over && d.host == g.host && d.id != id {
+			y, _, _ := hdr.PointerPosition()
+			after := y > 14
+			hdr.Background(pal.rowHover)
+			hdr.Draw(func(p *ui.Painter, r ui.Rect) {
+				ly := r.Y
+				if after {
+					ly = r.Y + r.H - 2
+				}
+				p.Fill(ui.Rect{X: r.X, Y: ly, W: r.W, H: 2}, pal.accent, 1)
+			})
+		}
+		if d, ok := ui.Drop[projectDrag](hdr); ok && d.host == g.host && d.id != id {
+			y, _, _ := hdr.PointerPosition()
+			after, target := y > 14, id
+			a.defer_(func() { a.moveProject(d, target, after) })
+		}
+	}
+	hovered := hdr.Hovered()
 	if hdr.Clicked() && !renaming {
 		a.toggleProject(key)
 	}

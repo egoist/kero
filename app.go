@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"runtime"
 	"slices"
+	"sort"
 	"strings"
 	"time"
 
@@ -45,7 +46,10 @@ type prefs struct {
 	SidebarWidth  float32         `json:"sidebarWidth,omitempty"`
 	SidebarHidden bool            `json:"sidebarHidden,omitempty"`
 	Collapsed     map[string]bool `json:"collapsed,omitempty"`
-	FontSize      float32         `json:"fontSize,omitempty"`
+	// ProjectOrder is the order the user dragged projects into, by id,
+	// across every host; unlisted projects follow in the daemon's order.
+	ProjectOrder []string `json:"projectOrder,omitempty"`
+	FontSize     float32  `json:"fontSize,omitempty"`
 	// Side is the view the side panel shows, "" while it is hidden, and
 	// SideWidth its width.
 	Side      string  `json:"side,omitempty"`
@@ -451,12 +455,16 @@ func (a *App) groups() []group {
 
 // hostGroups returns a host's projects, with their sessions.
 func (a *App) hostGroups(h *host) []group {
+	var projects []proto.Project
+	for _, p := range a.st.Projects {
+		if a.hostOf(p.ID) == h {
+			projects = append(projects, p)
+		}
+	}
+	a.orderProjects(projects)
 	var gs []group
 	known := map[string]bool{}
-	for _, p := range a.st.Projects {
-		if a.hostOf(p.ID) != h {
-			continue
-		}
+	for _, p := range projects {
 		known[p.ID] = true
 		g := group{host: h, project: p}
 		for i := range a.st.Sessions {
@@ -476,6 +484,82 @@ func (a *App) hostGroups(h *host) []group {
 		gs = append(gs, other)
 	}
 	return gs
+}
+
+// orderProjects sorts ps as the user dragged them, by the ids in
+// ProjectOrder; projects it does not name keep the daemon's order, after
+// them.
+func (a *App) orderProjects(ps []proto.Project) {
+	if len(a.prefs.ProjectOrder) == 0 {
+		return
+	}
+	at := map[string]int{}
+	for i, id := range a.prefs.ProjectOrder {
+		if _, ok := at[id]; !ok {
+			at[id] = i
+		}
+	}
+	sort.SliceStable(ps, func(i, j int) bool {
+		ii, iok := at[ps[i].ID]
+		jj, jok := at[ps[j].ID]
+		switch {
+		case iok && jok:
+			return ii < jj
+		case iok:
+			return true
+		case jok:
+			return false
+		}
+		return false
+	})
+}
+
+// projectDrag is a project dragged by its name to another place under the
+// same host.
+type projectDrag struct {
+	host *host
+	id   string
+}
+
+// moveProject puts a project drag before or after target, under its
+// host, and keeps the order in the app's preferences.
+func (a *App) moveProject(d projectDrag, target string, after bool) {
+	if d.id == "" || target == "" || d.id == target {
+		return
+	}
+	var order []string
+	for _, g := range a.hostGroups(d.host) {
+		if g.project.ID != "" {
+			order = append(order, g.project.ID)
+		}
+	}
+	i := slices.Index(order, d.id)
+	j := slices.Index(order, target)
+	if i < 0 || j < 0 {
+		return
+	}
+	order = slices.Delete(order, i, i+1)
+	j = slices.Index(order, target)
+	if after {
+		j++
+	}
+	order = slices.Insert(order, j, d.id)
+	// Replace this host's ids in the order, leaving the other hosts' as
+	// they are: only their order among themselves matters.
+	hostIDs := map[string]bool{}
+	for _, g := range a.hostGroups(d.host) {
+		if g.project.ID != "" {
+			hostIDs[g.project.ID] = true
+		}
+	}
+	kept := a.prefs.ProjectOrder[:0]
+	for _, id := range a.prefs.ProjectOrder {
+		if !hostIDs[id] {
+			kept = append(kept, id)
+		}
+	}
+	a.prefs.ProjectOrder = append(kept, order...)
+	a.savePrefs()
 }
 
 // collapsed reports whether a group's sessions are hidden in the sidebar.

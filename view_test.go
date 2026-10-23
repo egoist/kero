@@ -736,3 +736,64 @@ func TestCommandBackspaceClearsLine(t *testing.T) {
 		}
 	}
 }
+
+// Dragging a project's name moves it among its host's projects, before
+// or after the project it is dropped on.
+func TestProjectOrder(t *testing.T) {
+	a := testApp(t)
+	a.st.Projects = append(a.st.Projects,
+		proto.Project{ID: "p2", Name: "two"},
+		proto.Project{ID: "p3", Name: "three"})
+	a.prefs.ProjectOrder = []string{"p3", "p1", "p2"}
+	ids := func() []string {
+		var out []string
+		for _, g := range a.hostGroups(a.local()) {
+			out = append(out, g.project.ID)
+		}
+		return out
+	}
+	if got := ids(); !slices.Equal(got, []string{"p3", "p1", "p2"}) {
+		t.Fatalf("ordered %v", got)
+	}
+	a.moveProject(projectDrag{host: a.local(), id: "p1"}, "p3", false)
+	if got := ids(); !slices.Equal(got, []string{"p1", "p3", "p2"}) {
+		t.Errorf("before p3: %v", got)
+	}
+	a.moveProject(projectDrag{host: a.local(), id: "p2"}, "p1", false)
+	if got := ids(); !slices.Equal(got, []string{"p2", "p1", "p3"}) {
+		t.Errorf("before p1: %v", got)
+	}
+}
+
+// A project's name dragged onto another project's lower half puts it
+// after that project.
+func TestProjectDrag(t *testing.T) {
+	a := testApp(t)
+	a.st.Projects = append(a.st.Projects, proto.Project{ID: "p2", Name: "two"})
+	tt := ui.NewTester(a.view, 1100, 640)
+	tt.Frame()
+	src, ok := tt.Find("demo")
+	if !ok {
+		t.Fatalf("no demo project; texts %q", tt.Texts())
+	}
+	dst, ok := tt.Find("two")
+	if !ok {
+		t.Fatalf("no two project; texts %q", tt.Texts())
+	}
+	tt.Press(src.X+10, src.Y+src.H/2)
+	for i := 1; i <= 10; i++ {
+		f := float32(i) / 10
+		x := src.X + 10
+		y := src.Y + src.H/2 + (dst.Y+dst.H-4-src.Y-src.H/2)*f
+		tt.Move(x, y)
+		tt.Advance(16 * time.Millisecond)
+		tt.Frame()
+	}
+	tt.Release(dst.X+10, dst.Y+dst.H-4)
+	tt.Frame()
+	tt.Advance(50 * time.Millisecond)
+	tt.Frame()
+	if !slices.Equal(a.prefs.ProjectOrder, []string{"p2", "p1"}) {
+		t.Errorf("order %v, want p2 then p1", a.prefs.ProjectOrder)
+	}
+}
