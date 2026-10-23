@@ -25,16 +25,13 @@ const (
 	headerH = 2 * (barMid - cardGap)
 	cardGap = 8 // around the card
 	rowH    = 34
-	// rowInset is where a sidebar row's text starts: a project's name, and
-	// a session's when it has no project header.
+	// rowInset is where a sidebar row's text starts: a project's name and
+	// its sessions', the badge telling the project from its children.
 	rowInset = 12
 	// projectBadge is the square before a project's name, with its first
 	// letter; projectBadgeGap is the room after it.
 	projectBadge    = 20
 	projectBadgeGap = 6
-	// childIndent steps a session's row in from its project's name, so a
-	// list reads as the project's sessions rather than its siblings.
-	childIndent = 14
 )
 
 // chrome is where the sidebar's animation puts things, in whole pixels so
@@ -362,7 +359,7 @@ func (a *App) sessionSidebar(c *ui.Context, pal *palette, group string, n *int) 
 				a.dateHeader(c, pal, "date-"+h.name+"-"+dateLabel(dg.day, c.Now()), dateLabel(dg.day, c.Now()), len(dg.sessions), top)
 				gi++
 				for _, s := range dg.sessions {
-					a.sessionRow(c, pal, s, n, float32(rowInset+projectBadge+projectBadgeGap+childIndent))
+					a.sessionRow(c, pal, s, n, rowInset)
 				}
 			}
 		} else {
@@ -411,8 +408,8 @@ func (a *App) groupView(c *ui.Context, pal *palette, g group, gi int, n *int) {
 	if gi == 0 {
 		top = 2
 	}
-	// Its name starts a step left of its sessions' names (sessionRow),
-	// past the edge a row keeps in dark mode.
+	// Its name starts past its badge (sessionRow), where its sessions'
+	// names start too; the badge tells the project from its children.
 	inset := float32(rowInset)
 	if pal.dark {
 		inset++
@@ -490,7 +487,7 @@ func (a *App) groupView(c *ui.Context, pal *palette, g group, gi int, n *int) {
 	})
 	hdr.Children(func() {
 		ui.Box(c.Key("project-icon-"+key)).Size(projectBadge, projectBadge).Radius(5).Center().Shrink(0).
-			Background(projectBadgeColor(g.project)).Children(func() {
+			Background(a.projectBadgeColor(g.project)).Children(func() {
 			ui.Text(c, projectInitial(g.project.Name)).FontSize(10.5).FontWeight(700).TextColor(ui.Hex("#ffffff"))
 		})
 		if renaming {
@@ -535,34 +532,38 @@ func (a *App) groupView(c *ui.Context, pal *palette, g group, gi int, n *int) {
 		// The session shown stays in view.
 		for _, s := range g.sessions {
 			if s.ID == a.selected {
-				a.sessionRow(c, pal, s, n, float32(rowInset+projectBadge+projectBadgeGap+childIndent))
+				a.sessionRow(c, pal, s, n, float32(rowInset+projectBadge+projectBadgeGap))
 			}
 		}
 		return
 	}
 	for _, s := range g.sessions {
-		a.sessionRow(c, pal, s, n, float32(rowInset+projectBadge+projectBadgeGap+childIndent))
+		a.sessionRow(c, pal, s, n, float32(rowInset+projectBadge+projectBadgeGap))
 	}
 }
 
-// projectBadges are the colors of the squares before project names: muted
-// enough to sit under the names, each project keeping one.
+// projectBadges are the squares before project names: muted colors, far
+// enough apart to tell, and one per project in the set.
 var projectBadges = []ui.Color{
-	ui.Hex("#8a5a3c"), ui.Hex("#8a4f6a"), ui.Hex("#9a6a2c"), ui.Hex("#3f6f92"),
-	ui.Hex("#7b5ea7"), ui.Hex("#6f5aa8"), ui.Hex("#4f8a6a"), ui.Hex("#a35d5d"),
+	ui.Hex("#3f6f92"), ui.Hex("#4f8a6a"), ui.Hex("#7b5ea7"), ui.Hex("#a06a2c"),
+	ui.Hex("#a34f4f"), ui.Hex("#3f7f8f"), ui.Hex("#6b7d2f"), ui.Hex("#8a4f6a"),
 }
 
-// projectBadgeColor is a project's square, by its id, so that renaming it
-// keeps the color; the "other" project gets a neutral one.
-func projectBadgeColor(p proto.Project) ui.Color {
+// projectBadgeColor is a project's square: its place among the projects,
+// by id, so that renaming a project, or moving it in the sidebar, keeps
+// its color, and projects up to the palette's length have their own. The
+// "other" project is neutral.
+func (a *App) projectBadgeColor(p proto.Project) ui.Color {
 	if p.ID == "" {
 		return ui.Hex("#8b8b95")
 	}
-	var h uint32
-	for _, r := range p.ID {
-		h = h*31 + uint32(r)
+	i := 0
+	for _, q := range a.st.Projects {
+		if q.ID != "" && q.ID < p.ID {
+			i++
+		}
 	}
-	return projectBadges[h%uint32(len(projectBadges))]
+	return projectBadges[i%len(projectBadges)]
 }
 
 // projectInitial is the first letter of a project's name, for its square.
