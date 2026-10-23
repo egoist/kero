@@ -449,6 +449,30 @@ func TestPopupMenuStaysInWindow(t *testing.T) {
 	}
 }
 
+// The font menu offers every monospaced family installed, so a font
+// installed with the system is there to pick.
+func TestFontOptionsInstalled(t *testing.T) {
+	opts := fontOptions()
+	for _, want := range []string{fontChoices[0], locales.SetFontSystem(), "Monaco"} {
+		if !slices.Contains(opts, want) {
+			t.Errorf("%q is not offered", want)
+		}
+	}
+	n := 0
+	for _, f := range ui.FontFamilies() {
+		if !f.Monospaced || f.Name == bundledFont {
+			continue
+		}
+		n++
+		if !slices.Contains(opts, f.Name) {
+			t.Errorf("the installed monospaced family %q is not offered", f.Name)
+		}
+	}
+	if n == 0 {
+		t.Log("no system monospaced fonts to check")
+	}
+}
+
 // The font menu stays in the window, however little room the window has
 // below its button.
 func TestSearchMenuStaysInWindow(t *testing.T) {
