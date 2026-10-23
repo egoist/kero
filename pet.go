@@ -1,6 +1,7 @@
 package main
 
 import (
+	"math"
 	"strconv"
 	"time"
 
@@ -66,6 +67,13 @@ type petState struct {
 	lastActive time.Time
 	wink       time.Time
 	calm       bool // the desktop asks for less motion
+	// dragging says the pointer is moving the pet along its edge: grab is
+	// where it took the body, and startX the pointer's screen x then, so
+	// that a press without a move stays a click.
+	dragging bool
+	moved    bool
+	grab     float32
+	startX   float32
 }
 
 // syncPet shows or hides the pet, as the settings and the window say.
@@ -130,6 +138,7 @@ func (a *App) petShow() {
 // petClose takes the pet's window away.
 func (a *App) petClose() {
 	p := &a.pet
+	p.dragging, p.moved = false, false
 	for _, off := range p.offs {
 		off()
 	}
@@ -155,7 +164,7 @@ func (a *App) petPlace() {
 	}
 	b := a.win.Bounds()
 	d := mygo.Screen.DisplayNearestPoint(mygo.Point{X: b.X + b.Width, Y: b.Y})
-	r, _ := petSpot(b, d.WorkArea, a.set.PetPosition, ownControls)
+	r, _ := petSpot(b, d.WorkArea, a.set.PetPosition, a.set.PetOffset, ownControls)
 	was := p.win.Bounds()
 	if was != r {
 		p.win.SetBounds(r)
@@ -173,7 +182,7 @@ func (a *App) petPlace() {
 // screen's work area: above the window's top edge where it fits, hands
 // over the edge, else inside at its bottom right. pos is where along the
 // edge it stands: left, center or right. bottom tells which edge.
-func petSpot(main, work mygo.Rectangle, pos string, controls bool) (r mygo.Rectangle, bottom bool) {
+func petSpot(main, work mygo.Rectangle, pos string, offset float32, controls bool) (r mygo.Rectangle, bottom bool) {
 	var x int
 	switch pos {
 	case "left":
@@ -182,6 +191,9 @@ func petSpot(main, work mygo.Rectangle, pos string, controls bool) (r mygo.Recta
 		x = main.X + petLeft
 	case "center":
 		x = main.X + (main.Width-petW)/2
+	case "custom":
+		off := min(max(offset, 0), 1)
+		x = main.X + int(off*float32(main.Width)) - petW/2
 	default:
 		x = main.X + main.Width - petW - petRight
 		if controls {
@@ -297,14 +309,22 @@ func (a *App) petView(c *ui.Context) {
 			})
 		}
 
-		body := ui.Box(c.Key("kero")).Size(petW, petBodyH).Shrink(0).Cursor(ui.CursorPointer).
+		body := ui.Box(c.Key("kero")).Size(petW, petBodyH).Shrink(0).Cursor(ui.CursorGrab).
 			Description(petDescription(label))
 		hovered := body.Hovered()
 		body.Draw(func(p *ui.Painter, r ui.Rect) {
 			a.petDraw(p, r, mood, hovered)
 			p.After(a.petTick())
 		})
+		a.petDrag(body)
 		clicked = clicked || body.Clicked()
+		if a.pet.moved {
+			// A drag is not a pat: it only let go.
+			clicked = false
+			if !a.pet.dragging {
+				a.pet.moved = false
+			}
+		}
 	})
 	if clicked {
 		a.petPetted(now, mood)
@@ -405,4 +425,79 @@ func (a *App) petPetted(now time.Time, mood petMood) {
 		a.win.Focus()
 		a.focusTerminal()
 	}
+}
+
+// petDrag moves the pet along its edge while the pointer drags its body.
+// The pointer's screen x, not its x in the window, sets where it goes:
+// the window follows it, so the local x would stand still.
+func (a *App) petDrag(body ui.Element) {
+	_, _, pressed := body.Dragged()
+	if pressed {
+		if !a.pet.dragging {
+			x, _, over := body.PointerPosition()
+			if !over {
+				return
+			}
+			a.pet.dragging, a.pet.moved, a.pet.grab = true, false, x
+			a.pet.lastActive = time.Now()
+			if cx, ok := a.petCursorX(); ok {
+				a.pet.startX = cx
+			} else {
+				a.pet.startX = 0
+			}
+		}
+		if cx, ok := a.petCursorX(); ok {
+			if abs(cx-a.pet.startX) > 2 {
+				a.pet.moved = true
+			}
+			if a.pet.moved {
+				a.petDragTo(cx - a.pet.grab)
+			}
+		}
+		return
+	}
+	if a.pet.dragging {
+		a.pet.dragging = false
+		if a.pet.moved {
+			a.petDrop()
+		}
+	}
+}
+
+// petCursorX is the pointer's x on screen, where the pet's window moves.
+func (a *App) petCursorX() (float32, bool) {
+	if a.pet.win == nil || a.win == nil {
+		return 0, false
+	}
+	return float32(mygo.Screen.CursorScreenPoint().X), true
+}
+
+// petDragTo puts the pet's window at left, as a custom position across
+// the main window, and moves it there.
+func (a *App) petDragTo(left float32) {
+	if a.pet.win == nil || a.win == nil {
+		return
+	}
+	off := petOffsetAt(a.win.Bounds(), left)
+	off = float32(math.Round(float64(off)*1000)) / 1000
+	a.set.PetPosition, a.set.PetOffset = "custom", off
+	a.petPlace()
+}
+
+// petDrop keeps where a drag left the pet.
+func (a *App) petDrop() {
+	if a.pet.win == nil {
+		return
+	}
+	a.applySettings(a.set)
+}
+
+// petOffsetAt is where the middle of a pet placed at left stands across
+// a main window, from 0 at its left edge to 1 at its right.
+func petOffsetAt(main mygo.Rectangle, left float32) float32 {
+	if main.Width <= 0 {
+		return 0.5
+	}
+	center := left + petW/2
+	return min(max((center-float32(main.X))/float32(main.Width), 0), 1)
 }

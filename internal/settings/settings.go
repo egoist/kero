@@ -38,7 +38,8 @@ type Settings struct {
 	WindowOpacity float32 `json:"windowOpacity"` // how much of the wash covers the window, 0 to 1
 	WindowBlur    bool    `json:"windowBlur"`    // blur the desktop behind the wash
 	Pet           bool    `json:"pet"`           // the frog on the window's top edge
-	PetPosition   string  `json:"petPosition"`   // where it stands: "left", "center" or "right"
+	PetPosition   string  `json:"petPosition"`   // where it stands: "left", "center", "right" or "custom"
+	PetOffset     float32 `json:"petOffset"`     // a custom position, 0 to 1 across the window
 
 	// Terminal
 	FontFamily   string  `json:"fontFamily"` // "" the font kero carries; "monospace" the system's
@@ -147,6 +148,7 @@ func Default() Settings {
 		WindowBlur:      true,
 		Pet:             true,
 		PetPosition:     "right",
+		PetOffset:       0.5,
 		DimUnfocused:    true,
 		FontSize:        13,
 		LineHeight:      1.22,
@@ -320,7 +322,10 @@ func (s *Settings) normalize() {
 	oneOf(&s.Clipboard, d.Clipboard, "ask", "allow", "deny")
 	oneOf(&s.RightClick, d.RightClick, "menu", "paste", "copyOrPaste")
 	oneOf(&s.DiffLayout, d.DiffLayout, "auto", "unified", "split")
-	oneOf(&s.PetPosition, d.PetPosition, "left", "center", "right")
+	oneOf(&s.PetPosition, d.PetPosition, "left", "center", "right", "custom")
+	if s.PetOffset < 0 || s.PetOffset > 1 {
+		s.PetOffset = d.PetOffset
+	}
 	if s.WindowOpacity < 0 || s.WindowOpacity > 1 {
 		s.WindowOpacity = d.WindowOpacity
 	}

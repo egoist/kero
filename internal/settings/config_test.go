@@ -116,8 +116,8 @@ func TestBadValuesKeepDefaults(t *testing.T) {
 // Kero the frog is on unless the configuration says otherwise, and
 // stands at the right unless the configuration says where.
 func TestPet(t *testing.T) {
-	if !Default().Pet || Default().PetPosition != "right" {
-		t.Fatal("the pet is off, or not at the right, by default")
+	if !Default().Pet || Default().PetPosition != "right" || Default().PetOffset != 0.5 {
+		t.Fatal("the pet is off, or not at the right and middle, by default")
 	}
 	s, probs := parse("pet = false\npet-position = left\n")
 	if s.Pet || s.PetPosition != "left" || len(probs) != 0 {
@@ -130,9 +130,21 @@ func TestPet(t *testing.T) {
 	if back.Pet || back.PetPosition != "left" {
 		t.Errorf("came back %v %q", back.Pet, back.PetPosition)
 	}
-	// A place it does not know keeps the default.
-	if s, probs = parse("pet-position = top\n"); s.PetPosition != "right" || len(probs) != 1 {
-		t.Errorf("pet-position = top: %q, problems %q", s.PetPosition, probs)
+	// A custom position keeps its place across the window.
+	s, probs = parse("pet-position = custom\npet-offset = 0.25\n")
+	if s.PetPosition != "custom" || s.PetOffset != 0.25 || len(probs) != 0 {
+		t.Fatalf("custom: %q %v, problems %q", s.PetPosition, s.PetOffset, probs)
+	}
+	if out := format(s, ""); !strings.Contains(out, "pet-position = custom\n") || !strings.Contains(out, "pet-offset = 0.25\n") {
+		t.Errorf("formatted:\n%s", out)
+	}
+	if back, _ := parse(format(s, "")); back.PetPosition != "custom" || back.PetOffset != 0.25 {
+		t.Errorf("came back %q %v", back.PetPosition, back.PetOffset)
+	}
+	// A place it does not know, or a place past the window, keeps the
+	// default.
+	if s, probs = parse("pet-position = top\npet-offset = 1.5\n"); s.PetPosition != "right" || s.PetOffset != 0.5 || len(probs) != 1 {
+		t.Errorf("bad place: %q %v, problems %q", s.PetPosition, s.PetOffset, probs)
 	}
 }
 

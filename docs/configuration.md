@@ -59,7 +59,8 @@ kero config check             # report unknown keys and bad values
 | `window-opacity`     | `0.82`   | How much of the window's background the wash covers while translucent, 0 to 1 |
 | `window-blur`        | `true`   | Blur the desktop behind the translucent background; off is plain transparency |
 | `pet`                | `true`   | Kero the frog, who follows your sessions from the window's top edge |
-| `pet-position`       | `right`  | Where it stands: `left`, `center` or `right`                     |
+| `pet-position`       | `right`  | Where it stands: `left`, `center`, `right` or `custom`           |
+| `pet-offset`         | `0.5`    | A custom position, 0 to 1 across the window                      |
 
 ## Terminal
 

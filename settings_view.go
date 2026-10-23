@@ -638,7 +638,8 @@ func (a *App) appearancePage(c *ui.Context, pal *palette) {
 			toggle(c.Key("pet"), &s.Pet, pal)
 		})
 		settingRow(c, pal, locales.SetPetPosition(), locales.SetPetPositionDetail(), func() {
-			segmented(c, "pet-position", &s.PetPosition, []string{"left", "center", "right"}, []string{locales.PetLeft(), locales.PetCenter(), locales.PetRight()})
+			segmented(c, "pet-position", &s.PetPosition, []string{"left", "center", "right", "custom"},
+				[]string{locales.PetLeft(), locales.PetCenter(), locales.PetRight(), locales.PetCustom()})
 		})
 	})
 	ui.Column(c).Gap(8).Children(func() {
