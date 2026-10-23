@@ -737,9 +737,8 @@ func TestCommandBackspaceClearsLine(t *testing.T) {
 	}
 }
 
-// A session's name is stepped in from its project's, so the list reads
-// as the project's sessions.
-func TestSessionIndent(t *testing.T) {
+// A session's name starts where its project's does, past the badge.
+func TestSessionAlign(t *testing.T) {
 	a := testApp(t)
 	a.st.Projects[0].Name = "proj"
 	a.st.Sessions[0].Name = "sess"
@@ -753,7 +752,7 @@ func TestSessionIndent(t *testing.T) {
 	if !ok {
 		t.Fatalf("no session name; texts %q", tt.Texts())
 	}
-	if s.X < p.X+10 {
+	if s.X != p.X {
 		t.Errorf("the session's name starts at %v, the project's at %v", s.X, p.X)
 	}
 }
@@ -873,18 +872,31 @@ func TestSidebarDateGroups(t *testing.T) {
 	}
 }
 
-// A project's square takes its first letter, and keeps its color by id.
+// A project's square takes its first letter, and keeps its color by id,
+// with a color of its own among the projects.
 func TestProjectBadge(t *testing.T) {
 	for name, want := range map[string]string{"feature-4.3": "F", "dora-go": "D", "呆蛙精灵": "呆"} {
 		if got := projectInitial(name); got != want {
 			t.Errorf("%q: %q, want %q", name, got, want)
 		}
 	}
+	a := testApp(t)
+	a.st.Projects = append(a.st.Projects,
+		proto.Project{ID: "p2", Name: "two"},
+		proto.Project{ID: "p3", Name: "three"})
 	p1 := proto.Project{ID: "p1", Name: "one"}
-	if projectBadgeColor(p1) != projectBadgeColor(proto.Project{ID: "p1", Name: "renamed"}) {
+	if a.projectBadgeColor(p1) != a.projectBadgeColor(proto.Project{ID: "p1", Name: "renamed"}) {
 		t.Error("the badge's color changed with the name")
 	}
-	if projectBadgeColor(proto.Project{}) == projectBadgeColor(p1) {
+	seen := map[ui.Color]bool{}
+	for _, p := range []proto.Project{p1, {ID: "p2"}, {ID: "p3"}} {
+		c := a.projectBadgeColor(p)
+		if seen[c] {
+			t.Errorf("projects share the color %v", c)
+		}
+		seen[c] = true
+	}
+	if a.projectBadgeColor(proto.Project{}) == a.projectBadgeColor(p1) {
 		t.Error("the other project has the same color as a project")
 	}
 }
