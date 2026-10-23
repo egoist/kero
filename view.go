@@ -24,9 +24,12 @@ const (
 	headerH = 2 * (barMid - cardGap)
 	cardGap = 8 // around the card
 	rowH    = 34
-	// rowInset is where a sidebar row's text starts: a session's name and
-	// its group's.
+	// rowInset is where a sidebar row's text starts: a project's name, and
+	// a session's when it has no project header.
 	rowInset = 12
+	// childIndent steps a session's row in from its project's header, so a
+	// list reads as the project's sessions rather than its siblings.
+	childIndent = 14
 )
 
 // chrome is where the sidebar's animation puts things, in whole pixels so
@@ -354,7 +357,7 @@ func (a *App) sessionSidebar(c *ui.Context, pal *palette, group string, n *int) 
 				a.dateHeader(c, pal, "date-"+h.name+"-"+dateLabel(dg.day, c.Now()), dateLabel(dg.day, c.Now()), len(dg.sessions), top)
 				gi++
 				for _, s := range dg.sessions {
-					a.sessionRow(c, pal, s, n)
+					a.sessionRow(c, pal, s, n, float32(rowInset)+childIndent)
 				}
 			}
 		} else {
@@ -369,7 +372,7 @@ func (a *App) sessionSidebar(c *ui.Context, pal *palette, group string, n *int) 
 				gi++
 			}
 			for _, s := range ss {
-				a.sessionRow(c, pal, s, n)
+				a.sessionRow(c, pal, s, n, rowInset)
 			}
 		}
 		if h == local && empty && h.conn == connReady && len(a.hosts) == 1 {
@@ -403,8 +406,8 @@ func (a *App) groupView(c *ui.Context, pal *palette, g group, gi int, n *int) {
 	if gi == 0 {
 		top = 2
 	}
-	// Its name starts where its sessions' names do (sessionRow), past the
-	// edge a row keeps in dark mode.
+	// Its name starts a step left of its sessions' names (sessionRow),
+	// past the edge a row keeps in dark mode.
 	inset := float32(rowInset)
 	if pal.dark {
 		inset++
@@ -523,21 +526,21 @@ func (a *App) groupView(c *ui.Context, pal *palette, g group, gi int, n *int) {
 		// The session shown stays in view.
 		for _, s := range g.sessions {
 			if s.ID == a.selected {
-				a.sessionRow(c, pal, s, n)
+				a.sessionRow(c, pal, s, n, float32(rowInset)+childIndent)
 			}
 		}
 		return
 	}
 	for _, s := range g.sessions {
-		a.sessionRow(c, pal, s, n)
+		a.sessionRow(c, pal, s, n, float32(rowInset)+childIndent)
 	}
 }
 
-func (a *App) sessionRow(c *ui.Context, pal *palette, s *proto.Session, n *int) {
+func (a *App) sessionRow(c *ui.Context, pal *palette, s *proto.Session, n *int, inset float32) {
 	*n++
 	index := *n
 	selected := s.ID == a.selected
-	row := ui.Row(c.Key(s.ID)).Height(rowH).Padding(0, 10, 0, rowInset).Gap(10).AlignItems(ui.Center).Radius(8).Margin(0, 0, 1, 0)
+	row := ui.Row(c.Key(s.ID)).Height(rowH).Padding(0, 10, 0, inset).Gap(10).AlignItems(ui.Center).Radius(8).Margin(0, 0, 1, 0)
 	hovered := row.Hovered()
 	if pal.dark {
 		// Room for the chosen row's edge in every row, so that choosing
