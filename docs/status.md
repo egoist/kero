@@ -23,6 +23,12 @@ Kero tells a coding agent's status from what its screen shows: its spinner, a pe
 
 A session shows the status of its panes, and sessions that need you stand out. Press <kbd>⌘</kbd> <kbd>J</kbd> to jump to the next one.
 
+## Kero the frog
+
+Kero, a little frog, peeks over the window's top edge. It follows your sessions: it hops when one needs you, scans along while an agent works, cheers a finish, shakes at a failure, and dozes when everything has been calm for a while. Press it and it wakes with a wink; if a session needs you, the press takes you there.
+
+Where the window leaves no room above it, Kero stands inside at the window's bottom edge instead. **Settings › Appearance › Kero the frog** turns it off, its **Position** sets where along the edge it stands, and `pet = false` and `pet-position = left` do the same in the configuration file.
+
 ## Notifications
 
 Kero notifies you when you're looking elsewhere and:

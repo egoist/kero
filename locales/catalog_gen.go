@@ -2200,6 +2200,86 @@ func (msgs Messages) SetTranslucentDetail() string {
 	return Catalog.Format(msgs.locale, "setTranslucentDetail", nil)
 }
 
+// SetPet says "Kero the frog"
+// in the language the app shows.
+func SetPet() string { return In(i18n.Locale()).SetPet() }
+
+// SetPet says "Kero the frog"
+// in the language of msgs.
+func (msgs Messages) SetPet() string {
+	return Catalog.Format(msgs.locale, "setPet", nil)
+}
+
+// SetPetDetail says "A little frog on the window’s top edge: it hops when a session needs you, reads along while one works, and dozes wh…"
+// in the language the app shows.
+func SetPetDetail() string { return In(i18n.Locale()).SetPetDetail() }
+
+// SetPetDetail says "A little frog on the window’s top edge: it hops when a session needs you, reads along while one works, and dozes wh…"
+// in the language of msgs.
+func (msgs Messages) SetPetDetail() string {
+	return Catalog.Format(msgs.locale, "setPetDetail", nil)
+}
+
+// SetPetPosition says "Position"
+// in the language the app shows.
+func SetPetPosition() string { return In(i18n.Locale()).SetPetPosition() }
+
+// SetPetPosition says "Position"
+// in the language of msgs.
+func (msgs Messages) SetPetPosition() string {
+	return Catalog.Format(msgs.locale, "setPetPosition", nil)
+}
+
+// SetPetPositionDetail says "Where on the window’s top edge Kero stands."
+// in the language the app shows.
+func SetPetPositionDetail() string { return In(i18n.Locale()).SetPetPositionDetail() }
+
+// SetPetPositionDetail says "Where on the window’s top edge Kero stands."
+// in the language of msgs.
+func (msgs Messages) SetPetPositionDetail() string {
+	return Catalog.Format(msgs.locale, "setPetPositionDetail", nil)
+}
+
+// PetLeft says "Left"
+// in the language the app shows.
+func PetLeft() string { return In(i18n.Locale()).PetLeft() }
+
+// PetLeft says "Left"
+// in the language of msgs.
+func (msgs Messages) PetLeft() string {
+	return Catalog.Format(msgs.locale, "petLeft", nil)
+}
+
+// PetCenter says "Center"
+// in the language the app shows.
+func PetCenter() string { return In(i18n.Locale()).PetCenter() }
+
+// PetCenter says "Center"
+// in the language of msgs.
+func (msgs Messages) PetCenter() string {
+	return Catalog.Format(msgs.locale, "petCenter", nil)
+}
+
+// PetRight says "Right"
+// in the language the app shows.
+func PetRight() string { return In(i18n.Locale()).PetRight() }
+
+// PetRight says "Right"
+// in the language of msgs.
+func (msgs Messages) PetRight() string {
+	return Catalog.Format(msgs.locale, "petRight", nil)
+}
+
+// PetName says "Kero, the frog"
+// in the language the app shows.
+func PetName() string { return In(i18n.Locale()).PetName() }
+
+// PetName says "Kero, the frog"
+// in the language of msgs.
+func (msgs Messages) PetName() string {
+	return Catalog.Format(msgs.locale, "petName", nil)
+}
+
 // SetDimUnfocused says "Dim unfocused terminals"
 // in the language the app shows.
 func SetDimUnfocused() string { return In(i18n.Locale()).SetDimUnfocused() }

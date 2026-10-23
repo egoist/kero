@@ -103,6 +103,7 @@ type App struct {
 	active   bool
 	focused  bool
 	statuses map[string]proto.Status // as last seen, for notifications
+	pet      petState                // Kero the frog, on the window's top edge
 	// idleTime tells how long the user has not used the machine's keyboard
 	// or mouse (mygo.Power.IdleTime), 0 when the system does not tell; nil
 	// in tests.
@@ -312,6 +313,7 @@ func (a *App) setState(h *host, st proto.State) {
 	}
 	a.notify(first)
 	a.updateTitle()
+	a.petNote(time.Now())
 }
 
 // showNotification shows a notification about a session, which a click
@@ -856,6 +858,14 @@ func (a *App) apply(s settings.Settings, save bool) {
 	if old.DockBadge != s.DockBadge {
 		a.notify(true)
 	}
+	if old.Pet != s.Pet && a.win != nil {
+		// Not from inside a view's build: the pet's window opens, or
+		// goes, once this frame is done.
+		a.update(a.syncPet)
+	}
+	if old.PetPosition != s.PetPosition && a.pet.win != nil {
+		a.update(a.petPlace)
+	}
 	// Only once a browser pane showed a page: until then, no lists are
 	// downloaded.
 	if (old.BlockAds != s.BlockAds || !slices.Equal(old.AdLists, s.AdLists)) && (a.ads.started || len(a.webs) > 0) {
@@ -866,6 +876,9 @@ func (a *App) apply(s settings.Settings, save bool) {
 	}
 	if a.win != nil {
 		a.win.Invalidate()
+	}
+	if a.pet.win != nil {
+		a.pet.win.Invalidate()
 	}
 	if a.setWin != nil {
 		a.setWin.Invalidate()
