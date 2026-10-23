@@ -692,6 +692,27 @@ func TestCommandBackspaceClearsLine(t *testing.T) {
 	}
 }
 
+// A session's name is stepped in from its project's, so the list reads
+// as the project's sessions.
+func TestSessionIndent(t *testing.T) {
+	a := testApp(t)
+	a.st.Projects[0].Name = "proj"
+	a.st.Sessions[0].Name = "sess"
+	tt := ui.NewTester(a.view, 1100, 640)
+	tt.Frame()
+	p, ok := tt.Find("proj")
+	if !ok {
+		t.Fatalf("no project name; texts %q", tt.Texts())
+	}
+	s, ok := tt.Find("sess")
+	if !ok {
+		t.Fatalf("no session name; texts %q", tt.Texts())
+	}
+	if s.X < p.X+10 {
+		t.Errorf("the session's name starts at %v, the project's at %v", s.X, p.X)
+	}
+}
+
 // Dragging a project's name moves it among its host's projects, before
 // or after the project it is dropped on.
 func TestProjectOrder(t *testing.T) {
