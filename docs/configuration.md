@@ -57,6 +57,7 @@ kero config check             # report unknown keys and bad values
 | `background`         | `petal`  | The window's wash: `petal`, `mist`, `meadow`, `dusk` or `plain` |
 | `window-translucent` | `true`   | Let the desktop show through the window                         |
 | `window-opacity`     | `0.82`   | How much of the window's background the wash covers while translucent, 0 to 1 |
+| `window-blur`        | `true`   | Blur the desktop behind the translucent background; off is plain transparency |
 
 ## Terminal
 

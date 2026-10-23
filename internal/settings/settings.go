@@ -36,6 +36,7 @@ type Settings struct {
 	Background    string  `json:"background"`    // a wash, see Backgrounds
 	Vibrancy      bool    `json:"vibrancy"`      // the window's material under the wash
 	WindowOpacity float32 `json:"windowOpacity"` // how much of the wash covers the window, 0 to 1
+	WindowBlur    bool    `json:"windowBlur"`    // blur the desktop behind the wash
 
 	// Terminal
 	FontFamily   string  `json:"fontFamily"` // "" the font kero carries; "monospace" the system's
@@ -141,6 +142,7 @@ func Default() Settings {
 		Background:      "rex",
 		Vibrancy:        true,
 		WindowOpacity:   DefaultWindowOpacity,
+		WindowBlur:      true,
 		DimUnfocused:    true,
 		FontSize:        13,
 		LineHeight:      1.22,

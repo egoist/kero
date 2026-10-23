@@ -631,6 +631,9 @@ func (a *App) appearancePage(c *ui.Context, pal *palette) {
 			})
 			ui.Textf(c, "%.0f%%", s.WindowOpacity*100).FontSize(12.5).TextColor(pal.textMuted).Width(40).FontFeatures("tnum")
 		})
+		settingRow(c, pal, locales.SetWindowBlur(), locales.SetWindowBlurDetail(), func() {
+			toggle(c.Key("window-blur"), &s.WindowBlur, pal)
+		})
 	})
 	ui.Column(c).Gap(8).Children(func() {
 		groupTitle(c, pal, locales.SetBackground())

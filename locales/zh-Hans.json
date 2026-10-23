@@ -217,6 +217,8 @@
   "setTranslucentDetail": "让桌面透过窗口背景显示出来。",
   "setWindowOpacity": "背景不透明度",
   "setWindowOpacityDetail": "开启半透明时，窗口背景的覆盖程度；窗格仍保持不透明。",
+  "setWindowBlur": "背景模糊",
+  "setWindowBlurDetail": "模糊半透明背景后的桌面。关闭后就是普通透明，0% 不透明度时直接看到桌面。",
   "setDimUnfocused": "淡化未聚焦的终端",
   "setDimUnfocusedDetail": "会话有多个窗格时，你不在的终端会变淡。",
   "setBackground": "背景",

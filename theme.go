@@ -195,14 +195,14 @@ func backdrop(c *ui.Context, pal *palette, row ui.Element, s settings.Settings) 
 		// under it: a base of the sidebar's color keeps the text legible,
 		// letting the desktop show a little.
 		bg := pal.sidebar
-		if c.Vibrancy() {
+		if s.Vibrancy {
 			bg = bg.Alpha(washOpacity(s))
 		}
 		c.Root().Background(bg)
 		return
 	}
 	alpha := float32(1)
-	if c.Vibrancy() {
+	if s.Vibrancy {
 		// The material shows through the wash, which keeps the text
 		// legible.
 		alpha = washOpacity(s)
@@ -213,7 +213,7 @@ func backdrop(c *ui.Context, pal *palette, row ui.Element, s settings.Settings) 
 	}
 	base.Stops = stops
 	c.Root().LinearGradient(base)
-	if c.Vibrancy() {
+	if s.Vibrancy {
 		// The glow is part of the wash: at 0% none of it shows either.
 		for i := range glow.Stops {
 			glow.Stops[i].Color = glow.Stops[i].Color.Alpha(alpha)

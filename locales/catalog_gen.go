@@ -2220,6 +2220,26 @@ func (msgs Messages) SetWindowOpacityDetail() string {
 	return Catalog.Format(msgs.locale, "setWindowOpacityDetail", nil)
 }
 
+// SetWindowBlur says "Background blur"
+// in the language the app shows.
+func SetWindowBlur() string { return In(i18n.Locale()).SetWindowBlur() }
+
+// SetWindowBlur says "Background blur"
+// in the language of msgs.
+func (msgs Messages) SetWindowBlur() string {
+	return Catalog.Format(msgs.locale, "setWindowBlur", nil)
+}
+
+// SetWindowBlurDetail says "Blur the desktop behind the translucent background. Off, the window is plain transparency, and 0% opacity shows the d…"
+// in the language the app shows.
+func SetWindowBlurDetail() string { return In(i18n.Locale()).SetWindowBlurDetail() }
+
+// SetWindowBlurDetail says "Blur the desktop behind the translucent background. Off, the window is plain transparency, and 0% opacity shows the d…"
+// in the language of msgs.
+func (msgs Messages) SetWindowBlurDetail() string {
+	return Catalog.Format(msgs.locale, "setWindowBlurDetail", nil)
+}
+
 // SetDimUnfocused says "Dim unfocused terminals"
 // in the language the app shows.
 func SetDimUnfocused() string { return In(i18n.Locale()).SetDimUnfocused() }
