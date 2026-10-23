@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/egoist/mygo/i18n"
 	"github.com/egoist/mygo/ui"
 
 	"kero/internal/actions"
@@ -470,6 +471,17 @@ func TestFontOptionsInstalled(t *testing.T) {
 	}
 	if n == 0 {
 		t.Log("no system monospaced fonts to check")
+	}
+}
+
+// The font menu names the system's font in the language the app shows
+// now, as the menu's choice is read back, after the language changes.
+func TestFontOptionsFollowLanguage(t *testing.T) {
+	en := fontOptions()[1]
+	i18n.SetLocaleFunc(func() string { return "zh-Hans" })
+	t.Cleanup(func() { i18n.SetLocaleFunc(nil) })
+	if got, want := fontOptions()[1], locales.SetFontSystem(); got != want || got == en {
+		t.Errorf("the system's font is offered as %q, want %q", got, want)
 	}
 }
 
