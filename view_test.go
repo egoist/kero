@@ -868,6 +868,16 @@ func TestCollapseSelectedProject(t *testing.T) {
 	if !ok {
 		t.Fatalf("no project name; texts %q", tt.Texts())
 	}
+	// The dot sits over the badge's lower right corner.
+	badgeX := p.X - projectBadgeGap - projectBadge
+	badgeY := p.Y + p.H/2 - projectBadge/2
+	dot := func() color.RGBA {
+		return tt.Image().RGBAAt(int(badgeX+projectBadge-1), int(badgeY+projectBadge-1))
+	}
+	white := func(c color.RGBA) bool { return c.R > 240 && c.G > 240 && c.B > 240 }
+	if white(dot()) {
+		t.Error("the open project's badge shows the dot")
+	}
 	tt.ClickAt(p.X+20, p.Y+p.H/2)
 	tt.Frame()
 	if !a.prefs.Collapsed["p1"] {
@@ -876,9 +886,15 @@ func TestCollapseSelectedProject(t *testing.T) {
 	if tt.HasText("sess") {
 		t.Error("the selected session still shows under its collapsed project")
 	}
+	if !white(dot()) {
+		t.Error("the collapsed project's badge has no dot for the shown session")
+	}
 	tt.ClickAt(p.X+20, p.Y+p.H/2)
 	tt.Frame()
 	if a.prefs.Collapsed["p1"] || !tt.HasText("sess") {
 		t.Error("the project did not open again")
+	}
+	if white(dot()) {
+		t.Error("the opened project's badge still shows the dot")
 	}
 }

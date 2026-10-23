@@ -398,6 +398,15 @@ func (a *App) dateHeader(c *ui.Context, pal *palette, key, label string, count i
 func (a *App) groupView(c *ui.Context, pal *palette, g group, gi int, n *int) {
 	id, key := g.project.ID, g.key()
 	collapsed := a.prefs.Collapsed[key]
+	// current says this project holds the session in the card; folded, its
+	// badge keeps a dot for it.
+	current := false
+	for _, s := range g.sessions {
+		if s.ID == a.selected {
+			current = true
+			break
+		}
+	}
 	needs := 0
 	for _, s := range g.sessions {
 		if s.Status == proto.Waiting {
@@ -486,10 +495,22 @@ func (a *App) groupView(c *ui.Context, pal *palette, g group, gi int, n *int) {
 		}
 	})
 	hdr.Children(func() {
-		ui.Box(c.Key("project-icon-"+key)).Size(projectBadge, projectBadge).Radius(5).Center().Shrink(0).
+		badge := ui.Box(c.Key("project-icon-"+key)).Size(projectBadge, projectBadge).Radius(5).Center().Shrink(0).
 			Background(a.projectBadgeColor(g.project)).Children(func() {
 			ui.Text(c, projectInitial(g.project.Name)).FontSize(10.5).FontWeight(700).TextColor(ui.Hex("#ffffff"))
 		})
+		if collapsed && current {
+			// The project's sessions are folded away, the one in the card
+			// too: a bright dot over the badge's corner says it is still
+			// this project's, its dark rim lifting it off the badge and
+			// the wash.
+			badge.DrawOver(func(p *ui.Painter, r ui.Rect) {
+				cx, cy := r.X+r.W-1, r.Y+r.H-1
+				outer, inner := float32(9), float32(7)
+				p.Fill(ui.Rect{X: cx - outer/2, Y: cy - outer/2, W: outer, H: outer}, ui.RGBA(0, 0, 0, 0.3), outer/2)
+				p.Fill(ui.Rect{X: cx - inner/2, Y: cy - inner/2, W: inner, H: inner}, ui.Hex("#ffffff"), inner/2)
+			})
+		}
 		if renaming {
 			in := ui.TextInputBase(c.Key("rename"), &a.renameBuf).Grow(1).MinWidth(0).FontSize(12.5).FontWeight(600).AutoFocus()
 			if in.Shortcut(0, ui.KeyEscape) {
