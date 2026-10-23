@@ -529,12 +529,6 @@ func (a *App) groupView(c *ui.Context, pal *palette, g group, gi int, n *int) {
 		}
 	})
 	if collapsed {
-		// The session shown stays in view.
-		for _, s := range g.sessions {
-			if s.ID == a.selected {
-				a.sessionRow(c, pal, s, n, float32(rowInset+projectBadge+projectBadgeGap))
-			}
-		}
 		return
 	}
 	for _, s := range g.sessions {

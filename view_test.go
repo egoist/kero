@@ -855,3 +855,30 @@ func TestProjectBadge(t *testing.T) {
 		t.Error("the other project has the same color as a project")
 	}
 }
+
+// Collapsing the project of the session shown hides its sessions too; the
+// badge and the chevron still tell which project it is.
+func TestCollapseSelectedProject(t *testing.T) {
+	a := testApp(t)
+	a.st.Projects[0].Name = "proj"
+	a.st.Sessions[0].Name = "sess"
+	tt := ui.NewTester(a.view, 1100, 640)
+	tt.Frame()
+	p, ok := tt.Find("proj")
+	if !ok {
+		t.Fatalf("no project name; texts %q", tt.Texts())
+	}
+	tt.ClickAt(p.X+20, p.Y+p.H/2)
+	tt.Frame()
+	if !a.prefs.Collapsed["p1"] {
+		t.Fatal("the project did not collapse")
+	}
+	if tt.HasText("sess") {
+		t.Error("the selected session still shows under its collapsed project")
+	}
+	tt.ClickAt(p.X+20, p.Y+p.H/2)
+	tt.Frame()
+	if a.prefs.Collapsed["p1"] || !tt.HasText("sess") {
+		t.Error("the project did not open again")
+	}
+}
