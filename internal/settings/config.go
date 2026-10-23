@@ -120,7 +120,7 @@ var keys = []key{
 	mapChoice("background", "the window's wash", func(s *Settings) *string { return &s.Background },
 		[]string{"petal", "mist", "meadow", "dusk", "plain"}, []string{"rex", "mist", "meadow", "dusk", "plain"}),
 	boolKey("window-translucent", "let the desktop show through the window", func(s *Settings) *bool { return &s.Vibrancy }),
-	{name: "window-opacity", doc: "how much of the window's background the wash covers while translucent, 0.3 to 1",
+	{name: "window-opacity", doc: "how much of the window's background the wash covers while translucent, 0 to 1",
 		get: func(s *Settings) []string {
 			return []string{strconv.FormatFloat(float64(s.WindowOpacity), 'g', -1, 32)}
 		},

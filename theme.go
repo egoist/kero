@@ -177,7 +177,7 @@ var darkTermTheme = &terminal.Theme{
 // washOpacity is how much of the window's background the wash covers
 // while the material shows: the setting's, else the default.
 func washOpacity(s settings.Settings) float32 {
-	if s.WindowOpacity >= 0.3 && s.WindowOpacity <= 1 {
+	if s.WindowOpacity >= 0 && s.WindowOpacity <= 1 {
 		return s.WindowOpacity
 	}
 	return settings.DefaultWindowOpacity
@@ -213,6 +213,12 @@ func backdrop(c *ui.Context, pal *palette, row ui.Element, s settings.Settings) 
 	}
 	base.Stops = stops
 	c.Root().LinearGradient(base)
+	if c.Vibrancy() {
+		// The glow is part of the wash: at 0% none of it shows either.
+		for i := range glow.Stops {
+			glow.Stops[i].Color = glow.Stops[i].Color.Alpha(alpha)
+		}
+	}
 	row.LinearGradient(glow)
 }
 

@@ -136,7 +136,7 @@ func TestPet(t *testing.T) {
 	}
 }
 
-// The background's opacity is a number in the configuration, 0.3 to 1,
+// The background's opacity is a number in the configuration, 0 to 1,
 // and is the default when it is out of range.
 func TestWindowOpacity(t *testing.T) {
 	if Default().WindowOpacity != DefaultWindowOpacity {
@@ -151,6 +151,9 @@ func TestWindowOpacity(t *testing.T) {
 	}
 	if back, _ := parse(format(s, "")); back.WindowOpacity != 0.5 {
 		t.Errorf("came back %v", back.WindowOpacity)
+	}
+	if s, probs := parse("window-opacity = 0\n"); s.WindowOpacity != 0 || len(probs) != 0 {
+		t.Errorf("window-opacity = 0: %v, problems %q", s.WindowOpacity, probs)
 	}
 	if s, probs := parse("window-opacity = 1.5\n"); s.WindowOpacity != DefaultWindowOpacity || len(probs) != 0 {
 		t.Errorf("window-opacity = 1.5: %v, problems %q", s.WindowOpacity, probs)

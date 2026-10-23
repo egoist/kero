@@ -198,11 +198,17 @@ func TestTranslucentBackground(t *testing.T) {
 	if off != 255 || on >= 230 {
 		t.Errorf("the wash's alpha is %d without the material, %d with it", off, on)
 	}
-	// The setting moves it, from the default to half the wash.
+	// The setting moves it, from the default to half the wash, and to
+	// none of it.
 	a.set.WindowOpacity = 0.5
 	tt.Frame()
 	if half := tt.Image().RGBAAt(8, 300).A; half < 120 || half > 136 {
 		t.Errorf("half the wash is %d, want about 128", half)
+	}
+	a.set.WindowOpacity = 0
+	tt.Frame()
+	if clear := tt.Image().RGBAAt(8, 300).A; clear > 2 {
+		t.Errorf("no wash is %d, want transparent", clear)
 	}
 }
 

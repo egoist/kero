@@ -35,7 +35,7 @@ type Settings struct {
 	Language      string  `json:"language"`      // "system", or one of Languages
 	Background    string  `json:"background"`    // a wash, see Backgrounds
 	Vibrancy      bool    `json:"vibrancy"`      // the window's material under the wash
-	WindowOpacity float32 `json:"windowOpacity"` // how much of the wash covers the window, 0.3 to 1
+	WindowOpacity float32 `json:"windowOpacity"` // how much of the wash covers the window, 0 to 1
 	Pet           bool    `json:"pet"`           // the frog on the window's top edge
 	PetPosition   string  `json:"petPosition"`   // where it stands: "left", "center" or "right"
 
@@ -319,7 +319,7 @@ func (s *Settings) normalize() {
 	oneOf(&s.RightClick, d.RightClick, "menu", "paste", "copyOrPaste")
 	oneOf(&s.DiffLayout, d.DiffLayout, "auto", "unified", "split")
 	oneOf(&s.PetPosition, d.PetPosition, "left", "center", "right")
-	if s.WindowOpacity < 0.3 || s.WindowOpacity > 1 {
+	if s.WindowOpacity < 0 || s.WindowOpacity > 1 {
 		s.WindowOpacity = d.WindowOpacity
 	}
 	known := false
