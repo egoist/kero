@@ -186,8 +186,7 @@ func TestHeaderPadBelowTopLeft(t *testing.T) {
 	shot(t, tt, "header-pad-below")
 }
 
-// The window's wash lets the material through while the setting is on,
-// and is opaque without it: at 0.95 the material was too faint to see.
+// The window's wash lets the material through as the setting says.
 func TestTranslucentBackground(t *testing.T) {
 	a := testApp(t)
 	tt := ui.NewTester(a.view, 1100, 640)
@@ -198,6 +197,12 @@ func TestTranslucentBackground(t *testing.T) {
 	on := tt.Image().RGBAAt(8, 300).A
 	if off != 255 || on >= 230 {
 		t.Errorf("the wash's alpha is %d without the material, %d with it", off, on)
+	}
+	// The setting moves it, from the default to half the wash.
+	a.set.WindowOpacity = 0.5
+	tt.Frame()
+	if half := tt.Image().RGBAAt(8, 300).A; half < 120 || half > 136 {
+		t.Errorf("half the wash is %d, want about 128", half)
 	}
 }
 

@@ -356,6 +356,8 @@
   "setLanguageSystem": "System",
   "setTranslucent": "Translucent window",
   "setTranslucentDetail": "Let the desktop show through the window’s background.",
+  "setWindowOpacity": "Background opacity",
+  "setWindowOpacityDetail": "How much of the window’s background the wash covers while the window is translucent; the panes stay opaque.",
   "setDimUnfocused": "Dim unfocused terminals",
   "setDimUnfocusedDetail": "When a session has several panes, the terminals you’re not in fade.",
   "setBackground": "Background",

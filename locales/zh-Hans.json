@@ -215,6 +215,8 @@
   "setLanguageSystem": "跟随系统",
   "setTranslucent": "半透明窗口",
   "setTranslucentDetail": "让桌面透过窗口背景显示出来。",
+  "setWindowOpacity": "背景不透明度",
+  "setWindowOpacityDetail": "开启半透明时，窗口背景的覆盖程度；窗格仍保持不透明。",
   "setDimUnfocused": "淡化未聚焦的终端",
   "setDimUnfocusedDetail": "会话有多个窗格时，你不在的终端会变淡。",
   "setBackground": "背景",
