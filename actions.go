@@ -95,6 +95,9 @@ func (a *App) run(id string, args map[string]string) {
 		a.toggleSidebar()
 	case "changes.toggle":
 		a.toggleSide(sideChanges)
+	case "pet.toggle":
+		a.set.Pet = !a.set.Pet
+		a.applySettings(a.set)
 	case "text.bigger":
 		a.zoom(1, false)
 	case "text.smaller":
@@ -157,6 +160,7 @@ var actionTitles = map[string]func() string{
 	"pane.down":         locales.ActionPaneBelow,
 	"sidebar.toggle":    locales.ActionToggleSidebar,
 	"changes.toggle":    locales.ActionToggleChanges,
+	"pet.toggle":        locales.ActionTogglePet,
 	"text.bigger":       locales.ActionBigger,
 	"text.smaller":      locales.ActionSmaller,
 	"text.reset":        locales.ActionActualSize,
@@ -209,7 +213,7 @@ func (a *App) menu() *mygo.Menu {
 			{Label: locales.MenuQuit(), Accelerator: quitKeys, ToolTip: locales.MenuQuitTip(), Click: func(*mygo.MenuItem, *mygo.Window) { mygo.App.Quit() }},
 			a.item("app.quitAll")}}
 	}
-	view := append(a.items("View", []string{"sidebar.toggle", "changes.toggle"}, []string{"text.bigger", "text.smaller", "text.reset"}),
+	view := append(a.items("View", []string{"sidebar.toggle", "changes.toggle", "pet.toggle"}, []string{"text.bigger", "text.smaller", "text.reset"}),
 		mygo.Separator(), &mygo.MenuItem{Role: mygo.RoleToggleFullScreen}, &mygo.MenuItem{Role: mygo.RoleToggleDevTools})
 	return mygo.NewMenu([]*mygo.MenuItem{
 		kero,
