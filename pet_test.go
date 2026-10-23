@@ -69,7 +69,7 @@ func TestPetSpot(t *testing.T) {
 	for _, c := range []struct {
 		pos string
 		x   int
-	}{{"left", 122}, {"center", 505}, {"right", 888}} {
+	}{{"left", 208}, {"center", 505}, {"right", 888}} {
 		r, bottom := petSpot(main, work, c.pos, false)
 		if bottom || r.Y != 300-petH+petPerch || r.Height != petH || r.X != c.x {
 			t.Errorf("%s: %+v bottom %v, want x %d", c.pos, r, bottom, c.x)

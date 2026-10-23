@@ -27,9 +27,13 @@ const (
 	petScale   = 0.8 // the frog is drawn at 108, and stands this tall
 	petBubbleH = 26
 	// petPerch is how far the pet's hands reach over the window's top
-	// edge, and petRight how far its window stays from the right one.
+	// edge; petRight is how far its window stays from the right one, and
+	// petLeft from the left, past the sidebar's project, palette and
+	// settings buttons, which it would otherwise cover when it stands
+	// inside at the bottom.
 	petPerch  = 12
 	petRight  = 22
+	petLeft   = 108
 	petFrame  = 33 * time.Millisecond // 30 frames a second
 	petCalm   = 100 * time.Millisecond
 	petDoze   = 45 * time.Second // all calm this long, and it sleeps
@@ -173,7 +177,9 @@ func petSpot(main, work mygo.Rectangle, pos string, controls bool) (r mygo.Recta
 	var x int
 	switch pos {
 	case "left":
-		x = main.X + petRight
+		// Clear of the sidebar footer's buttons, which the pet covers
+		// when it stands inside at the bottom.
+		x = main.X + petLeft
 	case "center":
 		x = main.X + (main.Width-petW)/2
 	default:
