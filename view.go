@@ -501,14 +501,13 @@ func (a *App) groupView(c *ui.Context, pal *palette, g group, gi int, n *int) {
 		})
 		if collapsed && current {
 			// The project's sessions are folded away, the one in the card
-			// too: a bright dot over the badge's corner says it is still
-			// this project's, its dark rim lifting it off the badge and
-			// the wash.
+			// too: a red dot over the badge's corner says it is still this
+			// project's; its white ring lifts it off any badge color.
 			badge.DrawOver(func(p *ui.Painter, r ui.Rect) {
 				cx, cy := r.X+r.W-1, r.Y+r.H-1
-				outer, inner := float32(9), float32(7)
-				p.Fill(ui.Rect{X: cx - outer/2, Y: cy - outer/2, W: outer, H: outer}, ui.RGBA(0, 0, 0, 0.3), outer/2)
-				p.Fill(ui.Rect{X: cx - inner/2, Y: cy - inner/2, W: inner, H: inner}, ui.Hex("#ffffff"), inner/2)
+				outer, inner := float32(9), float32(5)
+				p.Fill(ui.Rect{X: cx - outer/2, Y: cy - outer/2, W: outer, H: outer}, ui.Hex("#ffffff"), outer/2)
+				p.Fill(ui.Rect{X: cx - inner/2, Y: cy - inner/2, W: inner, H: inner}, pal.danger, inner/2)
 			})
 		}
 		if renaming {
