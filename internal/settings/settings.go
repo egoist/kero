@@ -35,7 +35,7 @@ type Settings struct {
 	Language      string  `json:"language"`      // "system", or one of Languages
 	Background    string  `json:"background"`    // a wash, see Backgrounds
 	Vibrancy      bool    `json:"vibrancy"`      // the window's material under the wash
-	WindowOpacity float32 `json:"windowOpacity"` // how much of the wash covers the window, 0.3 to 1
+	WindowOpacity float32 `json:"windowOpacity"` // how much of the wash covers the window, 0 to 1
 
 	// Terminal
 	FontFamily   string  `json:"fontFamily"` // "" the font kero carries; "monospace" the system's
@@ -314,7 +314,7 @@ func (s *Settings) normalize() {
 	oneOf(&s.Clipboard, d.Clipboard, "ask", "allow", "deny")
 	oneOf(&s.RightClick, d.RightClick, "menu", "paste", "copyOrPaste")
 	oneOf(&s.DiffLayout, d.DiffLayout, "auto", "unified", "split")
-	if s.WindowOpacity < 0.3 || s.WindowOpacity > 1 {
+	if s.WindowOpacity < 0 || s.WindowOpacity > 1 {
 		s.WindowOpacity = d.WindowOpacity
 	}
 	known := false
