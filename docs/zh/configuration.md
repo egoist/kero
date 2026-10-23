@@ -60,8 +60,7 @@ kero config check             # 报告未知的配置项和无效的值
 | `window-opacity`     | `0.82`   | 开启半透明时窗口背景的覆盖程度，0 到 1                        |
 | `window-blur`        | `true`   | 模糊半透明背景后的桌面；关闭后是普通透明                      |
 | `pet`                | `true`   | 小青蛙 Kero：趴在窗口上沿，跟着你的会话                          |
-| `pet-position`       | `right`  | 它站在上沿的哪里：`left`、`center`、`right` 或 `custom`          |
-| `pet-offset`         | `0.5`    | 自定义位置，0 到 1，窗口宽度的比例                               |
+| `pet-offset`         | `0.5`    | Kero 站在窗口宽度的哪里，0 到 1；直接拖动即可                    |
 
 ## 终端
 

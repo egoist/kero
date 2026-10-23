@@ -68,36 +68,26 @@ func TestPetSpot(t *testing.T) {
 	work := mygo.Rectangle{X: 0, Y: 25, Width: 1440, Height: 875}
 	main := mygo.Rectangle{X: 100, Y: 300, Width: 1000, Height: 700}
 	for _, c := range []struct {
-		pos    string
 		offset float32
 		x      int
-	}{{"left", 0, 208}, {"center", 0, 505}, {"right", 0, 888}, {"custom", 0.5, 505}, {"custom", 0.25, 255}} {
-		r, bottom := petSpot(main, work, c.pos, c.offset, false)
+	}{{0.5, 505}, {0.25, 255}, {0, 8}} {
+		r, bottom := petSpot(main, work, c.offset)
 		if bottom || r.Y != 300-petH+petPerch || r.Height != petH || r.X != c.x {
-			t.Errorf("%s: %+v bottom %v, want x %d", c.pos, r, bottom, c.x)
+			t.Errorf("offset %v: %+v bottom %v, want x %d", c.offset, r, bottom, c.x)
 		}
 	}
 	// Little room above: the speech gives way, the frog still stands on
 	// the edge.
 	main.Y = 120
-	r, bottom := petSpot(main, work, "right", 0, false)
+	r, bottom := petSpot(main, work, 0.5)
 	if bottom || r.Y != work.Y || r.Height != 120+petPerch-work.Y || r.Height < petBodyH {
 		t.Errorf("little room: %+v bottom %v", r, bottom)
 	}
 	// No room for the frog: it stands inside at the bottom.
 	main.Y = 80
-	r, bottom = petSpot(main, work, "right", 0, false)
+	r, bottom = petSpot(main, work, 0.5)
 	if !bottom || r.Y != 80+700-petH || r.Height != petH {
 		t.Errorf("no room: %+v bottom %v", r, bottom)
-	}
-	// Clear of the window controls, and inside the screen.
-	main = mygo.Rectangle{X: 0, Y: 300, Width: 2000, Height: 300}
-	if r, _ = petSpot(main, work, "right", 0, true); r.X != 1440-petW-8 {
-		t.Errorf("controls: x %d, want %d", r.X, 1440-petW-8)
-	}
-	main = mygo.Rectangle{X: -100, Y: 300, Width: 300, Height: 300}
-	if r, _ = petSpot(main, work, "left", 0, false); r.X != 8 {
-		t.Errorf("left at the screen's edge: x %d, want 8", r.X)
 	}
 }
 
