@@ -27,7 +27,7 @@ A session shows the status of its panes, and sessions that need you stand out. P
 
 Kero, a little frog, peeks over the window's top edge. It follows your sessions: it hops when one needs you, scans along while an agent works, cheers a finish, shakes at a failure, and dozes when everything has been calm for a while. Press it and it wakes with a wink; if a session needs you, the press takes you there.
 
-Where the window leaves no room above it, Kero stands inside at the window's bottom edge instead. **Settings › Appearance › Kero the frog** turns it off, its **Position** sets where along the edge it stands, and `pet = false` and `pet-position = left` do the same in the configuration file.
+Where the window leaves no room above it, Kero stands inside at the window's bottom edge instead. Drag it along the edge to place it, **Settings › Appearance › Kero the frog** turns it off, and `pet = false` does the same in the configuration file.
 
 ## Notifications
 

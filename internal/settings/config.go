@@ -136,8 +136,7 @@ var keys = []key{
 		[]string{"petal", "mist", "meadow", "dusk", "plain"}, []string{"rex", "mist", "meadow", "dusk", "plain"}),
 	boolKey("window-translucent", "let the desktop show through the window", func(s *Settings) *bool { return &s.Vibrancy }),
 	boolKey("pet", "Kero the frog on the window's top edge, who follows your sessions", func(s *Settings) *bool { return &s.Pet }),
-	choiceKey("pet-position", "where Kero stands on the window's top edge", func(s *Settings) *string { return &s.PetPosition }, "left", "center", "right", "custom"),
-	float32Key("pet-offset", "a custom position, 0 to 1 across the window", func(s *Settings) *float32 { return &s.PetOffset }),
+	float32Key("pet-offset", "where Kero stands across the window, 0 to 1; drag it there", func(s *Settings) *float32 { return &s.PetOffset }),
 
 	stringKey("font-family", "the terminals' font: empty for JetBrains Mono Nerd Font, which Kero carries; monospace for the system's", func(s *Settings) *string { return &s.FontFamily }),
 	numberKey("font-size", "in points", func(s *Settings) float64 { return float64(s.FontSize) }, func(s *Settings, n float64) { s.FontSize = float32(n) }),

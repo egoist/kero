@@ -57,8 +57,7 @@ kero config check             # report unknown keys and bad values
 | `background`         | `petal`  | The window's wash: `petal`, `mist`, `meadow`, `dusk` or `plain` |
 | `window-translucent` | `true`   | Let the desktop show through the window                         |
 | `pet`                | `true`   | Kero the frog, who follows your sessions from the window's top edge |
-| `pet-position`       | `right`  | Where it stands: `left`, `center`, `right` or `custom`           |
-| `pet-offset`         | `0.5`    | A custom position, 0 to 1 across the window                      |
+| `pet-offset`         | `0.5`    | Where Kero stands, 0 to 1 across the window; drag it there       |
 
 ## Terminal
 

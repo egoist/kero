@@ -31,13 +31,12 @@ type Settings struct {
 	QuitConfirm       bool   `json:"quitConfirm"`       // tell, the first time, that quitting keeps sessions
 
 	// Appearance
-	Appearance  string  `json:"appearance"`  // "system", "light" or "dark"
-	Language    string  `json:"language"`    // "system", or one of Languages
-	Background  string  `json:"background"`  // a wash, see Backgrounds
-	Vibrancy    bool    `json:"vibrancy"`    // the window's material under the wash
-	Pet         bool    `json:"pet"`         // the frog on the window's top edge
-	PetPosition string  `json:"petPosition"` // where it stands: "left", "center", "right" or "custom"
-	PetOffset   float32 `json:"petOffset"`   // a custom position, 0 to 1 across the window
+	Appearance string  `json:"appearance"` // "system", "light" or "dark"
+	Language   string  `json:"language"`   // "system", or one of Languages
+	Background string  `json:"background"` // a wash, see Backgrounds
+	Vibrancy   bool    `json:"vibrancy"`   // the window's material under the wash
+	Pet        bool    `json:"pet"`        // the frog on the window's top edge
+	PetOffset  float32 `json:"petOffset"`  // where it stands, 0 to 1 across the window
 
 	// Terminal
 	FontFamily   string  `json:"fontFamily"` // "" the font kero carries; "monospace" the system's
@@ -139,7 +138,6 @@ func Default() Settings {
 		Background:      "rex",
 		Vibrancy:        true,
 		Pet:             true,
-		PetPosition:     "right",
 		PetOffset:       0.5,
 		DimUnfocused:    true,
 		FontSize:        13,
@@ -314,7 +312,6 @@ func (s *Settings) normalize() {
 	oneOf(&s.Clipboard, d.Clipboard, "ask", "allow", "deny")
 	oneOf(&s.RightClick, d.RightClick, "menu", "paste", "copyOrPaste")
 	oneOf(&s.DiffLayout, d.DiffLayout, "auto", "unified", "split")
-	oneOf(&s.PetPosition, d.PetPosition, "left", "center", "right", "custom")
 	if s.PetOffset < 0 || s.PetOffset > 1 {
 		s.PetOffset = d.PetOffset
 	}

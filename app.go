@@ -863,7 +863,7 @@ func (a *App) apply(s settings.Settings, save bool) {
 		// goes, once this frame is done.
 		a.update(a.syncPet)
 	}
-	if (old.PetPosition != s.PetPosition || old.PetOffset != s.PetOffset) && a.pet.win != nil {
+	if old.PetOffset != s.PetOffset && a.pet.win != nil {
 		a.update(a.petPlace)
 	}
 	// Only once a browser pane showed a page: until then, no lists are

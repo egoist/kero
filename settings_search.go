@@ -38,8 +38,7 @@ func settingsIndex() []searchEntry {
 		{"appearance", locales.SetAppearance(), "window-theme dark light mode system"},
 		{"appearance", locales.SetLanguage(), "language locale translation chinese english 语言 中文"},
 		{"appearance", locales.SetTranslucent(), "window-translucent vibrancy blur material transparency"},
-		{"appearance", locales.SetPet(), "pet frog kero mascot sprite companion agent status 小精灵 青蛙 宠物"},
-		{"appearance", locales.SetPetPosition(), "pet-position left center right side corner 位置 左 中 右"},
+		{"appearance", locales.SetPet(), "pet frog kero mascot sprite companion agent status drag offset position 小精灵 青蛙 宠物"},
 		{"appearance", locales.SetBackground(), "background wash petal mist meadow dusk plain gradient color"},
 
 		{"terminal", locales.SetFont(), "font-family typeface jetbrains mono nerd"},

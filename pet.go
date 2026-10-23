@@ -28,13 +28,8 @@ const (
 	petScale   = 0.8 // the frog is drawn at 108, and stands this tall
 	petBubbleH = 26
 	// petPerch is how far the pet's hands reach over the window's top
-	// edge; petRight is how far its window stays from the right one, and
-	// petLeft from the left, past the sidebar's project, palette and
-	// settings buttons, which it would otherwise cover when it stands
-	// inside at the bottom.
+	// edge.
 	petPerch  = 12
-	petRight  = 22
-	petLeft   = 108
 	petFrame  = 33 * time.Millisecond // 30 frames a second
 	petCalm   = 100 * time.Millisecond
 	petDoze   = 45 * time.Second // all calm this long, and it sleeps
@@ -164,7 +159,7 @@ func (a *App) petPlace() {
 	}
 	b := a.win.Bounds()
 	d := mygo.Screen.DisplayNearestPoint(mygo.Point{X: b.X + b.Width, Y: b.Y})
-	r, _ := petSpot(b, d.WorkArea, a.set.PetPosition, a.set.PetOffset, ownControls)
+	r, _ := petSpot(b, d.WorkArea, a.set.PetOffset)
 	was := p.win.Bounds()
 	if was != r {
 		p.win.SetBounds(r)
@@ -180,27 +175,12 @@ func (a *App) petPlace() {
 
 // petSpot is where the pet's window goes for a main window at main, in a
 // screen's work area: above the window's top edge where it fits, hands
-// over the edge, else inside at its bottom right. pos is where along the
-// edge it stands: left, center or right. bottom tells which edge.
-func petSpot(main, work mygo.Rectangle, pos string, offset float32, controls bool) (r mygo.Rectangle, bottom bool) {
-	var x int
-	switch pos {
-	case "left":
-		// Clear of the sidebar footer's buttons, which the pet covers
-		// when it stands inside at the bottom.
-		x = main.X + petLeft
-	case "center":
-		x = main.X + (main.Width-petW)/2
-	case "custom":
-		off := min(max(offset, 0), 1)
-		x = main.X + int(off*float32(main.Width)) - petW/2
-	default:
-		x = main.X + main.Width - petW - petRight
-		if controls {
-			// Clear of minimize, maximize and close, which the header draws.
-			x -= 96
-		}
-	}
+// over the edge, else inside at its bottom edge. offset is where across
+// the window its middle stands, 0 at the left to 1 at the right. bottom
+// tells which edge.
+func petSpot(main, work mygo.Rectangle, offset float32) (r mygo.Rectangle, bottom bool) {
+	off := min(max(offset, 0), 1)
+	x := main.X + int(off*float32(main.Width)) - petW/2
 	// Above the window, as much of the pet as the screen leaves room for:
 	// its speech gives way first, then it stands at the bottom instead.
 	perch := main.Y + petPerch
@@ -480,7 +460,7 @@ func (a *App) petDragTo(left float32) {
 	}
 	off := petOffsetAt(a.win.Bounds(), left)
 	off = float32(math.Round(float64(off)*1000)) / 1000
-	a.set.PetPosition, a.set.PetOffset = "custom", off
+	a.set.PetOffset = off
 	a.petPlace()
 }
 
