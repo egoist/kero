@@ -120,6 +120,18 @@ var keys = []key{
 	mapChoice("background", "the window's wash", func(s *Settings) *string { return &s.Background },
 		[]string{"petal", "mist", "meadow", "dusk", "plain"}, []string{"rex", "mist", "meadow", "dusk", "plain"}),
 	boolKey("window-translucent", "let the desktop show through the window", func(s *Settings) *bool { return &s.Vibrancy }),
+	{name: "window-opacity", doc: "how much of the window's background the wash covers while translucent, 0.3 to 1",
+		get: func(s *Settings) []string {
+			return []string{strconv.FormatFloat(float64(s.WindowOpacity), 'g', -1, 32)}
+		},
+		set: func(s *Settings, v []string) error {
+			n, err := strconv.ParseFloat(v[len(v)-1], 32)
+			if err != nil {
+				return fmt.Errorf("%q is not a number", v[len(v)-1])
+			}
+			s.WindowOpacity = float32(n)
+			return nil
+		}},
 	boolKey("pet", "Kero the frog on the window's top edge, who follows your sessions", func(s *Settings) *bool { return &s.Pet }),
 	choiceKey("pet-position", "where Kero stands on the window's top edge", func(s *Settings) *string { return &s.PetPosition }, "left", "center", "right"),
 

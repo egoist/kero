@@ -31,12 +31,13 @@ type Settings struct {
 	QuitConfirm       bool   `json:"quitConfirm"`       // tell, the first time, that quitting keeps sessions
 
 	// Appearance
-	Appearance  string `json:"appearance"`  // "system", "light" or "dark"
-	Language    string `json:"language"`    // "system", or one of Languages
-	Background  string `json:"background"`  // a wash, see Backgrounds
-	Vibrancy    bool   `json:"vibrancy"`    // the window's material under the wash
-	Pet         bool   `json:"pet"`         // the frog on the window's top edge
-	PetPosition string `json:"petPosition"` // where it stands: "left", "center" or "right"
+	Appearance    string  `json:"appearance"`    // "system", "light" or "dark"
+	Language      string  `json:"language"`      // "system", or one of Languages
+	Background    string  `json:"background"`    // a wash, see Backgrounds
+	Vibrancy      bool    `json:"vibrancy"`      // the window's material under the wash
+	WindowOpacity float32 `json:"windowOpacity"` // how much of the wash covers the window, 0.3 to 1
+	Pet           bool    `json:"pet"`           // the frog on the window's top edge
+	PetPosition   string  `json:"petPosition"`   // where it stands: "left", "center" or "right"
 
 	// Terminal
 	FontFamily   string  `json:"fontFamily"` // "" the font kero carries; "monospace" the system's
@@ -124,6 +125,10 @@ func (s *Settings) Host(name string) *Host {
 	return nil
 }
 
+// DefaultWindowOpacity is how much of the window's background the wash
+// covers while translucent.
+const DefaultWindowOpacity = 0.82
+
 // Default returns the settings of a new install.
 func Default() Settings {
 	return Settings{
@@ -137,6 +142,7 @@ func Default() Settings {
 		Language:        "system",
 		Background:      "rex",
 		Vibrancy:        true,
+		WindowOpacity:   DefaultWindowOpacity,
 		Pet:             true,
 		PetPosition:     "right",
 		DimUnfocused:    true,
@@ -313,6 +319,9 @@ func (s *Settings) normalize() {
 	oneOf(&s.RightClick, d.RightClick, "menu", "paste", "copyOrPaste")
 	oneOf(&s.DiffLayout, d.DiffLayout, "auto", "unified", "split")
 	oneOf(&s.PetPosition, d.PetPosition, "left", "center", "right")
+	if s.WindowOpacity < 0.3 || s.WindowOpacity > 1 {
+		s.WindowOpacity = d.WindowOpacity
+	}
 	known := false
 	for _, b := range Backgrounds {
 		known = known || b.ID == s.Background

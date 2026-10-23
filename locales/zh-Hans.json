@@ -220,6 +220,8 @@
   "setLanguageSystem": "跟随系统",
   "setTranslucent": "半透明窗口",
   "setTranslucentDetail": "让桌面透过窗口背景显示出来。",
+  "setWindowOpacity": "背景不透明度",
+  "setWindowOpacityDetail": "开启半透明时，窗口背景的覆盖程度；窗格仍保持不透明。",
   "setPet": "小青蛙 Kero",
   "setPetDetail": "趴在窗口上沿的小青蛙：会话需要你时它会跳，智能体工作时它会一起看，安静久了就打盹。",
   "setPetPosition": "位置",

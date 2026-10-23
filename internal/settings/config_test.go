@@ -136,6 +136,30 @@ func TestPet(t *testing.T) {
 	}
 }
 
+// The background's opacity is a number in the configuration, 0.3 to 1,
+// and is the default when it is out of range.
+func TestWindowOpacity(t *testing.T) {
+	if Default().WindowOpacity != DefaultWindowOpacity {
+		t.Fatalf("default opacity %v, want %v", Default().WindowOpacity, DefaultWindowOpacity)
+	}
+	s, probs := parse("window-opacity = 0.5\n")
+	if s.WindowOpacity != 0.5 || len(probs) != 0 {
+		t.Fatalf("window-opacity = 0.5: %v, problems %q", s.WindowOpacity, probs)
+	}
+	if out := format(s, ""); !strings.Contains(out, "window-opacity = 0.5\n") {
+		t.Errorf("formatted:\n%s", out)
+	}
+	if back, _ := parse(format(s, "")); back.WindowOpacity != 0.5 {
+		t.Errorf("came back %v", back.WindowOpacity)
+	}
+	if s, probs := parse("window-opacity = 1.5\n"); s.WindowOpacity != DefaultWindowOpacity || len(probs) != 0 {
+		t.Errorf("window-opacity = 1.5: %v, problems %q", s.WindowOpacity, probs)
+	}
+	if out := format(Default(), ""); strings.Contains(out, "window-opacity") {
+		t.Errorf("the default opacity was written:\n%s", out)
+	}
+}
+
 // Kero elsewhere updates the app here only once the user lets it.
 func TestRemoteUpdatesOptIn(t *testing.T) {
 	if Default().RemoteUpdates {

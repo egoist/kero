@@ -2254,6 +2254,26 @@ func (msgs Messages) SetTranslucentDetail() string {
 	return Catalog.Format(msgs.locale, "setTranslucentDetail", nil)
 }
 
+// SetWindowOpacity says "Background opacity"
+// in the language the app shows.
+func SetWindowOpacity() string { return In(i18n.Locale()).SetWindowOpacity() }
+
+// SetWindowOpacity says "Background opacity"
+// in the language of msgs.
+func (msgs Messages) SetWindowOpacity() string {
+	return Catalog.Format(msgs.locale, "setWindowOpacity", nil)
+}
+
+// SetWindowOpacityDetail says "How much of the window’s background the wash covers while the window is translucent; the panes stay opaque."
+// in the language the app shows.
+func SetWindowOpacityDetail() string { return In(i18n.Locale()).SetWindowOpacityDetail() }
+
+// SetWindowOpacityDetail says "How much of the window’s background the wash covers while the window is translucent; the panes stay opaque."
+// in the language of msgs.
+func (msgs Messages) SetWindowOpacityDetail() string {
+	return Catalog.Format(msgs.locale, "setWindowOpacityDetail", nil)
+}
+
 // SetPet says "Kero the frog"
 // in the language the app shows.
 func SetPet() string { return In(i18n.Locale()).SetPet() }

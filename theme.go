@@ -174,15 +174,20 @@ var darkTermTheme = &terminal.Theme{
 	},
 }
 
-// washAlpha is how opaque a background's wash is while the window shows
-// a material: the material comes through it, as the setting promises,
-// while the wash keeps the text legible.
-const washAlpha = 0.82
+// washOpacity is how much of the window's background the wash covers
+// while the material shows: the setting's, else the default.
+func washOpacity(s settings.Settings) float32 {
+	if s.WindowOpacity >= 0.3 && s.WindowOpacity <= 1 {
+		return s.WindowOpacity
+	}
+	return settings.DefaultWindowOpacity
+}
 
 // backdrop paints the window's wash of color, under the sidebar and
 // between the cards: the base on the root, a glow from the top right on
 // row, which holds everything else. It lies over the window's material,
-// which shows through a little; the plain one is the material alone.
+// which shows through as much as the setting says; the plain one is the
+// material alone.
 func backdrop(c *ui.Context, pal *palette, row ui.Element, s settings.Settings) {
 	base, glow := washes(s.Background, pal.dark)
 	if s.Background == "plain" {
@@ -191,7 +196,7 @@ func backdrop(c *ui.Context, pal *palette, row ui.Element, s settings.Settings) 
 		// letting the desktop show a little.
 		bg := pal.sidebar
 		if c.Vibrancy() {
-			bg = bg.Alpha(washAlpha)
+			bg = bg.Alpha(washOpacity(s))
 		}
 		c.Root().Background(bg)
 		return
@@ -200,7 +205,7 @@ func backdrop(c *ui.Context, pal *palette, row ui.Element, s settings.Settings) 
 	if c.Vibrancy() {
 		// The material shows through the wash, which keeps the text
 		// legible.
-		alpha = washAlpha
+		alpha = washOpacity(s)
 	}
 	stops := make([]ui.GradientStop, len(base.Stops))
 	for i, st := range base.Stops {
