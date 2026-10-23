@@ -7,6 +7,7 @@ import (
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
+	"kero/internal/actions"
 	"kero/internal/proto"
 	"kero/locales"
 )
@@ -170,5 +171,38 @@ func TestPetSettingRow(t *testing.T) {
 	shot(t, tt, "settings-pet")
 	if !tt.HasText(locales.SetPet()) {
 		t.Errorf("the Appearance page does not offer the pet; texts %q", tt.Texts())
+	}
+}
+
+// The View action turns the frog on and off, under its shortcut.
+func TestPetToggleAction(t *testing.T) {
+	act, ok := actions.Find("pet.toggle")
+	if !ok || actions.Keys(act, nil) == "" {
+		t.Fatal("no pet.toggle action, or no shortcut for it")
+	}
+	a := testApp(t)
+	if !a.set.Pet {
+		t.Fatal("the pet starts off")
+	}
+	a.run("pet.toggle", nil)
+	if a.set.Pet || a.applied.Pet {
+		t.Error("the action left the pet on")
+	}
+	a.run("pet.toggle", nil)
+	if !a.set.Pet || !a.applied.Pet {
+		t.Error("the action did not turn the pet back on")
+	}
+}
+
+// The action is in the command palette, found by what it does.
+func TestPetToggleInPalette(t *testing.T) {
+	a := testApp(t)
+	tt := ui.NewTester(a.view, 1100, 640)
+	a.openPalette()
+	tt.Frame()
+	tt.Type("frog")
+	tt.Frame()
+	if !tt.HasText(locales.ActionTogglePet()) {
+		t.Errorf("frog finds no %q; texts %q", locales.ActionTogglePet(), tt.Texts())
 	}
 }

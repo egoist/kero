@@ -3580,6 +3580,16 @@ func (msgs Messages) ActionToggleChanges() string {
 	return Catalog.Format(msgs.locale, "actionToggleChanges", nil)
 }
 
+// ActionTogglePet says "Toggle Kero"
+// in the language the app shows.
+func ActionTogglePet() string { return In(i18n.Locale()).ActionTogglePet() }
+
+// ActionTogglePet says "Toggle Kero"
+// in the language of msgs.
+func (msgs Messages) ActionTogglePet() string {
+	return Catalog.Format(msgs.locale, "actionTogglePet", nil)
+}
+
 // SideChanges says "Changes"
 // in the language the app shows.
 func SideChanges() string { return In(i18n.Locale()).SideChanges() }

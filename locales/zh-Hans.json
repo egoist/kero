@@ -352,6 +352,7 @@
   "findNoMatches": "没有匹配项",
   "findClose": "关闭查找栏",
   "actionToggleChanges": "显示或隐藏改动",
+  "actionTogglePet": "显示/隐藏小青蛙",
   "sideChanges": "改动",
   "sideClose": "关闭面板",
   "changesTurn": "上一轮",

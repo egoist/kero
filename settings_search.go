@@ -137,6 +137,7 @@ var actionWords = map[string]string{
 	"pane.down":         "focus move navigate below",
 	"sidebar.toggle":    "show hide sidebar sessions list",
 	"changes.toggle":    "git diff branch panel changes",
+	"pet.toggle":        "frog kero mascot sprite show hide pet companion 小青蛙 精灵 宠物",
 	"text.bigger":       "zoom in font size larger increase text",
 	"text.smaller":      "zoom out font size decrease text",
 	"text.reset":        "zoom reset font size default text",
