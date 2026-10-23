@@ -698,6 +698,38 @@ func (a *App) backgroundTile(c *ui.Context, pal *palette, id, name string) {
 var fontChoices = []string{"JetBrains Mono Nerd Font", "System", "SF Mono", "Menlo", "Monaco", "JetBrains Mono", "Fira Code", "Cascadia Code",
 	"Iosevka", "Berkeley Mono", "Geist Mono", "IBM Plex Mono", "Source Code Pro", "Hack", "Maple Mono"}
 
+// fontOptions are the families the font menu offers: kero's own, the
+// system's, the common coding fonts, and every monospaced family the
+// machine has, so that a font installed with the system is there to pick.
+// Fonts installed while kero runs show after a restart, as MyGo lists
+// them once.
+var fontOptionList []string
+
+func fontOptions() []string {
+	if fontOptionList != nil {
+		return fontOptionList
+	}
+	opts := []string{fontChoices[0], locales.SetFontSystem()}
+	seen := map[string]bool{opts[0]: true, opts[1]: true}
+	add := func(name string) {
+		if name == "" || name == bundledFont || seen[name] {
+			return
+		}
+		seen[name] = true
+		opts = append(opts, name)
+	}
+	for _, name := range fontChoices[2:] {
+		add(name)
+	}
+	for _, f := range ui.FontFamilies() {
+		if f.Monospaced {
+			add(f.Name)
+		}
+	}
+	fontOptionList = opts
+	return opts
+}
+
 func (a *App) terminalPage(c *ui.Context, pal *palette) {
 	s := &a.set
 	a.terminalPreview(c, pal)
@@ -712,7 +744,7 @@ func (a *App) terminalPage(c *ui.Context, pal *palette) {
 			case "monospace":
 				family = locales.SetFontSystem()
 			}
-			opts := append([]string{fontChoices[0], locales.SetFontSystem()}, fontChoices[2:]...)
+			opts := fontOptions()
 			if !slices.Contains(opts, family) {
 				opts = append([]string{family}, opts...)
 			}
