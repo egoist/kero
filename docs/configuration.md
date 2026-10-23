@@ -56,6 +56,8 @@ kero config check             # report unknown keys and bad values
 | `language`           | `system` | The app's language: `system`, `en` or `zh-Hans`                 |
 | `background`         | `petal`  | The window's wash: `petal`, `mist`, `meadow`, `dusk` or `plain` |
 | `window-translucent` | `true`   | Let the desktop show through the window                         |
+| `pet`                | `true`   | Kero the frog, who follows your sessions from the window's top edge |
+| `pet-position`       | `right`  | Where it stands: `left`, `center` or `right`                     |
 
 ## Terminal
 

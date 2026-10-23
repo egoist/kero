@@ -625,6 +625,12 @@ func (a *App) appearancePage(c *ui.Context, pal *palette) {
 		settingRow(c, pal, locales.SetTranslucent(), locales.SetTranslucentDetail(), func() {
 			toggle(c.Key("vibrancy"), &s.Vibrancy, pal)
 		})
+		settingRow(c, pal, locales.SetPet(), locales.SetPetDetail(), func() {
+			toggle(c.Key("pet"), &s.Pet, pal)
+		})
+		settingRow(c, pal, locales.SetPetPosition(), locales.SetPetPositionDetail(), func() {
+			segmented(c, "pet-position", &s.PetPosition, []string{"left", "center", "right"}, []string{locales.PetLeft(), locales.PetCenter(), locales.PetRight()})
+		})
 	})
 	ui.Column(c).Gap(8).Children(func() {
 		groupTitle(c, pal, locales.SetBackground())
