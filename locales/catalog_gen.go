@@ -2230,11 +2230,11 @@ func (msgs Messages) SetPetPosition() string {
 	return Catalog.Format(msgs.locale, "setPetPosition", nil)
 }
 
-// SetPetPositionDetail says "Where on the window’s top edge Kero stands."
+// SetPetPositionDetail says "Where on the window’s top edge Kero stands. Drag it along the edge to place it."
 // in the language the app shows.
 func SetPetPositionDetail() string { return In(i18n.Locale()).SetPetPositionDetail() }
 
-// SetPetPositionDetail says "Where on the window’s top edge Kero stands."
+// SetPetPositionDetail says "Where on the window’s top edge Kero stands. Drag it along the edge to place it."
 // in the language of msgs.
 func (msgs Messages) SetPetPositionDetail() string {
 	return Catalog.Format(msgs.locale, "setPetPositionDetail", nil)
@@ -2268,6 +2268,16 @@ func PetRight() string { return In(i18n.Locale()).PetRight() }
 // in the language of msgs.
 func (msgs Messages) PetRight() string {
 	return Catalog.Format(msgs.locale, "petRight", nil)
+}
+
+// PetCustom says "Custom"
+// in the language the app shows.
+func PetCustom() string { return In(i18n.Locale()).PetCustom() }
+
+// PetCustom says "Custom"
+// in the language of msgs.
+func (msgs Messages) PetCustom() string {
+	return Catalog.Format(msgs.locale, "petCustom", nil)
 }
 
 // PetName says "Kero, the frog"

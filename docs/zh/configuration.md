@@ -57,7 +57,8 @@ kero config check             # 报告未知的配置项和无效的值
 | `background`         | `petal`  | 窗口底色：`petal`、`mist`、`meadow`、`dusk` 或 `plain`           |
 | `window-translucent` | `true`   | 让桌面透过窗口显示出来                                          |
 | `pet`                | `true`   | 小青蛙 Kero：趴在窗口上沿，跟着你的会话                          |
-| `pet-position`       | `right`  | 它站在上沿的哪里：`left`、`center` 或 `right`                   |
+| `pet-position`       | `right`  | 它站在上沿的哪里：`left`、`center`、`right` 或 `custom`          |
+| `pet-offset`         | `0.5`    | 自定义位置，0 到 1，窗口宽度的比例                               |
 
 ## 终端
 
