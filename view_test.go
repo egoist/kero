@@ -186,6 +186,21 @@ func TestHeaderPadBelowTopLeft(t *testing.T) {
 	shot(t, tt, "header-pad-below")
 }
 
+// The window's wash lets the material through while the setting is on,
+// and is opaque without it: at 0.95 the material was too faint to see.
+func TestTranslucentBackground(t *testing.T) {
+	a := testApp(t)
+	tt := ui.NewTester(a.view, 1100, 640)
+	tt.Frame()
+	off := tt.Image().RGBAAt(8, 300).A
+	tt.SetVibrancy(true)
+	tt.Frame()
+	on := tt.Image().RGBAAt(8, 300).A
+	if off != 255 || on >= 230 {
+		t.Errorf("the wash's alpha is %d without the material, %d with it", off, on)
+	}
+}
+
 // The window moves from the panes' headers and the gaps around them, and
 // not from a press on a pane, which focuses it.
 func TestWindowDragRegions(t *testing.T) {

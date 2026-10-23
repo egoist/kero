@@ -174,6 +174,11 @@ var darkTermTheme = &terminal.Theme{
 	},
 }
 
+// washAlpha is how opaque a background's wash is while the window shows
+// a material: the material comes through it, as the setting promises,
+// while the wash keeps the text legible.
+const washAlpha = 0.82
+
 // backdrop paints the window's wash of color, under the sidebar and
 // between the cards: the base on the root, a glow from the top right on
 // row, which holds everything else. It lies over the window's material,
@@ -186,14 +191,16 @@ func backdrop(c *ui.Context, pal *palette, row ui.Element, s settings.Settings) 
 		// letting the desktop show a little.
 		bg := pal.sidebar
 		if c.Vibrancy() {
-			bg = bg.Alpha(0.82)
+			bg = bg.Alpha(washAlpha)
 		}
 		c.Root().Background(bg)
 		return
 	}
 	alpha := float32(1)
 	if c.Vibrancy() {
-		alpha = 0.95
+		// The material shows through the wash, which keeps the text
+		// legible.
+		alpha = washAlpha
 	}
 	stops := make([]ui.GradientStop, len(base.Stops))
 	for i, st := range base.Stops {
