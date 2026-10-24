@@ -574,15 +574,26 @@ const pageOps = `async (a) => {
         el.dispatchEvent(new InputEvent("input", { bubbles: true, composed: true, inputType: "insertText", data: a.text }));
       }
     } else {
-      throw new Error(a.selector + " is no field to type in");
+      throw new Error(what + " is no field to type in");
     }
     if (a.enter) {
       const at = document.activeElement || el;
       if (key(at, "keydown")) {
-        key(at, "keypress");
-        if (el instanceof HTMLInputElement && el.form) {
-          el.form.requestSubmit ? el.form.requestSubmit() : el.form.submit();
-        } else if (el instanceof HTMLTextAreaElement || el.isContentEditable) {
+        // WebKit does what Enter does for a keypress the page sends too:
+        // it submits the form, or breaks the line, unless the page
+        // prevents it. What it did is not done again.
+        const form = el instanceof HTMLInputElement ? el.form : null;
+        const content = () => field(el) ? el.value : el.innerHTML;
+        const before = content();
+        let submitted = false;
+        const mark = () => { submitted = true; };
+        if (form) form.addEventListener("submit", mark, true);
+        const allowed = key(at, "keypress");
+        if (form) form.removeEventListener("submit", mark, true);
+        const done = !allowed || submitted || !form && content() !== before;
+        if (!done && form) {
+          form.requestSubmit ? form.requestSubmit() : form.submit();
+        } else if (!done && (el instanceof HTMLTextAreaElement || el.isContentEditable)) {
           document.execCommand("insertLineBreak");
         }
       }
