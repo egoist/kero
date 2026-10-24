@@ -285,7 +285,7 @@ func (d *Daemon) notice(n proto.Notice) {
 		c.event(proto.Message{Event: "notice", Notice: &n})
 	}
 	for c := range d.watchers {
-		c.event(proto.Message{Event: "notice", Notice: &n})
+		c.watchEvent(proto.Message{Event: "notice", Notice: &n})
 	}
 }
 
@@ -306,7 +306,7 @@ func (d *Daemon) broadcastLoop() {
 			c.event(proto.Message{Event: "state", State: &st})
 		}
 		for c := range d.watchers {
-			c.event(proto.Message{Event: "state", State: &st})
+			c.watchEvent(proto.Message{Event: "state", State: &st})
 		}
 		d.mu.Unlock()
 	}
@@ -610,6 +610,19 @@ func (c *controlConn) event(m proto.Message) {
 	select {
 	case c.out <- m:
 	default:
+	}
+}
+
+// watchEvent queues an event for a watcher, which tells changes from
+// each state and notice in turn: one far behind is cut off, as a stalled
+// write cuts it off, rather than left to miss some without knowing.
+func (c *controlConn) watchEvent(m proto.Message) {
+	select {
+	case c.out <- m:
+	default:
+		if c.conn != nil {
+			c.conn.Close()
+		}
 	}
 }
 

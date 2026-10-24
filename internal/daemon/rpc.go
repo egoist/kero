@@ -50,7 +50,7 @@ func (d *Daemon) call(c *controlConn, method string, raw json.RawMessage) (any, 
 		}
 		d.watchers[c] = struct{}{}
 		st := d.stateLocked()
-		c.event(proto.Message{Event: "state", State: &st})
+		c.watchEvent(proto.Message{Event: "state", State: &st})
 		d.mu.Unlock()
 		return true, nil
 

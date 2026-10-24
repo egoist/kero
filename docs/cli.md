@@ -110,7 +110,7 @@ kero events --for waiting --once          # exit after the first one
 | `pane.created`, `pane.closed` | A pane starts or closes | `pane` |
 | `session.created`, `session.closed` | A session starts or closes | |
 | `session.renamed` | A session's name changes | `from`, `to` |
-| `notice` | A program in a session sends a desktop notification | `title`, `body` |
+| `notice` | A program in a session sends a desktop notification | `pane`, `title`, `body` |
 
 With `--json`, every event also has `event`, `time` (unix ms), `session`, `project` and `name`, the session's name as the sidebar shows it.
 

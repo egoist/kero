@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"io"
 	"log"
+	"net"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -262,5 +263,18 @@ func TestWatch(t *testing.T) {
 		case <-time.After(100 * time.Millisecond):
 		}
 		break
+	}
+}
+
+// A watcher far behind is cut off, not left to miss what it tells
+// changes from.
+func TestWatcherBehind(t *testing.T) {
+	ours, theirs := net.Pipe()
+	defer theirs.Close()
+	w := &controlConn{conn: ours, out: make(chan proto.Message, 1), done: make(chan struct{})}
+	w.watchEvent(proto.Message{Event: "state"})
+	w.watchEvent(proto.Message{Event: "notice"})
+	if _, err := ours.Write([]byte{0}); err == nil {
+		t.Fatal("a watcher behind is still connected")
 	}
 }

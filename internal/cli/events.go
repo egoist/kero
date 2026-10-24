@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"kero/internal/client"
@@ -113,15 +115,49 @@ func diffState(prev, next proto.State, now time.Time) []event {
 	return evs
 }
 
-// noticeEvent is a program's notification, as an event of its session.
+// noticeEvent is a program's notification, as an event of its pane.
 func noticeEvent(n *proto.Notice, st proto.State, now time.Time) event {
-	e := event{Event: "notice", Time: now.UnixMilli(), Session: n.Session, Title: n.Title, Body: n.Body}
+	e := event{Event: "notice", Time: now.UnixMilli(), Session: n.Session, Pane: n.Pane, Title: n.Title, Body: n.Body}
 	for i := range st.Sessions {
 		if s := &st.Sessions[i]; s.ID == n.Session {
 			e.Project, e.Name = s.Project, s.DisplayName(settings.Load().SessionName)
 		}
 	}
 	return e
+}
+
+// follower turns what a watch hears into events.
+type follower struct {
+	last *proto.State
+	// held are notices that came before a state with their session.
+	held []*proto.Notice
+}
+
+// take is what a message tells, at now.
+func (w *follower) take(m proto.Message, now time.Time) []event {
+	switch {
+	case m.Event == "notice" && m.Notice != nil:
+		// A notice can come before the state of its new session: it
+		// waits for the next state, which tells its project and name.
+		if w.last == nil || !slices.ContainsFunc(w.last.Sessions, func(s proto.Session) bool { return s.ID == m.Notice.Session }) {
+			w.held = append(w.held, m.Notice)
+			return nil
+		}
+		return []event{noticeEvent(m.Notice, *w.last, now)}
+	case m.Event == "state" && m.State != nil:
+		var evs []event
+		// The first state is where watching starts from.
+		if w.last != nil {
+			evs = diffState(*w.last, *m.State, now)
+		}
+		w.last = m.State
+		for _, n := range w.held {
+			evs = append(evs, noticeEvent(n, *m.State, now))
+		}
+		w.held = nil
+		return evs
+	}
+	return nil
 }
 
 // eventFilter is which events kero events reports.
@@ -154,6 +190,19 @@ func (f eventFilter) match(e event) bool {
 		return false
 	}
 	return true
+}
+
+// present reports whether what the filter follows is in st.
+func (f eventFilter) present(st proto.State) bool {
+	if f.session == "" {
+		return true
+	}
+	for i := range st.Sessions {
+		if s := &st.Sessions[i]; s.ID == f.session {
+			return f.pane == "" || s.PaneByID(f.pane) != nil
+		}
+	}
+	return false
 }
 
 // gone reports whether an event ends what the filter follows: its
@@ -226,10 +275,34 @@ func eventsCmd(c *client.Client, st proto.State, args []string) error {
 		return err
 	}
 
-	msgs := make(chan proto.Message, 64)
+	// The messages wait here, so that kerod is never kept waiting on the
+	// output, which would cut the watch off. A state still waiting gives
+	// way to the next, whose difference tells the same but for what came
+	// and went between; the first, where watching starts from, stays.
+	var (
+		mu     sync.Mutex
+		queue  []proto.Message
+		states int
+		wake   = make(chan struct{}, 1)
+	)
 	c.OnEvent(func(m proto.Message) {
-		if m.Event == "state" || m.Event == "notice" {
-			msgs <- m
+		if m.Event != "state" && m.Event != "notice" {
+			return
+		}
+		mu.Lock()
+		n := len(queue)
+		if m.Event == "state" {
+			states++
+		}
+		if m.Event == "state" && states > 2 && n > 0 && queue[n-1].Event == "state" {
+			queue[n-1] = m
+		} else {
+			queue = append(queue, m)
+		}
+		mu.Unlock()
+		select {
+		case wake <- struct{}{}:
+		default:
 		}
 	})
 	if err := c.Call("watch", nil, nil); err != nil {
@@ -247,47 +320,55 @@ func eventsCmd(c *client.Client, st proto.State, args []string) error {
 		defer t.Stop()
 		expire = t.C
 	}
-	enc := json.NewEncoder(os.Stdout)
-	var last *proto.State
-	for {
-		var evs []event
-		select {
-		case m := <-msgs:
-			switch {
-			case m.Event == "notice" && m.Notice != nil && last != nil:
-				evs = []event{noticeEvent(m.Notice, *last, time.Now())}
-			case m.Event == "state" && m.State != nil:
-				// The first state is where watching starts from.
-				if last != nil {
-					evs = diffState(*last, *m.State, time.Now())
-				}
-				last = m.State
-			}
-		case <-c.Done():
-			return fmt.Errorf("%w: kerod went away", errUnreachable)
-		case <-expire:
-			if fl.set["once"] {
-				return exitStatus(1)
-			}
-			return nil
+	// ended is how kero events ends without a match: the target closed, or
+	// the timeout passed.
+	ended := func() error {
+		if fl.set["once"] {
+			return exitStatus(1)
 		}
-		for _, e := range evs {
-			if f.match(e) {
-				if fl.set["json"] {
-					err = enc.Encode(e)
-				} else {
-					_, err = fmt.Println(eventLine(e))
+		return nil
+	}
+	enc := json.NewEncoder(os.Stdout)
+	var w follower
+	for {
+		closed := false
+		select {
+		case <-wake:
+		case <-c.Done():
+			// What came before still counts.
+			closed = true
+		case <-expire:
+			return ended()
+		}
+		mu.Lock()
+		ms := queue
+		queue = nil
+		mu.Unlock()
+		for _, m := range ms {
+			first := w.last == nil
+			evs := w.take(m, time.Now())
+			if first && w.last != nil && !f.present(*w.last) {
+				// The target closed before watching started.
+				return ended()
+			}
+			for _, e := range evs {
+				if f.match(e) {
+					if fl.set["json"] {
+						err = enc.Encode(e)
+					} else {
+						_, err = fmt.Println(eventLine(e))
+					}
+					if err != nil || fl.set["once"] {
+						return err
+					}
 				}
-				if err != nil || fl.set["once"] {
-					return err
+				if f.gone(e) {
+					return ended()
 				}
 			}
-			if f.gone(e) {
-				if fl.set["once"] {
-					return exitStatus(1)
-				}
-				return nil
-			}
+		}
+		if closed {
+			return fmt.Errorf("%w: kerod went away", errUnreachable)
 		}
 	}
 }

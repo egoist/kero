@@ -92,8 +92,10 @@ type Message struct {
 // Notice is a desktop notification a program in a session sent.
 type Notice struct {
 	Session string `json:"session"`
-	Title   string `json:"title,omitempty"`
-	Body    string `json:"body"`
+	// Pane is the pane whose program sent it.
+	Pane  string `json:"pane,omitempty"`
+	Title string `json:"title,omitempty"`
+	Body  string `json:"body"`
 }
 
 // Status is what a session is doing, as the sidebar shows it.

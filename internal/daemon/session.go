@@ -249,7 +249,7 @@ func (s *pane) onNotify(title, body string) {
 		}
 		return
 	}
-	go s.d.notice(proto.Notice{Session: s.sid, Title: title, Body: body})
+	go s.d.notice(proto.Notice{Session: s.sid, Pane: s.info.ID, Title: title, Body: body})
 }
 
 // flag marks the pane as needing the user, as "kero notify" asks; s.mu

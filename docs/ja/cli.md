@@ -110,7 +110,7 @@ kero events --for waiting --once          # 最初の 1 件で終了
 | `pane.created`、`pane.closed` | ペインが開始または終了したとき | `pane` |
 | `session.created`、`session.closed` | セッションが開始または終了したとき | |
 | `session.renamed` | セッションの名前が変わったとき | `from`、`to` |
-| `notice` | セッション内のプログラムがデスクトップ通知を送ったとき | `title`、`body` |
+| `notice` | セッション内のプログラムがデスクトップ通知を送ったとき | `pane`、`title`、`body` |
 
 `--json` では、どのイベントにも `event`、`time`（unix ミリ秒）、`session`、`project`、`name`（サイドバーに表示されるセッション名）が付きます。
 

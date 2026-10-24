@@ -110,7 +110,7 @@ kero events --for waiting --once          # 第一个事件之后就退出
 | `pane.created`、`pane.closed` | 窗格启动或关闭 | `pane` |
 | `session.created`、`session.closed` | 会话启动或关闭 | |
 | `session.renamed` | 会话改名 | `from`、`to` |
-| `notice` | 会话中的程序发出桌面通知 | `title`、`body` |
+| `notice` | 会话中的程序发出桌面通知 | `pane`、`title`、`body` |
 
 加上 `--json` 时，每个事件还带有 `event`、`time`（unix 毫秒）、`session`、`project` 和 `name`（会话在侧边栏中显示的名字）。
 
