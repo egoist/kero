@@ -1,0 +1,248 @@
+//  Created by Marcin Krzyzanowski
+//  https://github.com/krzyzanowskim/STTextView/blob/main/LICENSE.md
+
+import AppKit
+
+@objcMembers
+final class STTextFinderClient: NSObject, NSTextFinderClient {
+
+    weak var textView: STTextView?
+
+    /// Whether an undo group is currently open around a find-bar replacement.
+    private var isGroupingReplacements = false
+
+    var string: String {
+        textView?.text ?? ""
+    }
+
+    func stringLength() -> Int {
+        string.utf16.count
+    }
+
+    var isSelectable: Bool {
+        textView?.isSelectable ?? false
+    }
+
+    var isEditable: Bool {
+        textView?.isEditable ?? false
+    }
+
+    var allowsMultipleSelection: Bool {
+        false
+    }
+
+    func shouldReplaceCharacters(inRanges ranges: [NSValue], with strings: [String]) -> Bool {
+        guard let textView,
+              let textContentManager = textView.textLayoutManager.textContentManager
+        else {
+            return false
+        }
+
+        var result = true
+        for (range, string) in zip(ranges.map(\.rangeValue), strings) {
+            if let textRange = NSTextRange(range, in: textContentManager) {
+                result = result && textView.shouldChangeText(in: textRange, replacementString: string)
+            }
+        }
+
+        if result {
+            beginReplacementUndoGrouping()
+        }
+
+        return result
+    }
+
+    /// Called by `NSTextFinder` once the replacements it announced through
+    /// ``shouldReplaceCharacters(inRanges:with:)`` have all been made.
+    func didReplaceCharacters() {
+        endReplacementUndoGrouping()
+    }
+
+    /// Opens one undo group around a whole find-bar replacement operation.
+    ///
+    /// Every ``replaceCharacters(in:with:)`` registers its own undo group, so
+    /// Replace All would otherwise take one undo per match to walk back.
+    /// Nesting them inside this group makes the operation a single undo.
+    private func beginReplacementUndoGrouping() {
+        guard !isGroupingReplacements,
+              let textView, textView.allowsUndo,
+              let undoManager = textView.undoManager,
+              undoManager.isUndoRegistrationEnabled
+        else {
+            return
+        }
+
+        // Close any open typing-coalescing group first. The replacements below
+        // each end coalescing themselves, and that would otherwise close *this*
+        // group — the innermost one open at that point — instead.
+        textView.breakUndoCoalescing()
+        undoManager.beginUndoGrouping()
+        isGroupingReplacements = true
+
+        // Safety net: the replacements all run in this same turn of the run
+        // loop, so if `didReplaceCharacters()` never arrives the group still
+        // closes here rather than swallowing every later edit.
+        Task { @MainActor [weak self] in
+            self?.endReplacementUndoGrouping()
+        }
+    }
+
+    private func endReplacementUndoGrouping() {
+        guard isGroupingReplacements, let undoManager = textView?.undoManager else {
+            return
+        }
+        isGroupingReplacements = false
+        undoManager.endUndoGrouping()
+    }
+
+    func replaceCharacters(in range: NSRange, with string: NSAttributedString) {
+        guard let textContentManager = textView?.textLayoutManager.textContentManager,
+              let textRange = NSTextRange(range, in: textContentManager),
+              let textView
+        else {
+            return
+        }
+
+        if textView.shouldChangeText(in: textRange, replacementString: string.string) {
+            // let typingAttributes = textView.typingAttributes(at: textRange.location)
+            let attributedString = NSAttributedString(attributedString: string)
+            textView.replaceCharacters(in: textRange, with: attributedString, allowsTypingCoalescing: false)
+        }
+    }
+
+    func replaceCharacters(in range: NSRange, with string: String) {
+        guard let textContentManager = textView?.textLayoutManager.textContentManager,
+              let textRange = NSTextRange(range, in: textContentManager),
+              let textView
+        else {
+            return
+        }
+
+        if textView.shouldChangeText(in: textRange, replacementString: string) {
+            let typingAttributes = textView.typingAttributes(at: textRange.location)
+            let attributedString = NSAttributedString(string: string, attributes: typingAttributes)
+            textView.replaceCharacters(in: textRange, with: attributedString, allowsTypingCoalescing: false)
+        }
+    }
+
+    var firstSelectedRange: NSRange {
+        guard let textLayoutManager = textView?.textLayoutManager,
+              let firstTextSelectionRange = textLayoutManager.textSelections.first?.textRanges.first,
+              let textContentManager = textLayoutManager.textContentManager
+        else {
+            return NSRange()
+        }
+
+        return NSRange(firstTextSelectionRange, in: textContentManager)
+    }
+
+    @MainActor
+    var selectedRanges: [NSValue] {
+        set {
+            guard let textLayoutManager = textView?.textLayoutManager,
+                  let textContentManager = textLayoutManager.textContentManager
+            else {
+                assertionFailure()
+                return
+            }
+
+            let textRanges = newValue.map(\.rangeValue).compactMap {
+                NSTextRange($0, in: textContentManager)
+            }
+
+            textLayoutManager.textSelections = [NSTextSelection(textRanges, affinity: .downstream, granularity: .character)]
+            textView?.updateSelectedRangeHighlight()
+            textView?.updateSelectedLineHighlight()
+            textView?.updateTypingAttributes()
+            textView?.layoutGutter()
+        }
+
+        get {
+            guard let textLayoutManager = textView?.textLayoutManager,
+                  !textLayoutManager.textSelections.isEmpty,
+                  let textContentManager = textLayoutManager.textContentManager
+            else {
+                return []
+            }
+
+            return textLayoutManager.textSelections
+                .filter {
+                    !$0.isTransient
+                }
+                .flatMap(\.textRanges)
+                .compactMap {
+                    NSRange($0, in: textContentManager)
+                }.map(\.nsValue)
+        }
+    }
+
+    /// Scrolls the specified range such that it is visible
+    func scrollRangeToVisible(_ range: NSRange) {
+        guard let textView,
+              let textContentManager = textView.textLayoutManager.textContentManager,
+              let textRange = NSTextRange(range, in: textContentManager)
+        else {
+            return
+        }
+
+        textView.scrollToVisible(textRange, type: .standard)
+    }
+
+    /// An array of visible character ranges.
+    var visibleCharacterRanges: [NSValue] {
+        guard let contentViewVisibleRect = textView?.contentView.visibleRect,
+              let textLayoutManager = textView?.textLayoutManager,
+              let visibleTextRange = textLayoutManager.textRange(in: contentViewVisibleRect),
+              let textContentManager = textLayoutManager.textContentManager
+        else {
+            return []
+        }
+
+        return [NSRange(visibleTextRange, in: textContentManager).nsValue]
+    }
+
+    func rects(forCharacterRange range: NSRange) -> [NSValue]? {
+        guard let textContentManager = textView?.textLayoutManager.textContentManager,
+              let textRange = NSTextRange(range, in: textContentManager)
+        else {
+            return nil
+        }
+
+        var rangeRects: [CGRect] = []
+        textView?.textLayoutManager.enumerateTextSegments(in: textRange, type: .standard, options: .rangeNotRequired, using: { _, rect, _, _ in
+            rangeRects.append(rect)
+            return true
+        })
+
+        return rangeRects.map { NSValue(rect: $0) }
+    }
+
+    func contentView(at index: Int, effectiveCharacterRange outRange: NSRangePointer) -> NSView {
+        guard let textView,
+              let textContentManager = textView.textLayoutManager.textContentManager
+        else {
+            assertionFailure()
+            return textView!
+        }
+
+        outRange.pointee = NSRange(textContentManager.documentRange, in: textContentManager)
+        return textView.contentView
+
+    }
+
+    func drawCharacters(in range: NSRange, forContentView view: NSView) {
+        guard let textView = view.findParentTextView(), textView == self.textView,
+              let textContentManager = textView.textLayoutManager.textContentManager,
+              let textRange = NSTextRange(range, in: textContentManager),
+              let context = NSGraphicsContext.current?.cgContext
+        else {
+            assertionFailure()
+            return
+        }
+
+        if let layoutFragment = textView.textLayoutManager.textLayoutFragment(for: textRange.location) {
+            layoutFragment.draw(at: layoutFragment.layoutFragmentFrame.pixelAligned.origin, in: context)
+        }
+    }
+
+}
