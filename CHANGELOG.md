@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.1.13
+
+- Mouse clicks and drags work in herdr and other apps built on
+  crossterm, locally and over SSH.
+- Programs that change what Backspace or Alt sends, or how the keypad
+  works with NumLock, get the keys as they asked for them.
+
 ## 2.1.12
 
 - Pasting an image alone, such as a screenshot, into a pane pastes the
