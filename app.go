@@ -1219,6 +1219,20 @@ func (a *App) closeSession(id string, ask bool) {
 	a.callOn(h, "close", proto.IDParams{ID: id}, nil)
 }
 
+// closeAllSessions closes every session of a group, leaving its
+// project, once the user confirmed it: what runs in them ends with
+// them. The ids are gathered first: closing moves the state the
+// group's sessions point into.
+func (a *App) closeAllSessions(g group) {
+	ids := make([]string, len(g.sessions))
+	for i, s := range g.sessions {
+		ids[i] = s.ID
+	}
+	for _, id := range ids {
+		a.closeSession(id, false)
+	}
+}
+
 func (a *App) restartSession(id string) {
 	a.call(id, "restart", proto.IDParams{ID: id}, nil)
 }

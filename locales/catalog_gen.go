@@ -904,6 +904,18 @@ func (msgs Messages) ConfirmCloseTitle(name string) string {
 	return Catalog.Format(msgs.locale, "confirmCloseTitle", map[string]any{"name": name})
 }
 
+// ConfirmCloseAllSessionsTitle says "Close all sessions of “{name}”?"
+// in the language the app shows.
+func ConfirmCloseAllSessionsTitle(name string) string {
+	return In(i18n.Locale()).ConfirmCloseAllSessionsTitle(name)
+}
+
+// ConfirmCloseAllSessionsTitle says "Close all sessions of “{name}”?"
+// in the language of msgs.
+func (msgs Messages) ConfirmCloseAllSessionsTitle(name string) string {
+	return Catalog.Format(msgs.locale, "confirmCloseAllSessionsTitle", map[string]any{"name": name})
+}
+
 // ConfirmCloseSessionDetail says "{process} is still running in it. Closing the session ends it."
 // in the language the app shows.
 func ConfirmCloseSessionDetail(process string) string {
@@ -926,6 +938,18 @@ func ConfirmCloseProjectDetail(count int) string {
 // in the language of msgs.
 func (msgs Messages) ConfirmCloseProjectDetail(count int) string {
 	return Catalog.Format(msgs.locale, "confirmCloseProjectDetail", map[string]any{"count": count})
+}
+
+// ConfirmCloseAllSessionsDetail says "{count, plural, one {The project stays; its # session ends, with what runs in it.} other {The project stays; its # se…"
+// in the language the app shows.
+func ConfirmCloseAllSessionsDetail(count int) string {
+	return In(i18n.Locale()).ConfirmCloseAllSessionsDetail(count)
+}
+
+// ConfirmCloseAllSessionsDetail says "{count, plural, one {The project stays; its # session ends, with what runs in it.} other {The project stays; its # se…"
+// in the language of msgs.
+func (msgs Messages) ConfirmCloseAllSessionsDetail(count int) string {
+	return Catalog.Format(msgs.locale, "confirmCloseAllSessionsDetail", map[string]any{"count": count})
 }
 
 // ConfirmClosePaneTitle says "Close this pane?"
@@ -1110,6 +1134,16 @@ func SidebarCloseProject() string { return In(i18n.Locale()).SidebarCloseProject
 // in the language of msgs.
 func (msgs Messages) SidebarCloseProject() string {
 	return Catalog.Format(msgs.locale, "sidebarCloseProject", nil)
+}
+
+// SidebarCloseAllSessions says "Close All Sessions"
+// in the language the app shows.
+func SidebarCloseAllSessions() string { return In(i18n.Locale()).SidebarCloseAllSessions() }
+
+// SidebarCloseAllSessions says "Close All Sessions"
+// in the language of msgs.
+func (msgs Messages) SidebarCloseAllSessions() string {
+	return Catalog.Format(msgs.locale, "sidebarCloseAllSessions", nil)
 }
 
 // SidebarNeedsYou says "{count} needs you"

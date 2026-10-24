@@ -330,6 +330,20 @@ func (a *App) groupView(c *ui.Context, pal *palette, g group, gi int, n *int) {
 		if g.host.remote() {
 			m.Submenu(g.host.name, func(m *ui.Menu) { a.hostMenu(m, g.host) })
 		}
+		// Close All Sessions ends the sessions the project holds, not the
+		// project itself, asking first as closing the project does: what
+		// runs in them ends with them.
+		if m.Item(locales.SidebarCloseAllSessions()).Disabled(len(g.sessions) == 0).Chosen() {
+			name, count := g.project.Name, len(g.sessions)
+			a.confirm = &confirmation{
+				open:    true,
+				title:   locales.ConfirmCloseAllSessionsTitle(name),
+				detail:  locales.ConfirmCloseAllSessionsDetail(count),
+				action:  locales.SidebarCloseAllSessions(),
+				destroy: true,
+				run:     func() { a.closeAllSessions(g) },
+			}
+		}
 		if m.Item(locales.SidebarCloseProjectMenu()).Disabled(id == "").Chosen() {
 			name, count := g.project.Name, len(g.sessions)
 			a.confirm = &confirmation{

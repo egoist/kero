@@ -93,9 +93,18 @@
   "openProjectTitle": "Open Project",
   "openProjectMessage": "Choose a folder: its sessions are grouped under its name.",
   "confirmCloseTitle": "Close “{name}”?",
+  "confirmCloseAllSessionsTitle": "Close all sessions of “{name}”?",
   "confirmCloseSessionDetail": "{process} is still running in it. Closing the session ends it.",
   "confirmCloseProjectDetail": "{count, plural, one {This ends its # session, with what runs in it.} other {This ends its # sessions, with what runs in them.}}",
   "@confirmCloseProjectDetail": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "confirmCloseAllSessionsDetail": "{count, plural, one {The project stays; its # session ends, with what runs in it.} other {The project stays; its # sessions end, with what runs in them.}}",
+  "@confirmCloseAllSessionsDetail": {
     "placeholders": {
       "count": {
         "type": "int"
@@ -147,6 +156,7 @@
   "sidebarExpand": "Expand",
   "sidebarCloseProjectMenu": "Close Project…",
   "sidebarCloseProject": "Close Project",
+  "sidebarCloseAllSessions": "Close All Sessions",
   "sidebarNeedsYou": "{count} needs you",
   "@sidebarNeedsYou": {
     "placeholders": {
