@@ -2,9 +2,11 @@ package service
 
 import (
 	"encoding/binary"
+	"encoding/xml"
 	"errors"
 	"fmt"
 	"html"
+	"io"
 	"net"
 	"os"
 	"os/exec"
@@ -17,6 +19,7 @@ import (
 
 	"golang.org/x/sys/windows"
 
+	"kero/internal/clilink"
 	"kero/internal/proto"
 )
 
@@ -153,6 +156,7 @@ func Uninstall() error {
 // second, as Task Scheduler ignores a run while the task's last kerod,
 // which just stopped as it restarts, has not ended.
 func Start() error {
+	refresh()
 	if err := schtasks("/Run", "/TN", task()); err != nil {
 		return err
 	}
@@ -166,6 +170,54 @@ func Start() error {
 		}
 	}
 	return errors.New("the task did not start kerod: it runs only while you are logged on to the machine")
+}
+
+// refresh brings the task's executable up to the app's when it is the
+// kero command, a copy of the app's executable (package clilink), as
+// install-service run in a terminal registers it. kerod refreshes the
+// copy as it starts from the app's, never as it runs from the copy
+// itself: after the app updated, the task would else start the Kero of
+// before again at each restart, which would never run the new one.
+func refresh() {
+	b, err := os.ReadFile(file())
+	if err != nil {
+		return
+	}
+	exe := taskExe(b)
+	if exe == "" {
+		return
+	}
+	bin := filepath.Dir(exe)
+	if app := clilink.Target(bin); app != "" {
+		clilink.Link(app, bin)
+	}
+}
+
+// taskExe returns the executable a task's file (utf16File of definition)
+// runs, "" when it names none.
+func taskExe(b []byte) string {
+	if len(b)%2 != 0 {
+		return ""
+	}
+	u := make([]uint16, len(b)/2)
+	for i := range u {
+		u[i] = binary.LittleEndian.Uint16(b[2*i:])
+	}
+	var task struct {
+		Arguments string `xml:"Actions>Exec>Arguments"`
+	}
+	d := xml.NewDecoder(strings.NewReader(strings.TrimPrefix(string(utf16.Decode(u)), "\ufeff")))
+	d.CharsetReader = func(_ string, r io.Reader) (io.Reader, error) { return r, nil }
+	if d.Decode(&task) != nil {
+		return ""
+	}
+	// --headless "exe" daemon serve
+	_, rest, _ := strings.Cut(task.Arguments, `"`)
+	exe, _, ok := strings.Cut(rest, `"`)
+	if !ok {
+		return ""
+	}
+	return exe
 }
 
 func running() bool {
