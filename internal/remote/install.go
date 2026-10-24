@@ -36,6 +36,7 @@ func InstallCommand(a Addr, version string, batch bool) (*exec.Cmd, error) {
 			run = encodedPowerShell(powershellInstall(version))
 		}
 		cmd = exec.Command(SSHCommand(), append(installSSH(a, batch), "--", a.Host, run)...)
+		cmd.Env = sshEnv()
 	case "wsl":
 		wa := []string{}
 		if a.Host != "" {
@@ -113,6 +114,7 @@ func FindShell(a Addr, batch bool) error {
 		return nil
 	}
 	cmd := exec.Command(SSHCommand(), append(installSSH(a, batch), "--", a.Host, "sh -c 'exit 0'")...)
+	cmd.Env = sshEnv()
 	hideWindow(cmd)
 	var stderr tail
 	cmd.Stdin, cmd.Stderr = os.Stdin, &stderr
