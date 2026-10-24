@@ -13,8 +13,12 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as DownloadRouteImport } from './routes/download'
 import { Route as DocsIndexRouteImport } from './routes/docs/index'
 import { Route as DocsSplatRouteImport } from './routes/docs/$'
+import { Route as JaIndexRouteImport } from './routes/ja/index'
+import { Route as JaDownloadRouteImport } from './routes/ja/download'
 import { Route as ZhIndexRouteImport } from './routes/zh/index'
 import { Route as ZhDownloadRouteImport } from './routes/zh/download'
+import { Route as JaDocsIndexRouteImport } from './routes/ja/docs/index'
+import { Route as JaDocsSplatRouteImport } from './routes/ja/docs/$'
 import { Route as ZhDocsIndexRouteImport } from './routes/zh/docs/index'
 import { Route as ZhDocsSplatRouteImport } from './routes/zh/docs/$'
 
@@ -38,6 +42,16 @@ const DocsSplatRoute = DocsSplatRouteImport.update({
   path: '/docs/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const JaIndexRoute = JaIndexRouteImport.update({
+  id: '/ja/',
+  path: '/ja/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const JaDownloadRoute = JaDownloadRouteImport.update({
+  id: '/ja/download',
+  path: '/ja/download',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ZhIndexRoute = ZhIndexRouteImport.update({
   id: '/zh/',
   path: '/zh/',
@@ -46,6 +60,16 @@ const ZhIndexRoute = ZhIndexRouteImport.update({
 const ZhDownloadRoute = ZhDownloadRouteImport.update({
   id: '/zh/download',
   path: '/zh/download',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const JaDocsIndexRoute = JaDocsIndexRouteImport.update({
+  id: '/ja/docs/',
+  path: '/ja/docs/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const JaDocsSplatRoute = JaDocsSplatRouteImport.update({
+  id: '/ja/docs/$',
+  path: '/ja/docs/$',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ZhDocsIndexRoute = ZhDocsIndexRouteImport.update({
@@ -63,20 +87,28 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/download': typeof DownloadRoute
   '/docs/$': typeof DocsSplatRoute
+  '/ja/download': typeof JaDownloadRoute
   '/zh/download': typeof ZhDownloadRoute
   '/docs/': typeof DocsIndexRoute
+  '/ja/': typeof JaIndexRoute
   '/zh/': typeof ZhIndexRoute
+  '/ja/docs/$': typeof JaDocsSplatRoute
   '/zh/docs/$': typeof ZhDocsSplatRoute
+  '/ja/docs/': typeof JaDocsIndexRoute
   '/zh/docs/': typeof ZhDocsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/download': typeof DownloadRoute
   '/docs/$': typeof DocsSplatRoute
+  '/ja/download': typeof JaDownloadRoute
   '/zh/download': typeof ZhDownloadRoute
   '/docs': typeof DocsIndexRoute
+  '/ja': typeof JaIndexRoute
   '/zh': typeof ZhIndexRoute
+  '/ja/docs/$': typeof JaDocsSplatRoute
   '/zh/docs/$': typeof ZhDocsSplatRoute
+  '/ja/docs': typeof JaDocsIndexRoute
   '/zh/docs': typeof ZhDocsIndexRoute
 }
 export interface FileRoutesById {
@@ -84,10 +116,14 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/download': typeof DownloadRoute
   '/docs/$': typeof DocsSplatRoute
+  '/ja/download': typeof JaDownloadRoute
   '/zh/download': typeof ZhDownloadRoute
   '/docs/': typeof DocsIndexRoute
+  '/ja/': typeof JaIndexRoute
   '/zh/': typeof ZhIndexRoute
+  '/ja/docs/$': typeof JaDocsSplatRoute
   '/zh/docs/$': typeof ZhDocsSplatRoute
+  '/ja/docs/': typeof JaDocsIndexRoute
   '/zh/docs/': typeof ZhDocsIndexRoute
 }
 export interface FileRouteTypes {
@@ -96,30 +132,42 @@ export interface FileRouteTypes {
     | '/'
     | '/download'
     | '/docs/$'
+    | '/ja/download'
     | '/zh/download'
     | '/docs/'
+    | '/ja/'
     | '/zh/'
+    | '/ja/docs/$'
     | '/zh/docs/$'
+    | '/ja/docs/'
     | '/zh/docs/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/download'
     | '/docs/$'
+    | '/ja/download'
     | '/zh/download'
     | '/docs'
+    | '/ja'
     | '/zh'
+    | '/ja/docs/$'
     | '/zh/docs/$'
+    | '/ja/docs'
     | '/zh/docs'
   id:
     | '__root__'
     | '/'
     | '/download'
     | '/docs/$'
+    | '/ja/download'
     | '/zh/download'
     | '/docs/'
+    | '/ja/'
     | '/zh/'
+    | '/ja/docs/$'
     | '/zh/docs/$'
+    | '/ja/docs/'
     | '/zh/docs/'
   fileRoutesById: FileRoutesById
 }
@@ -127,10 +175,14 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   DownloadRoute: typeof DownloadRoute
   DocsSplatRoute: typeof DocsSplatRoute
+  JaDownloadRoute: typeof JaDownloadRoute
   ZhDownloadRoute: typeof ZhDownloadRoute
   DocsIndexRoute: typeof DocsIndexRoute
+  JaIndexRoute: typeof JaIndexRoute
   ZhIndexRoute: typeof ZhIndexRoute
+  JaDocsSplatRoute: typeof JaDocsSplatRoute
   ZhDocsSplatRoute: typeof ZhDocsSplatRoute
+  JaDocsIndexRoute: typeof JaDocsIndexRoute
   ZhDocsIndexRoute: typeof ZhDocsIndexRoute
 }
 
@@ -164,6 +216,20 @@ declare module '@tanstack/solid-router' {
       preLoaderRoute: typeof DocsSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/ja/': {
+      id: '/ja/'
+      path: '/ja'
+      fullPath: '/ja/'
+      preLoaderRoute: typeof JaIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ja/download': {
+      id: '/ja/download'
+      path: '/ja/download'
+      fullPath: '/ja/download'
+      preLoaderRoute: typeof JaDownloadRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/zh/': {
       id: '/zh/'
       path: '/zh'
@@ -176,6 +242,20 @@ declare module '@tanstack/solid-router' {
       path: '/zh/download'
       fullPath: '/zh/download'
       preLoaderRoute: typeof ZhDownloadRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ja/docs/': {
+      id: '/ja/docs/'
+      path: '/ja/docs'
+      fullPath: '/ja/docs/'
+      preLoaderRoute: typeof JaDocsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ja/docs/$': {
+      id: '/ja/docs/$'
+      path: '/ja/docs/$'
+      fullPath: '/ja/docs/$'
+      preLoaderRoute: typeof JaDocsSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/zh/docs/': {
@@ -199,10 +279,14 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DownloadRoute: DownloadRoute,
   DocsSplatRoute: DocsSplatRoute,
+  JaDownloadRoute: JaDownloadRoute,
   ZhDownloadRoute: ZhDownloadRoute,
   DocsIndexRoute: DocsIndexRoute,
+  JaIndexRoute: JaIndexRoute,
   ZhIndexRoute: ZhIndexRoute,
+  JaDocsSplatRoute: JaDocsSplatRoute,
   ZhDocsSplatRoute: ZhDocsSplatRoute,
+  JaDocsIndexRoute: JaDocsIndexRoute,
   ZhDocsIndexRoute: ZhDocsIndexRoute,
 }
 export const routeTree = rootRouteImport

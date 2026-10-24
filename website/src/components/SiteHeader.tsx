@@ -1,8 +1,9 @@
 import { createEffect, createSignal, on, onCleanup, Show } from 'solid-js';
 import { Link } from './Link';
 import { GitHubIcon, MenuIcon, XIcon } from './Icons';
+import LanguageMenu from './LanguageMenu';
 import Search from './Search';
-import { delocalize, localeName, localize, t, type Locale } from '../lib/i18n';
+import { delocalize, localize, t, type Locale } from '../lib/i18n';
 
 export const GITHUB_URL = 'https://github.com/egoist/kero';
 
@@ -11,7 +12,6 @@ export default function SiteHeader(props: { path: string; locale: Locale }) {
   // The page's own path, without the locale's prefix.
   const page = () => delocalize(props.path);
   const inDocs = () => page().startsWith('/docs');
-  const other = (): Locale => (props.locale === 'en' ? 'zh' : 'en');
   const to = (path: string) => localize(path, props.locale);
 
   // On a phone the links fold into a menu under the header.
@@ -46,9 +46,6 @@ export default function SiteHeader(props: { path: string; locale: Locale }) {
       </Link>
     </>
   );
-  // The same page in the other language.
-  const langHref = () => localize(page(), other());
-  const langAttr = () => (other() === 'zh' ? 'zh-CN' : 'en');
 
   return (
     <header class="site-header" ref={header}>
@@ -60,9 +57,7 @@ export default function SiteHeader(props: { path: string; locale: Locale }) {
         <nav class="site-nav">{links()}</nav>
         <div class="site-header__end">
           <Search />
-          <Link href={langHref()} class="lang-link hide-sm" hreflang={langAttr()} aria-label={s().language}>
-            {localeName[other()]}
-          </Link>
+          <LanguageMenu locale={props.locale} page={page()} path={props.path} class="hide-sm" />
           <a class="icon-link hide-sm" href={GITHUB_URL} aria-label={s().github}>
             <GitHubIcon size={18} />
           </a>
@@ -83,9 +78,7 @@ export default function SiteHeader(props: { path: string; locale: Locale }) {
         <nav class="mobile-nav" id="mobile-nav" onClick={(e) => (e.target as Element).closest('a') && setOpen(false)}>
           <div class="mobile-nav__links">{links()}</div>
           <div class="mobile-nav__end">
-            <Link href={langHref()} hreflang={langAttr()} aria-label={s().language}>
-              {localeName[other()]}
-            </Link>
+            <LanguageMenu locale={props.locale} page={page()} path={props.path} inline />
             <a href={GITHUB_URL} aria-label={s().github}>
               <GitHubIcon size={16} /> GitHub
             </a>

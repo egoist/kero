@@ -92,6 +92,16 @@ export const XIcon = icon(() => (
   </>
 ));
 
+export const GlobeIcon = icon(() => (
+  <>
+    <circle cx="12" cy="12" r="10" />
+    <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20" />
+    <path d="M2 12h20" />
+  </>
+));
+export const ChevronDownIcon = icon(() => <path d="m6 9 6 6 6-6" />);
+export const CheckIcon = icon(() => <path d="M20 6 9 17l-5-5" />);
+
 export const SearchIcon = icon(() => (
   <>
     <path d="m21 21-4.34-4.34" />

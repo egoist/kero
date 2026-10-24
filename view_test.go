@@ -650,9 +650,10 @@ func (w writes) Write(b []byte) (int, error) {
 	return len(b), nil
 }
 
-// ⌘⌫ sends Control+U, which clears the line, and only on a Mac, where
-// ⌘ is not the terminal's Control.
-func TestCommandBackspaceClearsLine(t *testing.T) {
+// ⌘⌫, ⌘← and ⌘→ send Control+U, Control+A and Control+E, which clear the
+// line and go to its start and end, and only on a Mac, where ⌘ is not the
+// terminal's Control.
+func TestCommandKeysEditLine(t *testing.T) {
 	if testing.Short() {
 		t.Skip("downloads libghostty-vt")
 	}
@@ -668,24 +669,32 @@ func TestCommandBackspaceClearsLine(t *testing.T) {
 	defer term.Close()
 	a.terms["a"] = &termEntry{term: term}
 	o := a.termOptions("a", nil)
-	if took := o.OnKey(ui.Super, ui.KeyBackspace); took != (runtime.GOOS == "darwin") {
-		t.Fatalf("⌘⌫ taken: %v", took)
-	}
-	if runtime.GOOS != "darwin" {
-		return
-	}
-	select {
-	case b := <-conn.got:
-		if string(b) != "\x15" {
-			t.Errorf("⌘⌫ sent %q, want Control+U", b)
+	for _, k := range []struct {
+		key  ui.Key
+		want string
+	}{{ui.KeyBackspace, "\x15"}, {ui.KeyLeft, "\x01"}, {ui.KeyRight, "\x05"}} {
+		if took := o.OnKey(ui.Super, k.key); took != (runtime.GOOS == "darwin") {
+			t.Fatalf("⌘+%v taken: %v", k.key, took)
 		}
-	case <-time.After(2 * time.Second):
-		t.Fatal("⌘⌫ sent nothing")
+		if runtime.GOOS != "darwin" {
+			continue
+		}
+		select {
+		case b := <-conn.got:
+			if string(b) != k.want {
+				t.Errorf("⌘+%v sent %q, want %q", k.key, b, k.want)
+			}
+		case <-time.After(2 * time.Second):
+			t.Fatalf("⌘+%v sent nothing", k.key)
+		}
 	}
 	for _, k := range []struct {
 		mods ui.Modifiers
 		key  ui.Key
-	}{{0, ui.KeyBackspace}, {ui.Super | ui.Shift, ui.KeyBackspace}, {ui.Super, ui.KeyDelete}} {
+	}{
+		{0, ui.KeyBackspace}, {ui.Super | ui.Shift, ui.KeyBackspace}, {ui.Super, ui.KeyDelete},
+		{0, ui.KeyLeft}, {ui.Super | ui.Shift, ui.KeyLeft}, {ui.Super | ui.Alt, ui.KeyRight},
+	} {
 		if o.OnKey(k.mods, k.key) {
 			t.Errorf("%v+%v taken", k.mods, k.key)
 		}

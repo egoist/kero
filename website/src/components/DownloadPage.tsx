@@ -45,6 +45,28 @@ const copy = {
     quickStart: 'Quick Start',
     allReleases: 'All Releases',
   },
+  ja: {
+    title: 'ダウンロード | Kero',
+    description: 'コーディングエージェントのためのターミナル Kero を、macOS、Windows、Linux 向けにダウンロード。',
+    heading: 'Kero をダウンロード',
+    lead: 'macOS、Windows、Linux に対応。',
+    notes: (v: string) => `${v} リリースノート`,
+    yours: 'お使いのシステム',
+    platformNotes: {
+      mac: 'Homebrew でインストールするか、ディスクイメージを開いて Kero を“アプリケーション”フォルダにドラッグしてください。',
+      windows: 'インストーラを実行してください。管理者権限は不要です。Kero には Windows 10 1809 以降が必要です。',
+      linux: 'パッケージをインストールするか、スクリプトを実行して root なしで ~/.local に Kero をインストールしてください。',
+    },
+    cliTitle: '次は CLI を使ってみよう',
+    cli: () => (
+      <>
+        <strong>Kero › コマンドラインツールをインストール…</strong> を選ぶと <code>kero</code> が PATH
+        に追加され、エージェントから操作できるようになります。
+      </>
+    ),
+    quickStart: 'クイックスタート',
+    allReleases: 'すべてのリリース',
+  },
   zh: {
     title: '下载 | Kero',
     description: '下载 Kero，为编程智能体打造的终端，支持 macOS、Windows 和 Linux。',

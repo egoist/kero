@@ -705,6 +705,14 @@ func (a *App) termThemes() (light, dark *terminal.Theme) {
 	return pick(a.set.LightTheme, lightTermTheme), pick(a.set.DarkTheme, darkTermTheme)
 }
 
+// commandKeys are the keys that, with ⌘ alone on a Mac, send the program a
+// control byte, as Ghostty's do.
+var commandKeys = map[ui.Key]byte{
+	ui.KeyBackspace: 0x15, // Control+U, kill-line
+	ui.KeyLeft:      0x01, // Control+A, beginning-of-line
+	ui.KeyRight:     0x05, // Control+E, end-of-line
+}
+
 func (a *App) termOptions(id string, conn *gated) terminal.Options {
 	light, dark := a.termThemes()
 	o := terminal.Options{
@@ -739,17 +747,23 @@ func (a *App) termOptions(id string, conn *gated) terminal.Options {
 			conn.Clear(proto.ClearScreen)
 			return true
 		},
-		// ⌘⌫ clears the line the shell is on, as in Ghostty: it sends
-		// Control+U, which shells take as kill-line.
+		// ⌘⌫ clears the line the shell is on, and ⌘← and ⌘→ go to its
+		// start and end, as in Ghostty: they send Control+U, Control+A and
+		// Control+E, which shells take as kill-line, beginning-of-line and
+		// end-of-line.
 		OnKey: func(mods ui.Modifiers, key ui.Key) bool {
-			if runtime.GOOS != "darwin" || mods != ui.Super || key != ui.KeyBackspace {
+			if runtime.GOOS != "darwin" || mods != ui.Super {
+				return false
+			}
+			b, ok := commandKeys[key]
+			if !ok {
 				return false
 			}
 			e := a.terms[id]
 			if e == nil || e.term == nil {
 				return false
 			}
-			e.term.Send([]byte{0x15})
+			e.term.Send([]byte{b})
 			return true
 		},
 		// The wheel, the user's even over a window not focused, tells they

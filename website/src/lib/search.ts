@@ -1,5 +1,5 @@
 import { create, insert, search as zbsearch } from 'zbsearch';
-import { docs, ordered } from './docs';
+import { docPath, docs, ordered } from './docs';
 import type { Locale } from './i18n';
 
 // The search index: one entry per page (its title and intro) and one per
@@ -40,9 +40,8 @@ function plain(md: string) {
 function entries(locale: Locale): SearchEntry[] {
   const out: SearchEntry[] = [];
   for (const [file, source] of Object.entries(sources)) {
-    const path = file.replace(/^.*\/docs\//, '').replace(/\.md$/, '');
-    if (path.startsWith('zh/') !== (locale === 'zh')) continue;
-    const name = locale === 'zh' ? path.slice(3) : path;
+    const { locale: fileLocale, name } = docPath(file);
+    if (fileLocale !== locale) continue;
     const doc = docs[locale].get(name === 'index' ? '' : name.replace(/\/index$/, ''));
     if (!doc) continue;
 
@@ -75,7 +74,7 @@ function entries(locale: Locale): SearchEntry[] {
   return out;
 }
 
-const all = { en: entries('en'), zh: entries('zh') };
+const all = { en: entries('en'), ja: entries('ja'), zh: entries('zh') };
 const db = create({ schema: { page: 'string', heading: 'string', text: 'string' } as const });
 for (const entry of all.en) insert(db, entry);
 
@@ -94,7 +93,7 @@ function order(locale: Locale, href: string) {
 // Entries that match every word of the query, best first: a match in a
 // heading counts most, then in the page's title, then in the text.
 export async function search(query: string, locale: Locale): Promise<SearchEntry[]> {
-  if (locale === 'zh') return searchText(query, all.zh);
+  if (locale !== 'en') return searchText(query, all[locale]);
   const results = await zbsearch(db, {
     term: query,
     properties: ['heading', 'page', 'text'],
@@ -105,8 +104,9 @@ export async function search(query: string, locale: Locale): Promise<SearchEntry
   return results.hits.map((hit) => hit.document as unknown as SearchEntry);
 }
 
-// Chinese has no spaces between words for the index to split on, so match
-// each of the query's words as a substring instead, ranked the same way.
+// Chinese and Japanese have no spaces between words for the index to split
+// on, so match each of the query's words as a substring instead, ranked the
+// same way.
 function searchText(query: string, entries: SearchEntry[]) {
   const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
   const score = (e: SearchEntry) => {

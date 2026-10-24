@@ -1,5 +1,26 @@
 # Changelog
 
+## 2.1.15
+
+- yazi's image previews show the image, not a box of placeholder
+  characters, locally and over SSH. Thanks @voidyuu for the report
+
+## 2.1.14
+
+- On a Mac, Command+Left and Command+Right go to the start and end of
+  the line in the shell, as in Ghostty. Thanks @eliottwantz
+- Kero speaks Japanese: pick it under **Language** in Settings.
+- Powerline's rounded separators in prompts fill the line's height,
+  with no gap when the line height is above 1.
+- On Linux, closing Settings no longer closes the app.
+
+## 2.1.13
+
+- Mouse clicks and drags work in herdr and other apps built on
+  crossterm, locally and over SSH.
+- Programs that change what Backspace or Alt sends, or how the keypad
+  works with NumLock, get the keys as they asked for them.
+
 ## 2.1.12
 
 - Pasting an image alone, such as a screenshot, into a pane pastes the
