@@ -145,11 +145,12 @@ func (d *Daemon) findPane(ref string) *pane {
 
 // agentPane finds the pane an agent's hook tells of, from the hook's
 // process pid: the pane whose shell runs it. An agent's service that
-// panes share, as Codex's app server, runs its hooks under no pane's
-// shell, and with the environment of the pane that started it, which
-// names no pane to trust: then the pane is the one that can only be
-// the agent's, its only pane yet to tell a session (or, of several, the
-// only one in the agent's dir), else its only pane; away tells it.
+// panes share, as Codex's app server, runs its hooks with the
+// environment of the pane that started it, and under that pane's shell
+// when it started it, which names no pane to trust: then the pane is
+// the one that can only be the agent's, its only pane yet to tell a
+// session (or, of several, the only one in the agent's dir), else its
+// only pane; away tells it.
 func (d *Daemon) agentPane(pid int, agent, dir string) (found *pane, away bool) {
 	d.mu.Lock()
 	panes := make([]*pane, 0, len(d.panes))
@@ -177,7 +178,7 @@ func (d *Daemon) agentPane(pid int, agent, dir string) (found *pane, away bool) 
 		}
 		p.mu.Unlock()
 	}
-	for i := 0; i < 64 && pid > 1; i++ {
+	for i := 0; i < 64 && pid > 1 && !sharedService(pid); i++ {
 		if p := byShell[pid]; p != nil {
 			return p, false
 		}
@@ -194,6 +195,14 @@ func (d *Daemon) agentPane(pid int, agent, dir string) (found *pane, away bool) 
 		return running[0], true
 	}
 	return nil, true
+}
+
+// sharedService tells a process of an agent's service that panes share:
+// Codex's app server as the daemon its TUIs connect to (daemon_auto_start),
+// which the first pane to run Codex starts, and runs every pane's hooks.
+func sharedService(pid int) bool {
+	args := procArgs(pid)
+	return slices.Contains(args, "app-server") && slices.Contains(args, "--managed-daemon")
 }
 
 // focusedLocked returns a session's focused pane, else its first; d.mu is
