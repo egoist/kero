@@ -56,6 +56,8 @@ kero config check             # 报告未知的配置项和无效的值
 | `language`           | `system` | 应用语言：`system`、`en` 或 `zh-Hans`                            |
 | `background`         | `petal`  | 窗口底色：`petal`、`mist`、`meadow`、`dusk` 或 `plain`           |
 | `window-translucent` | `true`   | 让桌面透过窗口显示出来                                          |
+| `pet`                | `true`   | 小青蛙 Kero：趴在窗口上沿，跟着你的会话                          |
+| `pet-offset`         | `0.5`    | Kero 站在窗口宽度的哪里，0 到 1；直接拖动即可                    |
 
 ## 终端
 

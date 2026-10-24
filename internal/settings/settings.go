@@ -31,10 +31,12 @@ type Settings struct {
 	QuitConfirm       bool   `json:"quitConfirm"`       // tell, the first time, that quitting keeps sessions
 
 	// Appearance
-	Appearance string `json:"appearance"` // "system", "light" or "dark"
-	Language   string `json:"language"`   // "system", or one of Languages
-	Background string `json:"background"` // a wash, see Backgrounds
-	Vibrancy   bool   `json:"vibrancy"`   // the window's material under the wash
+	Appearance string  `json:"appearance"` // "system", "light" or "dark"
+	Language   string  `json:"language"`   // "system", or one of Languages
+	Background string  `json:"background"` // a wash, see Backgrounds
+	Vibrancy   bool    `json:"vibrancy"`   // the window's material under the wash
+	Pet        bool    `json:"pet"`        // the frog on the window's top edge
+	PetOffset  float32 `json:"petOffset"`  // where it stands, 0 to 1 across the window
 
 	// Terminal
 	FontFamily   string  `json:"fontFamily"` // "" the font kero carries; "monospace" the system's
@@ -135,6 +137,8 @@ func Default() Settings {
 		Language:        "system",
 		Background:      "rex",
 		Vibrancy:        true,
+		Pet:             true,
+		PetOffset:       0.5,
 		DimUnfocused:    true,
 		FontSize:        13,
 		LineHeight:      1.22,
@@ -308,6 +312,9 @@ func (s *Settings) normalize() {
 	oneOf(&s.Clipboard, d.Clipboard, "ask", "allow", "deny")
 	oneOf(&s.RightClick, d.RightClick, "menu", "paste", "copyOrPaste")
 	oneOf(&s.DiffLayout, d.DiffLayout, "auto", "unified", "split")
+	if s.PetOffset < 0 || s.PetOffset > 1 {
+		s.PetOffset = d.PetOffset
+	}
 	known := false
 	for _, b := range Backgrounds {
 		known = known || b.ID == s.Background

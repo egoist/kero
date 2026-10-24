@@ -113,6 +113,29 @@ func TestBadValuesKeepDefaults(t *testing.T) {
 	}
 }
 
+// Kero the frog is on unless the configuration says otherwise, and
+// stands at the right unless the configuration says where.
+func TestPet(t *testing.T) {
+	if !Default().Pet || Default().PetOffset != 0.5 {
+		t.Fatal("the pet is off, or not in the middle, by default")
+	}
+	s, probs := parse("pet = false\npet-offset = 0.25\n")
+	if s.Pet || s.PetOffset != 0.25 || len(probs) != 0 {
+		t.Fatalf("pet = false, offset 0.25: %v %v, problems %q", s.Pet, s.PetOffset, probs)
+	}
+	if out := format(s, ""); !strings.Contains(out, "pet = false\n") || !strings.Contains(out, "pet-offset = 0.25\n") {
+		t.Errorf("formatted:\n%s", out)
+	}
+	back, _ := parse(format(s, ""))
+	if back.Pet || back.PetOffset != 0.25 {
+		t.Errorf("came back %v %v", back.Pet, back.PetOffset)
+	}
+	// A place past the window keeps the default.
+	if s, probs = parse("pet-offset = 1.5\n"); s.PetOffset != 0.5 || len(probs) != 0 {
+		t.Errorf("pet-offset = 1.5: %v, problems %q", s.PetOffset, probs)
+	}
+}
+
 // Kero elsewhere updates the app here only once the user lets it.
 func TestRemoteUpdatesOptIn(t *testing.T) {
 	if Default().RemoteUpdates {

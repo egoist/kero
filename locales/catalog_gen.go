@@ -2254,6 +2254,36 @@ func (msgs Messages) SetTranslucentDetail() string {
 	return Catalog.Format(msgs.locale, "setTranslucentDetail", nil)
 }
 
+// SetPet says "Kero the frog"
+// in the language the app shows.
+func SetPet() string { return In(i18n.Locale()).SetPet() }
+
+// SetPet says "Kero the frog"
+// in the language of msgs.
+func (msgs Messages) SetPet() string {
+	return Catalog.Format(msgs.locale, "setPet", nil)
+}
+
+// SetPetDetail says "A little frog on the window’s top edge: it hops when a session needs you, reads along while one works, and dozes wh…"
+// in the language the app shows.
+func SetPetDetail() string { return In(i18n.Locale()).SetPetDetail() }
+
+// SetPetDetail says "A little frog on the window’s top edge: it hops when a session needs you, reads along while one works, and dozes wh…"
+// in the language of msgs.
+func (msgs Messages) SetPetDetail() string {
+	return Catalog.Format(msgs.locale, "setPetDetail", nil)
+}
+
+// PetName says "Kero, the frog"
+// in the language the app shows.
+func PetName() string { return In(i18n.Locale()).PetName() }
+
+// PetName says "Kero, the frog"
+// in the language of msgs.
+func (msgs Messages) PetName() string {
+	return Catalog.Format(msgs.locale, "petName", nil)
+}
+
 // SetDimUnfocused says "Dim unfocused terminals"
 // in the language the app shows.
 func SetDimUnfocused() string { return In(i18n.Locale()).SetDimUnfocused() }
@@ -3458,6 +3488,16 @@ func ActionToggleChanges() string { return In(i18n.Locale()).ActionToggleChanges
 // in the language of msgs.
 func (msgs Messages) ActionToggleChanges() string {
 	return Catalog.Format(msgs.locale, "actionToggleChanges", nil)
+}
+
+// ActionTogglePet says "Toggle Kero"
+// in the language the app shows.
+func ActionTogglePet() string { return In(i18n.Locale()).ActionTogglePet() }
+
+// ActionTogglePet says "Toggle Kero"
+// in the language of msgs.
+func (msgs Messages) ActionTogglePet() string {
+	return Catalog.Format(msgs.locale, "actionTogglePet", nil)
 }
 
 // SideChanges says "Changes"

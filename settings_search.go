@@ -38,6 +38,7 @@ func settingsIndex() []searchEntry {
 		{"appearance", locales.SetAppearance(), "window-theme dark light mode system"},
 		{"appearance", locales.SetLanguage(), "language locale translation chinese english 语言 中文"},
 		{"appearance", locales.SetTranslucent(), "window-translucent vibrancy blur material transparency"},
+		{"appearance", locales.SetPet(), "pet frog kero mascot sprite companion agent status drag offset position 小精灵 青蛙 宠物"},
 		{"appearance", locales.SetBackground(), "background wash petal mist meadow dusk plain gradient color"},
 
 		{"terminal", locales.SetFont(), "font-family typeface jetbrains mono nerd"},
@@ -133,6 +134,7 @@ var actionWords = map[string]string{
 	"pane.down":         "focus move navigate below",
 	"sidebar.toggle":    "show hide sidebar sessions list",
 	"changes.toggle":    "git diff branch panel changes",
+	"pet.toggle":        "frog kero mascot sprite show hide pet companion 小青蛙 精灵 宠物",
 	"text.bigger":       "zoom in font size larger increase text",
 	"text.smaller":      "zoom out font size decrease text",
 	"text.reset":        "zoom reset font size default text",
