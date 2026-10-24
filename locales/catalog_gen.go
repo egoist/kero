@@ -1032,6 +1032,106 @@ func (msgs Messages) RestartServiceDetail() string {
 	return Catalog.Format(msgs.locale, "restartServiceDetail", nil)
 }
 
+// SidebarSort says "Sort and Group"
+// in the language the app shows.
+func SidebarSort() string { return In(i18n.Locale()).SidebarSort() }
+
+// SidebarSort says "Sort and Group"
+// in the language of msgs.
+func (msgs Messages) SidebarSort() string {
+	return Catalog.Format(msgs.locale, "sidebarSort", nil)
+}
+
+// SidebarGroup says "Group"
+// in the language the app shows.
+func SidebarGroup() string { return In(i18n.Locale()).SidebarGroup() }
+
+// SidebarGroup says "Group"
+// in the language of msgs.
+func (msgs Messages) SidebarGroup() string {
+	return Catalog.Format(msgs.locale, "sidebarGroup", nil)
+}
+
+// SidebarGroupProject says "By Project"
+// in the language the app shows.
+func SidebarGroupProject() string { return In(i18n.Locale()).SidebarGroupProject() }
+
+// SidebarGroupProject says "By Project"
+// in the language of msgs.
+func (msgs Messages) SidebarGroupProject() string {
+	return Catalog.Format(msgs.locale, "sidebarGroupProject", nil)
+}
+
+// SidebarGroupNone says "No Grouping"
+// in the language the app shows.
+func SidebarGroupNone() string { return In(i18n.Locale()).SidebarGroupNone() }
+
+// SidebarGroupNone says "No Grouping"
+// in the language of msgs.
+func (msgs Messages) SidebarGroupNone() string {
+	return Catalog.Format(msgs.locale, "sidebarGroupNone", nil)
+}
+
+// SidebarGroupDate says "By Date"
+// in the language the app shows.
+func SidebarGroupDate() string { return In(i18n.Locale()).SidebarGroupDate() }
+
+// SidebarGroupDate says "By Date"
+// in the language of msgs.
+func (msgs Messages) SidebarGroupDate() string {
+	return Catalog.Format(msgs.locale, "sidebarGroupDate", nil)
+}
+
+// SidebarOrder says "Order"
+// in the language the app shows.
+func SidebarOrder() string { return In(i18n.Locale()).SidebarOrder() }
+
+// SidebarOrder says "Order"
+// in the language of msgs.
+func (msgs Messages) SidebarOrder() string {
+	return Catalog.Format(msgs.locale, "sidebarOrder", nil)
+}
+
+// SidebarOrderCreated says "Created Time"
+// in the language the app shows.
+func SidebarOrderCreated() string { return In(i18n.Locale()).SidebarOrderCreated() }
+
+// SidebarOrderCreated says "Created Time"
+// in the language of msgs.
+func (msgs Messages) SidebarOrderCreated() string {
+	return Catalog.Format(msgs.locale, "sidebarOrderCreated", nil)
+}
+
+// SidebarOrderUpdated says "Updated Time"
+// in the language the app shows.
+func SidebarOrderUpdated() string { return In(i18n.Locale()).SidebarOrderUpdated() }
+
+// SidebarOrderUpdated says "Updated Time"
+// in the language of msgs.
+func (msgs Messages) SidebarOrderUpdated() string {
+	return Catalog.Format(msgs.locale, "sidebarOrderUpdated", nil)
+}
+
+// SidebarToday says "Today"
+// in the language the app shows.
+func SidebarToday() string { return In(i18n.Locale()).SidebarToday() }
+
+// SidebarToday says "Today"
+// in the language of msgs.
+func (msgs Messages) SidebarToday() string {
+	return Catalog.Format(msgs.locale, "sidebarToday", nil)
+}
+
+// SidebarYesterday says "Yesterday"
+// in the language the app shows.
+func SidebarYesterday() string { return In(i18n.Locale()).SidebarYesterday() }
+
+// SidebarYesterday says "Yesterday"
+// in the language of msgs.
+func (msgs Messages) SidebarYesterday() string {
+	return Catalog.Format(msgs.locale, "sidebarYesterday", nil)
+}
+
 // SidebarOtherProject says "Other"
 // in the language the app shows.
 func SidebarOtherProject() string { return In(i18n.Locale()).SidebarOtherProject() }
