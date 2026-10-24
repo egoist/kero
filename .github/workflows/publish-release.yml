@@ -1,0 +1,27 @@
+name: Publish release
+
+# Run by hand once the Release run of a version succeeded: it publishes
+# the draft release of mygo.json's version on the branch it runs on, as
+# step 6 of RELEASING.md does with gh release edit.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write # publishing the draft release
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Publish the draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="v$(jq -r .version mygo.json)"
+          draft="$(gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft)"
+          if [ "$draft" != "true" ]; then
+            echo "::error::$tag has no draft release to publish"
+            exit 1
+          fi
+          gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --draft=false

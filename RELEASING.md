@@ -39,6 +39,10 @@ it all in a draft release. Publishing the draft releases it.
    gh release edit vX.Y.Z --draft=false
    ```
 
+   Where `gh` can't edit releases, run the Publish release workflow
+   (`.github/workflows/publish-release.yml`) on `main` instead: it
+   publishes the draft of `mygo.json`'s version.
+
    If a job failed, leave the draft unpublished and report what failed.
    Fixed, the workflow can run again by hand (Run workflow on `main`),
    which replaces the draft and moves the tag to that commit; a
