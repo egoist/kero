@@ -113,6 +113,73 @@ func TestBadValuesKeepDefaults(t *testing.T) {
 	}
 }
 
+// Kero the frog is on unless the configuration says otherwise, and
+// stands at the right unless the configuration says where.
+func TestPet(t *testing.T) {
+	if !Default().Pet || Default().PetOffset != 0.5 {
+		t.Fatal("the pet is off, or not in the middle, by default")
+	}
+	s, probs := parse("pet = false\npet-offset = 0.25\n")
+	if s.Pet || s.PetOffset != 0.25 || len(probs) != 0 {
+		t.Fatalf("pet = false, offset 0.25: %v %v, problems %q", s.Pet, s.PetOffset, probs)
+	}
+	if out := format(s, ""); !strings.Contains(out, "pet = false\n") || !strings.Contains(out, "pet-offset = 0.25\n") {
+		t.Errorf("formatted:\n%s", out)
+	}
+	back, _ := parse(format(s, ""))
+	if back.Pet || back.PetOffset != 0.25 {
+		t.Errorf("came back %v %v", back.Pet, back.PetOffset)
+	}
+	// A place past the window keeps the default.
+	if s, probs = parse("pet-offset = 1.5\n"); s.PetOffset != 0.5 || len(probs) != 0 {
+		t.Errorf("pet-offset = 1.5: %v, problems %q", s.PetOffset, probs)
+	}
+}
+
+// The background's opacity is a number in the configuration, 0 to 1,
+// and is the default when it is out of range.
+func TestWindowOpacity(t *testing.T) {
+	if Default().WindowOpacity != DefaultWindowOpacity {
+		t.Fatalf("default opacity %v, want %v", Default().WindowOpacity, DefaultWindowOpacity)
+	}
+	s, probs := parse("window-opacity = 0.5\n")
+	if s.WindowOpacity != 0.5 || len(probs) != 0 {
+		t.Fatalf("window-opacity = 0.5: %v, problems %q", s.WindowOpacity, probs)
+	}
+	if out := format(s, ""); !strings.Contains(out, "window-opacity = 0.5\n") {
+		t.Errorf("formatted:\n%s", out)
+	}
+	if back, _ := parse(format(s, "")); back.WindowOpacity != 0.5 {
+		t.Errorf("came back %v", back.WindowOpacity)
+	}
+	if s, probs := parse("window-opacity = 0\n"); s.WindowOpacity != 0 || len(probs) != 0 {
+		t.Errorf("window-opacity = 0: %v, problems %q", s.WindowOpacity, probs)
+	}
+	if s, probs := parse("window-opacity = 1.5\n"); s.WindowOpacity != DefaultWindowOpacity || len(probs) != 0 {
+		t.Errorf("window-opacity = 1.5: %v, problems %q", s.WindowOpacity, probs)
+	}
+	if out := format(Default(), ""); strings.Contains(out, "window-opacity") {
+		t.Errorf("the default opacity was written:\n%s", out)
+	}
+}
+
+// The background's blur is on unless the configuration turns it off.
+func TestWindowBlur(t *testing.T) {
+	if !Default().WindowBlur {
+		t.Fatal("blur is off by default")
+	}
+	s, probs := parse("window-blur = false\n")
+	if s.WindowBlur || len(probs) != 0 {
+		t.Fatalf("window-blur = false: %v, problems %q", s.WindowBlur, probs)
+	}
+	if out := format(s, ""); !strings.Contains(out, "window-blur = false\n") {
+		t.Errorf("formatted:\n%s", out)
+	}
+	if back, _ := parse(format(s, "")); back.WindowBlur {
+		t.Error("the blur came back on")
+	}
+}
+
 // Kero elsewhere updates the app here only once the user lets it.
 func TestRemoteUpdatesOptIn(t *testing.T) {
 	if Default().RemoteUpdates {
@@ -174,5 +241,20 @@ func TestAdLists(t *testing.T) {
 	}
 	if out := format(Default(), ""); strings.Contains(out, "browser-filter-list") {
 		t.Errorf("the default lists were written:\n%s", out)
+	}
+}
+
+// Quitting keeps the sessions running unless the configuration says
+// otherwise, with quit-ends-sessions.
+func TestQuitEndsSessions(t *testing.T) {
+	if Default().QuitEndsSessions {
+		t.Fatal("quit-ends-sessions is on by default")
+	}
+	s, probs := parse("quit-ends-sessions = true\n")
+	if len(probs) != 0 || !s.QuitEndsSessions {
+		t.Fatalf("quit-ends-sessions: %v, problems %q", s.QuitEndsSessions, probs)
+	}
+	if out := format(s, ""); !strings.Contains(out, "quit-ends-sessions = true\n") {
+		t.Errorf("formatted:\n%s", out)
 	}
 }

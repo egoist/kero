@@ -89,6 +89,21 @@ func numberKey(name, doc string, get func(*Settings) float64, set func(*Settings
 		}}
 }
 
+// float32Key is numberKey for a setting kept as a float32, which reads
+// and writes its shortest form, not the double's.
+func float32Key(name, doc string, f func(*Settings) *float32) key {
+	return key{name: name, doc: doc,
+		get: func(s *Settings) []string { return []string{strconv.FormatFloat(float64(*f(s)), 'g', -1, 32)} },
+		set: func(s *Settings, v []string) error {
+			n, err := strconv.ParseFloat(v[len(v)-1], 32)
+			if err != nil {
+				return fmt.Errorf("%q is not a number", v[len(v)-1])
+			}
+			*f(s) = float32(n)
+			return nil
+		}}
+}
+
 // mapChoice maps the values of a choice in the file to those of Settings.
 func mapChoice(name, doc string, f func(*Settings) *string, file, ours []string) key {
 	return key{name: name, doc: doc + " (" + strings.Join(file, ", ") + ")",
@@ -114,12 +129,28 @@ var keys = []key{
 	boolKey("confirm-close", "ask before closing a pane a program runs in", func(s *Settings) *bool { return &s.ConfirmClose }),
 	boolKey("restore-sessions", "start sessions again after kerod restarts, as after a reboot", func(s *Settings) *bool { return &s.RestoreSessions }),
 	boolKey("resume-agents", "as sessions start again, resume the conversation of the coding agent each pane ran", func(s *Settings) *bool { return &s.ResumeAgents }),
+	boolKey("quit-ends-sessions", "quitting ends this machine's sessions and its kerod, as Quit and End All Sessions does; other machines' keep running", func(s *Settings) *bool { return &s.QuitEndsSessions }),
 
 	choiceKey("window-theme", "the app's appearance", func(s *Settings) *string { return &s.Appearance }, "system", "light", "dark"),
 	choiceKey("language", "the app's language; system follows the system's", func(s *Settings) *string { return &s.Language }, append([]string{"system"}, Languages...)...),
 	mapChoice("background", "the window's wash", func(s *Settings) *string { return &s.Background },
 		[]string{"petal", "mist", "meadow", "dusk", "plain"}, []string{"rex", "mist", "meadow", "dusk", "plain"}),
 	boolKey("window-translucent", "let the desktop show through the window", func(s *Settings) *bool { return &s.Vibrancy }),
+	{name: "window-opacity", doc: "how much of the window's background the wash covers while translucent, 0 to 1",
+		get: func(s *Settings) []string {
+			return []string{strconv.FormatFloat(float64(s.WindowOpacity), 'g', -1, 32)}
+		},
+		set: func(s *Settings, v []string) error {
+			n, err := strconv.ParseFloat(v[len(v)-1], 32)
+			if err != nil {
+				return fmt.Errorf("%q is not a number", v[len(v)-1])
+			}
+			s.WindowOpacity = float32(n)
+			return nil
+		}},
+	boolKey("window-blur", "blur the desktop behind the translucent background; off, the wash is plain transparency", func(s *Settings) *bool { return &s.WindowBlur }),
+	boolKey("pet", "Kero the frog on the window's top edge, who follows your sessions", func(s *Settings) *bool { return &s.Pet }),
+	float32Key("pet-offset", "where Kero stands across the window, 0 to 1; drag it there", func(s *Settings) *float32 { return &s.PetOffset }),
 
 	stringKey("font-family", "the terminals' font: empty for JetBrains Mono Nerd Font, which Kero carries; monospace for the system's", func(s *Settings) *string { return &s.FontFamily }),
 	numberKey("font-size", "in points", func(s *Settings) float64 { return float64(s.FontSize) }, func(s *Settings, n float64) { s.FontSize = float32(n) }),

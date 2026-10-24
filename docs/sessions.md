@@ -62,3 +62,11 @@ kero daemon status       # is kerod running?
 kero daemon restart      # restart it (sessions start again)
 kero daemon stop         # stop it and end every session
 ```
+
+### Quitting
+
+Quitting Kero keeps the sessions running, so that opening it again shows them, as they were. To have quitting end them, as **Quit and End All Sessions** does, set `quit-ends-sessions = true`: then every quit, from the window's close button, ⌘Q or the menu, ends this machine's sessions and their programs, and stops kerod, asking first while a program runs, as `confirm-close` says. Sessions on other machines keep running.
+
+```ini
+quit-ends-sessions = true
+```

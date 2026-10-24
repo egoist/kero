@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/egoist/mygo/ui"
@@ -24,9 +25,13 @@ const (
 	headerH = 2 * (barMid - cardGap)
 	cardGap = 8 // around the card
 	rowH    = 34
-	// rowInset is where a sidebar row's text starts: a session's name and
-	// its group's.
+	// rowInset is where a sidebar row's text starts: a project's name and
+	// its sessions', the badge telling the project from its children.
 	rowInset = 12
+	// projectBadge is the square before a project's name, with its first
+	// letter; projectBadgeGap is the room after it.
+	projectBadge    = 20
+	projectBadgeGap = 6
 )
 
 // chrome is where the sidebar's animation puts things, in whole pixels so
@@ -237,10 +242,15 @@ func (a *App) sidebar(c *ui.Context, pal *palette, bar ui.TitleBar) {
 			ui.Spacer(c)
 		}
 		iconButton(c, "hide-sidebar", sidebarIcon, a.tip(locales.SidebarHide(), "sidebar.toggle"), pal, a.toggleSidebar)
+		a.sortButton(c, pal)
 		iconButton(c, "new-session", plusIcon, a.tip(locales.ActionNewSession(), "session.new"), pal, func() { a.newSession("") })
 	})
 	ui.Scroll(c.Key("sessions")).Grow(1).Padding(0, 10, 16, 10).Children(func() {
-		n := 0  // the rows shown, for ⌘1–9 (Ctrl+1–9 elsewhere)
+		n := 0 // the rows shown, for ⌘1–9 (Ctrl+1–9 elsewhere)
+		if g := a.prefs.SidebarGroup; g == "none" || g == "date" {
+			a.sessionSidebar(c, pal, g, &n)
+			return
+		}
 		gi := 0 // the groups shown, the first of which sits higher
 		// This machine's projects first, unlabeled; then each host's,
 		// under its name.
@@ -276,9 +286,127 @@ func (a *App) sidebar(c *ui.Context, pal *palette, bar ui.TitleBar) {
 	c.After(20 * time.Second) // times ago move on
 }
 
+// sortButton opens the sidebar's Group and Order menu, as Otty's sort
+// icon does: how sessions group, and which order they take.
+func (a *App) sortButton(c *ui.Context, pal *palette) {
+	b := ui.ButtonBase(c.Key("sort-sidebar")).Size(28, 26).Radius(6).Center().TextColor(pal.textMuted).
+		Label(locales.SidebarSort()).Tooltip(locales.SidebarSort())
+	if b.Hovered() {
+		b.Background(pal.rowHover).TextColor(pal.text)
+	}
+	b.Menu(func(m *ui.Menu) {
+		group := a.prefs.SidebarGroup
+		if group == "" {
+			group = "project"
+		}
+		order := a.prefs.SidebarOrder
+		if order == "" {
+			order = "created"
+		}
+		m.Item(locales.SidebarGroup()).Disabled(true)
+		if m.Item(locales.SidebarGroupProject()).Checked(group == "project").Chosen() {
+			a.prefs.SidebarGroup = "project"
+			a.savePrefs()
+		}
+		if m.Item(locales.SidebarGroupNone()).Checked(group == "none").Chosen() {
+			a.prefs.SidebarGroup = "none"
+			a.savePrefs()
+		}
+		if m.Item(locales.SidebarGroupDate()).Checked(group == "date").Chosen() {
+			a.prefs.SidebarGroup = "date"
+			a.savePrefs()
+		}
+		m.Separator()
+		m.Item(locales.SidebarOrder()).Disabled(true)
+		if m.Item(locales.SidebarOrderCreated()).Checked(order == "created").Chosen() {
+			a.prefs.SidebarOrder = "created"
+			a.savePrefs()
+		}
+		if m.Item(locales.SidebarOrderUpdated()).Checked(order == "updated").Chosen() {
+			a.prefs.SidebarOrder = "updated"
+			a.savePrefs()
+		}
+	})
+	b.Children(func() { ui.Icon(c, sortIcon).Size(16, 16) })
+}
+
+// sessionSidebar lists every session, without projects: flat, or under
+// the day it was created.
+func (a *App) sessionSidebar(c *ui.Context, pal *palette, group string, n *int) {
+	gi := 0
+	local := a.local()
+	for _, h := range a.hosts {
+		if h == local && !h.loaded {
+			continue
+		}
+		empty := true
+		if group == "date" {
+			dgs := a.dateGroups(h)
+			empty = len(dgs) == 0
+			if h.remote() && (!empty || a.hostNeedsRow(h)) {
+				top := float32(18)
+				if gi == 0 && *n == 0 {
+					top = 2
+				}
+				a.hostLine(c, pal, h, top)
+				gi++
+			}
+			for _, dg := range dgs {
+				top := float32(18)
+				if gi == 0 && *n == 0 {
+					top = 2
+				}
+				a.dateHeader(c, pal, "date-"+h.name+"-"+dateLabel(dg.day, c.Now()), dateLabel(dg.day, c.Now()), len(dg.sessions), top)
+				gi++
+				for _, s := range dg.sessions {
+					a.sessionRow(c, pal, s, n, rowInset)
+				}
+			}
+		} else {
+			ss := a.flatSessions(h)
+			empty = len(ss) == 0
+			if h.remote() && (!empty || a.hostNeedsRow(h)) {
+				top := float32(18)
+				if gi == 0 && *n == 0 {
+					top = 2
+				}
+				a.hostLine(c, pal, h, top)
+				gi++
+			}
+			for _, s := range ss {
+				a.sessionRow(c, pal, s, n, rowInset)
+			}
+		}
+		if h == local && empty && h.conn == connReady && len(a.hosts) == 1 {
+			ui.Text(c, locales.SidebarNoSessions()).FontSize(12.5).TextColor(pal.textFaint).Padding(8, 10)
+		}
+	}
+}
+
+// dateHeader is a day in the sidebar's By Date.
+func (a *App) dateHeader(c *ui.Context, pal *palette, key, label string, count int, top float32) {
+	inset := float32(rowInset)
+	if pal.dark {
+		inset++
+	}
+	ui.Row(c.Key(key)).Height(28).Margin(top, 0, 3, 0).Padding(0, 6, 0, inset).Gap(6).AlignItems(ui.Center).Children(func() {
+		ui.Text(c, label).FontSize(12.5).FontWeight(600).TextColor(pal.textMuted).SingleLine().Shrink(1)
+		ui.Textf(c, "%d", count).FontSize(12.5).TextColor(pal.textFaint).FontFeatures("tnum")
+	})
+}
+
 func (a *App) groupView(c *ui.Context, pal *palette, g group, gi int, n *int) {
 	id, key := g.project.ID, g.key()
 	collapsed := a.prefs.Collapsed[key]
+	// current says this project holds the session in the card; folded, its
+	// badge keeps a dot for it.
+	current := false
+	for _, s := range g.sessions {
+		if s.ID == a.selected {
+			current = true
+			break
+		}
+	}
 	needs := 0
 	for _, s := range g.sessions {
 		if s.Status == proto.Waiting {
@@ -289,15 +417,48 @@ func (a *App) groupView(c *ui.Context, pal *palette, g group, gi int, n *int) {
 	if gi == 0 {
 		top = 2
 	}
-	// Its name starts where its sessions' names do (sessionRow), past the
-	// edge a row keeps in dark mode.
+	// Its name starts past its badge (sessionRow), where its sessions'
+	// names start too; the badge tells the project from its children.
 	inset := float32(rowInset)
 	if pal.dark {
 		inset++
 	}
 	hdr := ui.Row(c.Key("project-"+key)).Height(28).Margin(top, 0, 3, 0).Padding(0, 6, 0, inset).Gap(6).AlignItems(ui.Center).Radius(6)
-	hovered := hdr.Hovered()
 	renaming := id != "" && a.renamingProject == id
+	// The name is the project's handle: dragged, it moves the project to
+	// another place under its host.
+	if id != "" && !renaming {
+		hdr.Drag(projectDrag{host: g.host, id: id}).Cursor(ui.CursorGrab)
+		if hdr.Dragging() {
+			hdr.Opacity(0.35)
+		}
+	}
+	if id != "" {
+		if d, over := ui.DragOver[projectDrag](hdr); over && d.host == g.host && d.id != id {
+			y, _, _ := hdr.PointerPosition()
+			after := y > 14
+			a.projectAt, a.projectAfter = id, after
+			hdr.Background(pal.rowHover)
+			hdr.Draw(func(p *ui.Painter, r ui.Rect) {
+				ly := r.Y
+				if after {
+					ly = r.Y + r.H - 2
+				}
+				p.Fill(ui.Rect{X: r.X, Y: ly, W: r.W, H: 2}, pal.accent, 1)
+			})
+		}
+		if d, ok := ui.Drop[projectDrag](hdr); ok && d.host == g.host && d.id != id {
+			y, _, _ := hdr.PointerPosition()
+			after := y > 14
+			if a.projectAt == id {
+				// The side the insertion line last showed.
+				after = a.projectAfter
+			}
+			target := id
+			a.defer_(func() { a.moveProject(d, target, after) })
+		}
+	}
+	hovered := hdr.Hovered()
 	if hdr.Clicked() && !renaming {
 		a.toggleProject(key)
 	}
@@ -334,6 +495,21 @@ func (a *App) groupView(c *ui.Context, pal *palette, g group, gi int, n *int) {
 		}
 	})
 	hdr.Children(func() {
+		badge := ui.Box(c.Key("project-icon-"+key)).Size(projectBadge, projectBadge).Radius(5).Center().Shrink(0).
+			Background(a.projectBadgeColor(g.project)).Children(func() {
+			ui.Text(c, projectInitial(g.project.Name)).FontSize(10.5).FontWeight(700).TextColor(ui.Hex("#ffffff"))
+		})
+		if collapsed && current {
+			// The project's sessions are folded away, the one in the card
+			// too: a red dot over the badge's corner says it is still this
+			// project's; its white ring lifts it off any badge color.
+			badge.DrawOver(func(p *ui.Painter, r ui.Rect) {
+				cx, cy := r.X+r.W-1, r.Y+r.H-1
+				outer, inner := float32(9), float32(5)
+				p.Fill(ui.Rect{X: cx - outer/2, Y: cy - outer/2, W: outer, H: outer}, ui.Hex("#ffffff"), outer/2)
+				p.Fill(ui.Rect{X: cx - inner/2, Y: cy - inner/2, W: inner, H: inner}, pal.danger, inner/2)
+			})
+		}
 		if renaming {
 			in := ui.TextInputBase(c.Key("rename"), &a.renameBuf).Grow(1).MinWidth(0).FontSize(12.5).FontWeight(600).AutoFocus()
 			if in.Shortcut(0, ui.KeyEscape) {
@@ -373,24 +549,50 @@ func (a *App) groupView(c *ui.Context, pal *palette, g group, gi int, n *int) {
 		}
 	})
 	if collapsed {
-		// The session shown stays in view.
-		for _, s := range g.sessions {
-			if s.ID == a.selected {
-				a.sessionRow(c, pal, s, n)
-			}
-		}
 		return
 	}
 	for _, s := range g.sessions {
-		a.sessionRow(c, pal, s, n)
+		a.sessionRow(c, pal, s, n, float32(rowInset+projectBadge+projectBadgeGap))
 	}
 }
 
-func (a *App) sessionRow(c *ui.Context, pal *palette, s *proto.Session, n *int) {
+// projectBadges are the squares before project names: muted colors, far
+// enough apart to tell, and one per project in the set.
+var projectBadges = []ui.Color{
+	ui.Hex("#3f6f92"), ui.Hex("#4f8a6a"), ui.Hex("#7b5ea7"), ui.Hex("#a06a2c"),
+	ui.Hex("#a34f4f"), ui.Hex("#3f7f8f"), ui.Hex("#6b7d2f"), ui.Hex("#8a4f6a"),
+}
+
+// projectBadgeColor is a project's square: its place among the projects,
+// by id, so that renaming a project, or moving it in the sidebar, keeps
+// its color, and projects up to the palette's length have their own. The
+// "other" project is neutral.
+func (a *App) projectBadgeColor(p proto.Project) ui.Color {
+	if p.ID == "" {
+		return ui.Hex("#8b8b95")
+	}
+	i := 0
+	for _, q := range a.st.Projects {
+		if q.ID != "" && q.ID < p.ID {
+			i++
+		}
+	}
+	return projectBadges[i%len(projectBadges)]
+}
+
+// projectInitial is the first letter of a project's name, for its square.
+func projectInitial(name string) string {
+	for _, r := range name {
+		return strings.ToUpper(string(r))
+	}
+	return ""
+}
+
+func (a *App) sessionRow(c *ui.Context, pal *palette, s *proto.Session, n *int, inset float32) {
 	*n++
 	index := *n
 	selected := s.ID == a.selected
-	row := ui.Row(c.Key(s.ID)).Height(rowH).Padding(0, 10, 0, rowInset).Gap(10).AlignItems(ui.Center).Radius(8).Margin(0, 0, 1, 0)
+	row := ui.Row(c.Key(s.ID)).Height(rowH).Padding(0, 10, 0, inset).Gap(10).AlignItems(ui.Center).Radius(8).Margin(0, 0, 1, 0)
 	hovered := row.Hovered()
 	if pal.dark {
 		// Room for the chosen row's edge in every row, so that choosing
@@ -455,6 +657,12 @@ func (a *App) sessionRow(c *ui.Context, pal *palette, s *proto.Session, n *int) 
 		// A branch of its own, as an agent's in a worktree, by the name.
 		if b := offBranch(g); b != "" {
 			ui.Text(c, b).FontSize(12).TextColor(pal.textFaint).SingleLine().Ellipsis("…").Shrink(3).MinWidth(24).MaxWidth(120)
+		}
+		// Without project headers, the project says which list it is.
+		if a.prefs.SidebarGroup == "none" || a.prefs.SidebarGroup == "date" {
+			if p := a.projectName(s.Project); p != "" {
+				ui.Text(c, p).FontSize(12).TextColor(pal.textFaint).SingleLine().Ellipsis("…").Shrink(2).MinWidth(0).MaxWidth(90)
+			}
 		}
 		ui.Spacer(c)
 		cmd := c.Modifiers() == ui.Cmd

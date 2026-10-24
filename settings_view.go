@@ -489,6 +489,9 @@ func (a *App) generalPage(c *ui.Context, pal *palette) {
 		settingRow(c, pal, locales.SetAskBeforeClosing(), locales.SetAskBeforeClosingDetail(), func() {
 			toggle(c.Key("confirm"), &s.ConfirmClose, pal)
 		})
+		settingRow(c, pal, locales.SetQuitEndsSessions(), locales.SetQuitEndsSessionsDetail(), func() {
+			toggle(c.Key("quit-ends"), &s.QuitEndsSessions, pal)
+		})
 		settingRow(c, pal, locales.SetRestoreSessions(), locales.SetRestoreSessionsDetail(), func() {
 			toggle(c.Key("restore"), &s.RestoreSessions, pal)
 		})
@@ -624,6 +627,19 @@ func (a *App) appearancePage(c *ui.Context, pal *palette) {
 		})
 		settingRow(c, pal, locales.SetTranslucent(), locales.SetTranslucentDetail(), func() {
 			toggle(c.Key("vibrancy"), &s.Vibrancy, pal)
+		})
+		settingRow(c, pal, locales.SetWindowOpacity(), locales.SetWindowOpacityDetail(), func() {
+			v := float64(s.WindowOpacity)
+			slider(c, "window-opacity", &v, 0, 1, 160, pal).OnChange(func() {
+				s.WindowOpacity = float32(int(v*100+0.5)) / 100
+			})
+			ui.Textf(c, "%.0f%%", s.WindowOpacity*100).FontSize(12.5).TextColor(pal.textMuted).Width(40).FontFeatures("tnum")
+		})
+		settingRow(c, pal, locales.SetWindowBlur(), locales.SetWindowBlurDetail(), func() {
+			toggle(c.Key("window-blur"), &s.WindowBlur, pal)
+		})
+		settingRow(c, pal, locales.SetPet(), locales.SetPetDetail(), func() {
+			toggle(c.Key("pet"), &s.Pet, pal)
 		})
 	})
 	ui.Column(c).Gap(8).Children(func() {

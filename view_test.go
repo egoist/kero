@@ -19,6 +19,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"kero/internal/proto"
+	"kero/internal/settings"
 
 	"kero/locales"
 )
@@ -184,6 +185,50 @@ func TestHeaderPadBelowTopLeft(t *testing.T) {
 		t.Errorf("the title under the top left's starts at %v, as far in as the top left's %v", below.X, top.X)
 	}
 	shot(t, tt, "header-pad-below")
+}
+
+// The window's wash lets the material through as the setting says.
+func TestTranslucentBackground(t *testing.T) {
+	a := testApp(t)
+	a.set.Vibrancy = false
+	tt := ui.NewTester(a.view, 1100, 640)
+	tt.Frame()
+	off := tt.Image().RGBAAt(8, 300).A
+	a.set.Vibrancy = true
+	tt.Frame()
+	on := tt.Image().RGBAAt(8, 300).A
+	if off != 255 || on >= 230 {
+		t.Errorf("the wash's alpha is %d without translucency, %d with it", off, on)
+	}
+	// The setting moves it, from the default to half the wash, and to
+	// none of it.
+	a.set.WindowOpacity = 0.5
+	tt.Frame()
+	if half := tt.Image().RGBAAt(8, 300).A; half < 120 || half > 136 {
+		t.Errorf("half the wash is %d, want about 128", half)
+	}
+	a.set.WindowOpacity = 0
+	tt.Frame()
+	if clear := tt.Image().RGBAAt(8, 300).A; clear > 2 {
+		t.Errorf("no wash is %d, want transparent", clear)
+	}
+}
+
+// A material only shows when the window is translucent and blurred.
+func TestVibrancyFor(t *testing.T) {
+	for _, c := range []struct {
+		vibrancy, blur bool
+		want           mygo.Vibrancy
+	}{
+		{true, true, mygo.VibrancySidebar},
+		{true, false, mygo.VibrancyNone},
+		{false, true, mygo.VibrancyNone},
+		{false, false, mygo.VibrancyNone},
+	} {
+		if got := vibrancyFor(settings.Settings{Vibrancy: c.vibrancy, WindowBlur: c.blur}); got != c.want {
+			t.Errorf("vibrancy %v blur %v: %q, want %q", c.vibrancy, c.blur, got, c.want)
+		}
+	}
 }
 
 // The window moves from the panes' headers and the gaps around them, and
@@ -689,5 +734,212 @@ func TestCommandBackspaceClearsLine(t *testing.T) {
 		if o.OnKey(k.mods, k.key) {
 			t.Errorf("%v+%v taken", k.mods, k.key)
 		}
+	}
+}
+
+// A session's name starts where its project's does, past the badge.
+func TestSessionAlign(t *testing.T) {
+	a := testApp(t)
+	a.st.Projects[0].Name = "proj"
+	a.st.Sessions[0].Name = "sess"
+	tt := ui.NewTester(a.view, 1100, 640)
+	tt.Frame()
+	p, ok := tt.Find("proj")
+	if !ok {
+		t.Fatalf("no project name; texts %q", tt.Texts())
+	}
+	s, ok := tt.Find("sess")
+	if !ok {
+		t.Fatalf("no session name; texts %q", tt.Texts())
+	}
+	if s.X != p.X {
+		t.Errorf("the session's name starts at %v, the project's at %v", s.X, p.X)
+	}
+}
+
+// Dragging a project's name moves it among its host's projects, before
+// or after the project it is dropped on.
+func TestProjectOrder(t *testing.T) {
+	a := testApp(t)
+	a.st.Projects = append(a.st.Projects,
+		proto.Project{ID: "p2", Name: "two"},
+		proto.Project{ID: "p3", Name: "three"})
+	a.prefs.ProjectOrder = []string{"p3", "p1", "p2"}
+	ids := func() []string {
+		var out []string
+		for _, g := range a.hostGroups(a.local()) {
+			out = append(out, g.project.ID)
+		}
+		return out
+	}
+	if got := ids(); !slices.Equal(got, []string{"p3", "p1", "p2"}) {
+		t.Fatalf("ordered %v", got)
+	}
+	a.moveProject(projectDrag{host: a.local(), id: "p1"}, "p3", false)
+	if got := ids(); !slices.Equal(got, []string{"p1", "p3", "p2"}) {
+		t.Errorf("before p3: %v", got)
+	}
+	a.moveProject(projectDrag{host: a.local(), id: "p2"}, "p1", false)
+	if got := ids(); !slices.Equal(got, []string{"p2", "p1", "p3"}) {
+		t.Errorf("before p1: %v", got)
+	}
+}
+
+// A project's name dragged onto another project's lower half puts it
+// after that project.
+func TestProjectDrag(t *testing.T) {
+	a := testApp(t)
+	a.st.Projects = append(a.st.Projects, proto.Project{ID: "p2", Name: "two"})
+	tt := ui.NewTester(a.view, 1100, 640)
+	tt.Frame()
+	src, ok := tt.Find("demo")
+	if !ok {
+		t.Fatalf("no demo project; texts %q", tt.Texts())
+	}
+	dst, ok := tt.Find("two")
+	if !ok {
+		t.Fatalf("no two project; texts %q", tt.Texts())
+	}
+	tt.Press(src.X+10, src.Y+src.H/2)
+	for i := 1; i <= 10; i++ {
+		f := float32(i) / 10
+		x := src.X + 10
+		y := src.Y + src.H/2 + (dst.Y+dst.H-4-src.Y-src.H/2)*f
+		tt.Move(x, y)
+		tt.Advance(16 * time.Millisecond)
+		tt.Frame()
+	}
+	tt.Release(dst.X+10, dst.Y+dst.H-4)
+	tt.Frame()
+	tt.Advance(50 * time.Millisecond)
+	tt.Frame()
+	if !slices.Equal(a.prefs.ProjectOrder, []string{"p2", "p1"}) {
+		t.Errorf("order %v, want p2 then p1", a.prefs.ProjectOrder)
+	}
+}
+
+// The Order choice sorts a project's sessions by created or updated time.
+func TestSidebarOrder(t *testing.T) {
+	a := testApp(t)
+	a.st.Sessions[0].Created, a.st.Sessions[0].Activity = 100, 200
+	a.st.Sessions = append(a.st.Sessions,
+		proto.Session{ID: "s2", Project: "p1", Created: 200, Activity: 100},
+		proto.Session{ID: "s3", Project: "p1", Created: 300, Activity: 400})
+	ids := func() []string {
+		var out []string
+		for _, g := range a.hostGroups(a.local()) {
+			for _, s := range g.sessions {
+				out = append(out, s.ID)
+			}
+		}
+		return out
+	}
+	a.prefs.SidebarOrder = "created"
+	if got := ids(); !slices.Equal(got, []string{"s1", "s2", "s3"}) {
+		t.Errorf("created: %v", got)
+	}
+	a.prefs.SidebarOrder = "updated"
+	if got := ids(); !slices.Equal(got, []string{"s3", "s1", "s2"}) {
+		t.Errorf("updated: %v", got)
+	}
+	a.prefs.SidebarGroup = "none"
+	if got := a.visibleOrder(); !slices.Equal(got, []string{"s3", "s1", "s2"}) {
+		t.Errorf("flat updated: %v", got)
+	}
+}
+
+// By Date groups sessions under the day they were created, the newest
+// day first.
+func TestSidebarDateGroups(t *testing.T) {
+	a := testApp(t)
+	now := time.Now()
+	a.st.Sessions[0].Created = now.UnixMilli()
+	a.st.Sessions = append(a.st.Sessions,
+		proto.Session{ID: "s2", Project: "p1", Created: now.Add(-24 * time.Hour).UnixMilli()})
+	dgs := a.dateGroups(a.local())
+	if len(dgs) != 2 {
+		t.Fatalf("%d date groups, want 2", len(dgs))
+	}
+	if !dgs[0].day.After(dgs[1].day) {
+		t.Errorf("days %v then %v", dgs[0].day, dgs[1].day)
+	}
+	if got := dgs[0].sessions[0].ID; got != "s1" {
+		t.Errorf("today's first session %s", got)
+	}
+	a.prefs.SidebarGroup = "date"
+	if got := a.visibleOrder(); !slices.Equal(got, []string{"s1", "s2"}) {
+		t.Errorf("date order: %v", got)
+	}
+}
+
+// A project's square takes its first letter, and keeps its color by id,
+// with a color of its own among the projects.
+func TestProjectBadge(t *testing.T) {
+	for name, want := range map[string]string{"feature-4.3": "F", "dora-go": "D", "呆蛙精灵": "呆"} {
+		if got := projectInitial(name); got != want {
+			t.Errorf("%q: %q, want %q", name, got, want)
+		}
+	}
+	a := testApp(t)
+	a.st.Projects = append(a.st.Projects,
+		proto.Project{ID: "p2", Name: "two"},
+		proto.Project{ID: "p3", Name: "three"})
+	p1 := proto.Project{ID: "p1", Name: "one"}
+	if a.projectBadgeColor(p1) != a.projectBadgeColor(proto.Project{ID: "p1", Name: "renamed"}) {
+		t.Error("the badge's color changed with the name")
+	}
+	seen := map[ui.Color]bool{}
+	for _, p := range []proto.Project{p1, {ID: "p2"}, {ID: "p3"}} {
+		c := a.projectBadgeColor(p)
+		if seen[c] {
+			t.Errorf("projects share the color %v", c)
+		}
+		seen[c] = true
+	}
+	if a.projectBadgeColor(proto.Project{}) == a.projectBadgeColor(p1) {
+		t.Error("the other project has the same color as a project")
+	}
+}
+
+// Collapsing the project of the session shown hides its sessions too; the
+// badge and the chevron still tell which project it is.
+func TestCollapseSelectedProject(t *testing.T) {
+	a := testApp(t)
+	a.st.Projects[0].Name = "proj"
+	a.st.Sessions[0].Name = "sess"
+	tt := ui.NewTester(a.view, 1100, 640)
+	tt.Frame()
+	p, ok := tt.Find("proj")
+	if !ok {
+		t.Fatalf("no project name; texts %q", tt.Texts())
+	}
+	// The dot sits over the badge's lower right corner.
+	badgeX := p.X - projectBadgeGap - projectBadge
+	badgeY := p.Y + p.H/2 - projectBadge/2
+	dot := func() color.RGBA {
+		return tt.Image().RGBAAt(int(badgeX+projectBadge-1), int(badgeY+projectBadge-1))
+	}
+	red := func(c color.RGBA) bool { return c.R > 180 && c.G < 140 && c.B < 140 }
+	if red(dot()) {
+		t.Error("the open project's badge shows the dot")
+	}
+	tt.ClickAt(p.X+20, p.Y+p.H/2)
+	tt.Frame()
+	if !a.prefs.Collapsed["p1"] {
+		t.Fatal("the project did not collapse")
+	}
+	if tt.HasText("sess") {
+		t.Error("the selected session still shows under its collapsed project")
+	}
+	if !red(dot()) {
+		t.Error("the collapsed project's badge has no red dot for the shown session")
+	}
+	tt.ClickAt(p.X+20, p.Y+p.H/2)
+	tt.Frame()
+	if a.prefs.Collapsed["p1"] || !tt.HasText("sess") {
+		t.Error("the project did not open again")
+	}
+	if red(dot()) {
+		t.Error("the opened project's badge still shows the dot")
 	}
 }

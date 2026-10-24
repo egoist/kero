@@ -28,13 +28,18 @@ type Settings struct {
 	ConfirmClose      bool   `json:"confirmClose"`      // before closing a pane a program runs in
 	RestoreSessions   bool   `json:"restoreSessions"`   // after kerod restarts, as after a reboot
 	ResumeAgents      bool   `json:"resumeAgents"`      // as it restores sessions: the agents' own
+	QuitEndsSessions  bool   `json:"quitEndsSessions"`  // quitting ends this machine's sessions, as app.quitAll
 	QuitConfirm       bool   `json:"quitConfirm"`       // tell, the first time, that quitting keeps sessions
 
 	// Appearance
-	Appearance string `json:"appearance"` // "system", "light" or "dark"
-	Language   string `json:"language"`   // "system", or one of Languages
-	Background string `json:"background"` // a wash, see Backgrounds
-	Vibrancy   bool   `json:"vibrancy"`   // the window's material under the wash
+	Appearance    string  `json:"appearance"`    // "system", "light" or "dark"
+	Language      string  `json:"language"`      // "system", or one of Languages
+	Background    string  `json:"background"`    // a wash, see Backgrounds
+	Vibrancy      bool    `json:"vibrancy"`      // the window's material under the wash
+	WindowOpacity float32 `json:"windowOpacity"` // how much of the wash covers the window, 0 to 1
+	WindowBlur    bool    `json:"windowBlur"`    // blur the desktop behind the wash
+	Pet           bool    `json:"pet"`           // the frog on the window's top edge
+	PetOffset     float32 `json:"petOffset"`     // where it stands, 0 to 1 across the window
 
 	// Terminal
 	FontFamily   string  `json:"fontFamily"` // "" the font kero carries; "monospace" the system's
@@ -122,6 +127,10 @@ func (s *Settings) Host(name string) *Host {
 	return nil
 }
 
+// DefaultWindowOpacity is how much of the window's background the wash
+// covers while translucent.
+const DefaultWindowOpacity = 0.82
+
 // Default returns the settings of a new install.
 func Default() Settings {
 	return Settings{
@@ -135,6 +144,10 @@ func Default() Settings {
 		Language:        "system",
 		Background:      "rex",
 		Vibrancy:        true,
+		WindowOpacity:   DefaultWindowOpacity,
+		WindowBlur:      true,
+		Pet:             true,
+		PetOffset:       0.5,
 		DimUnfocused:    true,
 		FontSize:        13,
 		LineHeight:      1.22,
@@ -308,6 +321,12 @@ func (s *Settings) normalize() {
 	oneOf(&s.Clipboard, d.Clipboard, "ask", "allow", "deny")
 	oneOf(&s.RightClick, d.RightClick, "menu", "paste", "copyOrPaste")
 	oneOf(&s.DiffLayout, d.DiffLayout, "auto", "unified", "split")
+	if s.PetOffset < 0 || s.PetOffset > 1 {
+		s.PetOffset = d.PetOffset
+	}
+	if s.WindowOpacity < 0 || s.WindowOpacity > 1 {
+		s.WindowOpacity = d.WindowOpacity
+	}
 	known := false
 	for _, b := range Backgrounds {
 		known = known || b.ID == s.Background

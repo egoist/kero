@@ -91,6 +91,9 @@ func runApp() {
 			if a.setWin != nil {
 				a.setWin.SetTitle(locales.SettingsTitle())
 			}
+			if a.pet.win != nil {
+				a.pet.win.SetTitle(locales.PetName())
+			}
 		})
 	})
 	mygo.App.OnSecondInstance(func([]string, string) {
@@ -111,8 +114,12 @@ func runApp() {
 			a.win.Show()
 		}
 	})
-	mygo.App.OnBeforeQuit(func(*mygo.QuitEvent) {
-		a.savePrefs()
+	// The question quit-ends-sessions may ask comes before the windows
+	// close, and takes the quit back.
+	mygo.App.OnBeforeQuit(func(e *mygo.QuitEvent) {
+		if !a.quitRequested() {
+			e.PreventDefault()
+		}
 	})
 	mygo.App.WhenReady(func() {
 		a.win = mygo.NewWindow(framed(mygo.WindowOptions{
@@ -128,6 +135,7 @@ func runApp() {
 		a.win.OnFocus(func() { a.update(func() { a.focused = true; a.claimShown(); a.reportView() }) })
 		a.win.OnBlur(func() { a.update(func() { a.focused = false; a.reportView() }) })
 		a.idleTime = mygo.Power.IdleTime
+		a.syncPet()
 		go a.watchReturn()
 		a.connect()
 		a.syncHosts()

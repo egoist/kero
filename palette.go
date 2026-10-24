@@ -268,13 +268,26 @@ func confirmDialog(c *ui.Context, pal *palette, pending **confirmation) bool {
 		ui.Text(c, cf.title).FontSize(15).FontWeight(650).TextColor(pal.text)
 		ui.Text(c, cf.detail).FontSize(13).TextColor(pal.textMuted).LineHeight(1.4)
 		ui.Row(c).Gap(8).Justify(ui.End).Margin(14, 0, 0, 0).Children(func() {
+			if cf.ends {
+				// Return may be what a program reads, so this question
+				// takes a click: the focus goes to Cancel, which Space
+				// takes and Return does not.
+				buttonEl(c, "cancel", locales.CommonCancel(), "esc", false, pal).AutoFocus()
+				if button(c, "ok", cf.action, "", true, pal) {
+					run = true
+				}
+				return
+			}
 			if button(c, "cancel", locales.CommonCancel(), "esc", false, pal) {
 				cf.open = false
 			}
-			if button(c, "ok", cf.action, "↩", true, pal) || c.Shortcut(0, ui.KeyEnter) {
+			if button(c, "ok", cf.action, "↩", true, pal) {
 				run = true
 			}
 		})
+		if !cf.ends && c.Shortcut(0, ui.KeyEnter) {
+			run = true
+		}
 	})
 	if run {
 		cf.open = false

@@ -47,6 +47,7 @@ kero config check             # 报告未知的配置项和无效的值
 | `confirm-close`         | `true`    | 关闭仍有程序在运行的窗格前先确认                              |
 | `restore-sessions`      | `true`    | kerod 重启后（例如开机后）重新启动之前的会话                   |
 | `resume-agents`         | `true`    | 会话重新启动时，恢复每个窗格中智能体的对话                    |
+| `quit-ends-sessions`    | `false`   | 退出 Kero（点关闭按钮、按 ⌘Q 或使用菜单）时，结束本机的全部会话及其中的程序并停止 kerod，与“退出并结束所有会话”相同；有程序在运行时，按 `confirm-close` 的设置先确认。其他机器上的会话继续运行（[详情](./sessions.md#退出)） |
 
 ## 外观
 
@@ -56,6 +57,10 @@ kero config check             # 报告未知的配置项和无效的值
 | `language`           | `system` | 应用语言：`system`、`en` 或 `zh-Hans`                            |
 | `background`         | `petal`  | 窗口底色：`petal`、`mist`、`meadow`、`dusk` 或 `plain`           |
 | `window-translucent` | `true`   | 让桌面透过窗口显示出来                                          |
+| `window-opacity`     | `0.82`   | 开启半透明时窗口背景的覆盖程度，0 到 1                        |
+| `window-blur`        | `true`   | 模糊半透明背景后的桌面；关闭后是普通透明                      |
+| `pet`                | `true`   | 小青蛙 Kero：趴在窗口上沿，跟着你的会话                          |
+| `pet-offset`         | `0.5`    | Kero 站在窗口宽度的哪里，0 到 1；直接拖动即可                    |
 
 ## 终端
 

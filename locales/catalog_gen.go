@@ -1030,6 +1030,106 @@ func (msgs Messages) RestartServiceDetail() string {
 	return Catalog.Format(msgs.locale, "restartServiceDetail", nil)
 }
 
+// SidebarSort says "Sort and Group"
+// in the language the app shows.
+func SidebarSort() string { return In(i18n.Locale()).SidebarSort() }
+
+// SidebarSort says "Sort and Group"
+// in the language of msgs.
+func (msgs Messages) SidebarSort() string {
+	return Catalog.Format(msgs.locale, "sidebarSort", nil)
+}
+
+// SidebarGroup says "Group"
+// in the language the app shows.
+func SidebarGroup() string { return In(i18n.Locale()).SidebarGroup() }
+
+// SidebarGroup says "Group"
+// in the language of msgs.
+func (msgs Messages) SidebarGroup() string {
+	return Catalog.Format(msgs.locale, "sidebarGroup", nil)
+}
+
+// SidebarGroupProject says "By Project"
+// in the language the app shows.
+func SidebarGroupProject() string { return In(i18n.Locale()).SidebarGroupProject() }
+
+// SidebarGroupProject says "By Project"
+// in the language of msgs.
+func (msgs Messages) SidebarGroupProject() string {
+	return Catalog.Format(msgs.locale, "sidebarGroupProject", nil)
+}
+
+// SidebarGroupNone says "No Grouping"
+// in the language the app shows.
+func SidebarGroupNone() string { return In(i18n.Locale()).SidebarGroupNone() }
+
+// SidebarGroupNone says "No Grouping"
+// in the language of msgs.
+func (msgs Messages) SidebarGroupNone() string {
+	return Catalog.Format(msgs.locale, "sidebarGroupNone", nil)
+}
+
+// SidebarGroupDate says "By Date"
+// in the language the app shows.
+func SidebarGroupDate() string { return In(i18n.Locale()).SidebarGroupDate() }
+
+// SidebarGroupDate says "By Date"
+// in the language of msgs.
+func (msgs Messages) SidebarGroupDate() string {
+	return Catalog.Format(msgs.locale, "sidebarGroupDate", nil)
+}
+
+// SidebarOrder says "Order"
+// in the language the app shows.
+func SidebarOrder() string { return In(i18n.Locale()).SidebarOrder() }
+
+// SidebarOrder says "Order"
+// in the language of msgs.
+func (msgs Messages) SidebarOrder() string {
+	return Catalog.Format(msgs.locale, "sidebarOrder", nil)
+}
+
+// SidebarOrderCreated says "Created Time"
+// in the language the app shows.
+func SidebarOrderCreated() string { return In(i18n.Locale()).SidebarOrderCreated() }
+
+// SidebarOrderCreated says "Created Time"
+// in the language of msgs.
+func (msgs Messages) SidebarOrderCreated() string {
+	return Catalog.Format(msgs.locale, "sidebarOrderCreated", nil)
+}
+
+// SidebarOrderUpdated says "Updated Time"
+// in the language the app shows.
+func SidebarOrderUpdated() string { return In(i18n.Locale()).SidebarOrderUpdated() }
+
+// SidebarOrderUpdated says "Updated Time"
+// in the language of msgs.
+func (msgs Messages) SidebarOrderUpdated() string {
+	return Catalog.Format(msgs.locale, "sidebarOrderUpdated", nil)
+}
+
+// SidebarToday says "Today"
+// in the language the app shows.
+func SidebarToday() string { return In(i18n.Locale()).SidebarToday() }
+
+// SidebarToday says "Today"
+// in the language of msgs.
+func (msgs Messages) SidebarToday() string {
+	return Catalog.Format(msgs.locale, "sidebarToday", nil)
+}
+
+// SidebarYesterday says "Yesterday"
+// in the language the app shows.
+func SidebarYesterday() string { return In(i18n.Locale()).SidebarYesterday() }
+
+// SidebarYesterday says "Yesterday"
+// in the language of msgs.
+func (msgs Messages) SidebarYesterday() string {
+	return Catalog.Format(msgs.locale, "sidebarYesterday", nil)
+}
+
 // SidebarOtherProject says "Other"
 // in the language the app shows.
 func SidebarOtherProject() string { return In(i18n.Locale()).SidebarOtherProject() }
@@ -2002,6 +2102,26 @@ func (msgs Messages) SetAskBeforeClosingDetail() string {
 	return Catalog.Format(msgs.locale, "setAskBeforeClosingDetail", nil)
 }
 
+// SetQuitEndsSessions says "End sessions when Kero quits"
+// in the language the app shows.
+func SetQuitEndsSessions() string { return In(i18n.Locale()).SetQuitEndsSessions() }
+
+// SetQuitEndsSessions says "End sessions when Kero quits"
+// in the language of msgs.
+func (msgs Messages) SetQuitEndsSessions() string {
+	return Catalog.Format(msgs.locale, "setQuitEndsSessions", nil)
+}
+
+// SetQuitEndsSessionsDetail says "Quitting, as with the close button, ⌘Q or the menu, ends this machine’s sessions and their programs, and stops th…"
+// in the language the app shows.
+func SetQuitEndsSessionsDetail() string { return In(i18n.Locale()).SetQuitEndsSessionsDetail() }
+
+// SetQuitEndsSessionsDetail says "Quitting, as with the close button, ⌘Q or the menu, ends this machine’s sessions and their programs, and stops th…"
+// in the language of msgs.
+func (msgs Messages) SetQuitEndsSessionsDetail() string {
+	return Catalog.Format(msgs.locale, "setQuitEndsSessionsDetail", nil)
+}
+
 // SetRestoreSessions says "Restore sessions after a restart"
 // in the language the app shows.
 func SetRestoreSessions() string { return In(i18n.Locale()).SetRestoreSessions() }
@@ -2252,6 +2372,76 @@ func SetTranslucentDetail() string { return In(i18n.Locale()).SetTranslucentDeta
 // in the language of msgs.
 func (msgs Messages) SetTranslucentDetail() string {
 	return Catalog.Format(msgs.locale, "setTranslucentDetail", nil)
+}
+
+// SetWindowOpacity says "Background opacity"
+// in the language the app shows.
+func SetWindowOpacity() string { return In(i18n.Locale()).SetWindowOpacity() }
+
+// SetWindowOpacity says "Background opacity"
+// in the language of msgs.
+func (msgs Messages) SetWindowOpacity() string {
+	return Catalog.Format(msgs.locale, "setWindowOpacity", nil)
+}
+
+// SetWindowOpacityDetail says "How much of the window’s background the wash covers while the window is translucent; the panes stay opaque."
+// in the language the app shows.
+func SetWindowOpacityDetail() string { return In(i18n.Locale()).SetWindowOpacityDetail() }
+
+// SetWindowOpacityDetail says "How much of the window’s background the wash covers while the window is translucent; the panes stay opaque."
+// in the language of msgs.
+func (msgs Messages) SetWindowOpacityDetail() string {
+	return Catalog.Format(msgs.locale, "setWindowOpacityDetail", nil)
+}
+
+// SetWindowBlur says "Background blur"
+// in the language the app shows.
+func SetWindowBlur() string { return In(i18n.Locale()).SetWindowBlur() }
+
+// SetWindowBlur says "Background blur"
+// in the language of msgs.
+func (msgs Messages) SetWindowBlur() string {
+	return Catalog.Format(msgs.locale, "setWindowBlur", nil)
+}
+
+// SetWindowBlurDetail says "Blur the desktop behind the translucent background. Off, the window is plain transparency, and 0% opacity shows the d…"
+// in the language the app shows.
+func SetWindowBlurDetail() string { return In(i18n.Locale()).SetWindowBlurDetail() }
+
+// SetWindowBlurDetail says "Blur the desktop behind the translucent background. Off, the window is plain transparency, and 0% opacity shows the d…"
+// in the language of msgs.
+func (msgs Messages) SetWindowBlurDetail() string {
+	return Catalog.Format(msgs.locale, "setWindowBlurDetail", nil)
+}
+
+// SetPet says "Kero the frog"
+// in the language the app shows.
+func SetPet() string { return In(i18n.Locale()).SetPet() }
+
+// SetPet says "Kero the frog"
+// in the language of msgs.
+func (msgs Messages) SetPet() string {
+	return Catalog.Format(msgs.locale, "setPet", nil)
+}
+
+// SetPetDetail says "A little frog on the window’s top edge: it hops when a session needs you, reads along while one works, and dozes wh…"
+// in the language the app shows.
+func SetPetDetail() string { return In(i18n.Locale()).SetPetDetail() }
+
+// SetPetDetail says "A little frog on the window’s top edge: it hops when a session needs you, reads along while one works, and dozes wh…"
+// in the language of msgs.
+func (msgs Messages) SetPetDetail() string {
+	return Catalog.Format(msgs.locale, "setPetDetail", nil)
+}
+
+// PetName says "Kero, the frog"
+// in the language the app shows.
+func PetName() string { return In(i18n.Locale()).PetName() }
+
+// PetName says "Kero, the frog"
+// in the language of msgs.
+func (msgs Messages) PetName() string {
+	return Catalog.Format(msgs.locale, "petName", nil)
 }
 
 // SetDimUnfocused says "Dim unfocused terminals"
@@ -3458,6 +3648,16 @@ func ActionToggleChanges() string { return In(i18n.Locale()).ActionToggleChanges
 // in the language of msgs.
 func (msgs Messages) ActionToggleChanges() string {
 	return Catalog.Format(msgs.locale, "actionToggleChanges", nil)
+}
+
+// ActionTogglePet says "Toggle Kero"
+// in the language the app shows.
+func ActionTogglePet() string { return In(i18n.Locale()).ActionTogglePet() }
+
+// ActionTogglePet says "Toggle Kero"
+// in the language of msgs.
+func (msgs Messages) ActionTogglePet() string {
+	return Catalog.Format(msgs.locale, "actionTogglePet", nil)
 }
 
 // SideChanges says "Changes"
