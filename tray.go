@@ -17,8 +17,8 @@ import (
 // Linux. While it shows, closing the window hides it there, and Kero keeps
 // running until the user quits.
 
-// trayTemplate is a frog's face, black on transparent for macOS to tint:
-// 22×18 points, at 2×.
+// trayTemplate is the frog of the app's icon, black on transparent for
+// macOS to tint: 23×18 points, at 2×.
 //
 //go:embed icons/tray-template.png
 var trayTemplate []byte
