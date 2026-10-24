@@ -12,8 +12,12 @@ const themes = { light: 'github-light', dark: 'github-dark-dimmed' };
 
 export type Heading = { depth: number; slug: string; text: string };
 
-// The language of the page being rendered, for the words the renderer adds.
-type Env = { zh?: boolean };
+// The language of the page being rendered, for the words the renderer adds:
+// the directory of its translation in ../docs, or '' for English.
+type Locale = '' | 'ja' | 'zh';
+type Env = { locale?: Locale };
+
+const copyCode: Record<Locale, string> = { '': 'Copy Code', ja: 'コードをコピー', zh: '复制代码' };
 
 // Compiles the Markdown in ../docs into modules of { html, frontmatter,
 // headings }, which src/lib/docs.ts imports. A ?raw import is left alone.
@@ -26,9 +30,9 @@ export function markdown(): Plugin {
       if (!id.startsWith(docsDir) || !id.endsWith('.md')) return;
       md ??= createCompiler();
       const compiler = await md;
-      const prefix = id.startsWith(`${docsDir}zh/`) ? '/zh' : '';
-      const { data: frontmatter, content } = matter(docsLinks(source, prefix));
-      const env: Env = { zh: prefix === '/zh' };
+      const locale = (id.slice(docsDir.length).match(/^(ja|zh)\//)?.[1] ?? '') as Locale;
+      const { data: frontmatter, content } = matter(docsLinks(source, locale && `/${locale}`));
+      const env: Env = { locale };
       const tokens = compiler.parse(content, env);
       const html = await compiler.renderer.renderAsync(tokens, compiler.options, env);
       const out = { html, frontmatter, headings: headings(tokens) };
@@ -39,8 +43,8 @@ export function markdown(): Plugin {
 
 // The docs link to each other as ./page.md, which reads well on GitHub.
 // Served at /docs/page, and /docs for index.md, such links would resolve
-// against the wrong directory on /docs, so make them absolute, under /zh for
-// the Chinese in docs/zh.
+// against the wrong directory on /docs, so make them absolute, under /ja and
+// /zh for the translations in docs/ja and docs/zh.
 function docsLinks(source: string, prefix: string) {
   return source.replace(/\]\(\.\/([\w/-]+)\.md(#[\w-]+)?\)/g, (_, page: string, hash = '') => {
     const path = page === 'index' ? '/docs' : `/docs/${page.replace(/\/index$/, '')}`;
@@ -67,7 +71,7 @@ async function createCompiler() {
       else lang = 'text';
     }
     const code = highlighter.codeToHtml(token.content, { lang, themes, defaultColor: 'light' });
-    return `<div class="language-${label}"><button title="${(env as Env).zh ? '复制代码' : 'Copy Code'}" class="copy"></button><span class="lang">${label}</span>${code}</div>`;
+    return `<div class="language-${label}"><button title="${copyCode[(env as Env).locale ?? '']}" class="copy"></button><span class="lang">${label}</span>${code}</div>`;
   };
 
   // External links open in a new tab.
@@ -81,11 +85,11 @@ async function createCompiler() {
   };
 
   // ::: tip and friends, as VitePress renders them.
-  for (const [kind, title, zhTitle] of [
-    ['tip', 'TIP', '提示'],
-    ['info', 'INFO', '信息'],
-    ['warning', 'WARNING', '警告'],
-    ['danger', 'DANGER', '危险'],
+  for (const [kind, title, jaTitle, zhTitle] of [
+    ['tip', 'TIP', 'ヒント', '提示'],
+    ['info', 'INFO', '情報', '信息'],
+    ['warning', 'WARNING', '注意', '警告'],
+    ['danger', 'DANGER', '危険', '危险'],
   ] as const) {
     md.use(container, kind, {
       render(tokens: { nesting: number; info: string }[], idx: number, _options: unknown, env: Env) {
@@ -93,7 +97,7 @@ async function createCompiler() {
         if (token.nesting !== 1) return '</div>\n';
         const info = token.info.trim().slice(kind.length).trim();
         const cls = 'custom-block-title' + (info ? '' : ' custom-block-title-default');
-        return `<div class="${kind} custom-block"><p class="${cls}">${md.renderInline(info || (env.zh ? zhTitle : title))}</p>\n`;
+        return `<div class="${kind} custom-block"><p class="${cls}">${md.renderInline(info || { '': title, ja: jaTitle, zh: zhTitle }[env.locale ?? ''])}</p>\n`;
       },
     });
   }

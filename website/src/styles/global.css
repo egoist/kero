@@ -267,6 +267,10 @@ button {
     background 0.15s;
 }
 
+.lang-links {
+  display: flex;
+}
+
 .lang-link {
   display: inline-flex;
   align-items: center;
@@ -2183,32 +2187,51 @@ button {
   background: var(--brand-soft);
 }
 
-/* ---------- Chinese ---------- */
+/* ---------- Chinese and Japanese ---------- */
 
-/* A Chinese headline breaks only between its phrases, which a smaller size
-   keeps on one line each in the hero's column. */
-:lang(zh) .display {
+/* A Chinese or Japanese headline breaks only between its phrases, which a
+   smaller size keeps on one line each in the hero's column. */
+:lang(zh) .display,
+:lang(ja) .display {
   font-size: clamp(34px, 4.4vw, 56px);
   line-height: 1.2;
 }
 
-:lang(zh) .hero .display span {
+:lang(zh) .hero .display span,
+:lang(ja) .hero .display span {
   white-space: nowrap;
 }
 
-/* Han characters set with the Latin headings' tight tracking run into each
-   other, and read better a little looser. */
+/* Han characters and kana set with the Latin headings' tight tracking run
+   into each other, and read better a little looser. */
 :lang(zh) .display,
 :lang(zh) .title,
 :lang(zh) .feature h3,
 :lang(zh) .markdown h1,
 :lang(zh) .markdown h2,
-:lang(zh) .markdown h3 {
+:lang(zh) .markdown h3,
+:lang(ja) .display,
+:lang(ja) .title,
+:lang(ja) .feature h3,
+:lang(ja) .markdown h1,
+:lang(ja) .markdown h2,
+:lang(ja) .markdown h3 {
   letter-spacing: 0;
+}
+
+/* Japanese headings break between phrases, not inside a word, where the
+   browser can tell them apart. */
+:lang(ja) .title,
+:lang(ja) .feature h3,
+:lang(ja) .markdown h1 {
+  word-break: auto-phrase;
 }
 
 :lang(zh) .lead,
 :lang(zh) .markdown p,
-:lang(zh) .markdown li {
+:lang(zh) .markdown li,
+:lang(ja) .lead,
+:lang(ja) .markdown p,
+:lang(ja) .markdown li {
   line-height: 1.8;
 }
