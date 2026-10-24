@@ -72,7 +72,9 @@ type termEntry struct {
 // App is the app's state. It lives on the main thread: other goroutines
 // change it through Window.Update.
 type App struct {
-	win *mygo.Window
+	win      *mygo.Window
+	tray     *mygo.Tray // the icon in the menu bar or notification area, while it shows
+	quitting bool       // a quit began: closing the window no longer hides it
 
 	// hosts are the kerods the app shows, this machine's first; st is
 	// what they hold, each host's sessions and projects after the one's
@@ -872,6 +874,9 @@ func (a *App) apply(s settings.Settings, save bool) {
 	}
 	if old.DockBadge != s.DockBadge {
 		a.notify(true)
+	}
+	if old.AppIcon != s.AppIcon && a.win != nil {
+		a.changeAppIcon()
 	}
 	// Only once a browser pane showed a page: until then, no lists are
 	// downloaded.

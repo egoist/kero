@@ -47,6 +47,7 @@ kero config check             # 不明なキーと不正な値を報告
 | `confirm-close`         | `true`     | プログラムが実行中のペインを閉じる前に確認する                |
 | `restore-sessions`      | `true`     | 再起動のあとなど kerod が再起動したら、セッションを再び開始する |
 | `resume-agents`         | `true`     | セッションの再開時に、各ペインで動いていたエージェントの会話を再開する |
+| `macos-show-app-icon`   | `dock-and-menubar` | macOS で Kero のアイコンを表示する場所: `dock-and-menubar`、`dock`、`menubar`。メニューバーに表示している間は、ウインドウを閉じても Kero はそこで動き続ける。Windows と Linux では常に通知領域に表示し、ウインドウを閉じても同じく動き続ける |
 
 ## 外観
 

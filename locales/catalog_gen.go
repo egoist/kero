@@ -2074,6 +2074,66 @@ func (msgs Messages) SetLoginFailed(error string) string {
 	return Catalog.Format(msgs.locale, "setLoginFailed", map[string]any{"error": error})
 }
 
+// SetAppIcon says "Show app icon"
+// in the language the app shows.
+func SetAppIcon() string { return In(i18n.Locale()).SetAppIcon() }
+
+// SetAppIcon says "Show app icon"
+// in the language of msgs.
+func (msgs Messages) SetAppIcon() string {
+	return Catalog.Format(msgs.locale, "setAppIcon", nil)
+}
+
+// SetAppIconBoth says "Dock and menu bar"
+// in the language the app shows.
+func SetAppIconBoth() string { return In(i18n.Locale()).SetAppIconBoth() }
+
+// SetAppIconBoth says "Dock and menu bar"
+// in the language of msgs.
+func (msgs Messages) SetAppIconBoth() string {
+	return Catalog.Format(msgs.locale, "setAppIconBoth", nil)
+}
+
+// SetAppIconDock says "Dock only"
+// in the language the app shows.
+func SetAppIconDock() string { return In(i18n.Locale()).SetAppIconDock() }
+
+// SetAppIconDock says "Dock only"
+// in the language of msgs.
+func (msgs Messages) SetAppIconDock() string {
+	return Catalog.Format(msgs.locale, "setAppIconDock", nil)
+}
+
+// SetAppIconMenuBar says "Menu bar only"
+// in the language the app shows.
+func SetAppIconMenuBar() string { return In(i18n.Locale()).SetAppIconMenuBar() }
+
+// SetAppIconMenuBar says "Menu bar only"
+// in the language of msgs.
+func (msgs Messages) SetAppIconMenuBar() string {
+	return Catalog.Format(msgs.locale, "setAppIconMenuBar", nil)
+}
+
+// SetAppIconDetail says "Closing the window keeps Kero running in the menu bar."
+// in the language the app shows.
+func SetAppIconDetail() string { return In(i18n.Locale()).SetAppIconDetail() }
+
+// SetAppIconDetail says "Closing the window keeps Kero running in the menu bar."
+// in the language of msgs.
+func (msgs Messages) SetAppIconDetail() string {
+	return Catalog.Format(msgs.locale, "setAppIconDetail", nil)
+}
+
+// TrayOpen says "Open {app}"
+// in the language the app shows.
+func TrayOpen(app string) string { return In(i18n.Locale()).TrayOpen(app) }
+
+// TrayOpen says "Open {app}"
+// in the language of msgs.
+func (msgs Messages) TrayOpen(app string) string {
+	return Catalog.Format(msgs.locale, "trayOpen", map[string]any{"app": app})
+}
+
 // SetVersionNoUpdate says " · this copy can’t update itself"
 // in the language the app shows.
 func SetVersionNoUpdate() string { return In(i18n.Locale()).SetVersionNoUpdate() }

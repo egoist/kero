@@ -1,6 +1,7 @@
 package main
 
 import (
+	"runtime"
 	"strings"
 	"time"
 
@@ -21,7 +22,7 @@ type searchEntry struct {
 // settingsIndex is the settings the search finds, labelled in the
 // language the app shows, as their rows are.
 func settingsIndex() []searchEntry {
-	return []searchEntry{
+	entries := []searchEntry{
 		{"general", locales.SetNewSessionsStartIn(), "new-session-directory folder current project home tab"},
 		{"general", locales.SetSessionName(), "session-name title sidebar focused lead folder pane"},
 		{"general", locales.SetFocusFollowsMouse(), "focus-follows-mouse hover pointer niri hyprland sloppy"},
@@ -86,6 +87,10 @@ func settingsIndex() []searchEntry {
 		{"advanced", locales.SetFolder(), "data directory finder"},
 		{"advanced", locales.SetReset(), "defaults reset"},
 	}
+	if runtime.GOOS == "darwin" {
+		entries = append(entries, searchEntry{"general", locales.SetAppIcon(), "macos-show-app-icon dock menu bar menubar tray status item hide"})
+	}
+	return entries
 }
 
 // searchEntries are the index and the actions, which the keyboard page

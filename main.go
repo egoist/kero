@@ -91,14 +91,12 @@ func runApp() {
 			if a.setWin != nil {
 				a.setWin.SetTitle(locales.SettingsTitle())
 			}
+			if a.tray != nil {
+				a.tray.SetMenu(a.trayMenu())
+			}
 		})
 	})
-	mygo.App.OnSecondInstance(func([]string, string) {
-		if a.win != nil {
-			a.win.Restore()
-			a.win.Focus()
-		}
-	})
+	mygo.App.OnSecondInstance(func([]string, string) { a.showWindow() })
 	mygo.App.OnDidBecomeActive(func() {
 		mygo.ClearNotifications()
 		a.update(func() { a.active = true; a.reportView() })
@@ -112,8 +110,20 @@ func runApp() {
 		}
 	})
 	mygo.App.OnBeforeQuit(func(*mygo.QuitEvent) {
+		a.quitting = true
 		a.savePrefs()
 	})
+	// Windows leaves an icon in the notification area after its app until
+	// the pointer passes over it.
+	mygo.App.OnWillQuit(func(*mygo.QuitEvent) {
+		if a.tray != nil {
+			a.tray.Destroy()
+		}
+	})
+	// No Dock icon from the start for the menu bar alone.
+	if runtime.GOOS == "darwin" {
+		mygo.App.SetActivationPolicy(activationPolicy(a.set))
+	}
 	mygo.App.WhenReady(func() {
 		a.win = mygo.NewWindow(framed(mygo.WindowOptions{
 			Title:     "Kero",
@@ -127,6 +137,13 @@ func runApp() {
 		}))
 		a.win.OnFocus(func() { a.update(func() { a.focused = true; a.claimShown(); a.reportView() }) })
 		a.win.OnBlur(func() { a.update(func() { a.focused = false; a.reportView() }) })
+		a.win.OnClose(func(e *mygo.CloseEvent) {
+			if a.hidesOnClose() {
+				e.PreventDefault()
+				a.win.Hide()
+			}
+		})
+		a.applyTray()
 		a.idleTime = mygo.Power.IdleTime
 		go a.watchReturn()
 		a.connect()

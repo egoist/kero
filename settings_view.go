@@ -507,6 +507,18 @@ func (a *App) generalPage(c *ui.Context, pal *palette) {
 				[]string{locales.SetDiffAuto(), locales.ChangesUnified(), locales.ChangesSplit()})
 		})
 	})
+	// Windows and Linux always show the icon, in the notification area.
+	if runtime.GOOS == "darwin" {
+		detail := ""
+		if s.AppIcon != "dock" {
+			detail = locales.SetAppIconDetail()
+		}
+		settingsGroup(c, pal, "", "", func() {
+			settingRow(c, pal, locales.SetAppIcon(), detail, func() {
+				popup(c, "app-icon", &s.AppIcon, settings.AppIcons, appIconName, 180, pal)
+			})
+		})
+	}
 	settingsGroup(c, pal, locales.SetStartup(), "", func() {
 		settingRow(c, pal, locales.SetOpenAtLogin(), "", func() {
 			toggle(c.Key("login"), &a.ss.loginOpen, pal).OnChange(func() {
@@ -643,6 +655,17 @@ func languageName(tag string) string {
 		return locales.SetLanguageSystem()
 	}
 	return i18n.Autonym(tag)
+}
+
+// appIconName names a place the app's icon shows (settings.AppIcons).
+func appIconName(id string) string {
+	switch id {
+	case "dock":
+		return locales.SetAppIconDock()
+	case "menubar":
+		return locales.SetAppIconMenuBar()
+	}
+	return locales.SetAppIconBoth()
 }
 
 // localeTag is the tag of a language setting for App.SetLocale: "" follows
