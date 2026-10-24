@@ -88,6 +88,8 @@ Usage:
       back, forward, reload       and wait for the page to load
       text [selector]             print the page's text, or an element's
       html [selector]             print the page's HTML, or an element's
+      snapshot [selector]         print what the page shows: roles, names,
+                                  and a ref for each element
       click <selector>            click an element
       type <selector> <text…>     type text into a field, in place of what
                                   it holds (--enter: press Enter after it)
@@ -95,6 +97,12 @@ Usage:
                                   to), or without either, the page to load
       eval <js…>                  run JavaScript, print its value
       screenshot [-o file.png]    save a picture of the page, print where
+      cookies save [file]         save the browser's cookies (Playwright's
+                                  JSON, or cookies.txt for a .txt file)
+      cookies load <file>         load cookies from either
+      --ref <ref>                 a snapshot's element, in place of a
+                                  selector
+      --domain <domain>           cookies of a site and its subdomains
       -t, --timeout <dur>         how long to wait (default 10s)
   kero rename <session> <name>
   kero focus <target>           show a session (and pane) in the app

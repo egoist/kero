@@ -699,13 +699,21 @@ type (
 	BrowserParams struct {
 		ID string `json:"id"`
 		// Op is what to do: open, back, forward, reload, text, html,
-		// click, type, wait, eval or screenshot.
+		// snapshot, click, type, wait, eval, screenshot or cookies.
 		Op       string `json:"op"`
 		Selector string `json:"selector,omitempty"`
-		// Text is the URL to open, the text to type or wait for, or the
-		// script to evaluate.
+		// Ref names the element a snapshot gave a ref, in place of a
+		// selector.
+		Ref string `json:"ref,omitempty"`
+		// Text is the URL to open, the text to type or wait for, the
+		// script to evaluate, or what to do with cookies: save or load.
 		Text  string `json:"text,omitempty"`
 		Enter bool   `json:"enter,omitempty"` // press Enter after typing
+		// Domain keeps the cookies saved to those of a domain and its
+		// subdomains.
+		Domain string `json:"domain,omitempty"`
+		// Cookies are the cookies to load.
+		Cookies []Cookie `json:"cookies,omitempty"`
 		// Timeout is how long to wait for the element, or the page to
 		// load, in ms: 0 for the app's default.
 		Timeout int64 `json:"timeout,omitempty"`
@@ -717,11 +725,28 @@ type (
 		Pane string `json:"pane"`
 		BrowserParams
 	}
-	// BrowserResult is what the page answered: text for text, html and
-	// eval, an image for screenshot.
+	// BrowserResult is what the page answered: text for text, html,
+	// snapshot and eval, an image for screenshot, the cookies saved.
 	BrowserResult struct {
-		Text string `json:"text,omitempty"`
-		PNG  []byte `json:"png,omitempty"`
+		Text    string   `json:"text,omitempty"`
+		PNG     []byte   `json:"png,omitempty"`
+		Cookies []Cookie `json:"cookies,omitempty"`
+	}
+	// Cookie is a cookie of the browser panes' pages, in the shape of
+	// Playwright's storage state.
+	Cookie struct {
+		Name  string `json:"name"`
+		Value string `json:"value"`
+		// Domain is the host the cookie goes to, or with a leading dot,
+		// the domain whose subdomains get it too.
+		Domain string `json:"domain"`
+		Path   string `json:"path"`
+		// Expires is when the cookie expires, in Unix seconds: -1 for one
+		// that lasts until the app quits.
+		Expires  float64 `json:"expires"`
+		HTTPOnly bool    `json:"httpOnly"`
+		Secure   bool    `json:"secure"`
+		SameSite string  `json:"sameSite"` // Strict, Lax or None
 	}
 	// BrowserAnswer answers a BrowserRequest (browser.answer): a result,
 	// or why there is none.

@@ -124,7 +124,9 @@ With `--json`, every event also has `event`, `time` (unix ms), `session`, `proje
 ```sh
 kero split --url localhost:3000            # open the page, print the pane's id
 kero browser open localhost:3000/todos     # go to a page, and wait for it to load
-kero browser type '#new-todo' "Buy milk" --enter
+kero browser snapshot                      # what's on the page, each element with a ref
+kero browser type --ref e3 "Buy milk" --enter
+kero browser click --ref e5
 kero browser wait '.todo-list li'          # until an element shows
 kero browser wait --text "1 item left"     # until the text shows
 kero browser text                          # the page's text
@@ -140,15 +142,20 @@ kero browser eval 'document.title'
 | `back`, `forward`, `reload`     | Go back or forward, or load the page again, and wait for it |
 | `text [selector]`               | Print the page's visible text, or the first matching element's |
 | `html [selector]`               | Print the page's HTML, or the element's |
+| `snapshot [selector]`           | Print what the page shows as a tree of roles and names (`button "Add"`, `textbox "Email"`), each element with a ref, or the element's part of it |
 | `click <selector>`              | Click the element, as a mouse does |
 | `type <selector> <text…>`       | Type text into a field, in place of what it holds; `--enter` presses Enter after it, which submits its form |
 | `wait [selector] [--text text]` | Wait until the element shows, or the text does; with neither, until the page loads |
 | `eval <js…>`                    | Run JavaScript in the page and print its value: a string as it is, anything else as JSON |
 | `screenshot [-o file.png]`      | Save a picture of the page, and print where; `-o -` writes it to stdout |
+| `cookies save [file]`           | Save the browser's cookies to a file, or print them; `--domain` keeps a site's |
+| `cookies load <file>`           | Load cookies from a file; `--domain` loads a site's |
 
-Selectors are CSS selectors; quote them in the shell. Commands that need an element wait for it to appear, and `--timeout` (default `10s`) sets how long they, and the page loads, may take. `type` and `eval` take `-` for text from stdin.
+Selectors are CSS selectors; quote them in the shell. Anywhere a command takes a selector, `--ref` takes a ref from `snapshot` in its place: `kero browser click --ref e5`. An element keeps its ref until the page goes to another, and a ref whose element is gone fails rather than guess another. Commands that need an element wait for it to appear, and `--timeout` (default `10s`) sets how long they, and the page loads, may take. `type` and `eval` take `-` for text from stdin.
 
-Clicking and typing send the events a real mouse and keyboard would, so pages built with React and other frameworks see them. A screenshot needs the pane to be on screen: show it with `kero focus` first. The rest works on any browser pane, shown or not.
+Clicking and typing send the events a real mouse and keyboard would, so pages built with React and other frameworks see them. Every command works on any browser pane, shown or not: a screenshot of a pane not on screen takes no focus from what you are doing.
+
+Browser panes share their cookies, and keep them when Kero restarts. `cookies` saves them in Playwright's storage state, as JSON, or for a file named `.txt`, as a Netscape `cookies.txt`, which curl and browser extensions write; `load` reads either. Cookies sign you in to sites: share their file only with what you'd trust with your logins. They stay on this Mac, so programs on a host can't save or load them.
 
 Like `kero do`, `kero browser` needs Remote Control, in **Settings › Agents**, and the app to be open.
 

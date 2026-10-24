@@ -59,14 +59,20 @@ A browser pane's page is yours to drive, as a user would, to check what
 you built: open it with kero split --url, then
 
     kero browser open localhost:3000/todos     # go to a page, wait for it to load
-    kero browser type '#new-todo' "Buy milk"   # fill a field (--enter submits)
-    kero browser click 'button[type=submit]'   # click an element (CSS selector)
+    kero browser snapshot                      # roles, names and refs: button "Add" [ref=e5]
+    kero browser click --ref e5                # click what a snapshot showed
+    kero browser type --ref e3 "Buy milk"      # fill a field (--enter submits)
+    kero browser click 'button[type=submit]'   # or name an element by CSS selector
     kero browser wait --text "Welcome"         # or wait <selector>; --timeout 30s
     kero browser text [selector]               # the page's text, or an element's
     kero browser html [selector]
     kero browser eval 'document.title'         # run JavaScript, print its value
-    kero browser screenshot -o /tmp/page.png   # the pane must be on screen
+    kero browser screenshot -o /tmp/page.png   # shown or not, without the focus
     kero browser back|forward|reload
+    kero browser cookies save state.json       # or load: Playwright's, or cookies.txt
+
+Refs last until the page goes to another; one whose element is gone
+fails: take a new snapshot.
 
 With no target, kero browser drives your session's browser pane; name
 one (kero browser <target> text) when there are several. It needs the app

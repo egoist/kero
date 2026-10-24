@@ -115,6 +115,15 @@ func (a *App) view(c *ui.Context) {
 			a.card(c, pal, bar, shown)
 		})
 	})
+	// A page staged for a screenshot takes the window's size, under its
+	// content, which hides it: at no opacity, it paints no hole there.
+	for id, e := range a.webs {
+		if e.staged && e.view != nil {
+			ui.Box(c.Key("staged-"+id)).Absolute().Left(0).Top(0).Right(0).Bottom(0).AlignItems(ui.Stretch).Opacity(0).Children(func() {
+				ui.WebView(c.Key("web"), e.view).Grow(1)
+			})
+		}
+	}
 	a.paletteView(c, pal)
 	a.pickerView(c, pal)
 	a.confirmView(c, pal)

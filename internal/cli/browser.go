@@ -16,17 +16,17 @@ import (
 
 // browserCommands are what kero browser does to a page, which name no
 // target: kero browser text is this session's browser's text.
-var browserCommands = []string{"open", "back", "forward", "reload", "text", "html", "click", "type", "wait", "eval", "screenshot"}
+var browserCommands = []string{"open", "back", "forward", "reload", "text", "html", "snapshot", "click", "type", "wait", "eval", "screenshot", "cookies"}
 
 // browserCmd drives a browser pane's page, which the app has: kerod asks
 // the app, and hands its answer back.
 func browserCmd(c *client.Client, st proto.State, args []string) error {
-	f, err := parse(args, map[string]string{"timeout": "timeout", "t": "timeout", "o": "out", "out": "out", "text": "text"},
+	f, err := parse(args, map[string]string{"timeout": "timeout", "t": "timeout", "o": "out", "out": "out", "text": "text", "ref": "ref", "domain": "domain"},
 		map[string]string{"enter": "enter", "E": "enter"})
 	if err != nil {
 		return err
 	}
-	const use = "kero browser [target] <open|back|forward|reload|text|html|click|type|wait|eval|screenshot> [args…]"
+	const use = "kero browser [target] <open|back|forward|reload|text|html|snapshot|click|type|wait|eval|screenshot|cookies> [args…]"
 	pos := f.pos
 	var t target
 	if len(pos) > 0 && !slices.Contains(browserCommands, pos[0]) {
@@ -57,7 +57,14 @@ func browserCmd(c *client.Client, st proto.State, args []string) error {
 	if err != nil {
 		return err
 	}
-	p := proto.BrowserParams{ID: pane, Op: op, Timeout: timeout}
+	p := proto.BrowserParams{ID: pane, Op: op, Timeout: timeout, Ref: f.vals["ref"]}
+	// --ref names the element in place of the selector.
+	sel := func(pos []string) []string {
+		if p.Ref == "" {
+			return pos
+		}
+		return append([]string{""}, pos...)
+	}
 	// The text after the arguments, as kero send takes it: all of them,
 	// those after -- too, or - for stdin.
 	rest := func(from []string) (string, error) {
@@ -80,34 +87,36 @@ func browserCmd(c *client.Client, st proto.State, args []string) error {
 		if len(pos) > 0 || len(f.rest) > 0 {
 			return usageErr("kero browser [target] %s takes no arguments", op)
 		}
-	case "text", "html":
-		if len(pos) > 1 {
-			return usageErr("kero browser [target] %s [selector]", op)
+	case "text", "html", "snapshot":
+		if len(pos) > 1 || len(pos) == 1 && p.Ref != "" {
+			return usageErr("kero browser [target] %s [selector | --ref ref]", op)
 		}
 		if len(pos) == 1 {
 			p.Selector = pos[0]
 		}
 	case "click":
-		if len(pos) != 1 {
-			return usageErr("kero browser [target] click <selector>")
+		if pos = sel(pos); len(pos) != 1 {
+			return usageErr("kero browser [target] click <selector | --ref ref>")
 		}
 		p.Selector = pos[0]
 	case "type":
-		if len(pos) < 1 {
-			return usageErr("kero browser [target] type <selector> <text…> [--enter]")
+		if pos = sel(pos); len(pos) < 1 {
+			return usageErr("kero browser [target] type <selector | --ref ref> <text…> [--enter]")
 		}
 		p.Selector, p.Enter = pos[0], f.set["enter"]
 		if p.Text, err = rest(pos[1:]); err != nil {
 			return err
 		}
 	case "wait":
-		if len(pos) > 1 {
-			return usageErr("kero browser [target] wait [selector] [--text text]")
+		if len(pos) > 1 || len(pos) == 1 && p.Ref != "" {
+			return usageErr("kero browser [target] wait [selector | --ref ref] [--text text]")
 		}
 		if len(pos) == 1 {
 			p.Selector = pos[0]
 		}
 		p.Text = f.vals["text"]
+	case "cookies":
+		return cookiesCmd(c, p, pos, f)
 	case "eval":
 		if p.Text, err = rest(pos); err != nil {
 			return err
@@ -124,6 +133,12 @@ func browserCmd(c *client.Client, st proto.State, args []string) error {
 	}
 	if f.vals["text"] != "" && op != "wait" {
 		return usageErr("--text is wait's")
+	}
+	if p.Ref != "" && !slices.Contains([]string{"text", "html", "snapshot", "click", "type", "wait"}, op) {
+		return usageErr("--ref names an element, which %s takes none of", op)
+	}
+	if f.vals["domain"] != "" {
+		return usageErr("--domain is cookies'")
 	}
 	var res proto.BrowserResult
 	if err := c.Call("browser", p, &res); err != nil {
