@@ -70,17 +70,24 @@ func (a *App) hostHeader(c *ui.Context, pal *palette, h *host, top float32) {
 	})
 }
 
-// hostTag names a remote host in its color, after the name of one of its
-// groups, faded while the app has lost it.
+// hostTag names a host in its color, after the name of one of its
+// groups, faded while the app has lost it. This machine's is "local",
+// in the gray its color is: one no host's color menu offers, so no
+// host's tag looks like it.
 func (a *App) hostTag(c *ui.Context, pal *palette, h *host) {
 	col := pal.hostColor(h)
+	name, tip := h.name, a.hostTip(h)
+	if !h.remote() {
+		name = "local"
+		tip = locales.HostThisComputer()
+	}
 	tag := ui.Row(c.Key("host")).Height(18).Padding(0, 6).Radius(5).AlignItems(ui.Center).Shrink(0).
-		Background(col.Alpha(0.14)).Tooltip(a.hostTip(h))
+		Background(col.Alpha(0.14)).Tooltip(tip)
 	if h.conn != connReady {
 		tag.Opacity(0.55)
 	}
 	tag.Children(func() {
-		ui.Text(c, h.name).FontSize(11.5).FontWeight(600).TextColor(col).SingleLine()
+		ui.Text(c, name).FontSize(11.5).FontWeight(600).TextColor(col).SingleLine()
 	})
 }
 

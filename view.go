@@ -251,8 +251,8 @@ func (a *App) sidebar(c *ui.Context, pal *palette, bar ui.TitleBar) {
 	ui.Scroll(c.Key("sessions")).Grow(1).Padding(0, 10, 16, 10).Children(func() {
 		n := 0  // the rows shown, for ⌘1–9 (Ctrl+1–9 elsewhere)
 		gi := 0 // the groups shown, the first of which sits higher
-		// This machine's projects first, unlabeled; then each host's,
-		// under its name.
+		// This machine's projects first, each tagged "local" like every
+		// host's are; then each host's, under its name.
 		if local := a.local(); local.loaded {
 			for _, g := range a.hostGroups(local) {
 				a.groupView(c, pal, g, gi, &n)
@@ -354,9 +354,7 @@ func (a *App) groupView(c *ui.Context, pal *palette, g group, gi int, n *int) {
 			return
 		}
 		ui.Text(c, g.project.Name).FontSize(12.5).FontWeight(600).TextColor(pal.textMuted).SingleLine().Ellipsis("…").MinWidth(0).Shrink(1)
-		if g.host.remote() {
-			a.hostTag(c, pal, g.host)
-		}
+		a.hostTag(c, pal, g.host)
 		ui.Textf(c, "%d", len(g.sessions)).FontSize(12.5).TextColor(pal.textFaint).FontFeatures("tnum")
 		chev := ui.Icon(c, chevronIcon).Size(11, 11).TextColor(pal.textFaint)
 		turn := chev.AnimateTo("turn", 90*(1-b2f(collapsed)), ui.Snappy)
