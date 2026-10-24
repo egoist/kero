@@ -53,7 +53,7 @@ kero config check             # 报告未知的配置项和无效的值
 | 配置项               | 默认值   | 说明                                                            |
 | -------------------- | -------- | --------------------------------------------------------------- |
 | `window-theme`       | `system` | 应用外观：`system`、`light` 或 `dark`                            |
-| `language`           | `system` | 应用语言：`system`、`en` 或 `zh-Hans`                            |
+| `language`           | `system` | 应用语言：`system`、`en`、`ja` 或 `zh-Hans`                      |
 | `background`         | `petal`  | 窗口底色：`petal`、`mist`、`meadow`、`dusk` 或 `plain`           |
 | `window-translucent` | `true`   | 让桌面透过窗口显示出来                                          |
 

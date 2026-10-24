@@ -162,7 +162,7 @@ func Default() Settings {
 
 // Languages are the languages the app is written in, as the catalogs of
 // kero/locales name them.
-var Languages = []string{"en", "zh-Hans"}
+var Languages = []string{"en", "ja", "zh-Hans"}
 
 // Backgrounds are the washes the window can show.
 var Backgrounds = []struct{ ID, Name string }{
