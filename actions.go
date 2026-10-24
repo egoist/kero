@@ -95,6 +95,8 @@ func (a *App) run(id string, args map[string]string) {
 		a.toggleSidebar()
 	case "changes.toggle":
 		a.toggleSide(sideChanges)
+	case "files.toggle":
+		a.toggleSide(sideFiles)
 	case "text.bigger":
 		a.zoom(1, false)
 	case "text.smaller":
@@ -157,6 +159,7 @@ var actionTitles = map[string]func() string{
 	"pane.down":         locales.ActionPaneBelow,
 	"sidebar.toggle":    locales.ActionToggleSidebar,
 	"changes.toggle":    locales.ActionToggleChanges,
+	"files.toggle":      locales.ActionToggleFiles,
 	"text.bigger":       locales.ActionBigger,
 	"text.smaller":      locales.ActionSmaller,
 	"text.reset":        locales.ActionActualSize,
@@ -294,7 +297,7 @@ func (a *App) fromMay(id string, args map[string]string) bool {
 	case id == "session.new" || id == "session.newHome":
 		p := args["project"]
 		return p == "" || a.hostOf(p) == h
-	case strings.HasPrefix(id, "pane.") || id == "changes.toggle":
+	case strings.HasPrefix(id, "pane.") || id == "changes.toggle" || id == "files.toggle":
 		return a.session(a.selected) != nil && a.selectedHost() == h
 	}
 	return true
