@@ -38,6 +38,8 @@ func settingsIndex() []searchEntry {
 		{"appearance", locales.SetAppearance(), "window-theme dark light mode system"},
 		{"appearance", locales.SetLanguage(), "language locale translation chinese english 语言 中文"},
 		{"appearance", locales.SetTranslucent(), "window-translucent vibrancy blur material transparency"},
+		{"appearance", locales.SetWindowOpacity(), "window-opacity opacity translucent transparency see-through dim 透明度 不透明度"},
+		{"appearance", locales.SetWindowBlur(), "window-blur blur frosted vibrancy material transparency 模糊 毛玻璃"},
 		{"appearance", locales.SetBackground(), "background wash petal mist meadow dusk plain gradient color"},
 
 		{"terminal", locales.SetFont(), "font-family typeface jetbrains mono nerd"},

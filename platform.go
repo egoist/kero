@@ -51,6 +51,9 @@ var ownControls = runtime.GOOS != "darwin"
 // lights on macOS and without its buttons elsewhere (ownControls), which
 // keeps the edges that resize the window.
 func framed(o mygo.WindowOptions) mygo.WindowOptions {
+	// The wash may be translucent, and with blur off the desktop shows
+	// through the window itself, not a material.
+	o.Transparent = true
 	if ownControls {
 		o.TitleBarStyle = mygo.TitleBarHidden
 		o.HideWindowButtons = true

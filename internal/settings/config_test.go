@@ -113,6 +113,50 @@ func TestBadValuesKeepDefaults(t *testing.T) {
 	}
 }
 
+// The background's opacity is a number in the configuration, 0 to 1,
+// and is the default when it is out of range.
+func TestWindowOpacity(t *testing.T) {
+	if Default().WindowOpacity != DefaultWindowOpacity {
+		t.Fatalf("default opacity %v, want %v", Default().WindowOpacity, DefaultWindowOpacity)
+	}
+	s, probs := parse("window-opacity = 0.5\n")
+	if s.WindowOpacity != 0.5 || len(probs) != 0 {
+		t.Fatalf("window-opacity = 0.5: %v, problems %q", s.WindowOpacity, probs)
+	}
+	if out := format(s, ""); !strings.Contains(out, "window-opacity = 0.5\n") {
+		t.Errorf("formatted:\n%s", out)
+	}
+	if back, _ := parse(format(s, "")); back.WindowOpacity != 0.5 {
+		t.Errorf("came back %v", back.WindowOpacity)
+	}
+	if s, probs := parse("window-opacity = 0\n"); s.WindowOpacity != 0 || len(probs) != 0 {
+		t.Errorf("window-opacity = 0: %v, problems %q", s.WindowOpacity, probs)
+	}
+	if s, probs := parse("window-opacity = 1.5\n"); s.WindowOpacity != DefaultWindowOpacity || len(probs) != 0 {
+		t.Errorf("window-opacity = 1.5: %v, problems %q", s.WindowOpacity, probs)
+	}
+	if out := format(Default(), ""); strings.Contains(out, "window-opacity") {
+		t.Errorf("the default opacity was written:\n%s", out)
+	}
+}
+
+// The background's blur is on unless the configuration turns it off.
+func TestWindowBlur(t *testing.T) {
+	if !Default().WindowBlur {
+		t.Fatal("blur is off by default")
+	}
+	s, probs := parse("window-blur = false\n")
+	if s.WindowBlur || len(probs) != 0 {
+		t.Fatalf("window-blur = false: %v, problems %q", s.WindowBlur, probs)
+	}
+	if out := format(s, ""); !strings.Contains(out, "window-blur = false\n") {
+		t.Errorf("formatted:\n%s", out)
+	}
+	if back, _ := parse(format(s, "")); back.WindowBlur {
+		t.Error("the blur came back on")
+	}
+}
+
 // Kero elsewhere updates the app here only once the user lets it.
 func TestRemoteUpdatesOptIn(t *testing.T) {
 	if Default().RemoteUpdates {

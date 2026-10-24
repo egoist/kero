@@ -120,6 +120,19 @@ var keys = []key{
 	mapChoice("background", "the window's wash", func(s *Settings) *string { return &s.Background },
 		[]string{"petal", "mist", "meadow", "dusk", "plain"}, []string{"rex", "mist", "meadow", "dusk", "plain"}),
 	boolKey("window-translucent", "let the desktop show through the window", func(s *Settings) *bool { return &s.Vibrancy }),
+	{name: "window-opacity", doc: "how much of the window's background the wash covers while translucent, 0 to 1",
+		get: func(s *Settings) []string {
+			return []string{strconv.FormatFloat(float64(s.WindowOpacity), 'g', -1, 32)}
+		},
+		set: func(s *Settings, v []string) error {
+			n, err := strconv.ParseFloat(v[len(v)-1], 32)
+			if err != nil {
+				return fmt.Errorf("%q is not a number", v[len(v)-1])
+			}
+			s.WindowOpacity = float32(n)
+			return nil
+		}},
+	boolKey("window-blur", "blur the desktop behind the translucent background; off, the wash is plain transparency", func(s *Settings) *bool { return &s.WindowBlur }),
 
 	stringKey("font-family", "the terminals' font: empty for JetBrains Mono Nerd Font, which Kero carries; monospace for the system's", func(s *Settings) *string { return &s.FontFamily }),
 	numberKey("font-size", "in points", func(s *Settings) float64 { return float64(s.FontSize) }, func(s *Settings, n float64) { s.FontSize = float32(n) }),

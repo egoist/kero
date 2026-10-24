@@ -19,6 +19,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"kero/internal/proto"
+	"kero/internal/settings"
 
 	"kero/locales"
 )
@@ -184,6 +185,50 @@ func TestHeaderPadBelowTopLeft(t *testing.T) {
 		t.Errorf("the title under the top left's starts at %v, as far in as the top left's %v", below.X, top.X)
 	}
 	shot(t, tt, "header-pad-below")
+}
+
+// The window's wash lets the material through as the setting says.
+func TestTranslucentBackground(t *testing.T) {
+	a := testApp(t)
+	a.set.Vibrancy = false
+	tt := ui.NewTester(a.view, 1100, 640)
+	tt.Frame()
+	off := tt.Image().RGBAAt(8, 300).A
+	a.set.Vibrancy = true
+	tt.Frame()
+	on := tt.Image().RGBAAt(8, 300).A
+	if off != 255 || on >= 230 {
+		t.Errorf("the wash's alpha is %d without translucency, %d with it", off, on)
+	}
+	// The setting moves it, from the default to half the wash, and to
+	// none of it.
+	a.set.WindowOpacity = 0.5
+	tt.Frame()
+	if half := tt.Image().RGBAAt(8, 300).A; half < 120 || half > 136 {
+		t.Errorf("half the wash is %d, want about 128", half)
+	}
+	a.set.WindowOpacity = 0
+	tt.Frame()
+	if clear := tt.Image().RGBAAt(8, 300).A; clear > 2 {
+		t.Errorf("no wash is %d, want transparent", clear)
+	}
+}
+
+// A material only shows when the window is translucent and blurred.
+func TestVibrancyFor(t *testing.T) {
+	for _, c := range []struct {
+		vibrancy, blur bool
+		want           mygo.Vibrancy
+	}{
+		{true, true, mygo.VibrancySidebar},
+		{true, false, mygo.VibrancyNone},
+		{false, true, mygo.VibrancyNone},
+		{false, false, mygo.VibrancyNone},
+	} {
+		if got := vibrancyFor(settings.Settings{Vibrancy: c.vibrancy, WindowBlur: c.blur}); got != c.want {
+			t.Errorf("vibrancy %v blur %v: %q, want %q", c.vibrancy, c.blur, got, c.want)
+		}
+	}
 }
 
 // The window moves from the panes' headers and the gaps around them, and

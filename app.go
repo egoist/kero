@@ -850,8 +850,13 @@ func (a *App) apply(s settings.Settings, save bool) {
 	if old.Language != s.Language && a.win != nil {
 		mygo.App.SetLocale(localeTag(s.Language))
 	}
-	if old.Vibrancy != s.Vibrancy && a.win != nil {
-		a.win.SetVibrancy(vibrancyFor(s))
+	if old.Vibrancy != s.Vibrancy || old.WindowBlur != s.WindowBlur {
+		if a.win != nil {
+			a.win.SetVibrancy(vibrancyFor(s))
+		}
+		if a.setWin != nil {
+			a.setWin.SetVibrancy(vibrancyFor(s))
+		}
 	}
 	if !maps.Equal(old.Shortcuts, s.Shortcuts) && a.win != nil {
 		mygo.App.SetMenu(a.menu())
@@ -922,7 +927,7 @@ func (a *App) reloadConfig() {
 }
 
 func vibrancyFor(s settings.Settings) mygo.Vibrancy {
-	if s.Vibrancy {
+	if s.Vibrancy && s.WindowBlur {
 		return mygo.VibrancySidebar
 	}
 	return mygo.VibrancyNone
