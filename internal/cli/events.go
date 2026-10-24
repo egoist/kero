@@ -25,7 +25,8 @@ type event struct {
 	// Name is the session's name, as the sidebar shows it.
 	Name string `json:"name,omitempty"`
 	// pane.status: the statuses, and the pane's message, what it waits
-	// for and its agent; session.renamed: the names.
+	// for and its agent; session.renamed: the names; session.moved: the
+	// projects' ids.
 	From    string `json:"from,omitempty"`
 	To      string `json:"to,omitempty"`
 	Message string `json:"message,omitempty"`
@@ -67,6 +68,11 @@ func diffState(prev, next proto.State, now time.Time) []event {
 		if from, to := old.DisplayName(naming), s.DisplayName(naming); from != to {
 			e := of("session.renamed", s)
 			e.From, e.To = from, to
+			evs = append(evs, e)
+		}
+		if old.Project != s.Project {
+			e := of("session.moved", s)
+			e.From, e.To = old.Project, s.Project
 			evs = append(evs, e)
 		}
 		for j := range s.Panes {
@@ -175,7 +181,8 @@ func (f eventFilter) match(e event) bool {
 	if f.pane != "" && e.Pane != "" && e.Pane != f.pane {
 		return false
 	}
-	if f.project != "" && e.Project != f.project {
+	// A session moved out of the project is its last event there.
+	if f.project != "" && e.Project != f.project && (e.Event != "session.moved" || e.From != f.project) {
 		return false
 	}
 	if len(f.statuses) > 0 {
@@ -214,16 +221,23 @@ func (f eventFilter) gone(e event) bool {
 	return e.Event == "session.closed" || f.pane != "" && e.Event == "pane.closed" && e.Pane == f.pane
 }
 
-// findProject finds a project by its id, a prefix of it, or its name.
+// findProject finds a project by its id, its name, or a prefix of its
+// id; a name before a prefix of another's id, as kero new -p takes it.
 func findProject(st proto.State, ref string) (string, error) {
-	var ids []string
+	var named, prefixed []string
 	for _, p := range st.Projects {
 		if p.ID == ref {
 			return p.ID, nil
 		}
-		if strings.HasPrefix(p.ID, ref) || strings.EqualFold(p.Name, ref) {
-			ids = append(ids, p.ID)
+		if strings.EqualFold(p.Name, ref) {
+			named = append(named, p.ID)
+		} else if strings.HasPrefix(p.ID, ref) {
+			prefixed = append(prefixed, p.ID)
 		}
+	}
+	ids := named
+	if len(ids) == 0 {
+		ids = prefixed
 	}
 	switch len(ids) {
 	case 1:
@@ -397,6 +411,8 @@ func eventLine(e event) string {
 		what = fmt.Sprintf("command exited %d", *e.ExitCode)
 	case "session.renamed":
 		what = "renamed " + e.From + " → " + e.To
+	case "session.moved":
+		what = "moved " + e.From + " → " + e.To
 	case "notice":
 		what = "notice: " + e.Body
 		if e.Title != "" {

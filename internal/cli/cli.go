@@ -65,7 +65,8 @@ Usage:
                                 print what happens as it does, a line an
                                 event: panes changing status, sessions
                                 and panes starting and closing, renames,
-                                notifications; until the target closes
+                                moves to another project, notifications;
+                                until the target closes
       --for <statuses>            only panes going to these: idle,
                                   working, waiting, error, exited
       --once                      exit after the first event (1 if the

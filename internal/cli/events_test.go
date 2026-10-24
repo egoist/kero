@@ -3,6 +3,7 @@ package cli
 import (
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -58,7 +59,7 @@ func TestDiffState(t *testing.T) {
 	// A shell's exit tells its status; no change, no event.
 	exited := pane("p3", proto.Exited)
 	exited.ExitCode = 2
-	after := proto.State{Sessions: []proto.Session{{ID: "s2", Name: "old", Panes: []proto.Pane{exited}}}}
+	after := proto.State{Sessions: []proto.Session{{ID: "s2", Name: "old", Project: "pr", Panes: []proto.Pane{exited}}}}
 	evs = diffState(prev, after, time.Now())
 	if len(evs) != 2 || evs[0].Event != "pane.status" || evs[0].ExitCode == nil || *evs[0].ExitCode != 2 || evs[1].Event != "session.closed" {
 		t.Errorf("exit %+v", evs)
@@ -171,5 +172,44 @@ func TestEventFilterPresent(t *testing.T) {
 		if got := c.f.present(st); got != c.want {
 			t.Errorf("%+v: %v, want %v", c.f, got, c.want)
 		}
+	}
+}
+
+// A session moved to another project says so, and a watch of the
+// project it left hears of it.
+func TestSessionMoved(t *testing.T) {
+	t.Setenv("KERO_CONFIG", filepath.Join(t.TempDir(), "config"))
+	prev := proto.State{Sessions: []proto.Session{{ID: "s1", Name: "api", Project: "a"}}}
+	next := proto.State{Sessions: []proto.Session{{ID: "s1", Name: "api", Project: "b"}}}
+	evs := diffState(prev, next, time.Now())
+	if len(evs) != 1 || evs[0].Event != "session.moved" || evs[0].From != "a" || evs[0].To != "b" || evs[0].Project != "b" {
+		t.Fatalf("moved %+v", evs)
+	}
+	for _, c := range []struct {
+		project string
+		want    bool
+	}{{"a", true}, {"b", true}, {"c", false}} {
+		if got := (eventFilter{project: c.project}).match(evs[0]); got != c.want {
+			t.Errorf("-p %s: %v", c.project, got)
+		}
+	}
+	if got := eventLine(evs[0]); !strings.HasSuffix(got, "api  moved a → b") {
+		t.Errorf("line %q", got)
+	}
+}
+
+// A project's name comes before a prefix of another's id.
+func TestFindProject(t *testing.T) {
+	st := proto.State{Projects: []proto.Project{{ID: "ab12", Name: "web"}, {ID: "cd34", Name: "ab"}, {ID: "ab56", Name: "api"}}}
+	for _, c := range []struct{ ref, want string }{{"ab", "cd34"}, {"AB", "cd34"}, {"ab5", "ab56"}, {"ab12", "ab12"}, {"web", "ab12"}} {
+		if got, err := findProject(st, c.ref); err != nil || got != c.want {
+			t.Errorf("%s: %q, %v, want %q", c.ref, got, err, c.want)
+		}
+	}
+	if _, err := findProject(st, "a"); err == nil {
+		t.Error("a prefix of two ids")
+	}
+	if _, err := findProject(st, "zz"); err == nil {
+		t.Error("no project")
 	}
 }

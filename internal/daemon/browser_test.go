@@ -17,6 +17,7 @@ func testDaemon(t *testing.T) *Daemon {
 	t.Helper()
 	t.Setenv("KERO_CONFIG", filepath.Join(t.TempDir(), "config"))
 	d := &Daemon{dir: t.TempDir(), log: log.New(io.Discard, "", 0), panes: map[string]*pane{},
+		subs: map[*controlConn]struct{}{}, watchers: map[*controlConn]struct{}{},
 		changeCh: make(chan struct{}, 1), saveCh: make(chan struct{}, 1)}
 	d.viewed.Store(new(string))
 	d.projects = []proto.Project{{ID: "pr", Name: "repo", Dir: t.TempDir()}}

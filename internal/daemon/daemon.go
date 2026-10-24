@@ -281,11 +281,16 @@ func (d *Daemon) save() {
 func (d *Daemon) notice(n proto.Notice) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	d.broadcastLocked(proto.Message{Event: "notice", Notice: &n})
+}
+
+// broadcastLocked sends m to the apps and the watchers; d.mu is held.
+func (d *Daemon) broadcastLocked(m proto.Message) {
 	for c := range d.subs {
-		c.event(proto.Message{Event: "notice", Notice: &n})
+		c.event(m)
 	}
 	for c := range d.watchers {
-		c.watchEvent(proto.Message{Event: "notice", Notice: &n})
+		c.watchEvent(m)
 	}
 }
 
@@ -302,12 +307,7 @@ func (d *Daemon) broadcastLoop() {
 		// changes from the difference of two.
 		d.mu.Lock()
 		st := d.stateLocked()
-		for c := range d.subs {
-			c.event(proto.Message{Event: "state", State: &st})
-		}
-		for c := range d.watchers {
-			c.watchEvent(proto.Message{Event: "state", State: &st})
-		}
+		d.broadcastLocked(proto.Message{Event: "state", State: &st})
 		d.mu.Unlock()
 	}
 }
