@@ -195,10 +195,11 @@ func (a *App) sessionOfPane(id string) *proto.Session {
 	return nil
 }
 
-// isBrowser reports whether a pane is a browser's.
-func (a *App) isBrowser(id string) bool {
+// shows reports whether the app draws a pane itself, rather than a
+// terminal's cells: a browser's page, or a file's.
+func (a *App) shows(id string) bool {
 	if s := a.sessionOfPane(id); s != nil {
-		return s.PaneByID(id).Browser()
+		return s.PaneByID(id).Shown()
 	}
 	return false
 }

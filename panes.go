@@ -199,7 +199,7 @@ func (a *App) paneCard(c *ui.Context, pal *palette, bar ui.TitleBar, shown float
 	bg := pal.card
 	// A browser's page stays opaque, so its toolbar does too, and neither
 	// fades: a page is read, not typed into, from beside it.
-	if multi && !focused && !p.Browser() && a.set.DimUnfocused {
+	if multi && !focused && !p.Shown() && a.set.DimUnfocused {
 		bg = pal.cardDim
 	}
 	card := ui.Column(c.Key("pane-" + p.ID)).Grow(1).Basis(0).MinWidth(0).MinHeight(0).Radius(14).Clip().Bind(a.paneRef("card-" + p.ID))
@@ -236,14 +236,17 @@ func (a *App) paneCard(c *ui.Context, pal *palette, bar ui.TitleBar, shown float
 
 	dragging := false
 	card.Children(func() {
-		if p.Browser() {
+		if p.FilePane() {
+			dragging = a.paneHeader(c, pal, bar, shown, s, p, top, left, right, multi, focused, hovered)
+			a.filePane(c, pal, s, p)
+		} else if p.Browser() {
 			// A browser's address bar is its header.
 			dragging = a.paneBrowser(c, pal, bar, shown, s, p, top, left, right, multi, focused, hovered)
 		} else {
 			dragging = a.paneHeader(c, pal, bar, shown, s, p, top, left, right, multi, focused, hovered)
 			a.paneTerminal(c, pal, s, p)
 		}
-		if multi && !p.Browser() && a.set.DimUnfocused {
+		if multi && !p.Shown() && a.set.DimUnfocused {
 			// The terminals the user is not in fade, text and all.
 			v := ui.Box(c.Key("veil")).Absolute().Top(0).Left(0).Right(0).Bottom(0).PassThrough().Background(pal.veil)
 			v.Opacity(v.Animate("on", b2f(!focused), 160*time.Millisecond))
@@ -665,7 +668,7 @@ func (a *App) split(s *proto.Session, p proto.CreateParams) {
 		return
 	}
 	h := a.hostOf(s.ID)
-	if pane := s.PaneByID(p.Split); pane != nil && !pane.Browser() {
+	if pane := s.PaneByID(p.Split); pane != nil && !pane.Shown() {
 		p.Cols, p.Rows = pane.Cols, pane.Rows
 		if p.Direction == "down" || p.Direction == "up" {
 			p.Rows = max(p.Rows/2, 4)
@@ -693,9 +696,9 @@ func (a *App) split(s *proto.Session, p proto.CreateParams) {
 				a.focus[ns.ID] = ns.Focus
 				a.ensureTerm(ns.Focus)
 				a.touch(ns.Focus)
-				if !a.isBrowser(ns.Focus) {
+				if !a.shows(ns.Focus) {
 					// A browser takes the keyboard in its address bar, or
-					// its page once it has one.
+					// its page once it has one; a file's in its text.
 					a.paneRef(ns.Focus).Focus()
 				}
 			}

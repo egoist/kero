@@ -143,3 +143,43 @@ func TestSideTabsClick(t *testing.T) {
 		t.Fatalf("a click on Changes showed %q", a.prefs.Side)
 	}
 }
+
+// A file pane shows its file in the app's editor, colored by its
+// language, and has no terminal of its own.
+func TestFilePane(t *testing.T) {
+	a := testApp(t)
+	a.local().cl = &client.Client{}
+	s := &a.st.Sessions[0]
+	s.Panes = append(s.Panes, proto.Pane{ID: "f", File: "/tmp/demo/main.go", Dir: "/tmp/demo", Status: proto.Idle, Progress: -1})
+	s.Layout = s.Layout.Split("a", "f", "right", 0)
+	p := s.PaneByID("f")
+	if !p.FilePane() || !p.Shown() || p.Browser() {
+		t.Fatalf("a file pane is not one: file %v, shown %v, browser %v", p.FilePane(), p.Shown(), p.Browser())
+	}
+	if name := p.PaneName(); name != "main.go" {
+		t.Errorf("a file pane names itself %q", name)
+	}
+	if a.terms["f"] != nil {
+		t.Error("a file pane has a terminal")
+	}
+
+	// What kerod would answer, read once.
+	f := a.filePaneFor(p)
+	f.read = true
+	if a.hostOf("f").cl == nil {
+		a.local().cl = &client.Client{}
+	}
+	b := editor.NewBuffer("package main\n\nfunc main() {}\n")
+	b.SetLanguage(editor.LanguageFor("main.go"))
+	f.st = &editor.State{Buffer: b}
+	tt := ui.NewTester(a.view, 1280, 720)
+	tt.Frame()
+	if !tt.HasText("Code editor") || !tt.HasText("main.go") {
+		t.Errorf("the file pane did not show its file; texts %q", tt.Texts())
+	}
+	f.binary = true
+	tt.Frame()
+	if !tt.HasText("Binary file") {
+		t.Errorf("a binary file was not told of; texts %q", tt.Texts())
+	}
+}

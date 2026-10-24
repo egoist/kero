@@ -3872,14 +3872,24 @@ func (msgs Messages) FilesCloseFile() string {
 	return Catalog.Format(msgs.locale, "filesCloseFile", nil)
 }
 
-// FilesOpenInPane says "Open in a Pane"
+// FilesOpenInPane says "Open in a File Pane"
 // in the language the app shows.
 func FilesOpenInPane() string { return In(i18n.Locale()).FilesOpenInPane() }
 
-// FilesOpenInPane says "Open in a Pane"
+// FilesOpenInPane says "Open in a File Pane"
 // in the language of msgs.
 func (msgs Messages) FilesOpenInPane() string {
 	return Catalog.Format(msgs.locale, "filesOpenInPane", nil)
+}
+
+// FilesOpenInEditor says "Open in the Host's Editor"
+// in the language the app shows.
+func FilesOpenInEditor() string { return In(i18n.Locale()).FilesOpenInEditor() }
+
+// FilesOpenInEditor says "Open in the Host's Editor"
+// in the language of msgs.
+func (msgs Messages) FilesOpenInEditor() string {
+	return Catalog.Format(msgs.locale, "filesOpenInEditor", nil)
 }
 
 // FilesUpdateHost says "The kerod on this host is older than this version of Kero. Update it on the host to browse its files."

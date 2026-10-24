@@ -364,15 +364,25 @@ func (a *App) openFile(t *fileTree, path string) {
 	a.readFile(t, f)
 }
 
-// openInPane opens a file of the tree in a pane of its host: its editor,
-// beside the pane the tree is of.
+// openInPane opens a file of the tree in a file pane beside the pane the
+// tree is of: the app's editor shows it, colored by its language, on the
+// host it is on.
 func (a *App) openInPane(t *fileTree, path string) {
 	s := a.sessionOfPane(t.pane)
 	if s == nil {
 		return
 	}
-	h := a.hostOf(t.pane)
-	a.split(s, proto.CreateParams{Split: t.pane, Direction: "right", Command: editorCommand(h, path)})
+	a.split(s, proto.CreateParams{Split: t.pane, Direction: "right", File: path})
+}
+
+// openInEditor opens a file of the tree in the host's editor, in a pane
+// of its shell.
+func (a *App) openInEditor(t *fileTree, path string) {
+	s := a.sessionOfPane(t.pane)
+	if s == nil {
+		return
+	}
+	a.split(s, proto.CreateParams{Split: t.pane, Direction: "right", Command: editorCommand(a.hostOf(t.pane), path)})
 }
 
 // readFile reads a file from the kerod of the tree's host: an image to
@@ -490,7 +500,8 @@ func (a *App) fileView(c *ui.Context, pal *palette, t *fileTree) {
 			ui.Text(c, strings.TrimSuffix(t.rel(f.path), proto.DirName(f.path))).FontSize(12).TextColor(pal.textFaint).
 				SingleLine().Ellipsis("…").MinWidth(0).Shrink(1)
 			ui.Spacer(c)
-			iconButton(c, "files-edit", splitRightIcon, locales.FilesOpenInPane(), pal, func() { a.defer_(func() { a.openInPane(t, f.path) }) })
+			iconButton(c, "files-edit", docIcon, locales.FilesOpenInPane(), pal, func() { a.defer_(func() { a.openInPane(t, f.path) }) })
+			iconButton(c, "files-editor", splitRightIcon, locales.FilesOpenInEditor(), pal, func() { a.defer_(func() { a.openInEditor(t, f.path) }) })
 			iconButton(c, "files-refresh", reloadIcon, locales.FilesRefresh(), pal, func() { a.defer_(func() { a.readFile(t, f) }) })
 			iconButton(c, "files-close", closeIcon, locales.FilesCloseFile(), pal, func() {
 				a.defer_(func() {
