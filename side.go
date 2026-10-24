@@ -21,12 +21,14 @@ import (
 // The side panel stands at the right of a session's panes, a card of its
 // own, with what the session's worktree is about. It has views, each a
 // list whose item opens in the panel as a file: Changes, the files the
-// session's agent or the user changed, each opening as its diff; a Files
-// view, the worktree's tree, each file opening as its text, is to join it
-// with the same header, list and file.
+// session's agent or the user changed, each opening as its diff; and
+// Files (files.go), the worktree's tree, each file opening as its text.
 
-// sideChanges is the Changes view's id, as prefs.Side holds it.
-const sideChanges = "changes"
+// The views' ids, as prefs.Side holds one.
+const (
+	sideChanges = "changes"
+	sideFiles   = "files"
+)
 
 const (
 	defaultSide = 420 // the panel's width, as it first opens
@@ -40,6 +42,7 @@ type sideState struct {
 	drag    float32 // the width as a drag of the edge began, 0 while none
 	focused bool    // the panel has the keyboard: its Escape, its diff's find
 	changes changesState
+	files   filesState
 	// theme is the diffs' colors, made again only as the window's
 	// appearance or the terminals' themes change.
 	theme    *editor.Theme
@@ -102,6 +105,14 @@ func (a *App) toggleSide(view string) {
 	a.savePrefs()
 }
 
+// showSide shows a view of the panel, keeping it open when it shows it.
+func (a *App) showSide(view string) {
+	if a.prefs.Side != view {
+		a.prefs.Side = view
+		a.savePrefs()
+	}
+}
+
 // sideWidth is the panel's width in a row of width w, leaving the panes
 // their room.
 func (a *App) sideWidth(w float32) float32 {
@@ -147,12 +158,22 @@ func (a *App) sidePanel(c *ui.Context, pal *palette, s *proto.Session, width flo
 		Focusable().Bind(a.paneRef("side-card"))
 	raised(card, pal)
 	a.side.focused = card.FocusWithin()
+	// The view the panel shows, Changes for any it does not know.
+	view := a.prefs.Side
+	if view != sideFiles {
+		view = sideChanges
+	}
+	set := ""
 	card.Children(func() {
 		ui.Row(c.Key("hdr")).Height(headerH).Shrink(0).AlignItems(ui.Center).Padding(0, 10, 0, 16).Gap(8).Children(func() {
-			// What the view shows, as a pane's header shows its program.
-			ui.Icon(c, diffIcon).Size(14, 14).TextColor(pal.textFaint)
-			ui.Text(c, locales.SideChanges()).FontSize(14).FontWeight(600).TextColor(pal.text).SingleLine().Shrink(0)
-			if dir := a.changesDir(s); dir != "" {
+			// The views, the one shown marked, as a pane's header shows
+			// its program.
+			a.sideTab(c, pal, sideChanges, locales.SideChanges(), diffIcon, view == sideChanges, "changes.toggle", func() { set = sideChanges })
+			a.sideTab(c, pal, sideFiles, locales.SideFiles(), folderIcon, view == sideFiles, "files.toggle", func() { set = sideFiles })
+			if set != "" {
+				a.defer_(func() { a.showSide(set) })
+			}
+			if dir := a.sideDir(s); dir != "" {
 				ui.Text(c, a.hostOf(s.ID).shortDir(dir)).FontSize(13).TextColor(pal.textFaint).SingleLine().Ellipsis("…").Shrink(2).MinWidth(0).Tooltip(dir)
 			}
 			ui.Box(c.Key("drag")).Grow(1).AlignSelf(ui.Stretch).DragWindow()
@@ -162,12 +183,53 @@ func (a *App) sidePanel(c *ui.Context, pal *palette, s *proto.Session, width flo
 			}
 		})
 		ui.Column(c.Key("body")).Grow(1).MinHeight(0).AlignItems(ui.Stretch).Children(func() {
+			if view == sideFiles {
+				a.filesView(c, pal, s)
+				return
+			}
 			a.changesView(c, pal, s, width)
 		})
 	})
 	if card.Shortcut(0, ui.KeyEscape) {
 		a.focusTerminal()
 	}
+}
+
+// sideTab is a view's name in the panel's header, a click showing it: the
+// one shown in the text's color, the others faint. The header drags the
+// window where no tab is, as the window controls are, which the tabs are
+// part of as windowControls' buttons are.
+func (a *App) sideTab(c *ui.Context, pal *palette, id, label string, svg *ui.SVG, on bool, action string, fn func()) {
+	fg := pal.textFaint
+	if on {
+		fg = pal.text
+	}
+	b := ui.ButtonBase(c.Key("tab-"+id)).Height(26).Gap(5).Padding(0, 7).Radius(6).AlignItems(ui.Center).Shrink(0).
+		Cursor(ui.CursorPointer).Label(a.tip(label, action))
+	if on {
+		b.Background(pal.chip)
+	} else if b.Hovered() {
+		b.Background(pal.rowHover)
+	}
+	if b.Clicked() {
+		fn()
+	}
+	b.Children(func() {
+		ui.Icon(c, svg).Size(14, 14).TextColor(fg)
+		ui.Text(c, label).FontSize(14).FontWeight(600).TextColor(fg).SingleLine().Shrink(0)
+	})
+}
+
+// sideDir is the folder a view names in the header: the worktree the
+// Changes view lists, or the folder the Files view shows.
+func (a *App) sideDir(s *proto.Session) string {
+	if a.prefs.Side == sideFiles {
+		if _, root := a.filesRoot(s); root != "" {
+			return root
+		}
+		return ""
+	}
+	return a.changesDir(s)
 }
 
 // --- the Changes view ---

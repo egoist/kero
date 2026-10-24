@@ -3522,6 +3522,16 @@ func (msgs Messages) ActionToggleChanges() string {
 	return Catalog.Format(msgs.locale, "actionToggleChanges", nil)
 }
 
+// ActionToggleFiles says "Toggle Files"
+// in the language the app shows.
+func ActionToggleFiles() string { return In(i18n.Locale()).ActionToggleFiles() }
+
+// ActionToggleFiles says "Toggle Files"
+// in the language of msgs.
+func (msgs Messages) ActionToggleFiles() string {
+	return Catalog.Format(msgs.locale, "actionToggleFiles", nil)
+}
+
 // SideChanges says "Changes"
 // in the language the app shows.
 func SideChanges() string { return In(i18n.Locale()).SideChanges() }
@@ -3760,6 +3770,136 @@ func ChangesTooLarge() string { return In(i18n.Locale()).ChangesTooLarge() }
 // in the language of msgs.
 func (msgs Messages) ChangesTooLarge() string {
 	return Catalog.Format(msgs.locale, "changesTooLarge", nil)
+}
+
+// SideFiles says "Files"
+// in the language the app shows.
+func SideFiles() string { return In(i18n.Locale()).SideFiles() }
+
+// SideFiles says "Files"
+// in the language of msgs.
+func (msgs Messages) SideFiles() string {
+	return Catalog.Format(msgs.locale, "sideFiles", nil)
+}
+
+// FilesNoFolder says "No folder"
+// in the language the app shows.
+func FilesNoFolder() string { return In(i18n.Locale()).FilesNoFolder() }
+
+// FilesNoFolder says "No folder"
+// in the language of msgs.
+func (msgs Messages) FilesNoFolder() string {
+	return Catalog.Format(msgs.locale, "filesNoFolder", nil)
+}
+
+// FilesNoFolderDetail says "The session has no pane with a folder to show. Start one in a project, or cd in a terminal pane."
+// in the language the app shows.
+func FilesNoFolderDetail() string { return In(i18n.Locale()).FilesNoFolderDetail() }
+
+// FilesNoFolderDetail says "The session has no pane with a folder to show. Start one in a project, or cd in a terminal pane."
+// in the language of msgs.
+func (msgs Messages) FilesNoFolderDetail() string {
+	return Catalog.Format(msgs.locale, "filesNoFolderDetail", nil)
+}
+
+// FilesEmpty says "This folder is empty"
+// in the language the app shows.
+func FilesEmpty() string { return In(i18n.Locale()).FilesEmpty() }
+
+// FilesEmpty says "This folder is empty"
+// in the language of msgs.
+func (msgs Messages) FilesEmpty() string {
+	return Catalog.Format(msgs.locale, "filesEmpty", nil)
+}
+
+// FilesCantList says "Can't list a folder"
+// in the language the app shows.
+func FilesCantList() string { return In(i18n.Locale()).FilesCantList() }
+
+// FilesCantList says "Can't list a folder"
+// in the language of msgs.
+func (msgs Messages) FilesCantList() string {
+	return Catalog.Format(msgs.locale, "filesCantList", nil)
+}
+
+// FilesCantRead says "Can't read the file"
+// in the language the app shows.
+func FilesCantRead() string { return In(i18n.Locale()).FilesCantRead() }
+
+// FilesCantRead says "Can't read the file"
+// in the language of msgs.
+func (msgs Messages) FilesCantRead() string {
+	return Catalog.Format(msgs.locale, "filesCantRead", nil)
+}
+
+// FilesBinary says "Binary file"
+// in the language the app shows.
+func FilesBinary() string { return In(i18n.Locale()).FilesBinary() }
+
+// FilesBinary says "Binary file"
+// in the language of msgs.
+func (msgs Messages) FilesBinary() string {
+	return Catalog.Format(msgs.locale, "filesBinary", nil)
+}
+
+// FilesLarge says "Too large to show"
+// in the language the app shows.
+func FilesLarge() string { return In(i18n.Locale()).FilesLarge() }
+
+// FilesLarge says "Too large to show"
+// in the language of msgs.
+func (msgs Messages) FilesLarge() string {
+	return Catalog.Format(msgs.locale, "filesLarge", nil)
+}
+
+// FilesRefresh says "Reload"
+// in the language the app shows.
+func FilesRefresh() string { return In(i18n.Locale()).FilesRefresh() }
+
+// FilesRefresh says "Reload"
+// in the language of msgs.
+func (msgs Messages) FilesRefresh() string {
+	return Catalog.Format(msgs.locale, "filesRefresh", nil)
+}
+
+// FilesCloseFile says "Close File"
+// in the language the app shows.
+func FilesCloseFile() string { return In(i18n.Locale()).FilesCloseFile() }
+
+// FilesCloseFile says "Close File"
+// in the language of msgs.
+func (msgs Messages) FilesCloseFile() string {
+	return Catalog.Format(msgs.locale, "filesCloseFile", nil)
+}
+
+// FilesOpenInPane says "Open in a File Pane"
+// in the language the app shows.
+func FilesOpenInPane() string { return In(i18n.Locale()).FilesOpenInPane() }
+
+// FilesOpenInPane says "Open in a File Pane"
+// in the language of msgs.
+func (msgs Messages) FilesOpenInPane() string {
+	return Catalog.Format(msgs.locale, "filesOpenInPane", nil)
+}
+
+// FilesOpenInEditor says "Open in the Host's Editor"
+// in the language the app shows.
+func FilesOpenInEditor() string { return In(i18n.Locale()).FilesOpenInEditor() }
+
+// FilesOpenInEditor says "Open in the Host's Editor"
+// in the language of msgs.
+func (msgs Messages) FilesOpenInEditor() string {
+	return Catalog.Format(msgs.locale, "filesOpenInEditor", nil)
+}
+
+// FilesUpdateHost says "The kerod on this host is older than this version of Kero. Update it on the host to browse its files."
+// in the language the app shows.
+func FilesUpdateHost() string { return In(i18n.Locale()).FilesUpdateHost() }
+
+// FilesUpdateHost says "The kerod on this host is older than this version of Kero. Update it on the host to browse its files."
+// in the language of msgs.
+func (msgs Messages) FilesUpdateHost() string {
+	return Catalog.Format(msgs.locale, "filesUpdateHost", nil)
 }
 
 // ChangesRevert says "Revert"

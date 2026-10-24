@@ -111,7 +111,8 @@ func (h *headless) Close() error {
 func newPane(d *Daemon, sid string, info proto.Pane) (*pane, error) {
 	s := &pane{d: d, sid: sid, info: info, clients: map[*attachment]struct{}{}, changed: make(chan struct{})}
 	s.info.Progress = -1
-	if s.info.Browser() {
+	// A browser's pane and a file's have no terminal of their own.
+	if s.info.Shown() {
 		return s, nil
 	}
 	if s.info.Cols <= 0 || s.info.Rows <= 0 {
@@ -205,6 +206,11 @@ func (s *pane) output(p []byte) {
 		return
 	}
 	before := s.info.Status
+	if s.term == nil {
+		// A browser's pane and a file's have no cells to feed.
+		s.mu.Unlock()
+		return
+	}
 	s.osc.scan(p, s.handleOSC, s.fullReset)
 	s.term.Feed(p)
 	s.dirty = true
@@ -440,6 +446,9 @@ func (s *pane) look(now time.Time) bool {
 // screen returns the text of the screen: the last rows of the terminal's
 // text; s.mu is held.
 func (s *pane) screen() string {
+	if s.term == nil {
+		return ""
+	}
 	text := strings.TrimRight(s.term.Text(), "\n")
 	lines := strings.Split(text, "\n")
 	return strings.Join(lines[max(0, len(lines)-s.info.Rows):], "\n") + "\n"
@@ -701,8 +710,10 @@ func (s *pane) exited(proc *ptyProc) {
 		return
 	}
 	msg := fmt.Sprintf("\r\n\x1b[0;2m[Process exited with code %d]\x1b[0m", code)
-	s.term.Feed([]byte(msg))
-	s.frame()
+	if s.term != nil {
+		s.term.Feed([]byte(msg))
+		s.frame()
+	}
 	s.setStatus(proto.Exited)
 	if !s.viewed() {
 		s.info.Unread = true
