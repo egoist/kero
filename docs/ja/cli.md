@@ -85,6 +85,37 @@ echo "go test exited with $?"
 
 コマンドの終了後も出力とともにペインは開いたままなので、`kero read` で読めます。コマンドの終了を判断できない `cmd` をシェルにしている場合、コマンドの終了待ちは使えません。
 
+## イベントの監視
+
+`kero events` は、セッションとペインに起きたことを起きたときに 1 イベント 1 行で出力し、止めるまで続けます。スクリプトは `kero status` をポーリングせずに、すべてのエージェントを一度に追えます。
+
+```sh
+kero events                               # すべてのセッション
+kero events api                           # 1 つのセッション、または 1 つのペイン
+kero events -p kero                       # 1 つのプロジェクトのセッション
+kero events --for waiting,error           # これらの状態になったペインだけ
+kero events --json | jq -r .name          # 1 行に 1 つの JSON オブジェクト
+kero events --for waiting --once          # 最初の 1 件で終了
+```
+
+```
+12:04:31  api x78n9ss  working → waiting  Allow Bash: rm -rf dist?
+12:04:40  api  renamed api → backend
+```
+
+| イベント | いつ | フィールド |
+| --- | --- | --- |
+| `pane.status` | ペインの状態が変わったとき | `pane`、`from`、`to`、`message`、`kind`、`agent`。exited になったときは `exitCode` も |
+| `command.exited` | ペインの開始時のコマンドが終わり、シェルが続くとき | `pane`、`exitCode` |
+| `pane.created`、`pane.closed` | ペインが開始または終了したとき | `pane` |
+| `session.created`、`session.closed` | セッションが開始または終了したとき | |
+| `session.renamed` | セッションの名前が変わったとき | `from`、`to` |
+| `notice` | セッション内のプログラムがデスクトップ通知を送ったとき | `title`、`body` |
+
+`--json` では、どのイベントにも `event`、`time`（unix ミリ秒）、`session`、`project`、`name`（サイドバーに表示されるセッション名）が付きます。
+
+`kero events` が報告するのは今からの変化です。すでにあるものは `kero ls --json` で確認します。対象を指定すると、対象が閉じたときに止まります。`--once` は最初に一致したイベントで終了し、対象が先に閉じるか `--timeout` が過ぎると `1` で終了します。kerod は状態が落ち着いてから送るので、一瞬だけの状態（短い作業中など）は出ないことがあります。
+
 <a id="browsing"></a>
 
 ## ブラウザの操作
