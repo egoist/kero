@@ -102,6 +102,18 @@ func TestKeybinds(t *testing.T) {
 	}
 }
 
+// Ghostty's global: prefix binds the quick terminal as Ghostty's
+// configuration writes it.
+func TestGlobalKeybind(t *testing.T) {
+	s, probs := parse("keybind = global:ctrl+`=quickTerminal.toggle\n")
+	if len(probs) != 0 || s.Shortcuts["quickTerminal.toggle"] != "Ctrl+`" {
+		t.Errorf("quick terminal %q, problems %q", s.Shortcuts["quickTerminal.toggle"], probs)
+	}
+	if out := format(s, ""); !strings.Contains(out, "keybind = ctrl+`=quickTerminal.toggle\n") {
+		t.Errorf("formatted:\n%s", out)
+	}
+}
+
 func TestBadValuesKeepDefaults(t *testing.T) {
 	s, probs := parse("cursor-style = triangle\nfont-size = big\nconfirm-close = maybe\n")
 	d := Default()

@@ -5461,3 +5461,35 @@ func EndedSetUpSkill() string { return In(i18n.Locale()).EndedSetUpSkill() }
 func (msgs Messages) EndedSetUpSkill() string {
 	return Catalog.Format(msgs.locale, "endedSetUpSkill", nil)
 }
+
+// ActionQuickTerminal says "Quick Terminal"
+// in the language the app shows.
+func ActionQuickTerminal() string { return In(i18n.Locale()).ActionQuickTerminal() }
+
+// ActionQuickTerminal says "Quick Terminal"
+// in the language of msgs.
+func (msgs Messages) ActionQuickTerminal() string {
+	return Catalog.Format(msgs.locale, "actionQuickTerminal", nil)
+}
+
+// ToastGlobalShortcutFailed says "Couldn’t use {keys} for the quick terminal: {error}"
+// in the language the app shows.
+func ToastGlobalShortcutFailed(keys string, error string) string {
+	return In(i18n.Locale()).ToastGlobalShortcutFailed(keys, error)
+}
+
+// ToastGlobalShortcutFailed says "Couldn’t use {keys} for the quick terminal: {error}"
+// in the language of msgs.
+func (msgs Messages) ToastGlobalShortcutFailed(keys string, error string) string {
+	return Catalog.Format(msgs.locale, "toastGlobalShortcutFailed", map[string]any{"keys": keys, "error": error})
+}
+
+// SetShortcutGlobal says "Works in every app"
+// in the language the app shows.
+func SetShortcutGlobal() string { return In(i18n.Locale()).SetShortcutGlobal() }
+
+// SetShortcutGlobal says "Works in every app"
+// in the language of msgs.
+func (msgs Messages) SetShortcutGlobal() string {
+	return Catalog.Format(msgs.locale, "setShortcutGlobal", nil)
+}

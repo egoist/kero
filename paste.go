@@ -187,8 +187,8 @@ var pasteImageTypes = map[transfer.Format]string{
 // clipboard holds, and reports whether it took the paste: it takes none
 // that has text or files, which paste as they are, or no image.
 func (a *App) pasteImage(id string, d transfer.Data) bool {
-	e := a.terms[id]
-	if e == nil || e.term == nil {
+	t := a.termFor(id)
+	if t == nil {
 		return false
 	}
 	// The terminal asks only for a clipboard that holds something, so
@@ -225,7 +225,7 @@ func (a *App) pasteImage(id string, d transfer.Data) bool {
 		a.toast(pasteImageError(err, pasteDir()))
 		return true
 	}
-	e.term.Paste(quotePath(runtime.GOOS, a.paneShell(id), path))
+	t.Paste(quotePath(runtime.GOOS, a.paneShell(id), path))
 	return true
 }
 

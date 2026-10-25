@@ -139,6 +139,7 @@ var actionWords = map[string]string{
 	"pane.right":          "focus move navigate",
 	"pane.up":             "focus move navigate above",
 	"pane.down":           "focus move navigate below",
+	quickAction:           "quake doom drop down dropdown hotkey global visor guake iterm console",
 	"sidebar.toggle":      "show hide sidebar sessions list",
 	"changes.toggle":      "git diff branch panel changes",
 	"text.bigger":         "zoom in font size larger increase text",

@@ -310,7 +310,9 @@ var keys = []key{
 					bad = append(bad, fmt.Sprintf("%q is not <keys>=<action>", b))
 					continue
 				}
-				keys, id := accelerator(b[:i]), strings.TrimSpace(b[i+1:])
+				// Ghostty marks a global shortcut global:; kero's actions
+				// know which are.
+				keys, id := accelerator(strings.TrimPrefix(strings.TrimSpace(b[:i]), "global:")), strings.TrimSpace(b[i+1:])
 				if id == "unbind" {
 					for _, a := range actions.All {
 						if strings.EqualFold(actions.Keys(a, sc), keys) {

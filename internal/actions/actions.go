@@ -17,6 +17,9 @@ type Action struct {
 	// Remote tells that `kero do` may run it: what needs no dialog or
 	// focus of the user's.
 	Remote bool
+	// Global tells that its shortcut works in every app, as the system's
+	// global shortcut, rather than as a key of the app's menus.
+	Global bool
 }
 
 // All are the app's actions, in their menus' order.
@@ -60,6 +63,9 @@ var All = []Action{
 	{ID: "text.bigger", Title: "Bigger", Menu: "View", Keys: "CmdOrCtrl+=", Remote: true},
 	{ID: "text.smaller", Title: "Smaller", Menu: "View", Keys: "CmdOrCtrl+-", Remote: true},
 	{ID: "text.reset", Title: "Actual Size", Menu: "View", Keys: "CmdOrCtrl+0", Remote: true},
+	// No shortcut until the user gives it one: a global shortcut takes its
+	// keys from every other app, as Control+` from VS Code's terminal.
+	{ID: "quickTerminal.toggle", Title: "Quick Terminal", Menu: "View", Remote: true, Global: true},
 }
 
 // pcKeys are the defaults on Windows and Linux, where Control is the

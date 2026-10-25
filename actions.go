@@ -105,6 +105,8 @@ func (a *App) run(id string, args map[string]string) {
 		a.zoom(-1, false)
 	case "text.reset":
 		a.zoom(0, true)
+	case quickAction:
+		a.toggleQuick()
 	}
 	if a.win != nil {
 		a.win.Invalidate()
@@ -166,6 +168,7 @@ var actionTitles = map[string]func() string{
 	"text.bigger":         locales.ActionBigger,
 	"text.smaller":        locales.ActionSmaller,
 	"text.reset":          locales.ActionActualSize,
+	quickAction:           locales.ActionQuickTerminal,
 }
 
 // actionTitle is an action's title as the menus, the palette and
@@ -179,9 +182,10 @@ func actionTitle(id string) string {
 }
 
 // accelerator is an action's shortcut in the menus: none while the user
-// types a new one in Settings.
+// types a new one in Settings, and none of a global one, which the system
+// takes before the menus.
 func (a *App) accelerator(act actions.Action) string {
-	if a.ss.recording != "" {
+	if a.ss.recording != "" || act.Global {
 		return ""
 	}
 	return actions.Keys(act, a.set.Shortcuts)
@@ -215,7 +219,7 @@ func (a *App) menu() *mygo.Menu {
 			{Label: locales.MenuQuit(), Accelerator: quitKeys, ToolTip: locales.MenuQuitTip(), Click: func(*mygo.MenuItem, *mygo.Window) { mygo.App.Quit() }},
 			a.item("app.quitAll")}}
 	}
-	view := append(a.items("View", []string{"sidebar.toggle", "changes.toggle"}, []string{"text.bigger", "text.smaller", "text.reset"}),
+	view := append(a.items("View", []string{"sidebar.toggle", "changes.toggle"}, []string{"text.bigger", "text.smaller", "text.reset"}, []string{quickAction}),
 		mygo.Separator(), &mygo.MenuItem{Role: mygo.RoleToggleFullScreen}, &mygo.MenuItem{Role: mygo.RoleToggleDevTools})
 	return mygo.NewMenu([]*mygo.MenuItem{
 		kero,
@@ -302,6 +306,8 @@ func (a *App) fromMay(id string, args map[string]string) bool {
 		return p == "" || a.hostOf(p) == h
 	case strings.HasPrefix(id, "pane.") || id == "changes.toggle":
 		return a.session(a.selected) != nil && a.selectedHost() == h
+	case id == quickAction:
+		return false // this machine's screen is no other's to drop on
 	}
 	return true
 }

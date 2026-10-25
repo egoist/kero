@@ -1089,5 +1089,8 @@
     }
   },
   "endedDeleteAllDetail": "Kero forgets them; each agent keeps its own history of the conversation.",
-  "endedSetUpSkill": "Set up Kero's skill for your agents to list their ended conversations here"
+  "endedSetUpSkill": "Set up Kero's skill for your agents to list their ended conversations here",
+  "actionQuickTerminal": "Quick Terminal",
+  "toastGlobalShortcutFailed": "Couldn’t use {keys} for the quick terminal: {error}",
+  "setShortcutGlobal": "Works in every app"
 }

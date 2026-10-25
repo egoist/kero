@@ -1165,7 +1165,12 @@ func (a *App) shortcutRow(c *ui.Context, pal *palette, act actions.Action) {
 	keys := actions.Keys(act, a.set.Shortcuts)
 	_, custom := a.set.Shortcuts[act.ID]
 	ui.Row(c.Key(act.ID)).Padding(7, 0).Gap(10).AlignItems(ui.Center).Children(func() {
-		ui.Text(c, strings.TrimSuffix(actionTitle(act.ID), "…")).FontSize(13.5).TextColor(pal.text).Grow(1).SingleLine()
+		ui.Column(c).Grow(1).Gap(2).Children(func() {
+			ui.Text(c, strings.TrimSuffix(actionTitle(act.ID), "…")).FontSize(13.5).TextColor(pal.text).SingleLine()
+			if act.Global {
+				ui.Text(c, locales.SetShortcutGlobal()).FontSize(11.5).TextColor(pal.textFaint).SingleLine()
+			}
+		})
 		if custom && keys != act.Keys {
 			b := ui.ButtonBase(c.Key("undo")).Size(22, 22).Radius(6).Center().TextColor(pal.textFaint).Label(locales.SetUseDefault(actions.Glyphs(act.Keys))).Tooltip(locales.SetDefaultKeys(actions.Glyphs(act.Keys)))
 			if b.Hovered() {
@@ -1229,6 +1234,7 @@ func (a *App) setRecording(id string) {
 	a.ss.recording = id
 	if was != (id != "") && a.win != nil {
 		mygo.App.SetMenu(a.menu())
+		a.applyGlobalShortcuts()
 	}
 }
 
