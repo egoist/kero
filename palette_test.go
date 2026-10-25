@@ -54,3 +54,44 @@ func TestPaletteScrolls(t *testing.T) {
 		t.Errorf("the wheel scrolled the palette to %g, want 300", y)
 	}
 }
+
+// Return presses the action of a confirmation, though Cancel comes first.
+func TestConfirmReturnRunsAction(t *testing.T) {
+	a := testApp(t)
+	tt := ui.NewTester(a.view, 1100, 640)
+	ran := false
+	a.confirm = &confirmation{
+		open:   true,
+		title:  "Close this pane?",
+		detail: "claude is still running in it.",
+		action: "Close Pane",
+		run:    func() { ran = true },
+	}
+	tt.Frame()
+	if !tt.Focused("Close Pane") {
+		t.Fatal("the action button does not have the focus")
+	}
+	tt.Key(0, ui.KeyEnter)
+	if !ran || a.confirm != nil {
+		t.Fatalf("Return ran the action %v and left the confirmation %v", ran, a.confirm)
+	}
+}
+
+// Escape cancels a confirmation.
+func TestConfirmEscapeCancels(t *testing.T) {
+	a := testApp(t)
+	tt := ui.NewTester(a.view, 1100, 640)
+	ran := false
+	a.confirm = &confirmation{
+		open:   true,
+		title:  "Close this pane?",
+		detail: "claude is still running in it.",
+		action: "Close Pane",
+		run:    func() { ran = true },
+	}
+	tt.Frame()
+	tt.Key(0, ui.KeyEscape)
+	if ran || a.confirm != nil {
+		t.Fatalf("Escape ran the action %v and left the confirmation %v", ran, a.confirm)
+	}
+}

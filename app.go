@@ -278,7 +278,7 @@ func (a *App) event(h *host, cl *client.Client, m proto.Message) {
 		// while the user looks at its session.
 		n := m.Notice
 		s := a.session(n.Session)
-		if s == nil || n.Session == a.selected && a.active {
+		if s == nil || a.watching(n.Session) {
 			return
 		}
 		title := n.Title
@@ -372,7 +372,7 @@ func (a *App) notify(first bool) {
 		if s.Status == proto.Waiting {
 			waiting++
 		}
-		if first || !seen || prev == s.Status || s.ID == a.selected && a.active {
+		if first || !seen || prev == s.Status || a.watching(s.ID) {
 			continue
 		}
 		var title, body string
@@ -538,6 +538,14 @@ func (a *App) selectSession(id string) {
 	}
 }
 
+// watching tells whether the user looks at the session: it's selected,
+// and the main window has the keyboard. Only macOS says when the app
+// stops being the active one, so the window's focus has to tell
+// elsewhere.
+func (a *App) watching(id string) bool {
+	return id != "" && id == a.selected && a.active && a.focused
+}
+
 // reportView tells each host's kerod which of its sessions the user looks
 // at, which it then never marks unread.
 func (a *App) reportView() {
@@ -550,7 +558,7 @@ func (a *App) reportView() {
 		switch {
 		case a.quick.shown && h == a.local():
 			id = a.prefs.QuickSession
-		case a.active && a.focused && h == shown:
+		case a.watching(a.selected) && h == shown:
 			id = a.selected
 		}
 		if h.viewSent != nil && *h.viewSent == id {
