@@ -499,9 +499,10 @@ func (a *App) sessionRow(c *ui.Context, pal *palette, s *proto.Session, n *int) 
 		ui.Spacer(c)
 		cmd := c.Modifiers() == ui.Cmd
 		if cmd && index <= 9 {
-			ui.Text(c, actions.Glyphs(fmt.Sprintf("CmdOrCtrl+%d", index))).FontSize(12).TextColor(pal.textMuted).FontFeatures("tnum").SingleLine()
+			ui.Text(c, actions.Glyphs(fmt.Sprintf("CmdOrCtrl+%d", index))).FontSize(12).TextColor(pal.textMuted).FontFeatures("tnum").SingleLine().Shrink(0)
 		} else {
-			ui.Text(c, ago(s.Since, c.Now())).FontSize(12.5).TextColor(pal.textFaint).FontFeatures("tnum").SingleLine()
+			// The name gives way to these, never they to the name.
+			ui.Text(c, ago(s.Since, c.Now())).FontSize(12.5).TextColor(pal.textFaint).FontFeatures("tnum").SingleLine().Shrink(0)
 		}
 		statusIconP(c, pal, s.Status, s.Unread, s.Progress, 15)
 	})

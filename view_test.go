@@ -19,6 +19,7 @@ import (
 	"github.com/egoist/mygo/plugins/terminal"
 	"github.com/egoist/mygo/ui"
 
+	"kero/internal/actions"
 	"kero/internal/proto"
 
 	"kero/locales"
@@ -788,5 +789,34 @@ func TestCommandKeysEditLine(t *testing.T) {
 		if o.OnKey(k.mods, k.key) {
 			t.Errorf("%v+%v taken", k.mods, k.key)
 		}
+	}
+}
+
+// A long name in a narrow sidebar ends in an ellipsis: the time beside
+// it, and the ⌘ shortcut in its place, show whole.
+func TestSidebarRowKeepsTime(t *testing.T) {
+	widths := func(name string) (ago, key float32) {
+		a := testApp(t)
+		a.prefs.SidebarWidth = minSidebar
+		tt := ui.NewTester(a.view, 1100, 640)
+		a.st.Sessions[0].Name = name
+		a.st.Sessions[0].Since = tt.Now().Add(-3 * time.Hour).UnixMilli()
+		tt.Frame()
+		r, ok := tt.Find(locales.AgoHours(3))
+		if !ok {
+			t.Fatalf("%q: no time shown", name)
+		}
+		tt.HoldModifiers(ui.Cmd)
+		tt.Frame()
+		k, ok := tt.Find(actions.Glyphs("CmdOrCtrl+1"))
+		if !ok {
+			t.Fatalf("%q: no shortcut shown", name)
+		}
+		return r.W, k.W
+	}
+	t0, k0 := widths("demo")
+	t1, k1 := widths("Investigate why the session list truncates long generated titles")
+	if t1 < t0 || k1 < k0 {
+		t.Errorf("with a long name, the time is %g wide (want %g) and the shortcut %g (want %g)", t1, t0, k1, k0)
 	}
 }
