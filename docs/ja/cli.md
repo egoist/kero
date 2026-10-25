@@ -28,6 +28,7 @@ kero split --url localhost:3000  # ページを表示するブラウザペイン
 kero rename api backend          # セッション名を変更
 kero focus backend               # アプリで表示
 kero close backend               # セッションを終える（ペインを指定するとそのペイン）
+kero close fix-login --remove-worktree   # 専用のワークツリーも削除する
 kero restart <pane>              # 終了したペインのシェルを再び開始
 ```
 
@@ -41,6 +42,8 @@ kero restart <pane>              # 終了したペインのシェルを再び開
 | `-f`, `--focus`             | アプリで表示する                                |
 | `-w`, `--wait`              | コマンドの終了を待ち、その終了ステータスで終了する |
 | `-u`, `--url <url>`         | シェルの代わりに、ページを表示するブラウザを開く |
+| `--worktree <branch>`       | 専用の git ワークツリーで、新しいブランチで開始する（[詳しく](./changes.md#sessions-in-their-own-worktree)） |
+| `--base <ref>`              | ワークツリーのブランチの起点（既定: デフォルトブランチ） |
 
 ## 入力と読み取り
 

@@ -58,11 +58,18 @@ func (d *Daemon) call(c *controlConn, method string, raw json.RawMessage) (any, 
 		return d.create(p)
 
 	case "close":
+		var p proto.CloseParams
+		if err := decode(&p); err != nil {
+			return nil, err
+		}
+		return true, d.closeSession(p)
+
+	case "worktree.check":
 		var p proto.IDParams
 		if err := decode(&p); err != nil {
 			return nil, err
 		}
-		return true, d.removeSession(p.ID)
+		return d.checkWorktree(p.ID)
 
 	case "pane.close":
 		var p proto.IDParams

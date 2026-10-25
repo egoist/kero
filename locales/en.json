@@ -5,6 +5,7 @@
   "actionQuitAll": "Quit and End All Sessions…",
   "actionNewSession": "New Session",
   "actionNewSessionHome": "New Session in Home",
+  "actionNewSessionWorktree": "New Session in Worktree…",
   "actionOpenProject": "Open Project…",
   "actionGoToSession": "Go to Session…",
   "actionJumpToAttention": "Jump to Session Needing You",
@@ -1035,5 +1036,24 @@
   "browserForward": "Forward",
   "browserReload": "Reload",
   "browserStop": "Stop",
-  "browserAddress": "Address or search"
+  "browserAddress": "Address or search",
+  "worktreeTitle": "New Session in Worktree",
+  "worktreeDetailDefault": "Kero checks out a new branch from the default branch in a folder of its own, so the session’s agent works apart from the others.",
+  "worktreeDetailCurrent": "Kero checks out a new branch from the current branch in a folder of its own, so the session’s agent works apart from the others.",
+  "worktreeBranch": "Branch name",
+  "worktreeCreate": "Create",
+  "worktreeRemoveTitle": "Remove the worktree of “{name}” too?",
+  "worktreeRemoveMerged": "Its folder {path} goes, and its branch {branch}, which is merged.",
+  "worktreeRemoveUnmerged": "Its folder {path} goes. Its branch {branch} stays, with its commits.",
+  "worktreeRemoveDirty": "{count, plural, one {# changed file} other {# changed files}} in {path} will be lost. Its branch {branch} stays, with its commits.",
+  "@worktreeRemoveDirty": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "worktreeRemove": "Remove Worktree",
+  "worktreeKeep": "Keep Worktree",
+  "worktreeRemoveAnyway": "Remove Anyway"
 }

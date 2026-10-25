@@ -5,6 +5,7 @@
   "actionQuitAll": "退出并结束所有会话…",
   "actionNewSession": "新建会话",
   "actionNewSessionHome": "在主目录新建会话",
+  "actionNewSessionWorktree": "在工作树中新建会话…",
   "actionOpenProject": "打开项目…",
   "actionGoToSession": "前往会话…",
   "actionJumpToAttention": "跳到需要你的会话",
@@ -502,5 +503,17 @@
   "browserForward": "前进",
   "browserReload": "重新载入",
   "browserStop": "停止",
-  "browserAddress": "网址或搜索"
+  "browserAddress": "网址或搜索",
+  "worktreeTitle": "在工作树中新建会话",
+  "worktreeDetailDefault": "Kero 会从默认分支检出一个新分支到专属文件夹，让会话中的智能体与其他会话分开工作。",
+  "worktreeDetailCurrent": "Kero 会从当前分支检出一个新分支到专属文件夹，让会话中的智能体与其他会话分开工作。",
+  "worktreeBranch": "分支名",
+  "worktreeCreate": "创建",
+  "worktreeRemoveTitle": "也删除“{name}”的工作树吗？",
+  "worktreeRemoveMerged": "它的文件夹 {path} 会被删除，已合并的分支 {branch} 也会一并删除。",
+  "worktreeRemoveUnmerged": "它的文件夹 {path} 会被删除。分支 {branch} 会连同提交一起保留。",
+  "worktreeRemoveDirty": "{path} 中 {count} 个已改动的文件会丢失。分支 {branch} 会连同提交一起保留。",
+  "worktreeRemove": "删除工作树",
+  "worktreeKeep": "保留工作树",
+  "worktreeRemoveAnyway": "仍然删除"
 }

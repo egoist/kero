@@ -1,6 +1,6 @@
 # Plan: git in Kero
 
-Status: Phases 1 and 2 built, and the `repoRoot` fix; Phases 3 and 4 not
+Status: Phases 1, 2 and 3 built, and the `repoRoot` fix; Phase 4 not
 started. Written 2026-10-21, after 2.0.9. Where the build differs from what
 follows, "As built" notes under each phase say how.
 
@@ -367,8 +367,7 @@ worktree add and remove. The only other write is Phase 2's Revert.
 1. **`repoRoot` fix:** done.
 2. **Phase 1, branch and changes:** done.
 3. **Phase 2, changes panel:** done.
-4. **Phase 3, worktree sessions:** medium. Creating, the close dialog, and
-   the settings.
+4. **Phase 3, worktree sessions:** done.
 5. **Phase 4, actions:** small to medium. Mostly the review comments; the
    viewer already has the gutter button and the room under lines.
 

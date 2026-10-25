@@ -39,6 +39,9 @@ Usage:
       -f, --focus                 show it in the app
       -w, --wait                  wait for cmd to end, exit with its status
       -u, --url <url>             a browser showing url, not a shell
+      --worktree <branch>         in a git worktree of its own, on a new
+                                  branch from the default branch
+      --base <ref>                the branch to start it from instead
   kero split [target] [options] [-- cmd…]
                                 start a pane beside a pane, printing its id
       --right (default), --down, --left, --up
@@ -107,6 +110,9 @@ Usage:
   kero rename <session> <name>
   kero focus <target>           show a session (and pane) in the app
   kero close <target>           end a session (or, given a pane, the pane)
+      --remove-worktree           remove the session's own worktree too,
+                                  and its branch once merged
+      --force                     even if that loses changes or commits
   kero restart <target>         start an exited pane's shell again
   kero notify [target] <message>
                                 flag the pane as needing you
@@ -349,7 +355,7 @@ func run(args []string, host string) error {
 	case "new":
 		f, err := parse(args,
 			map[string]string{"p": "project", "project": "project", "n": "name", "name": "name", "d": "dir", "dir": "dir", "timeout": "timeout", "t": "timeout",
-				"u": "url", "url": "url"},
+				"u": "url", "url": "url", "worktree": "worktree", "base": "base"},
 			map[string]string{"f": "focus", "focus": "focus", "json": "json", "wait": "wait", "w": "wait"})
 		if err != nil {
 			return err
@@ -361,6 +367,9 @@ func run(args []string, host string) error {
 		if f.vals["url"] != "" && (len(command) > 0 || f.set["wait"]) {
 			return usageErr("kero new --url shows a page, and runs no command")
 		}
+		if f.vals["base"] != "" && f.vals["worktree"] == "" {
+			return usageErr("kero new --base starts a --worktree's branch")
+		}
 		dir := f.vals["dir"]
 		// Here, unless the session is of another machine, whose kerod
 		// then starts it in the project's directory, or the home.
@@ -370,7 +379,7 @@ func run(args []string, host string) error {
 		var s proto.Session
 		if err := c.Call("create", proto.CreateParams{
 			Project: f.vals["project"], Name: f.vals["name"], Dir: dir, Command: command, URL: f.vals["url"],
-			After: os.Getenv("KERO_SESSION"),
+			After: os.Getenv("KERO_SESSION"), Worktree: f.vals["worktree"], Base: f.vals["base"],
 		}, &s); err != nil {
 			return err
 		}
@@ -670,20 +679,28 @@ func run(args []string, host string) error {
 		return nil
 
 	case "close", "kill", "restart":
-		if len(args) < 1 {
-			return usageErr("kero %s <target>", cmd)
-		}
-		t, err := find(st, args[0])
+		f, err := parse(args, nil, map[string]string{"remove-worktree": "remove", "force": "force"})
 		if err != nil {
 			return err
+		}
+		if len(f.pos) < 1 {
+			return usageErr("kero %s <target>", cmd)
+		}
+		t, err := find(st, f.pos[0])
+		if err != nil {
+			return err
+		}
+		remove := f.set["remove"]
+		if remove && t.s.Worktree == nil {
+			return fmt.Errorf("session %s has no worktree of its own", t.s.ID)
 		}
 		switch {
 		case cmd == "restart":
 			return c.Call("restart", proto.IDParams{ID: t.ref()}, nil)
-		case t.pane != "" && len(t.s.Panes) > 1:
+		case t.pane != "" && len(t.s.Panes) > 1 && !remove:
 			return c.Call("pane.close", proto.IDParams{ID: t.pane}, nil)
 		}
-		return c.Call("close", proto.IDParams{ID: t.s.ID}, nil)
+		return c.Call("close", proto.CloseParams{ID: t.s.ID, RemoveWorktree: remove, Force: f.set["force"]}, nil)
 
 	case "do":
 		if len(args) < 1 {

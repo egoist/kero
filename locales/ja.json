@@ -5,6 +5,7 @@
   "actionQuitAll": "終了してすべてのセッションを終える…",
   "actionNewSession": "新規セッション",
   "actionNewSessionHome": "ホームで新規セッション",
+  "actionNewSessionWorktree": "ワークツリーで新規セッション…",
   "actionOpenProject": "プロジェクトを開く…",
   "actionGoToSession": "セッションへ移動…",
   "actionJumpToAttention": "対応が必要なセッションへ移動",
@@ -502,5 +503,17 @@
   "browserForward": "進む",
   "browserReload": "再読み込み",
   "browserStop": "停止",
-  "browserAddress": "アドレスまたは検索"
+  "browserAddress": "アドレスまたは検索",
+  "worktreeTitle": "ワークツリーで新規セッション",
+  "worktreeDetailDefault": "Kero はデフォルトブランチから新しいブランチを専用のフォルダにチェックアウトします。セッションのエージェントはほかと分かれて作業できます。",
+  "worktreeDetailCurrent": "Kero は現在のブランチから新しいブランチを専用のフォルダにチェックアウトします。セッションのエージェントはほかと分かれて作業できます。",
+  "worktreeBranch": "ブランチ名",
+  "worktreeCreate": "作成",
+  "worktreeRemoveTitle": "“{name}”のワークツリーも削除しますか？",
+  "worktreeRemoveMerged": "フォルダ {path} と、マージ済みのブランチ {branch} を削除します。",
+  "worktreeRemoveUnmerged": "フォルダ {path} を削除します。ブランチ {branch} はコミットとともに残ります。",
+  "worktreeRemoveDirty": "{path} の {count} 件の変更されたファイルは失われます。ブランチ {branch} はコミットとともに残ります。",
+  "worktreeRemove": "ワークツリーを削除",
+  "worktreeKeep": "ワークツリーを残す",
+  "worktreeRemoveAnyway": "それでも削除"
 }

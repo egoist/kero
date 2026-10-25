@@ -252,6 +252,8 @@ var keys = []key{
 		}},
 	boolKey("remote-updates", "let Kero on another machine that connects update the Kero app here to its version, which restarts it", func(s *Settings) *bool { return &s.RemoteUpdates }),
 	boolKey("git-status", "show the git branch and changes of each session", func(s *Settings) *bool { return &s.GitStatus }),
+	choiceKey("worktree-base", "what a session's own git worktree branches from: the repository's default branch, or the branch of the session you're in", func(s *Settings) *string { return &s.WorktreeBase }, "default", "current"),
+	stringKey("worktree-dir", "where sessions' own git worktrees go, each under its repository's name; empty for .kero/worktrees in the repository", func(s *Settings) *string { return &s.WorktreeDir }),
 	choiceKey("diff-layout", "the changes panel's diffs: unified while the panel is narrow and side by side once it's wide, or always one", func(s *Settings) *string { return &s.DiffLayout }, "auto", "unified", "split"),
 	boolKey("browser-block-ads", "block ads and trackers in browser panes, with the browser-filter-list lists", func(s *Settings) *bool { return &s.BlockAds }),
 	{name: "browser-filter-list", doc: "a filter list browser-block-ads blocks with: " + strings.Join(adListIDs(), ", ") + ", or a list's https URL; repeat it, and leave it empty for none", list: true,

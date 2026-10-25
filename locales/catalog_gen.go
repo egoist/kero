@@ -86,6 +86,16 @@ func (msgs Messages) ActionNewSessionHome() string {
 	return Catalog.Format(msgs.locale, "actionNewSessionHome", nil)
 }
 
+// ActionNewSessionWorktree says "New Session in Worktree…"
+// in the language the app shows.
+func ActionNewSessionWorktree() string { return In(i18n.Locale()).ActionNewSessionWorktree() }
+
+// ActionNewSessionWorktree says "New Session in Worktree…"
+// in the language of msgs.
+func (msgs Messages) ActionNewSessionWorktree() string {
+	return Catalog.Format(msgs.locale, "actionNewSessionWorktree", nil)
+}
+
 // ActionOpenProject says "Open Project…"
 // in the language the app shows.
 func ActionOpenProject() string { return In(i18n.Locale()).ActionOpenProject() }
@@ -5122,4 +5132,130 @@ func BrowserAddress() string { return In(i18n.Locale()).BrowserAddress() }
 // in the language of msgs.
 func (msgs Messages) BrowserAddress() string {
 	return Catalog.Format(msgs.locale, "browserAddress", nil)
+}
+
+// WorktreeTitle says "New Session in Worktree"
+// in the language the app shows.
+func WorktreeTitle() string { return In(i18n.Locale()).WorktreeTitle() }
+
+// WorktreeTitle says "New Session in Worktree"
+// in the language of msgs.
+func (msgs Messages) WorktreeTitle() string {
+	return Catalog.Format(msgs.locale, "worktreeTitle", nil)
+}
+
+// WorktreeDetailDefault says "Kero checks out a new branch from the default branch in a folder of its own, so the session’s agent works apart fro…"
+// in the language the app shows.
+func WorktreeDetailDefault() string { return In(i18n.Locale()).WorktreeDetailDefault() }
+
+// WorktreeDetailDefault says "Kero checks out a new branch from the default branch in a folder of its own, so the session’s agent works apart fro…"
+// in the language of msgs.
+func (msgs Messages) WorktreeDetailDefault() string {
+	return Catalog.Format(msgs.locale, "worktreeDetailDefault", nil)
+}
+
+// WorktreeDetailCurrent says "Kero checks out a new branch from the current branch in a folder of its own, so the session’s agent works apart fro…"
+// in the language the app shows.
+func WorktreeDetailCurrent() string { return In(i18n.Locale()).WorktreeDetailCurrent() }
+
+// WorktreeDetailCurrent says "Kero checks out a new branch from the current branch in a folder of its own, so the session’s agent works apart fro…"
+// in the language of msgs.
+func (msgs Messages) WorktreeDetailCurrent() string {
+	return Catalog.Format(msgs.locale, "worktreeDetailCurrent", nil)
+}
+
+// WorktreeBranch says "Branch name"
+// in the language the app shows.
+func WorktreeBranch() string { return In(i18n.Locale()).WorktreeBranch() }
+
+// WorktreeBranch says "Branch name"
+// in the language of msgs.
+func (msgs Messages) WorktreeBranch() string {
+	return Catalog.Format(msgs.locale, "worktreeBranch", nil)
+}
+
+// WorktreeCreate says "Create"
+// in the language the app shows.
+func WorktreeCreate() string { return In(i18n.Locale()).WorktreeCreate() }
+
+// WorktreeCreate says "Create"
+// in the language of msgs.
+func (msgs Messages) WorktreeCreate() string {
+	return Catalog.Format(msgs.locale, "worktreeCreate", nil)
+}
+
+// WorktreeRemoveTitle says "Remove the worktree of “{name}” too?"
+// in the language the app shows.
+func WorktreeRemoveTitle(name string) string { return In(i18n.Locale()).WorktreeRemoveTitle(name) }
+
+// WorktreeRemoveTitle says "Remove the worktree of “{name}” too?"
+// in the language of msgs.
+func (msgs Messages) WorktreeRemoveTitle(name string) string {
+	return Catalog.Format(msgs.locale, "worktreeRemoveTitle", map[string]any{"name": name})
+}
+
+// WorktreeRemoveMerged says "Its folder {path} goes, and its branch {branch}, which is merged."
+// in the language the app shows.
+func WorktreeRemoveMerged(path string, branch string) string {
+	return In(i18n.Locale()).WorktreeRemoveMerged(path, branch)
+}
+
+// WorktreeRemoveMerged says "Its folder {path} goes, and its branch {branch}, which is merged."
+// in the language of msgs.
+func (msgs Messages) WorktreeRemoveMerged(path string, branch string) string {
+	return Catalog.Format(msgs.locale, "worktreeRemoveMerged", map[string]any{"path": path, "branch": branch})
+}
+
+// WorktreeRemoveUnmerged says "Its folder {path} goes. Its branch {branch} stays, with its commits."
+// in the language the app shows.
+func WorktreeRemoveUnmerged(path string, branch string) string {
+	return In(i18n.Locale()).WorktreeRemoveUnmerged(path, branch)
+}
+
+// WorktreeRemoveUnmerged says "Its folder {path} goes. Its branch {branch} stays, with its commits."
+// in the language of msgs.
+func (msgs Messages) WorktreeRemoveUnmerged(path string, branch string) string {
+	return Catalog.Format(msgs.locale, "worktreeRemoveUnmerged", map[string]any{"path": path, "branch": branch})
+}
+
+// WorktreeRemoveDirty says "{count, plural, one {# changed file} other {# changed files}} in {path} will be lost. Its branch {branch} stays, with…"
+// in the language the app shows.
+func WorktreeRemoveDirty(count int, path string, branch string) string {
+	return In(i18n.Locale()).WorktreeRemoveDirty(count, path, branch)
+}
+
+// WorktreeRemoveDirty says "{count, plural, one {# changed file} other {# changed files}} in {path} will be lost. Its branch {branch} stays, with…"
+// in the language of msgs.
+func (msgs Messages) WorktreeRemoveDirty(count int, path string, branch string) string {
+	return Catalog.Format(msgs.locale, "worktreeRemoveDirty", map[string]any{"count": count, "path": path, "branch": branch})
+}
+
+// WorktreeRemove says "Remove Worktree"
+// in the language the app shows.
+func WorktreeRemove() string { return In(i18n.Locale()).WorktreeRemove() }
+
+// WorktreeRemove says "Remove Worktree"
+// in the language of msgs.
+func (msgs Messages) WorktreeRemove() string {
+	return Catalog.Format(msgs.locale, "worktreeRemove", nil)
+}
+
+// WorktreeKeep says "Keep Worktree"
+// in the language the app shows.
+func WorktreeKeep() string { return In(i18n.Locale()).WorktreeKeep() }
+
+// WorktreeKeep says "Keep Worktree"
+// in the language of msgs.
+func (msgs Messages) WorktreeKeep() string {
+	return Catalog.Format(msgs.locale, "worktreeKeep", nil)
+}
+
+// WorktreeRemoveAnyway says "Remove Anyway"
+// in the language the app shows.
+func WorktreeRemoveAnyway() string { return In(i18n.Locale()).WorktreeRemoveAnyway() }
+
+// WorktreeRemoveAnyway says "Remove Anyway"
+// in the language of msgs.
+func (msgs Messages) WorktreeRemoveAnyway() string {
+	return Catalog.Format(msgs.locale, "worktreeRemoveAnyway", nil)
 }

@@ -268,6 +268,32 @@ type Session struct {
 	Lead   string `json:"lead,omitempty"`
 	Focus  string `json:"focus,omitempty"`
 	Zoomed string `json:"zoomed,omitempty"`
+	// Worktree is the linked git worktree kero made for the session to
+	// work in, nil for none.
+	Worktree *Worktree `json:"worktree,omitempty"`
+}
+
+// Worktree is a linked git worktree kero made for a session: Path checks
+// out Branch, which started from Base, in the repository whose main
+// checkout is Main.
+type Worktree struct {
+	Path   string `json:"path"`
+	Branch string `json:"branch"`
+	Base   string `json:"base,omitempty"`
+	Main   string `json:"main"`
+}
+
+// Losses writes what removing the worktree would lose, in English, as
+// "3 files changed"; "" for nothing. Its branch stays unless merged, and
+// keeps its commits.
+func (wc *WorktreeCheck) Losses() string {
+	switch {
+	case wc.Files == 1:
+		return "1 file changed"
+	case wc.Files > 1:
+		return fmt.Sprintf("%d files changed", wc.Files)
+	}
+	return ""
 }
 
 // PaneByID returns a pane of the session, or nil.
@@ -647,9 +673,34 @@ type (
 		After string `json:"after,omitempty"` // put it after this session
 		Cols  int    `json:"cols,omitempty"`
 		Rows  int    `json:"rows,omitempty"`
+		// Worktree starts the session in a linked git worktree of its own
+		// of Dir's repository, on a new branch of this name from Base: the
+		// repository's default branch when "", "HEAD" for Dir's. An
+		// existing branch no worktree has is checked out as it is.
+		Worktree string `json:"worktree,omitempty"`
+		Base     string `json:"base,omitempty"`
 	}
 	IDParams struct {
 		ID string `json:"id"`
+	}
+	// CloseParams closes a session; RemoveWorktree removes the worktree
+	// kero made for it too, unless another session works in it, and
+	// unless changes it would lose (WorktreeCheck.Files) need Force.
+	CloseParams struct {
+		ID             string `json:"id"`
+		RemoveWorktree bool   `json:"removeWorktree,omitempty"`
+		Force          bool   `json:"force,omitempty"`
+	}
+	// WorktreeCheck is what removing a session's worktree would lose:
+	// Files changed, untracked ones too, and Unpushed commits on neither
+	// its base nor a remote. Merged: its base has its branch, which goes
+	// with it. Shared: another session works in it, which keeps it.
+	WorktreeCheck struct {
+		Worktree
+		Files    int  `json:"files"`
+		Unpushed int  `json:"unpushed"`
+		Merged   bool `json:"merged"`
+		Shared   bool `json:"shared"`
 	}
 	RenameParams struct {
 		ID   string `json:"id"`

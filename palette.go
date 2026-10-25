@@ -261,15 +261,22 @@ func (a *App) confirmView(c *ui.Context, pal *palette) {
 // answered, which it reports.
 func confirmDialog(c *ui.Context, pal *palette, pending **confirmation) bool {
 	cf := *pending
-	run := false
+	run, alt := false, false
 	ui.DialogBase(c.Key("confirm"), &cf.open, func(backdrop, panel ui.Element) {
 		backdrop.Background(pal.overlay)
-		floating(panel.Width(380).Padding(22).Gap(8).Radius(14).Background(pal.popover), pal).Label(cf.title)
+		width := float32(380)
+		if cf.alt != "" {
+			width = 460 // room for a third button
+		}
+		floating(panel.Width(width).Padding(22).Gap(8).Radius(14).Background(pal.popover), pal).Label(cf.title)
 		ui.Text(c, cf.title).FontSize(15).FontWeight(650).TextColor(pal.text)
 		ui.Text(c, cf.detail).FontSize(13).TextColor(pal.textMuted).LineHeight(1.4)
 		ui.Row(c).Gap(8).Justify(ui.End).Margin(14, 0, 0, 0).Children(func() {
 			if button(c, "cancel", locales.CommonCancel(), "esc", false, pal) {
 				cf.open = false
+			}
+			if cf.alt != "" && button(c, "alt", cf.alt, "", false, pal) {
+				alt = true
 			}
 			if button(c, "ok", cf.action, "↩", true, pal) || c.Shortcut(0, ui.KeyEnter) {
 				run = true
@@ -279,6 +286,9 @@ func confirmDialog(c *ui.Context, pal *palette, pending **confirmation) bool {
 	if run {
 		cf.open = false
 		cf.run()
+	} else if alt {
+		cf.open = false
+		cf.altRun()
 	}
 	if cf.open {
 		return false
@@ -289,7 +299,7 @@ func confirmDialog(c *ui.Context, pal *palette, pending **confirmation) bool {
 
 // shortcuts are the window's keys that no menu item has.
 func (a *App) shortcuts(c *ui.Context) {
-	if a.pal.open || a.picker.open || a.confirm != nil {
+	if a.pal.open || a.picker.open || a.confirm != nil || a.wtAsk != nil {
 		return
 	}
 	keys := []ui.Key{ui.Key1, ui.Key2, ui.Key3, ui.Key4, ui.Key5, ui.Key6, ui.Key7, ui.Key8, ui.Key9}

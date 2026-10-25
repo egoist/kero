@@ -122,6 +122,7 @@ type App struct {
 	pal          paletteState
 	find         findState
 	confirm      *confirmation
+	wtAsk        *worktreeAsk
 	sideDrag     float32 // the width as a drag of the sidebar's edge began
 	pendingToast string
 	// later are actions that change what the view is building, run once
@@ -158,6 +159,11 @@ type confirmation struct {
 	action  string
 	destroy bool
 	run     func()
+	// alt is a second answer besides action and Cancel, which runs
+	// altRun; altDestroy marks it as one that destroys.
+	alt        string
+	altRun     func()
+	altDestroy bool
 }
 
 func newApp() *App {
@@ -1184,6 +1190,10 @@ func (a *App) closeSession(id string, ask bool) {
 	if s == nil {
 		return
 	}
+	if ask && s.Worktree != nil && a.hostOf(id).cl != nil {
+		a.askCloseWorktree(id)
+		return
+	}
 	if ask && a.set.ConfirmClose && busy(s) {
 		name := s.DisplayName(a.set.SessionName)
 		a.confirm = &confirmation{
@@ -1194,6 +1204,15 @@ func (a *App) closeSession(id string, ask bool) {
 			destroy: true,
 			run:     func() { a.closeSession(id, false) },
 		}
+		return
+	}
+	a.endSession(id, proto.CloseParams{ID: id})
+}
+
+// endSession closes a session, as p says, without asking.
+func (a *App) endSession(id string, p proto.CloseParams) {
+	s := a.session(id)
+	if s == nil {
 		return
 	}
 	h := a.hostOf(id)
@@ -1216,7 +1235,7 @@ func (a *App) closeSession(id string, ask bool) {
 		a.dropTerm(p.ID)
 	}
 	a.st.Sessions = slices.DeleteFunc(a.st.Sessions, func(x proto.Session) bool { return x.ID == id })
-	a.callOn(h, "close", proto.IDParams{ID: id}, nil)
+	a.callOn(h, "close", p, nil)
 }
 
 // closeAllSessions closes every session of a group, leaving its

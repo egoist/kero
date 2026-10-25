@@ -74,6 +74,12 @@ type Settings struct {
 	// Git
 	GitStatus  bool   `json:"gitStatus"`  // each pane's branch and changes, which kerod follows
 	DiffLayout string `json:"diffLayout"` // the changes panel's diffs: "auto", "unified" or "split"
+	// WorktreeBase is what a session's own worktree branches from:
+	// "default", the repository's default branch, or "current", the
+	// branch of the session the user is in. WorktreeDir is where its
+	// worktrees go, "" for .kero/worktrees in the repository.
+	WorktreeBase string `json:"worktreeBase"`
+	WorktreeDir  string `json:"worktreeDir"`
 
 	// Browser
 	BlockAds bool     `json:"blockAds"` // in browser panes, with AdLists
@@ -157,6 +163,7 @@ func Default() Settings {
 		RemoteControl:   true,
 		GitStatus:       true,
 		DiffLayout:      "auto",
+		WorktreeBase:    "default",
 		BlockAds:        true,
 		AdLists:         slices.Clone(adblock.DefaultLists),
 	}
@@ -314,6 +321,7 @@ func (s *Settings) normalize() {
 	oneOf(&s.Clipboard, d.Clipboard, "ask", "allow", "deny")
 	oneOf(&s.RightClick, d.RightClick, "menu", "paste", "copyOrPaste")
 	oneOf(&s.DiffLayout, d.DiffLayout, "auto", "unified", "split")
+	oneOf(&s.WorktreeBase, d.WorktreeBase, "default", "current")
 	oneOf(&s.AppIcon, d.AppIcon, AppIcons...)
 	known := false
 	for _, b := range Backgrounds {

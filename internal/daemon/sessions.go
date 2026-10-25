@@ -22,6 +22,7 @@ type session struct {
 	panes             []*pane
 	layout            *proto.Layout
 	focus, zoomed     string
+	worktree          *proto.Worktree // made for it (proto.Session.Worktree)
 }
 
 // state returns what the subscribers see.
@@ -49,7 +50,7 @@ func (d *Daemon) stateLocked() proto.State {
 func (d *Daemon) sessionInfo(s *session) proto.Session {
 	info := proto.Session{
 		ID: s.id, Project: s.project, Name: s.name, AgentNamed: s.agentNamed,
-		Layout: s.layout.Clone(), Focus: s.focus, Zoomed: s.zoomed,
+		Layout: s.layout.Clone(), Focus: s.focus, Zoomed: s.zoomed, Worktree: s.worktree,
 		Panes: make([]proto.Pane, 0, len(s.panes)),
 	}
 	// Panes in the layout's order: left to right, top to bottom.
@@ -280,7 +281,16 @@ func (d *Daemon) create(p proto.CreateParams) (proto.Session, error) {
 		}
 	}
 	d.mu.Unlock()
-	s := &session{id: newID(), project: project, name: strings.TrimSpace(p.Name), created: time.Now().UnixMilli()}
+	var wt *proto.Worktree
+	if p.Worktree != "" {
+		// In the project of the repository, where the sidebar shows it
+		// under its branch's name.
+		if wt, err = d.addWorktree(dir, p.Worktree, p.Base); err != nil {
+			return proto.Session{}, err
+		}
+		dir = wt.Path
+	}
+	s := &session{id: newID(), project: project, name: strings.TrimSpace(p.Name), created: time.Now().UnixMilli(), worktree: wt}
 	pn, err := d.startPane(s.id, p, dir)
 	if err != nil {
 		return proto.Session{}, err

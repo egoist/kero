@@ -44,6 +44,8 @@ func (a *App) run(id string, args map[string]string) {
 		} else {
 			a.newSessionIn(h, proto.Home())
 		}
+	case "session.newWorktree":
+		a.newWorktreeSession()
 	case "project.open":
 		a.openProject()
 	case "palette.open":
@@ -127,39 +129,40 @@ func (a *App) item(id string) *mygo.MenuItem {
 // actionTitles are the actions' titles in the language the app shows;
 // an Action's Title stays English, for `kero actions`.
 var actionTitles = map[string]func() string{
-	"settings.open":     locales.ActionSettings,
-	"cli.install":       locales.ActionInstallCli,
-	"app.quitAll":       locales.ActionQuitAll,
-	"session.new":       locales.ActionNewSession,
-	"session.newHome":   locales.ActionNewSessionHome,
-	"project.open":      locales.ActionOpenProject,
-	"palette.open":      locales.ActionGoToSession,
-	"session.attention": locales.ActionJumpToAttention,
-	"session.next":      locales.ActionNextSession,
-	"session.previous":  locales.ActionPreviousSession,
-	"session.rename":    locales.ActionRenameSession,
-	"pane.restart":      locales.ActionRestartPane,
-	"pane.close":        locales.ActionClose,
-	"session.close":     locales.ActionCloseSession,
-	"find.open":         locales.ActionFind,
-	"find.next":         locales.ActionFindNext,
-	"find.previous":     locales.ActionFindPrevious,
-	"pane.split.right":  locales.ActionSplitRight,
-	"pane.split.down":   locales.ActionSplitDown,
-	"pane.browser":      locales.ActionNewBrowser,
-	"browser.address":   locales.ActionOpenLocation,
-	"pane.zoom":         locales.ActionZoomPane,
-	"pane.next":         locales.ActionNextPane,
-	"pane.previous":     locales.ActionPreviousPane,
-	"pane.left":         locales.ActionPaneLeft,
-	"pane.right":        locales.ActionPaneRight,
-	"pane.up":           locales.ActionPaneAbove,
-	"pane.down":         locales.ActionPaneBelow,
-	"sidebar.toggle":    locales.ActionToggleSidebar,
-	"changes.toggle":    locales.ActionToggleChanges,
-	"text.bigger":       locales.ActionBigger,
-	"text.smaller":      locales.ActionSmaller,
-	"text.reset":        locales.ActionActualSize,
+	"settings.open":       locales.ActionSettings,
+	"cli.install":         locales.ActionInstallCli,
+	"app.quitAll":         locales.ActionQuitAll,
+	"session.new":         locales.ActionNewSession,
+	"session.newHome":     locales.ActionNewSessionHome,
+	"session.newWorktree": locales.ActionNewSessionWorktree,
+	"project.open":        locales.ActionOpenProject,
+	"palette.open":        locales.ActionGoToSession,
+	"session.attention":   locales.ActionJumpToAttention,
+	"session.next":        locales.ActionNextSession,
+	"session.previous":    locales.ActionPreviousSession,
+	"session.rename":      locales.ActionRenameSession,
+	"pane.restart":        locales.ActionRestartPane,
+	"pane.close":          locales.ActionClose,
+	"session.close":       locales.ActionCloseSession,
+	"find.open":           locales.ActionFind,
+	"find.next":           locales.ActionFindNext,
+	"find.previous":       locales.ActionFindPrevious,
+	"pane.split.right":    locales.ActionSplitRight,
+	"pane.split.down":     locales.ActionSplitDown,
+	"pane.browser":        locales.ActionNewBrowser,
+	"browser.address":     locales.ActionOpenLocation,
+	"pane.zoom":           locales.ActionZoomPane,
+	"pane.next":           locales.ActionNextPane,
+	"pane.previous":       locales.ActionPreviousPane,
+	"pane.left":           locales.ActionPaneLeft,
+	"pane.right":          locales.ActionPaneRight,
+	"pane.up":             locales.ActionPaneAbove,
+	"pane.down":           locales.ActionPaneBelow,
+	"sidebar.toggle":      locales.ActionToggleSidebar,
+	"changes.toggle":      locales.ActionToggleChanges,
+	"text.bigger":         locales.ActionBigger,
+	"text.smaller":        locales.ActionSmaller,
+	"text.reset":          locales.ActionActualSize,
 }
 
 // actionTitle is an action's title as the menus, the palette and
@@ -214,7 +217,7 @@ func (a *App) menu() *mygo.Menu {
 	return mygo.NewMenu([]*mygo.MenuItem{
 		kero,
 		{Label: locales.MenuSession(), Submenu: a.items("Session",
-			[]string{"session.new", "session.newHome", "project.open"},
+			[]string{"session.new", "session.newHome", "session.newWorktree", "project.open"},
 			[]string{"palette.open", "session.attention", "session.next", "session.previous"},
 			[]string{"session.rename", "pane.restart"},
 			[]string{"pane.close", "session.close"})},

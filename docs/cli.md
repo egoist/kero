@@ -28,6 +28,7 @@ kero split --url localhost:3000  # a browser pane showing a page
 kero rename api backend          # rename a session
 kero focus backend               # show it in the app
 kero close backend               # end a session (or, given a pane, the pane)
+kero close fix-login --remove-worktree   # and remove its own worktree
 kero restart <pane>              # start an exited pane's shell again
 ```
 
@@ -41,6 +42,8 @@ kero restart <pane>              # start an exited pane's shell again
 | `-f`, `--focus`             | Show it in the app                              |
 | `-w`, `--wait`              | Wait for its command to end, and exit with its status |
 | `-u`, `--url <url>`         | Open a browser showing the page instead of a shell |
+| `--worktree <branch>`       | Start it in a git worktree of its own, on a new branch ([more](./changes.md#sessions-in-their-own-worktree)) |
+| `--base <ref>`              | The branch the worktree's starts from (default: the default branch) |
 
 ## Typing and reading
 

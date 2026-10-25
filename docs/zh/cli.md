@@ -28,6 +28,7 @@ kero split --url localhost:3000  # 新建一个显示网页的浏览器窗格
 kero rename api backend          # 重命名会话
 kero focus backend               # 在 app 中显示它
 kero close backend               # 结束会话（如果给的是窗格，则关闭该窗格）
+kero close fix-login --remove-worktree   # 同时删除它专属的工作树
 kero restart <pane>              # 重新启动已退出窗格的 shell
 ```
 
@@ -41,6 +42,8 @@ kero restart <pane>              # 重新启动已退出窗格的 shell
 | `-f`, `--focus`             | 在 app 中显示它                                 |
 | `-w`, `--wait`              | 等待它的命令结束，并以该命令的退出码退出        |
 | `-u`, `--url <url>`         | 打开显示该网页的浏览器，而不是 shell            |
+| `--worktree <branch>`       | 在专属的 git 工作树中、以新分支启动（[详情](./changes.md#sessions-in-their-own-worktree)） |
+| `--base <ref>`              | 工作树分支的起点（默认：默认分支）              |
 
 ## 输入与读取
 
