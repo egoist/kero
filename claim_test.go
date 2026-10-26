@@ -119,3 +119,22 @@ func TestShownPanes(t *testing.T) {
 		t.Errorf("no layout: %q", got)
 	}
 }
+
+// The selected session isn't watched once the window loses the keyboard,
+// even where the app never hears it stopped being active, as on Windows:
+// its agent finishing there still tells.
+func TestWatchingNeedsFocus(t *testing.T) {
+	a := testApp(t)
+	a.selected = "s1"
+	a.active, a.focused = true, true
+	if !a.watching("s1") {
+		t.Error("the selected session, window focused: not watched")
+	}
+	if a.watching("s2") {
+		t.Error("another session: watched")
+	}
+	a.focused = false
+	if a.watching("s1") {
+		t.Error("window not focused: watched")
+	}
+}

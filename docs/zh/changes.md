@@ -34,6 +34,31 @@ description: 在窗格旁查看会话的 git 分支，以及它的智能体逐�
 
 只有在会话中没有智能体正在工作时才能还原，这样就不会与智能体的编辑冲突；而且文件必须仍与 diff 所示一致。如果文件在此期间又有改动，则会重新显示。
 
+<a id="sessions-in-their-own-worktree"></a>
+
+## 在专属工作树中运行的会话
+
+多个智能体在同一个检出目录里并行工作，会被彼此的改动绊住。**会话 › 在工作树中新建会话…**（<kbd>⌘</kbd> <kbd>⌥</kbd> <kbd>T</kbd>）会询问分支名，然后在专属的 git 工作树中启动会话：一个从仓库默认分支创建并检出新分支的文件夹。
+
+- 工作树位于仓库内的 `.kero/worktrees/<branch>`，Kero 通过 `.git/info/exclude`（而不是你的 `.gitignore`）忽略它。设置 `worktree-dir` 可以把工作树放到别处。
+- 设置 `worktree-base = current`，可以从你所在的会话而不是默认分支创建分支。
+- 会话会加入仓库所在的项目，边栏中会显示它的分支。
+
+关闭会话时，Kero 会询问是否一并删除它的工作树：
+
+- **没有未提交的改动：** 默认是“删除工作树”。分支若已合并会一并删除，否则会连同提交一起保留。
+- **有未提交的改动：** Kero 会说明有多少文件会丢失，默认是“保留工作树”。
+- **还有其他会话在这个工作树中工作：** 工作树会保留，Kero 不会询问。
+
+在命令行中：
+
+```sh
+kero new --worktree fix-login -- claude   # 在专属工作树中、以新分支启动会话
+kero new --worktree fix-login --base dev  # 从 dev 创建分支
+kero close fix-login --remove-worktree    # 关闭会话并删除工作树
+kero close fix-login --remove-worktree --force   # 即使有未提交的改动
+```
+
 ## 在命令行中查看
 
 `kero diff` 以 `git diff` 的格式打印窗格的改动，包括未跟踪的文件：

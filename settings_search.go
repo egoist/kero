@@ -1,6 +1,7 @@
 package main
 
 import (
+	"runtime"
 	"strings"
 	"time"
 
@@ -21,13 +22,14 @@ type searchEntry struct {
 // settingsIndex is the settings the search finds, labelled in the
 // language the app shows, as their rows are.
 func settingsIndex() []searchEntry {
-	return []searchEntry{
+	entries := []searchEntry{
 		{"general", locales.SetNewSessionsStartIn(), "new-session-directory folder current project home tab"},
 		{"general", locales.SetSessionName(), "session-name title sidebar focused lead folder pane"},
 		{"general", locales.SetFocusFollowsMouse(), "focus-follows-mouse hover pointer niri hyprland sloppy"},
 		{"general", locales.SetAskBeforeClosing(), "confirm-close quit kill"},
 		{"general", locales.SetRestoreSessions(), "restore-sessions reboot persist"},
 		{"general", locales.SetResumeAgents(), "resume-agents claude codex pi opencode conversation restore reboot"},
+		{"general", locales.SetSessionHistory(), "session-history ended sessions archived resume claude codex conversation"},
 		{"general", locales.SetGitStatus(), "git-status branch changes diff repository worktree"},
 		{"general", locales.SetDiffLayout(), "diff-layout diff unified split side by side changes"},
 		{"general", locales.SetOpenAtLogin(), "startup launch login items"},
@@ -86,6 +88,10 @@ func settingsIndex() []searchEntry {
 		{"advanced", locales.SetFolder(), "data directory finder"},
 		{"advanced", locales.SetReset(), "defaults reset"},
 	}
+	if runtime.GOOS == "darwin" {
+		entries = append(entries, searchEntry{"general", locales.SetAppIcon(), "macos-show-app-icon dock menu bar menubar tray status item hide"})
+	}
+	return entries
 }
 
 // searchEntries are the index and the actions, which the keyboard page
@@ -103,39 +109,42 @@ func searchEntries(shortcuts map[string]string) []searchEntry {
 // actionWords find actions besides their titles: what one looks for an
 // action by when its title doesn't say it.
 var actionWords = map[string]string{
-	"settings.open":     "preferences options config configure",
-	"cli.install":       "kero command line shell path terminal",
-	"app.quitAll":       "exit quit kill stop end all sessions",
-	"session.new":       "create add tab terminal shell",
-	"session.newHome":   "create add tab terminal shell home directory ~",
-	"project.open":      "folder directory repo repository workspace add",
-	"palette.open":      "switch jump search find command palette",
-	"session.attention": "waiting blocked attention notification needs input agent",
-	"session.next":      "switch tab forward",
-	"session.previous":  "switch tab back backward",
-	"session.rename":    "name title label",
-	"pane.restart":      "rerun relaunch reload reset shell",
-	"pane.close":        "pane remove kill exit",
-	"session.close":     "remove kill exit end tab",
-	"find.open":         "search look up text grep",
-	"find.next":         "search again",
-	"find.previous":     "search again back",
-	"pane.split.right":  "vertical horizontal side by side new pane",
-	"pane.split.down":   "horizontal vertical below new pane",
-	"pane.browser":      "browser web page url preview localhost open",
-	"browser.address":   "browser web url address go to navigate",
-	"pane.zoom":         "maximize fullscreen focus expand",
-	"pane.next":         "switch focus forward",
-	"pane.previous":     "switch focus back backward",
-	"pane.left":         "focus move navigate",
-	"pane.right":        "focus move navigate",
-	"pane.up":           "focus move navigate above",
-	"pane.down":         "focus move navigate below",
-	"sidebar.toggle":    "show hide sidebar sessions list",
-	"changes.toggle":    "git diff branch panel changes",
-	"text.bigger":       "zoom in font size larger increase text",
-	"text.smaller":      "zoom out font size decrease text",
-	"text.reset":        "zoom reset font size default text",
+	"settings.open":       "preferences options config configure",
+	"cli.install":         "kero command line shell path terminal",
+	"app.quitAll":         "exit quit kill stop end all sessions",
+	"session.new":         "create add tab terminal shell",
+	"session.newHome":     "create add tab terminal shell home directory ~",
+	"session.newWorktree": "create add worktree branch checkout agent isolate parallel",
+	"conversation.resume": "history agent claude codex pi opencode continue reopen restore past chat",
+	"project.open":        "folder directory repo repository workspace add",
+	"palette.open":        "switch jump search find command palette",
+	"session.attention":   "waiting blocked attention notification needs input agent",
+	"session.next":        "switch tab forward",
+	"session.previous":    "switch tab back backward",
+	"session.rename":      "name title label",
+	"pane.restart":        "rerun relaunch reload reset shell",
+	"pane.close":          "pane remove kill exit",
+	"session.close":       "remove kill exit end tab",
+	"find.open":           "search look up text grep",
+	"find.next":           "search again",
+	"find.previous":       "search again back",
+	"pane.split.right":    "vertical horizontal side by side new pane",
+	"pane.split.down":     "horizontal vertical below new pane",
+	"pane.browser":        "browser web page url preview localhost open",
+	"browser.address":     "browser web url address go to navigate",
+	"pane.zoom":           "maximize fullscreen focus expand",
+	"pane.next":           "switch focus forward",
+	"pane.previous":       "switch focus back backward",
+	"pane.left":           "focus move navigate",
+	"pane.right":          "focus move navigate",
+	"pane.up":             "focus move navigate above",
+	"pane.down":           "focus move navigate below",
+	quickAction:           "quake doom drop down dropdown hotkey global visor guake iterm console",
+	"sidebar.toggle":      "show hide sidebar sessions list",
+	"changes.toggle":      "git diff branch panel changes",
+	"text.bigger":         "zoom in font size larger increase text",
+	"text.smaller":        "zoom out font size decrease text",
+	"text.reset":          "zoom reset font size default text",
 }
 
 // pageWords find Settings' pages in the palette besides their titles.

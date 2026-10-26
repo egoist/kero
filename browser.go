@@ -45,6 +45,9 @@ type webEntry struct {
 	// iconURL is the URL of the icon the page told: until it does, its
 	// site's last shows.
 	iconURL string
+	// staged lays the page out unseen, for kero browser screenshot of a
+	// pane never shown, which has no size, and so no picture.
+	staged bool
 }
 
 // browserUA makes the page look like Safari's on macOS: sites serve a bare

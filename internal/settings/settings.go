@@ -28,7 +28,9 @@ type Settings struct {
 	ConfirmClose      bool   `json:"confirmClose"`      // before closing a pane a program runs in
 	RestoreSessions   bool   `json:"restoreSessions"`   // after kerod restarts, as after a reboot
 	ResumeAgents      bool   `json:"resumeAgents"`      // as it restores sessions: the agents' own
+	SessionHistory    bool   `json:"sessionHistory"`    // the sidebar lists the agents' ended conversations
 	QuitConfirm       bool   `json:"quitConfirm"`       // tell, the first time, that quitting keeps sessions
+	AppIcon           string `json:"appIcon"`           // macOS: AppIcons; elsewhere the icon is always in the notification area
 
 	// Appearance
 	Appearance string `json:"appearance"` // "system", "light" or "dark"
@@ -73,6 +75,12 @@ type Settings struct {
 	// Git
 	GitStatus  bool   `json:"gitStatus"`  // each pane's branch and changes, which kerod follows
 	DiffLayout string `json:"diffLayout"` // the changes panel's diffs: "auto", "unified" or "split"
+	// WorktreeBase is what a session's own worktree branches from:
+	// "default", the repository's default branch, or "current", the
+	// branch of the session the user is in. WorktreeDir is where its
+	// worktrees go, "" for .kero/worktrees in the repository.
+	WorktreeBase string `json:"worktreeBase"`
+	WorktreeDir  string `json:"worktreeDir"`
 
 	// Browser
 	BlockAds bool     `json:"blockAds"` // in browser panes, with AdLists
@@ -131,6 +139,7 @@ func Default() Settings {
 		RestoreSessions: true,
 		ResumeAgents:    true,
 		QuitConfirm:     true,
+		AppIcon:         "dock-and-menubar",
 		Appearance:      "system",
 		Language:        "system",
 		Background:      "rex",
@@ -155,6 +164,7 @@ func Default() Settings {
 		RemoteControl:   true,
 		GitStatus:       true,
 		DiffLayout:      "auto",
+		WorktreeBase:    "default",
 		BlockAds:        true,
 		AdLists:         slices.Clone(adblock.DefaultLists),
 	}
@@ -162,7 +172,11 @@ func Default() Settings {
 
 // Languages are the languages the app is written in, as the catalogs of
 // kero/locales name them.
-var Languages = []string{"en", "zh-Hans"}
+var Languages = []string{"en", "ja", "zh-Hans"}
+
+// AppIcons are where the app's icon shows on macOS: the Dock and the menu
+// bar, the Dock alone, or the menu bar alone.
+var AppIcons = []string{"dock-and-menubar", "dock", "menubar"}
 
 // Backgrounds are the washes the window can show.
 var Backgrounds = []struct{ ID, Name string }{
@@ -308,6 +322,8 @@ func (s *Settings) normalize() {
 	oneOf(&s.Clipboard, d.Clipboard, "ask", "allow", "deny")
 	oneOf(&s.RightClick, d.RightClick, "menu", "paste", "copyOrPaste")
 	oneOf(&s.DiffLayout, d.DiffLayout, "auto", "unified", "split")
+	oneOf(&s.WorktreeBase, d.WorktreeBase, "default", "current")
+	oneOf(&s.AppIcon, d.AppIcon, AppIcons...)
 	known := false
 	for _, b := range Backgrounds {
 		known = known || b.ID == s.Background

@@ -1,25 +1,26 @@
 import { useLocation } from '@tanstack/solid-router';
 
-// The site in English at /, and in Simplified Chinese under /zh.
-export type Locale = 'en' | 'zh';
-export const locales: Locale[] = ['en', 'zh'];
+// The site in English at /, in Japanese under /ja, and in Simplified Chinese
+// under /zh.
+export type Locale = 'en' | 'ja' | 'zh';
+export const locales: Locale[] = ['en', 'ja', 'zh'];
 
-export const htmlLang: Record<Locale, string> = { en: 'en', zh: 'zh-CN' };
-export const localeName: Record<Locale, string> = { en: 'English', zh: '中文' };
+export const htmlLang: Record<Locale, string> = { en: 'en', ja: 'ja', zh: 'zh-CN' };
+export const localeName: Record<Locale, string> = { en: 'English', ja: '日本語', zh: '中文' };
 
 export function localeOf(pathname: string): Locale {
-  return /^\/zh(\/|$)/.test(pathname) ? 'zh' : 'en';
+  return locales.find((l) => l !== 'en' && new RegExp(`^/${l}(/|$)`).test(pathname)) ?? 'en';
 }
 
 // A path of the site, such as /docs/cli, in a locale.
 export function localize(path: string, locale: Locale) {
   if (locale === 'en') return path;
-  return path === '/' ? '/zh' : `/zh${path}`;
+  return path === '/' ? `/${locale}` : `/${locale}${path}`;
 }
 
 // A path in a locale back to the site's own path.
 export function delocalize(pathname: string) {
-  return pathname.replace(/^\/zh(?=\/|$)/, '') || '/';
+  return pathname.replace(/^\/(ja|zh)(?=\/|$)/, '') || '/';
 }
 
 export function useLocale() {
@@ -68,6 +69,39 @@ const strings = {
     openNav: 'Open menu',
     closeNav: 'Close menu',
     sections: {} as Record<string, string>,
+  },
+  ja: {
+    docs: 'ドキュメント',
+    cli: 'CLI',
+    agents: 'エージェント',
+    download: 'ダウンロード',
+    home: 'Kero ホーム',
+    github: 'GitHub の Kero',
+    tagline: 'コーディングエージェントのためのターミナル',
+    configuration: '設定',
+    shortcuts: 'ショートカット',
+    menu: 'メニュー',
+    onThisPage: 'このページの内容',
+    previous: '前へ',
+    next: '次へ',
+    pagination: 'ページ送り',
+    searchDocs: 'ドキュメントを検索…',
+    searchDocsLabel: 'ドキュメントを検索',
+    searchPlaceholder: 'ドキュメントを検索…',
+    searchDialog: 'ドキュメントを検索',
+    searchLoading: '読み込み中…',
+    searchFailed: '検索インデックスを読み込めませんでした。',
+    noResults: (q: string) => `“${q}”に一致する結果はありません`,
+    language: '言語',
+    openNav: 'メニューを開く',
+    closeNav: 'メニューを閉じる',
+    // docs/sidebar.json's section titles.
+    sections: {
+      'Getting Started': 'はじめに',
+      'Using kero': 'Kero を使う',
+      Automation: '自動化',
+      Reference: 'リファレンス',
+    } as Record<string, string>,
   },
   zh: {
     docs: '文档',

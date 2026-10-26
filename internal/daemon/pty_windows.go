@@ -53,7 +53,14 @@ var (
 	procInitializeProcThreadAttributeList = kernel32.NewProc("InitializeProcThreadAttributeList")
 	procUpdateProcThreadAttribute         = kernel32.NewProc("UpdateProcThreadAttribute")
 	procDeleteProcThreadAttributeList     = kernel32.NewProc("DeleteProcThreadAttributeList")
+	procSetConsoleCtrlHandler             = kernel32.NewProc("SetConsoleCtrlHandler")
 )
+
+// allowCtrlC takes Ctrl+C back for the programs the daemon starts: it is
+// started in a process group of its own (detach.Start), which ignores
+// Ctrl+C, and they would too, as what is ignored passes on to children,
+// a console's Ctrl+C then ending nothing (vite, ping -t).
+func allowCtrlC() { procSetConsoleCtrlHandler.Call(0, 0) }
 
 // conPTY is a ConPTY's functions: Windows' own, in kernel32, or those of
 // the conpty.dll Kero ships, which runs the OpenConsole.exe beside it.
@@ -176,6 +183,7 @@ func startPTY(o ptyOptions) (*ptyProc, error) {
 }
 
 func (p *ptyProc) spawn(o ptyOptions) error {
+	allowCtrlC()
 	var size uintptr
 	procInitializeProcThreadAttributeList.Call(0, 1, 0, uintptr(unsafe.Pointer(&size)))
 	list := make([]byte, size)

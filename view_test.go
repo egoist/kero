@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"image"
 	"image/color"
@@ -18,6 +19,7 @@ import (
 	"github.com/egoist/mygo/plugins/terminal"
 	"github.com/egoist/mygo/ui"
 
+	"kero/internal/actions"
 	"kero/internal/proto"
 
 	"kero/locales"
@@ -64,8 +66,97 @@ func shot(t *testing.T, tt *ui.Tester, name string) {
 	png.Encode(f, tt.Image())
 }
 
-func TestDragPaneToSide(t *testing.T) {
+func testDropApp(t *testing.T) *App {
+	t.Helper()
 	a := testApp(t)
+	a.local().conn = connReady
+	a.terms["a"], a.terms["b"] = &termEntry{}, &termEntry{}
+	a.local().cl, _ = projectClient(t, func(method string, _ json.RawMessage) (any, error) {
+		return nil, fmt.Errorf("test daemon rejected %s", method)
+	})
+	return a
+}
+
+func TestSidebarReceivesFolderDrops(t *testing.T) {
+	a := testDropApp(t)
+	tt := ui.NewTester(a.view, 1100, 640)
+	tt.Frame()
+	for _, at := range []ui.Point{{X: 10, Y: 30}, {X: 40, Y: 80}, {X: 40, Y: 120}, {X: 100, Y: 400}, {X: 20, Y: 620}} {
+		if !tt.DropFiles(at.X, at.Y, t.TempDir()) {
+			t.Errorf("sidebar drop at %v was not received", at)
+		}
+	}
+	if tt.DropFiles(a.prefs.SidebarWidth+3, 400, t.TempDir()) {
+		t.Error("sidebar received a drop outside its visible bounds")
+	}
+	shot(t, tt, "sidebar-folder-drop-light")
+	tt.SetDark(true)
+	tt.Advance(time.Second)
+	tt.Frame()
+	shot(t, tt, "sidebar-folder-drop-dark")
+}
+
+func TestSidebarRejectsUnavailableDrops(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		set  func(*App)
+	}{
+		{"hidden", func(a *App) { a.prefs.SidebarHidden = true }},
+		{"connecting", func(a *App) { a.local().conn = connConnecting }},
+		{"disconnected", func(a *App) { a.local().conn = connFailed }},
+		{"no client", func(a *App) { a.local().cl = nil }},
+		{"palette", func(a *App) { a.pal.open = true }},
+		{"folder picker", func(a *App) { a.picker = folderPicker{open: true, host: a.local()} }},
+		{"only remote connected", func(a *App) {
+			h := &host{name: "remote", conn: connReady, cl: a.local().cl, loaded: true}
+			a.hosts = append(a.hosts, h)
+			a.owner = map[string]*host{"s1": h, "p1": h, "a": h, "b": h}
+			a.local().conn, a.local().cl = connFailed, nil
+		}},
+		{"confirmation", func(a *App) { a.confirm = &confirmation{open: true, title: "Confirm", action: "Close"} }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			a := testDropApp(t)
+			tt := ui.NewTester(a.view, 1100, 640)
+			tt.Frame()
+			tc.set(a)
+			tt.Frame()
+			if tt.DropFiles(30, 400, t.TempDir()) {
+				t.Errorf("sidebar received a drop while %s", tc.name)
+			}
+		})
+	}
+}
+
+func TestSidebarLocalDropWithRemoteSelected(t *testing.T) {
+	a := testDropApp(t)
+	h := &host{name: "remote", conn: connFailed, loaded: true}
+	a.hosts = append(a.hosts, h)
+	a.owner = map[string]*host{"s1": h, "p1": h, "a": h, "b": h}
+	tt := ui.NewTester(a.view, 1100, 640)
+	tt.Frame()
+	if !tt.DropFiles(30, 400, t.TempDir()) {
+		t.Error("local sidebar drop was blocked by the selected remote host")
+	}
+}
+
+func TestSidebarKeepsTerminalDrops(t *testing.T) {
+	a := testDropApp(t)
+	term, err := terminal.New(terminal.Options{Conn: idleConn{make(chan struct{})}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { term.Close() })
+	a.terms["a"] = &termEntry{term: term}
+	tt := ui.NewTester(a.view, 1100, 640)
+	tt.Frame()
+	if !tt.DropFiles(400, 340, filepath.Join(t.TempDir(), "image.png")) {
+		t.Error("terminal did not receive a file drop while the sidebar target was active")
+	}
+}
+
+func TestDragPaneToSide(t *testing.T) {
+	a := testDropApp(t)
 	tt := ui.NewTester(a.view, 1100, 640)
 	tt.Frame()
 	grip, ok := tt.Find("zsh")
@@ -650,9 +741,10 @@ func (w writes) Write(b []byte) (int, error) {
 	return len(b), nil
 }
 
-// ⌘⌫ sends Control+U, which clears the line, and only on a Mac, where
-// ⌘ is not the terminal's Control.
-func TestCommandBackspaceClearsLine(t *testing.T) {
+// ⌘⌫, ⌘← and ⌘→ send Control+U, Control+A and Control+E, which clear the
+// line and go to its start and end, and only on a Mac, where ⌘ is not the
+// terminal's Control.
+func TestCommandKeysEditLine(t *testing.T) {
 	if testing.Short() {
 		t.Skip("downloads libghostty-vt")
 	}
@@ -668,26 +760,63 @@ func TestCommandBackspaceClearsLine(t *testing.T) {
 	defer term.Close()
 	a.terms["a"] = &termEntry{term: term}
 	o := a.termOptions("a", nil)
-	if took := o.OnKey(ui.Super, ui.KeyBackspace); took != (runtime.GOOS == "darwin") {
-		t.Fatalf("⌘⌫ taken: %v", took)
-	}
-	if runtime.GOOS != "darwin" {
-		return
-	}
-	select {
-	case b := <-conn.got:
-		if string(b) != "\x15" {
-			t.Errorf("⌘⌫ sent %q, want Control+U", b)
+	for _, k := range []struct {
+		key  ui.Key
+		want string
+	}{{ui.KeyBackspace, "\x15"}, {ui.KeyLeft, "\x01"}, {ui.KeyRight, "\x05"}} {
+		if took := o.OnKey(ui.Super, k.key); took != (runtime.GOOS == "darwin") {
+			t.Fatalf("⌘+%v taken: %v", k.key, took)
 		}
-	case <-time.After(2 * time.Second):
-		t.Fatal("⌘⌫ sent nothing")
+		if runtime.GOOS != "darwin" {
+			continue
+		}
+		select {
+		case b := <-conn.got:
+			if string(b) != k.want {
+				t.Errorf("⌘+%v sent %q, want %q", k.key, b, k.want)
+			}
+		case <-time.After(2 * time.Second):
+			t.Fatalf("⌘+%v sent nothing", k.key)
+		}
 	}
 	for _, k := range []struct {
 		mods ui.Modifiers
 		key  ui.Key
-	}{{0, ui.KeyBackspace}, {ui.Super | ui.Shift, ui.KeyBackspace}, {ui.Super, ui.KeyDelete}} {
+	}{
+		{0, ui.KeyBackspace}, {ui.Super | ui.Shift, ui.KeyBackspace}, {ui.Super, ui.KeyDelete},
+		{0, ui.KeyLeft}, {ui.Super | ui.Shift, ui.KeyLeft}, {ui.Super | ui.Alt, ui.KeyRight},
+	} {
 		if o.OnKey(k.mods, k.key) {
 			t.Errorf("%v+%v taken", k.mods, k.key)
 		}
+	}
+}
+
+// A long name in a narrow sidebar ends in an ellipsis: the time beside
+// it, and the ⌘ shortcut in its place, show whole.
+func TestSidebarRowKeepsTime(t *testing.T) {
+	widths := func(name string) (ago, key float32) {
+		a := testApp(t)
+		a.prefs.SidebarWidth = minSidebar
+		tt := ui.NewTester(a.view, 1100, 640)
+		a.st.Sessions[0].Name = name
+		a.st.Sessions[0].Since = tt.Now().Add(-3 * time.Hour).UnixMilli()
+		tt.Frame()
+		r, ok := tt.Find(locales.AgoHours(3))
+		if !ok {
+			t.Fatalf("%q: no time shown", name)
+		}
+		tt.HoldModifiers(ui.Cmd)
+		tt.Frame()
+		k, ok := tt.Find(actions.Glyphs("CmdOrCtrl+1"))
+		if !ok {
+			t.Fatalf("%q: no shortcut shown", name)
+		}
+		return r.W, k.W
+	}
+	t0, k0 := widths("demo")
+	t1, k1 := widths("Investigate why the session list truncates long generated titles")
+	if t1 < t0 || k1 < k0 {
+		t.Errorf("with a long name, the time is %g wide (want %g) and the shortcut %g (want %g)", t1, t0, k1, k0)
 	}
 }

@@ -47,13 +47,15 @@ kero config check             # report unknown keys and bad values
 | `confirm-close`         | `true`    | Ask before closing a pane that a program is running in        |
 | `restore-sessions`      | `true`    | Start sessions again after kerod restarts, as after a reboot  |
 | `resume-agents`         | `true`    | As sessions start again, resume the conversation of the agent each pane ran |
+| `session-history`       | `false`   | List the agents' ended conversations in the sidebar, to resume or archive ([more](./sessions.md#ended-sessions)) |
+| `macos-show-app-icon`   | `dock-and-menubar` | Where Kero's icon shows on macOS: `dock-and-menubar`, `dock` or `menubar`. While it's in the menu bar, closing the window keeps Kero running there. Windows and Linux always show it in the notification area, where closing the window does the same |
 
 ## Appearance
 
 | Key                  | Default  | Description                                                     |
 | -------------------- | -------- | --------------------------------------------------------------- |
 | `window-theme`       | `system` | The app's appearance: `system`, `light` or `dark`               |
-| `language`           | `system` | The app's language: `system`, `en` or `zh-Hans`                 |
+| `language`           | `system` | The app's language: `system`, `en`, `ja` or `zh-Hans`           |
 | `background`         | `petal`  | The window's wash: `petal`, `mist`, `meadow`, `dusk` or `plain` |
 | `window-translucent` | `true`   | Let the desktop show through the window                         |
 
@@ -62,7 +64,7 @@ kero config check             # report unknown keys and bad values
 | Key                   | Default | Description                                                              |
 | --------------------- | ------- | ------------------------------------------------------------------------ |
 | `theme`               | `kero`  | Terminal colors: `kero`, any Ghostty theme, or `light:<theme>,dark:<theme>` |
-| `font-family`         |         | Empty for JetBrains Mono Nerd Font, which Kero includes; `monospace` for the system's |
+| `font-family`         |         | Empty for JetBrains Mono Nerd Font, which Kero includes; `monospace` for the system's; or any installed family |
 | `font-size`           | `13`    | In points                                                                |
 | `font-weight`         | `400`   | `100` to `900`                                                           |
 | `line-height`         | `1.22`  | A multiple of the font's                                                 |
@@ -119,6 +121,8 @@ Other machines whose sessions the app shows, and `kero -H` reaches. See [Remote 
 | ------------- | ------- | ------------------------------------------------------------------------------------------------- |
 | `git-status`  | `true`  | Show each session's branch and [changes](./changes.md)                                            |
 | `diff-layout` | `auto`  | Diffs in the changes panel: `unified`, `split` (side by side), or `auto`, side by side once it's wide |
+| `worktree-base` | `default` | What a [session's own worktree](./changes.md#sessions-in-their-own-worktree) branches from: `default`, the repository's default branch, or `current`, the branch of the session you're in |
+| `worktree-dir` |        | Where sessions' own worktrees go, each under its repository's name; empty for `.kero/worktrees` in the repository |
 
 ## Browser
 

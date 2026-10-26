@@ -91,7 +91,7 @@ func (a *App) listenGroup(c *ui.Context, pal *palette) {
 					return err == nil && spec.Kind == "tailnet"
 				})
 				if on {
-					s.Listen = append(s.Listen, "tailnet://:"+remote.DefaultPort)
+					s.Listen = append(s.Listen, "tailnet://:"+remote.ListenPort())
 				}
 				a.set = s
 			})

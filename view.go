@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"runtime"
+	"slices"
 	"time"
 
 	"github.com/egoist/mygo/ui"
@@ -102,6 +103,16 @@ func (a *App) view(c *ui.Context) {
 	row.Children(func() {
 		w := a.chrome.sideW
 		side := ui.Row(c).Width(w).Shrink(0).AlignItems(ui.Stretch).ClipX()
+		if h := a.local(); h.conn == connReady && h.cl != nil && !a.prefs.SidebarHidden && !a.pal.open && !a.picker.open && (a.confirm == nil || !a.confirm.open) {
+			if files := side.DroppedFiles(); len(files) > 0 {
+				go a.openProjectDirs(h, h.cl, slices.Clone(files), true)
+			}
+			if side.FileDragOver() {
+				side.Background(pal.accent.Alpha(0.08)).Draw(func(p *ui.Painter, r ui.Rect) {
+					p.Stroke(ui.Rect{X: r.X + 4, Y: r.Y + 4, W: r.W - 8, H: r.H - 8}, pal.accent.Alpha(0.55), 8, 1)
+				})
+			}
+		}
 		side.Children(func() {
 			ui.Column(c).Width(a.prefs.SidebarWidth).Shrink(0).Margin(0, 0, 0, w-a.prefs.SidebarWidth).
 				Opacity(0.4 + 0.6*shown).Children(func() { a.sidebar(c, pal, bar) })
@@ -115,9 +126,19 @@ func (a *App) view(c *ui.Context) {
 			a.card(c, pal, bar, shown)
 		})
 	})
+	// A page staged for a screenshot takes the window's size, under its
+	// content, which hides it: at no opacity, it paints no hole there.
+	for id, e := range a.webs {
+		if e.staged && e.view != nil {
+			ui.Box(c.Key("staged-"+id)).Absolute().Left(0).Top(0).Right(0).Bottom(0).AlignItems(ui.Stretch).Opacity(0).Children(func() {
+				ui.WebView(c.Key("web"), e.view).Grow(1)
+			})
+		}
+	}
 	a.paletteView(c, pal)
 	a.pickerView(c, pal)
 	a.confirmView(c, pal)
+	a.worktreeView(c, pal)
 	// A preview that showed no more fades in anew next time.
 	if !a.previewShown {
 		a.previewKey = ""
@@ -239,7 +260,9 @@ func (a *App) sidebar(c *ui.Context, pal *palette, bar ui.TitleBar) {
 		iconButton(c, "hide-sidebar", sidebarIcon, a.tip(locales.SidebarHide(), "sidebar.toggle"), pal, a.toggleSidebar)
 		iconButton(c, "new-session", plusIcon, a.tip(locales.ActionNewSession(), "session.new"), pal, func() { a.newSession("") })
 	})
-	ui.Scroll(c.Key("sessions")).Grow(1).Padding(0, 10, 16, 10).Children(func() {
+	// The space between and below the rows moves the window, as the top
+	// bar does.
+	ui.Scroll(c.Key("sessions")).Grow(1).Padding(0, 10, 16, 10).DragWindow().Children(func() {
 		n := 0  // the rows shown, for ⌘1–9 (Ctrl+1–9 elsewhere)
 		gi := 0 // the groups shown, the first of which sits higher
 		// This machine's projects first, unlabeled; then each host's,
@@ -270,6 +293,9 @@ func (a *App) sidebar(c *ui.Context, pal *palette, bar ui.TitleBar) {
 				a.groupView(c, pal, g, gi, &n)
 				gi++
 			}
+		}
+		if a.set.SessionHistory {
+			a.endedSections(c, pal)
 		}
 	})
 	a.sidebarFooter(c, pal)
@@ -320,6 +346,20 @@ func (a *App) groupView(c *ui.Context, pal *palette, g group, gi int, n *int) {
 		// A remote group's menu has its host's, as the host has no header.
 		if g.host.remote() {
 			m.Submenu(g.host.name, func(m *ui.Menu) { a.hostMenu(m, g.host) })
+		}
+		// Close All Sessions ends the sessions the project holds, not the
+		// project itself, asking first as closing the project does: what
+		// runs in them ends with them.
+		if m.Item(locales.SidebarCloseAllSessions()).Disabled(len(g.sessions) == 0).Chosen() {
+			name, count := g.project.Name, len(g.sessions)
+			a.confirm = &confirmation{
+				open:    true,
+				title:   locales.ConfirmCloseAllSessionsTitle(name),
+				detail:  locales.ConfirmCloseAllSessionsDetail(count),
+				action:  locales.SidebarCloseAllSessions(),
+				destroy: true,
+				run:     func() { a.closeAllSessions(g) },
+			}
 		}
 		if m.Item(locales.SidebarCloseProjectMenu()).Disabled(id == "").Chosen() {
 			name, count := g.project.Name, len(g.sessions)
@@ -459,9 +499,10 @@ func (a *App) sessionRow(c *ui.Context, pal *palette, s *proto.Session, n *int) 
 		ui.Spacer(c)
 		cmd := c.Modifiers() == ui.Cmd
 		if cmd && index <= 9 {
-			ui.Text(c, actions.Glyphs(fmt.Sprintf("CmdOrCtrl+%d", index))).FontSize(12).TextColor(pal.textMuted).FontFeatures("tnum").SingleLine()
+			ui.Text(c, actions.Glyphs(fmt.Sprintf("CmdOrCtrl+%d", index))).FontSize(12).TextColor(pal.textMuted).FontFeatures("tnum").SingleLine().Shrink(0)
 		} else {
-			ui.Text(c, ago(s.Since, c.Now())).FontSize(12.5).TextColor(pal.textFaint).FontFeatures("tnum").SingleLine()
+			// The name gives way to these, never they to the name.
+			ui.Text(c, ago(s.Since, c.Now())).FontSize(12.5).TextColor(pal.textFaint).FontFeatures("tnum").SingleLine().Shrink(0)
 		}
 		statusIconP(c, pal, s.Status, s.Unread, s.Progress, 15)
 	})

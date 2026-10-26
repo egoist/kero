@@ -5,8 +5,10 @@
   "actionQuitAll": "Quit and End All Sessions…",
   "actionNewSession": "New Session",
   "actionNewSessionHome": "New Session in Home",
+  "actionNewSessionWorktree": "New Session in Worktree…",
   "actionOpenProject": "Open Project…",
   "actionGoToSession": "Go to Session…",
+  "actionResumeConversation": "Resume Conversation…",
   "actionJumpToAttention": "Jump to Session Needing You",
   "actionNextSession": "Next Session",
   "actionPreviousSession": "Previous Session",
@@ -67,6 +69,11 @@
   "toastCopied": "Copied",
   "toastCopiedToClipboard": "Copied to clipboard",
   "toastSaveSettingsFailed": "Couldn’t save the settings: {error}",
+  "toastPasteImageFailed": "Couldn’t paste the image: {error}. Try again, or drop the image file on the pane.",
+  "toastPasteImageDenied": "Couldn’t paste the image: Kero can’t write to {dir}. Make it writable, or drop the image file on the pane.",
+  "toastPasteImageDiskFull": "Couldn’t paste the image: the disk is full. Free some space and try again.",
+  "toastPasteClipboardUnreadable": "Couldn’t read the clipboard. Copy it again and paste.",
+  "toastPasteImageUnsupported": "Couldn’t paste the image: {format} isn’t supported. Copy it as PNG or JPEG, or drop the image file on the pane.",
   "toastConfigProblems": "{count, plural, one {Your config has # problem: see Settings › Advanced} other {Your config has # problems: see Settings › Advanced}}",
   "@toastConfigProblems": {
     "placeholders": {
@@ -88,9 +95,18 @@
   "openProjectTitle": "Open Project",
   "openProjectMessage": "Choose a folder: its sessions are grouped under its name.",
   "confirmCloseTitle": "Close “{name}”?",
+  "confirmCloseAllSessionsTitle": "Close all sessions of “{name}”?",
   "confirmCloseSessionDetail": "{process} is still running in it. Closing the session ends it.",
   "confirmCloseProjectDetail": "{count, plural, one {This ends its # session, with what runs in it.} other {This ends its # sessions, with what runs in them.}}",
   "@confirmCloseProjectDetail": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "confirmCloseAllSessionsDetail": "{count, plural, one {The project stays; its # session ends, with what runs in it.} other {The project stays; its # sessions end, with what runs in them.}}",
+  "@confirmCloseAllSessionsDetail": {
     "placeholders": {
       "count": {
         "type": "int"
@@ -142,6 +158,7 @@
   "sidebarExpand": "Expand",
   "sidebarCloseProjectMenu": "Close Project…",
   "sidebarCloseProject": "Close Project",
+  "sidebarCloseAllSessions": "Close All Sessions",
   "sidebarNeedsYou": "{count} needs you",
   "@sidebarNeedsYou": {
     "placeholders": {
@@ -207,6 +224,11 @@
   "palettePlaceholder": "Go to session or run a command…",
   "paletteNoMatches": "No matches",
   "paletteCommands": "Commands",
+  "paletteConversations": "Recent Conversations",
+  "paletteConversationsLabel": "Resume Conversation",
+  "paletteConversationsPlaceholder": "Find a conversation to resume…",
+  "paletteNoConversations": "No conversations yet. Coding agents’ conversations show here once Kero’s skill is set up for them.",
+  "paletteConversationRunning": "running",
   "agoNow": "now",
   "agoMinutes": "{n}m",
   "@agoMinutes": {
@@ -338,6 +360,12 @@
   "setStartup": "Startup",
   "setOpenAtLogin": "Open Kero at login",
   "setLoginFailed": "Couldn’t change it: {error}",
+  "setAppIcon": "Show app icon",
+  "setAppIconBoth": "Dock and menu bar",
+  "setAppIconDock": "Dock only",
+  "setAppIconMenuBar": "Menu bar only",
+  "setAppIconDetail": "Closing the window keeps Kero running in the menu bar.",
+  "trayOpen": "Open {app}",
   "setVersionNoUpdate": " · this copy can’t update itself",
   "setVersionNotChecked": " · not checked yet",
   "setVersionLastChecked": " · last checked {duration} ago",
@@ -1014,5 +1042,55 @@
   "browserForward": "Forward",
   "browserReload": "Reload",
   "browserStop": "Stop",
-  "browserAddress": "Address or search"
+  "browserAddress": "Address or search",
+  "worktreeTitle": "New Session in Worktree",
+  "worktreeDetailDefault": "Kero checks out a new branch from the default branch in a folder of its own, so the session’s agent works apart from the others.",
+  "worktreeDetailCurrent": "Kero checks out a new branch from the current branch in a folder of its own, so the session’s agent works apart from the others.",
+  "worktreeBranch": "Branch name",
+  "worktreeCreate": "Create",
+  "worktreeRemoveTitle": "Remove the worktree of “{name}” too?",
+  "worktreeRemoveMerged": "Its folder {path} goes, and its branch {branch}, which is merged.",
+  "worktreeRemoveUnmerged": "Its folder {path} goes. Its branch {branch} stays, with its commits.",
+  "worktreeRemoveDirty": "{count, plural, one {# changed file} other {# changed files}} in {path} will be lost. Its branch {branch} stays, with its commits.",
+  "@worktreeRemoveDirty": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "worktreeRemove": "Remove Worktree",
+  "worktreeKeep": "Keep Worktree",
+  "worktreeRemoveAnyway": "Remove Anyway",
+  "setSessionHistory": "Session history",
+  "setSessionHistoryDetail": "List the coding agents' ended conversations in the sidebar, to resume them later or archive them.",
+  "endedTitle": "Ended",
+  "endedArchived": "Archived",
+  "endedArchive": "Archive",
+  "endedShowAll": "Show all {n}",
+  "@endedShowAll": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "endedResume": "Resume",
+  "endedRestore": "Restore",
+  "endedDelete": "Delete",
+  "endedArchiveAll": "Archive All",
+  "endedDeleteAll": "Delete All…",
+  "endedDeleteAllTitle": "Delete {n} archived conversations?",
+  "@endedDeleteAllTitle": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "endedDeleteAllDetail": "Kero forgets them; each agent keeps its own history of the conversation.",
+  "endedSetUpSkill": "Set up Kero's skill for your agents to list their ended conversations here",
+  "actionQuickTerminal": "Quick Terminal",
+  "toastGlobalShortcutFailed": "Couldn’t use {keys} for the quick terminal: {error}",
+  "setShortcutGlobal": "Works in every app"
 }

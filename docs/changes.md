@@ -34,6 +34,31 @@ In **Last Turn**, hover a change for two buttons:
 
 Revert works only while no agent in the session is working, so it never races an agent's edits, and only on a file that's still as the diff shows it. A file that changed meanwhile shows anew instead.
 
+<a id="sessions-in-their-own-worktree"></a>
+
+## Sessions in their own worktree
+
+Agents working side by side in one checkout trip over each other's changes. **Session › New Session in Worktree…** (<kbd>⌘</kbd> <kbd>⌥</kbd> <kbd>T</kbd>) asks for a branch name, then starts a session in a git worktree of its own: a folder checking out that new branch, from the repository's default branch.
+
+- The worktree goes in `.kero/worktrees/<branch>` inside the repository, which Kero ignores through `.git/info/exclude`, not your `.gitignore`. Set `worktree-dir` to put worktrees elsewhere.
+- Set `worktree-base = current` to branch from the session you're in instead of the default branch.
+- The session joins the repository's project, and the sidebar shows its branch.
+
+Closing the session asks whether its worktree goes too:
+
+- **Nothing uncommitted:** Remove Worktree is the default. The branch goes with it once it's merged; otherwise it stays, with its commits.
+- **Uncommitted changes:** Kero says how many files would be lost, and Keep Worktree is the default.
+- **Another session works in the worktree:** it stays, and Kero doesn't ask.
+
+From the command line:
+
+```sh
+kero new --worktree fix-login -- claude   # a session on a new branch, in its own worktree
+kero new --worktree fix-login --base dev  # branch from dev
+kero close fix-login --remove-worktree    # close it and remove the worktree
+kero close fix-login --remove-worktree --force   # even with uncommitted changes
+```
+
 ## From the command line
 
 `kero diff` prints a pane's changes as `git diff` does, untracked files included:

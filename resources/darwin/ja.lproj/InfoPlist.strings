@@ -1,0 +1,3 @@
+"NSMicrophoneUsageDescription" = "Kero で実行中のプログラムがマイクを使おうとしています。";
+"NSCameraUsageDescription" = "Kero で実行中のプログラムがカメラを使おうとしています。";
+"NSAppleEventsUsageDescription" = "Kero で実行中のプログラムが他のアプリを操作しようとしています。";

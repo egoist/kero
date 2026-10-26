@@ -23,7 +23,8 @@ import (
 )
 
 // DefaultPort is the port kerod's tailnet listener takes when it names
-// none, and an http:// address without one.
+// none, as a development build's does not (ListenPort), and an http://
+// address without one.
 const DefaultPort = "7373"
 
 // Addr is how to reach a host.

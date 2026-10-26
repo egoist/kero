@@ -47,13 +47,15 @@ kero config check             # 报告未知的配置项和无效的值
 | `confirm-close`         | `true`    | 关闭仍有程序在运行的窗格前先确认                              |
 | `restore-sessions`      | `true`    | kerod 重启后（例如开机后）重新启动之前的会话                   |
 | `resume-agents`         | `true`    | 会话重新启动时，恢复每个窗格中智能体的对话                    |
+| `session-history`       | `false`   | 在侧边栏中列出智能体已结束的对话，可恢复或归档（[详情](./sessions.md#ended-sessions)） |
+| `macos-show-app-icon`   | `dock-and-menubar` | 在 macOS 上显示 Kero 图标的位置：`dock-and-menubar`、`dock` 或 `menubar`。图标显示在菜单栏时，关闭窗口后 Kero 会继续在那里运行。Windows 和 Linux 上始终显示在通知区域，关闭窗口后同样会继续运行 |
 
 ## 外观
 
 | 配置项               | 默认值   | 说明                                                            |
 | -------------------- | -------- | --------------------------------------------------------------- |
 | `window-theme`       | `system` | 应用外观：`system`、`light` 或 `dark`                            |
-| `language`           | `system` | 应用语言：`system`、`en` 或 `zh-Hans`                            |
+| `language`           | `system` | 应用语言：`system`、`en`、`ja` 或 `zh-Hans`                      |
 | `background`         | `petal`  | 窗口底色：`petal`、`mist`、`meadow`、`dusk` 或 `plain`           |
 | `window-translucent` | `true`   | 让桌面透过窗口显示出来                                          |
 
@@ -62,7 +64,7 @@ kero config check             # 报告未知的配置项和无效的值
 | 配置项                | 默认值  | 说明                                                                     |
 | --------------------- | ------- | ------------------------------------------------------------------------ |
 | `theme`               | `kero`  | 终端配色：`kero`、任意 Ghostty 主题，或 `light:<theme>,dark:<theme>`      |
-| `font-family`         |         | 留空则使用 Kero 自带的 JetBrains Mono Nerd Font；设为 `monospace` 则使用系统等宽字体 |
+| `font-family`         |         | 留空则使用 Kero 自带的 JetBrains Mono Nerd Font；设为 `monospace` 则使用系统等宽字体；也可以填任何已安装的字体族 |
 | `font-size`           | `13`    | 单位为磅                                                                 |
 | `font-weight`         | `400`   | `100` 到 `900`                                                           |
 | `line-height`         | `1.22`  | 字体默认行高的倍数                                                       |
@@ -119,6 +121,8 @@ kero config check             # 报告未知的配置项和无效的值
 | ------------- | ------- | ------------------------------------------------------------------------------------------------- |
 | `git-status`  | `true`  | 显示每个会话的分支和[改动](./changes.md)                                                          |
 | `diff-layout` | `auto`  | 改动面板中的 diff 布局：`unified`、`split`（左右对照）或 `auto`（面板够宽时左右对照）             |
+| `worktree-base` | `default` | [会话专属工作树](./changes.md#sessions-in-their-own-worktree)的起点：`default` 为仓库的默认分支，`current` 为你所在会话的分支 |
+| `worktree-dir` |        | 会话专属工作树的存放位置，各自放在仓库名之下；留空则放在仓库内的 `.kero/worktrees` |
 
 <a id="browser"></a>
 

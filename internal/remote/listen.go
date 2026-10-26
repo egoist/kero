@@ -5,12 +5,14 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+
+	"github.com/egoist/mygo"
 )
 
 // Listen is one of kerod's network listeners, as the configuration's
 // listen key and `kero daemon serve --listen` name it:
 //
-//   - tailnet://:7373, or tailnet:// for DefaultPort: plain HTTP on this
+//   - tailnet://:7373, or tailnet:// for ListenPort: plain HTTP on this
 //     machine's Tailscale addresses, which WireGuard encrypts; tailscaled
 //     tells who connects.
 //   - tailnet-serve:///path/to/serve.sock, or tailnet-serve:// for
@@ -36,7 +38,7 @@ func ParseListen(s string) (Listen, error) {
 		}
 		l := Listen{Kind: "tailnet", Port: u.Port()}
 		if l.Port == "" {
-			l.Port = DefaultPort
+			l.Port = ListenPort()
 		}
 		if n, err := strconv.Atoi(l.Port); err != nil || n < 1 || n > 65535 {
 			return Listen{}, fmt.Errorf("%q: a port is 1 to 65535", s)
@@ -49,6 +51,16 @@ func ParseListen(s string) (Listen, error) {
 		return Listen{Kind: "tailnet-serve", Path: u.Path}, nil
 	}
 	return Listen{}, fmt.Errorf("%q: kerod listens on tailnet://:port or tailnet-serve:///socket", s)
+}
+
+// ListenPort is the port a tailnet listener takes when it names none:
+// DefaultPort, or the next for a development build, whose kerod then
+// listens beside the installed Kero's on the same machine.
+func ListenPort() string {
+	if mygo.IsDev() {
+		return "7374"
+	}
+	return DefaultPort
 }
 
 func (l Listen) String() string {

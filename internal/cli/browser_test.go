@@ -3,6 +3,7 @@ package cli
 import (
 	"errors"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"kero/internal/proto"
@@ -67,5 +68,38 @@ func TestBrowserTarget(t *testing.T) {
 	t.Setenv("KERO_PANE", "t4")
 	if err := browserCmd(nil, st, []string{"text"}); !errors.Is(err, errNotFound) {
 		t.Errorf("a session with no browser: %v", err)
+	}
+}
+
+// Cookies come from a storage state, a list of its cookies, or a
+// cookies.txt, and go back to one as they came.
+func TestCookieFiles(t *testing.T) {
+	txt := "# Netscape HTTP Cookie File\n" +
+		"#HttpOnly_localhost\tFALSE\t/\tFALSE\t0\tsess\tabc\n" +
+		"example.com\tTRUE\t/app\tTRUE\t2000000000\tpref\tdark=1\n" +
+		"\n# a comment\n" +
+		"empty.dev\tFALSE\t/\tFALSE\t0\tblank\n"
+	want := []proto.Cookie{
+		{Name: "sess", Value: "abc", Domain: "localhost", Path: "/", Expires: -1, HTTPOnly: true, SameSite: "Lax"},
+		{Name: "pref", Value: "dark=1", Domain: ".example.com", Path: "/app", Expires: 2000000000, Secure: true, SameSite: "Lax"},
+		{Name: "blank", Domain: "empty.dev", Path: "/", Expires: -1, SameSite: "Lax"},
+	}
+	got, err := parseCookies([]byte(txt))
+	if err != nil || !slices.Equal(got, want) {
+		t.Fatalf("cookies.txt: %+v, %v", got, err)
+	}
+	if back, err := parseCookies(netscapeCookies(want)); err != nil || !slices.Equal(back, want) {
+		t.Errorf("cookies.txt again: %+v, %v", back, err)
+	}
+	state := `{"cookies":[{"name":"a","value":"1","domain":".x.dev","path":"/","expires":-1,"httpOnly":true,"secure":true,"sameSite":"None"}],"origins":[]}`
+	got, err = parseCookies([]byte(state))
+	if err != nil || len(got) != 1 || got[0].Domain != ".x.dev" || got[0].SameSite != "None" || !got[0].HTTPOnly {
+		t.Errorf("storage state: %+v, %v", got, err)
+	}
+	if got, err = parseCookies([]byte(`[{"name":"a","value":"1","domain":"x.dev"}]`)); err != nil || len(got) != 1 {
+		t.Errorf("a list: %+v, %v", got, err)
+	}
+	if _, err := parseCookies([]byte("not\ta cookie\n")); err == nil {
+		t.Error("a line of no cookie read")
 	}
 }

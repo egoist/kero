@@ -1,7 +1,7 @@
 {
   "name": "Kero",
   "identifier": "sh.kero",
-  "version": "2.1.9",
+  "version": "2.1.21",
   "out": "build",
   "i18n": {
     "dir": "locales",
@@ -15,6 +15,12 @@
     "signingIdentity": "Developer ID Application: xinyu zeng (GJE9R5VE87)",
     "notarize": {
       "keychainProfile": "NOTARY"
+    },
+    "entitlements": "entitlements.plist",
+    "infoPlist": {
+      "NSMicrophoneUsageDescription": "A program running in Kero would like to use the microphone.",
+      "NSCameraUsageDescription": "A program running in Kero would like to use the camera.",
+      "NSAppleEventsUsageDescription": "A program running in Kero would like to control another app."
     }
   }
 }

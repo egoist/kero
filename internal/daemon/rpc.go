@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -32,12 +33,19 @@ func (d *Daemon) call(c *controlConn, method string, raw json.RawMessage) (any, 
 	case "state":
 		return d.state(), nil
 
-	case "subscribe":
+	case "subscribe", "watch":
+		// A watcher, as kero events, hears what an app does but is no app
+		// (Daemon.watchers). The first state goes out under the lock the
+		// later ones do, so none of them comes before it.
 		d.mu.Lock()
-		d.subs[c] = struct{}{}
-		d.mu.Unlock()
-		st := d.state()
+		if method == "watch" {
+			d.watchers[c] = struct{}{}
+		} else {
+			d.subs[c] = struct{}{}
+		}
+		st := d.stateLocked()
 		c.event(proto.Message{Event: "state", State: &st})
+		d.mu.Unlock()
 		return true, nil
 
 	case "create", "split":
@@ -51,11 +59,18 @@ func (d *Daemon) call(c *controlConn, method string, raw json.RawMessage) (any, 
 		return d.create(p)
 
 	case "close":
+		var p proto.CloseParams
+		if err := decode(&p); err != nil {
+			return nil, err
+		}
+		return true, d.closeSession(p)
+
+	case "worktree.check":
 		var p proto.IDParams
 		if err := decode(&p); err != nil {
 			return nil, err
 		}
-		return true, d.removeSession(p.ID)
+		return d.checkWorktree(p.ID)
 
 	case "pane.close":
 		var p proto.IDParams
@@ -354,14 +369,69 @@ func (d *Daemon) call(c *controlConn, method string, raw json.RawMessage) (any, 
 		d.mu.Lock()
 		sid := pn.sid
 		d.mu.Unlock()
+		d.noteConversations()
 		return proto.AgentSessionResult{Pane: id, Session: sid, Away: away}, nil
+
+	case "conversations":
+		return d.conversations(), nil
+
+	case "conversation.resume":
+		var p proto.ConversationParams
+		if err := decode(&p); err != nil {
+			return nil, err
+		}
+		return d.resumeConversation(p)
+
+	case "conversation.forget":
+		var p proto.ConversationParams
+		if err := decode(&p); err != nil {
+			return nil, err
+		}
+		if !d.convs.forget(p.Agent, p.ID) {
+			return nil, fmt.Errorf("no conversation %s of %s", p.ID, p.Agent)
+		}
+		d.changed()
+		return true, nil
+
+	case "conversation.archive":
+		var p proto.ConversationParams
+		if err := decode(&p); err != nil {
+			return nil, err
+		}
+		if !d.convs.archive(p.Agent, p.ID, p.Archived) {
+			return nil, fmt.Errorf("no conversation %s of %s", p.ID, p.Agent)
+		}
+		d.changed()
+		return true, nil
 
 	case "project.create":
 		var p proto.ProjectParams
 		if err := decode(&p); err != nil {
 			return nil, err
 		}
-		dir := expandHome(p.Dir)
+		dir, err := d.cleanDir(p.Dir)
+		if err != nil {
+			return nil, err
+		}
+		var info os.FileInfo
+		if dir != "" {
+			// Opening "." checks read and search access without changing the working directory.
+			f, err := os.OpenInRoot(dir, ".")
+			if err != nil {
+				return nil, err
+			}
+			info, err = f.Stat()
+			closeErr := f.Close()
+			if err != nil {
+				return nil, err
+			}
+			if closeErr != nil {
+				return nil, closeErr
+			}
+			if err := checkProjectDir(dir); err != nil {
+				return nil, err
+			}
+		}
 		name := strings.TrimSpace(p.Name)
 		if name == "" && dir != "" {
 			name = filepath.Base(dir)
@@ -369,18 +439,40 @@ func (d *Daemon) call(c *controlConn, method string, raw json.RawMessage) (any, 
 		if name == "" {
 			return nil, errors.New("a project needs a name or a directory")
 		}
-		d.mu.Lock()
-		for _, pr := range d.projects {
-			if dir != "" && pr.Dir == dir {
-				d.mu.Unlock()
-				return pr, nil
+		for {
+			d.mu.Lock()
+			projects := slices.Clone(d.projects)
+			d.mu.Unlock()
+			var existing proto.Project
+			for _, pr := range projects {
+				if dir == "" || pr.Dir == "" {
+					continue
+				}
+				if pr.Dir == dir {
+					existing = pr
+					break
+				}
+				if old, err := os.Stat(pr.Dir); err == nil && os.SameFile(info, old) {
+					existing = pr
+					break
+				}
 			}
+			d.mu.Lock()
+			// Filesystem probes can block on a share; retry if projects changed meanwhile.
+			if !slices.Equal(projects, d.projects) {
+				d.mu.Unlock()
+				continue
+			}
+			if existing.ID != "" {
+				d.mu.Unlock()
+				return existing, nil
+			}
+			pr := proto.Project{ID: newID(), Name: name, Dir: dir}
+			d.projects = append(d.projects, pr)
+			d.mu.Unlock()
+			d.changed()
+			return pr, nil
 		}
-		pr := proto.Project{ID: newID(), Name: name, Dir: dir}
-		d.projects = append(d.projects, pr)
-		d.mu.Unlock()
-		d.changed()
-		return pr, nil
 
 	case "project.rename":
 		var p proto.ProjectParams

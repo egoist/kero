@@ -112,6 +112,29 @@ func TestConsoleClearScreen(t *testing.T) {
 	}
 }
 
+// Ctrl+C ends what runs in a console though the daemon ignores it, as it
+// does in the process group of its own it is started in.
+func TestConsoleCtrlC(t *testing.T) {
+	procSetConsoleCtrlHandler.Call(0, 1)
+	t.Cleanup(func() { procSetConsoleCtrlHandler.Call(0, 0) })
+	ping, err := exec.LookPath("ping")
+	if err != nil {
+		t.Skip("no ping")
+	}
+	for name, cp := range conPTYs(t) {
+		t.Run(name, func(t *testing.T) {
+			c := startConsole(t, cp, ping, "ping", "-n", "60", "127.0.0.1")
+			c.waitFor(0, regexp.MustCompile(`127\.0\.0\.1`), "ping")
+			c.proc.Write([]byte("\x03"))
+			select {
+			case <-c.proc.exited:
+			case <-time.After(10 * time.Second):
+				t.Fatal("ping still runs after Ctrl+C")
+			}
+		})
+	}
+}
+
 // A console that inherits the cursor asks the terminal where it is and
 // draws from there: a restored pane's shell, under its history, has
 // PowerShell's redraws (an inline prediction) on its prompt's row, not on

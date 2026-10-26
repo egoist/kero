@@ -68,7 +68,7 @@ Over SSH, Kero runs `kero __bridge` on the host, which starts kerod there if it 
 
 Kero never prompts for anything over SSH, as there's no one to answer in the app:
 
-- **Keys with a passphrase** need your SSH agent.
+- **Keys with a passphrase** need your SSH agent. Kero uses the agent your shell sets in `SSH_AUTH_SOCK`, as 1Password's, as `ssh` in a terminal does.
 - **A host you haven't connected to before** needs its key trusted first. Run `ssh me@devbox` once in a terminal.
 - **Password logins** aren't supported. Use a key.
 

@@ -225,7 +225,7 @@ func TestValidName(t *testing.T) {
 
 func TestParseListen(t *testing.T) {
 	for in, want := range map[string]Listen{
-		"tailnet://":                     {Kind: "tailnet", Port: DefaultPort},
+		"tailnet://":                     {Kind: "tailnet", Port: ListenPort()},
 		"tailnet://:7400":                {Kind: "tailnet", Port: "7400"},
 		"tailnet-serve://":               {Kind: "tailnet-serve"},
 		"tailnet-serve:///run/kero.sock": {Kind: "tailnet-serve", Path: "/run/kero.sock"},
@@ -234,6 +234,11 @@ func TestParseListen(t *testing.T) {
 		if err != nil || got != want {
 			t.Errorf("%q: %+v, %v", in, got, err)
 		}
+	}
+	// A test is a development build, whose kerod listens beside the
+	// installed Kero's.
+	if ListenPort() == DefaultPort {
+		t.Errorf("a development build listens on %s, as the installed Kero", DefaultPort)
 	}
 	for _, bad := range []string{"tcp://:80", "tailnet://0.0.0.0:7373", "tailnet-serve://host/x", ":7373", "tailnet://:0", "tailnet://:99999"} {
 		if l, err := ParseListen(bad); err == nil {

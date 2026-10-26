@@ -1,8 +1,8 @@
-import { For, Show, createSignal, onMount } from 'solid-js';
+import { For, Show, createSignal, onCleanup, onMount } from 'solid-js';
 import { Dynamic } from 'solid-js/web';
 import { createServerFn } from '@tanstack/solid-start';
 import { Link } from './Link';
-import { AppleIcon, ArrowUpRightIcon, DownloadIcon, LinuxIcon, WindowsIcon } from './Icons';
+import { AppleIcon, ArrowUpRightIcon, CheckIcon, CopyIcon, DownloadIcon, LinuxIcon, WindowsIcon } from './Icons';
 import { GITHUB_URL } from './SiteHeader';
 import { localize, pageHead, type Locale } from '../lib/i18n';
 
@@ -31,7 +31,7 @@ const copy = {
     notes: (v: string) => `${v} release notes`,
     yours: 'Your system',
     platformNotes: {
-      mac: 'Open the disk image and drag Kero into your Applications folder.',
+      mac: 'Install with Homebrew, or open the disk image and drag Kero into your Applications folder.',
       windows: 'Run the installer, which needs no administrator rights. Kero needs Windows 10 1809 or later.',
       linux: 'Install the package, or run the script to install Kero in ~/.local without root.',
     },
@@ -44,6 +44,32 @@ const copy = {
     ),
     quickStart: 'Quick Start',
     allReleases: 'All Releases',
+    copyCommand: 'Copy command',
+    copiedCommand: 'Copied',
+  },
+  ja: {
+    title: 'ダウンロード | Kero',
+    description: 'コーディングエージェントのためのターミナル Kero を、macOS、Windows、Linux 向けにダウンロード。',
+    heading: 'Kero をダウンロード',
+    lead: 'macOS、Windows、Linux に対応。',
+    notes: (v: string) => `${v} リリースノート`,
+    yours: 'お使いのシステム',
+    platformNotes: {
+      mac: 'Homebrew でインストールするか、ディスクイメージを開いて Kero を“アプリケーション”フォルダにドラッグしてください。',
+      windows: 'インストーラを実行してください。管理者権限は不要です。Kero には Windows 10 1809 以降が必要です。',
+      linux: 'パッケージをインストールするか、スクリプトを実行して root なしで ~/.local に Kero をインストールしてください。',
+    },
+    cliTitle: '次は CLI を使ってみよう',
+    cli: () => (
+      <>
+        <strong>Kero › コマンドラインツールをインストール…</strong> を選ぶと <code>kero</code> が PATH
+        に追加され、エージェントから操作できるようになります。
+      </>
+    ),
+    quickStart: 'クイックスタート',
+    allReleases: 'すべてのリリース',
+    copyCommand: 'コマンドをコピー',
+    copiedCommand: 'コピーしました',
   },
   zh: {
     title: '下载 | Kero',
@@ -53,7 +79,7 @@ const copy = {
     notes: (v: string) => `${v} 更新说明`,
     yours: '你的系统',
     platformNotes: {
-      mac: '打开磁盘映像，把 Kero 拖进“应用程序”文件夹。',
+      mac: '用 Homebrew 安装，或打开磁盘映像，把 Kero 拖进“应用程序”文件夹。',
       windows: '运行安装程序，无需管理员权限。Kero 需要 Windows 10 1809 或更高版本。',
       linux: '安装软件包，或运行脚本把 Kero 装到 ~/.local，无需 root。',
     },
@@ -65,6 +91,8 @@ const copy = {
     ),
     quickStart: '快速上手',
     allReleases: '所有版本',
+    copyCommand: '复制命令',
+    copiedCommand: '已复制',
   },
 };
 
@@ -72,7 +100,10 @@ export function downloadHead(locale: Locale) {
   return pageHead(locale, '/download', copy[locale].title, copy[locale].description);
 }
 
-const INSTALL_SCRIPT = `curl -fsSL ${GITHUB_URL}/releases/latest/download/install.sh | sh`;
+const INSTALL_SCRIPTS: Partial<Record<OS, string>> = {
+  mac: 'brew install --cask kero',
+  linux: `curl -fsSL ${GITHUB_URL}/releases/latest/download/install.sh | sh`,
+};
 
 type OS = 'mac' | 'windows' | 'linux';
 type Arch = 'arm' | 'x86';
@@ -132,6 +163,45 @@ async function detectArch(): Promise<Arch | undefined> {
   if (arch === 'x86') return 'x86';
 }
 
+// The command without the `$` prompt, and a copy control visitors look for
+// beside it. Each card keeps its own copied state.
+function InstallScript(props: { script: string; copyLabel: string; copiedLabel: string }) {
+  const [copied, setCopied] = createSignal(false);
+  let reset: number | undefined;
+  onCleanup(() => clearTimeout(reset));
+
+  const copy = () => {
+    navigator.clipboard?.writeText(props.script).then(
+      () => {
+        setCopied(true);
+        clearTimeout(reset);
+        reset = window.setTimeout(() => setCopied(false), 2000);
+      },
+      () => {},
+    );
+  };
+
+  return (
+    <div class="platform__script">
+      <pre>
+        <span class="t-accent">$</span> {props.script}
+      </pre>
+      <button
+        type="button"
+        class="platform__copy"
+        classList={{ 'is-copied': copied() }}
+        title={copied() ? props.copiedLabel : props.copyLabel}
+        aria-label={copied() ? props.copiedLabel : props.copyLabel}
+        onClick={copy}
+      >
+        <Show when={copied()} fallback={<CopyIcon size={14} />}>
+          <CheckIcon size={14} />
+        </Show>
+      </button>
+    </div>
+  );
+}
+
 export default function DownloadPage(props: { locale: Locale; version: string }) {
   const c = () => copy[props.locale];
   const [os, setOS] = createSignal<OS>();
@@ -184,10 +254,10 @@ export default function DownloadPage(props: { locale: Locale; version: string })
                   )}
                 </For>
               </div>
-              <Show when={p.os === 'linux'}>
-                <pre class="platform__script">
-                  <span class="t-accent">$</span> {INSTALL_SCRIPT}
-                </pre>
+              <Show when={INSTALL_SCRIPTS[p.os]}>
+                {(script) => (
+                  <InstallScript script={script()} copyLabel={c().copyCommand} copiedLabel={c().copiedCommand} />
+                )}
               </Show>
             </article>
           )}

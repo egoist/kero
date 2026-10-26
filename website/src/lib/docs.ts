@@ -3,7 +3,7 @@ import sidebarJson from '../../../docs/sidebar.json';
 import { localize, locales, t, type Locale } from './i18n';
 
 // The docs live in ../docs, a workspace package of their own, in English,
-// with the Chinese in ../docs/zh. plugins/markdown compiles each file into
+// with the Japanese in ../docs/ja and the Chinese in ../docs/zh. plugins/markdown compiles each file into
 // its HTML, frontmatter and headings.
 type DocModule = {
   html: string;
@@ -23,11 +23,9 @@ export type Doc = {
 };
 
 // The docs of each locale by slug. A page not yet translated shows in English.
-export const docs: Record<Locale, Map<string, Doc>> = { en: new Map(), zh: new Map() };
+export const docs: Record<Locale, Map<string, Doc>> = { en: new Map(), ja: new Map(), zh: new Map() };
 for (const [file, mod] of Object.entries(modules)) {
-  const path = file.replace(/^.*\/docs\//, '').replace(/\.md$/, '');
-  const locale: Locale = path.startsWith('zh/') ? 'zh' : 'en';
-  const name = locale === 'en' ? path : path.slice(3);
+  const { locale, name } = docPath(file);
   const slug = name === 'index' ? '' : name.replace(/\/index$/, '');
   docs[locale].set(slug, {
     slug,
@@ -38,8 +36,17 @@ for (const [file, mod] of Object.entries(modules)) {
     html: mod.html,
   });
 }
-for (const [slug, doc] of docs.en) {
-  if (!docs.zh.has(slug)) docs.zh.set(slug, { ...doc, href: localize(doc.href, 'zh') });
+for (const locale of locales.filter((l) => l !== 'en')) {
+  for (const [slug, doc] of docs.en) {
+    if (!docs[locale].has(slug)) docs[locale].set(slug, { ...doc, href: localize(doc.href, locale) });
+  }
+}
+
+// A file of ../docs to its locale and its name there: ja/cli.md is cli in ja.
+export function docPath(file: string): { locale: Locale; name: string } {
+  const path = file.replace(/^.*\/docs\//, '').replace(/\.md$/, '');
+  const locale = locales.find((l) => l !== 'en' && path.startsWith(`${l}/`)) ?? 'en';
+  return { locale, name: locale === 'en' ? path : path.slice(locale.length + 1) };
 }
 
 export type SidebarSection = { title: string; items: Doc[] };

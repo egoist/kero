@@ -303,7 +303,11 @@ func startBridge(cmd *exec.Cmd, ssh bool) (*cmdConn, error) {
 	hideWindow(cmd)
 	// Never a prompt, as there is no one to answer; wsl.exe's errors in
 	// UTF-8, which it writes in UTF-16 otherwise.
-	cmd.Env = append(os.Environ(), "SSH_ASKPASS_REQUIRE=never", "WSL_UTF8=1")
+	env := os.Environ()
+	if ssh {
+		env = sshEnv()
+	}
+	cmd.Env = append(env, "SSH_ASKPASS_REQUIRE=never", "WSL_UTF8=1")
 	// A program that keeps the pipes open after its own end, as a
 	// ProxyCommand's child, holds up nothing.
 	cmd.WaitDelay = 2 * time.Second

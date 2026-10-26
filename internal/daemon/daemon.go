@@ -49,6 +49,10 @@ type Daemon struct {
 	sessions []*session
 	panes    map[string]*pane
 	subs     map[*controlConn]struct{}
+	// watchers are the connections that follow the state and notices,
+	// as kero events does, but are no app: no action, select or browser
+	// call goes to them, nor do they count as an app being open.
+	watchers map[*controlConn]struct{}
 	clients  map[*proto.ClientInfo]struct{} // the connections, for kero clients
 	conns    int
 	idleAt   time.Time
@@ -66,6 +70,7 @@ type Daemon struct {
 	// panes answer programs' questions about the colors with.
 	theme    atomic.Pointer[terminal.Theme]
 	git      *gitFollow
+	convs    convStore
 	net      *listeners
 	changeCh chan struct{}
 	saveCh   chan struct{}
@@ -142,6 +147,7 @@ func Run(opts Options) error {
 	d := &Daemon{
 		dir: dir, exe: exe, opts: opts, started: time.Now(), log: lg,
 		subs:     map[*controlConn]struct{}{},
+		watchers: map[*controlConn]struct{}{},
 		clients:  map[*proto.ClientInfo]struct{}{},
 		panes:    map[string]*pane{},
 		changeCh: make(chan struct{}, 1),
@@ -157,6 +163,7 @@ func Run(opts Options) error {
 	// The listeners first: Tailscale Serve's socket takes a umask of its
 	// own, which no program kerod starts may get.
 	d.net = d.listen()
+	d.loadConversations()
 	d.restore()
 
 	signal.Ignore(syscall.SIGHUP, syscall.SIGPIPE)
@@ -168,6 +175,7 @@ func Run(opts Options) error {
 		lg.Printf("%v: saving and exiting", s)
 		d.saveHistories(true)
 		d.saveState()
+		d.saveConversations()
 		d.stop()
 	}()
 
@@ -276,8 +284,16 @@ func (d *Daemon) save() {
 func (d *Daemon) notice(n proto.Notice) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	d.broadcastLocked(proto.Message{Event: "notice", Notice: &n})
+}
+
+// broadcastLocked sends m to the apps and the watchers; d.mu is held.
+func (d *Daemon) broadcastLocked(m proto.Message) {
 	for c := range d.subs {
-		c.event(proto.Message{Event: "notice", Notice: &n})
+		c.event(m)
+	}
+	for c := range d.watchers {
+		c.watchEvent(m)
 	}
 }
 
@@ -289,11 +305,12 @@ func (d *Daemon) broadcastLoop() {
 		case <-d.changeCh:
 		default:
 		}
-		st := d.state()
+		// The state is taken under the lock it goes out under, so that
+		// the states a connection gets are in order: a watcher tells
+		// changes from the difference of two.
 		d.mu.Lock()
-		for c := range d.subs {
-			c.event(proto.Message{Event: "state", State: &st})
-		}
+		st := d.stateLocked()
+		d.broadcastLocked(proto.Message{Event: "state", State: &st})
 		d.mu.Unlock()
 	}
 }
@@ -599,6 +616,19 @@ func (c *controlConn) event(m proto.Message) {
 	}
 }
 
+// watchEvent queues an event for a watcher, which tells changes from
+// each state and notice in turn: one far behind is cut off, as a stalled
+// write cuts it off, rather than left to miss some without knowing.
+func (c *controlConn) watchEvent(m proto.Message) {
+	select {
+	case c.out <- m:
+	default:
+		if c.conn != nil {
+			c.conn.Close()
+		}
+	}
+}
+
 // identity is who a connection comes from, as kero clients shows it.
 type identity struct {
 	peer string // "uid 501", "alice@example.com"
@@ -756,6 +786,7 @@ func (d *Daemon) serveControl(conn net.Conn, r *bufio.Reader) {
 	defer func() {
 		d.mu.Lock()
 		delete(d.subs, c)
+		delete(d.watchers, c)
 		d.mu.Unlock()
 	}()
 	go func() {

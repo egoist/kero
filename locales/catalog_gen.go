@@ -8,14 +8,16 @@ import (
 	"github.com/egoist/mygo/i18n"
 
 	// MyGo's own strings in the app's languages.
+	_ "github.com/egoist/mygo/locales/ja"
 	_ "github.com/egoist/mygo/locales/zh-Hans"
 )
 
 //go:embed *.json
 var files embed.FS
 
-// Catalog holds the messages in en, the source language, and zh-Hans. It is
-// registered with package i18n, which makes its languages the app's.
+// Catalog holds the messages in en, the source language, and ja and
+// zh-Hans. It is registered with package i18n, which makes its languages
+// the app's.
 var Catalog *i18n.Catalog
 
 func init() {
@@ -84,6 +86,16 @@ func (msgs Messages) ActionNewSessionHome() string {
 	return Catalog.Format(msgs.locale, "actionNewSessionHome", nil)
 }
 
+// ActionNewSessionWorktree says "New Session in Worktree…"
+// in the language the app shows.
+func ActionNewSessionWorktree() string { return In(i18n.Locale()).ActionNewSessionWorktree() }
+
+// ActionNewSessionWorktree says "New Session in Worktree…"
+// in the language of msgs.
+func (msgs Messages) ActionNewSessionWorktree() string {
+	return Catalog.Format(msgs.locale, "actionNewSessionWorktree", nil)
+}
+
 // ActionOpenProject says "Open Project…"
 // in the language the app shows.
 func ActionOpenProject() string { return In(i18n.Locale()).ActionOpenProject() }
@@ -102,6 +114,16 @@ func ActionGoToSession() string { return In(i18n.Locale()).ActionGoToSession() }
 // in the language of msgs.
 func (msgs Messages) ActionGoToSession() string {
 	return Catalog.Format(msgs.locale, "actionGoToSession", nil)
+}
+
+// ActionResumeConversation says "Resume Conversation…"
+// in the language the app shows.
+func ActionResumeConversation() string { return In(i18n.Locale()).ActionResumeConversation() }
+
+// ActionResumeConversation says "Resume Conversation…"
+// in the language of msgs.
+func (msgs Messages) ActionResumeConversation() string {
+	return Catalog.Format(msgs.locale, "actionResumeConversation", nil)
 }
 
 // ActionJumpToAttention says "Jump to Session Needing You"
@@ -706,6 +728,60 @@ func (msgs Messages) ToastSaveSettingsFailed(error string) string {
 	return Catalog.Format(msgs.locale, "toastSaveSettingsFailed", map[string]any{"error": error})
 }
 
+// ToastPasteImageFailed says "Couldn’t paste the image: {error}. Try again, or drop the image file on the pane."
+// in the language the app shows.
+func ToastPasteImageFailed(error string) string {
+	return In(i18n.Locale()).ToastPasteImageFailed(error)
+}
+
+// ToastPasteImageFailed says "Couldn’t paste the image: {error}. Try again, or drop the image file on the pane."
+// in the language of msgs.
+func (msgs Messages) ToastPasteImageFailed(error string) string {
+	return Catalog.Format(msgs.locale, "toastPasteImageFailed", map[string]any{"error": error})
+}
+
+// ToastPasteImageDenied says "Couldn’t paste the image: Kero can’t write to {dir}. Make it writable, or drop the image file on the pane."
+// in the language the app shows.
+func ToastPasteImageDenied(dir string) string { return In(i18n.Locale()).ToastPasteImageDenied(dir) }
+
+// ToastPasteImageDenied says "Couldn’t paste the image: Kero can’t write to {dir}. Make it writable, or drop the image file on the pane."
+// in the language of msgs.
+func (msgs Messages) ToastPasteImageDenied(dir string) string {
+	return Catalog.Format(msgs.locale, "toastPasteImageDenied", map[string]any{"dir": dir})
+}
+
+// ToastPasteImageDiskFull says "Couldn’t paste the image: the disk is full. Free some space and try again."
+// in the language the app shows.
+func ToastPasteImageDiskFull() string { return In(i18n.Locale()).ToastPasteImageDiskFull() }
+
+// ToastPasteImageDiskFull says "Couldn’t paste the image: the disk is full. Free some space and try again."
+// in the language of msgs.
+func (msgs Messages) ToastPasteImageDiskFull() string {
+	return Catalog.Format(msgs.locale, "toastPasteImageDiskFull", nil)
+}
+
+// ToastPasteClipboardUnreadable says "Couldn’t read the clipboard. Copy it again and paste."
+// in the language the app shows.
+func ToastPasteClipboardUnreadable() string { return In(i18n.Locale()).ToastPasteClipboardUnreadable() }
+
+// ToastPasteClipboardUnreadable says "Couldn’t read the clipboard. Copy it again and paste."
+// in the language of msgs.
+func (msgs Messages) ToastPasteClipboardUnreadable() string {
+	return Catalog.Format(msgs.locale, "toastPasteClipboardUnreadable", nil)
+}
+
+// ToastPasteImageUnsupported says "Couldn’t paste the image: {format} isn’t supported. Copy it as PNG or JPEG, or drop the image file on the pane."
+// in the language the app shows.
+func ToastPasteImageUnsupported(format string) string {
+	return In(i18n.Locale()).ToastPasteImageUnsupported(format)
+}
+
+// ToastPasteImageUnsupported says "Couldn’t paste the image: {format} isn’t supported. Copy it as PNG or JPEG, or drop the image file on the pane."
+// in the language of msgs.
+func (msgs Messages) ToastPasteImageUnsupported(format string) string {
+	return Catalog.Format(msgs.locale, "toastPasteImageUnsupported", map[string]any{"format": format})
+}
+
 // ToastConfigProblems says "{count, plural, one {Your config has # problem: see Settings › Advanced} other {Your config has # problems: see Set…"
 // in the language the app shows.
 func ToastConfigProblems(count int) string { return In(i18n.Locale()).ToastConfigProblems(count) }
@@ -848,6 +924,18 @@ func (msgs Messages) ConfirmCloseTitle(name string) string {
 	return Catalog.Format(msgs.locale, "confirmCloseTitle", map[string]any{"name": name})
 }
 
+// ConfirmCloseAllSessionsTitle says "Close all sessions of “{name}”?"
+// in the language the app shows.
+func ConfirmCloseAllSessionsTitle(name string) string {
+	return In(i18n.Locale()).ConfirmCloseAllSessionsTitle(name)
+}
+
+// ConfirmCloseAllSessionsTitle says "Close all sessions of “{name}”?"
+// in the language of msgs.
+func (msgs Messages) ConfirmCloseAllSessionsTitle(name string) string {
+	return Catalog.Format(msgs.locale, "confirmCloseAllSessionsTitle", map[string]any{"name": name})
+}
+
 // ConfirmCloseSessionDetail says "{process} is still running in it. Closing the session ends it."
 // in the language the app shows.
 func ConfirmCloseSessionDetail(process string) string {
@@ -870,6 +958,18 @@ func ConfirmCloseProjectDetail(count int) string {
 // in the language of msgs.
 func (msgs Messages) ConfirmCloseProjectDetail(count int) string {
 	return Catalog.Format(msgs.locale, "confirmCloseProjectDetail", map[string]any{"count": count})
+}
+
+// ConfirmCloseAllSessionsDetail says "{count, plural, one {The project stays; its # session ends, with what runs in it.} other {The project stays; its # se…"
+// in the language the app shows.
+func ConfirmCloseAllSessionsDetail(count int) string {
+	return In(i18n.Locale()).ConfirmCloseAllSessionsDetail(count)
+}
+
+// ConfirmCloseAllSessionsDetail says "{count, plural, one {The project stays; its # session ends, with what runs in it.} other {The project stays; its # se…"
+// in the language of msgs.
+func (msgs Messages) ConfirmCloseAllSessionsDetail(count int) string {
+	return Catalog.Format(msgs.locale, "confirmCloseAllSessionsDetail", map[string]any{"count": count})
 }
 
 // ConfirmClosePaneTitle says "Close this pane?"
@@ -1054,6 +1154,16 @@ func SidebarCloseProject() string { return In(i18n.Locale()).SidebarCloseProject
 // in the language of msgs.
 func (msgs Messages) SidebarCloseProject() string {
 	return Catalog.Format(msgs.locale, "sidebarCloseProject", nil)
+}
+
+// SidebarCloseAllSessions says "Close All Sessions"
+// in the language the app shows.
+func SidebarCloseAllSessions() string { return In(i18n.Locale()).SidebarCloseAllSessions() }
+
+// SidebarCloseAllSessions says "Close All Sessions"
+// in the language of msgs.
+func (msgs Messages) SidebarCloseAllSessions() string {
+	return Catalog.Format(msgs.locale, "sidebarCloseAllSessions", nil)
 }
 
 // SidebarNeedsYou says "{count} needs you"
@@ -1424,6 +1534,58 @@ func PaletteCommands() string { return In(i18n.Locale()).PaletteCommands() }
 // in the language of msgs.
 func (msgs Messages) PaletteCommands() string {
 	return Catalog.Format(msgs.locale, "paletteCommands", nil)
+}
+
+// PaletteConversations says "Recent Conversations"
+// in the language the app shows.
+func PaletteConversations() string { return In(i18n.Locale()).PaletteConversations() }
+
+// PaletteConversations says "Recent Conversations"
+// in the language of msgs.
+func (msgs Messages) PaletteConversations() string {
+	return Catalog.Format(msgs.locale, "paletteConversations", nil)
+}
+
+// PaletteConversationsLabel says "Resume Conversation"
+// in the language the app shows.
+func PaletteConversationsLabel() string { return In(i18n.Locale()).PaletteConversationsLabel() }
+
+// PaletteConversationsLabel says "Resume Conversation"
+// in the language of msgs.
+func (msgs Messages) PaletteConversationsLabel() string {
+	return Catalog.Format(msgs.locale, "paletteConversationsLabel", nil)
+}
+
+// PaletteConversationsPlaceholder says "Find a conversation to resume…"
+// in the language the app shows.
+func PaletteConversationsPlaceholder() string {
+	return In(i18n.Locale()).PaletteConversationsPlaceholder()
+}
+
+// PaletteConversationsPlaceholder says "Find a conversation to resume…"
+// in the language of msgs.
+func (msgs Messages) PaletteConversationsPlaceholder() string {
+	return Catalog.Format(msgs.locale, "paletteConversationsPlaceholder", nil)
+}
+
+// PaletteNoConversations says "No conversations yet. Coding agents’ conversations show here once Kero’s skill is set up for them."
+// in the language the app shows.
+func PaletteNoConversations() string { return In(i18n.Locale()).PaletteNoConversations() }
+
+// PaletteNoConversations says "No conversations yet. Coding agents’ conversations show here once Kero’s skill is set up for them."
+// in the language of msgs.
+func (msgs Messages) PaletteNoConversations() string {
+	return Catalog.Format(msgs.locale, "paletteNoConversations", nil)
+}
+
+// PaletteConversationRunning says "running"
+// in the language the app shows.
+func PaletteConversationRunning() string { return In(i18n.Locale()).PaletteConversationRunning() }
+
+// PaletteConversationRunning says "running"
+// in the language of msgs.
+func (msgs Messages) PaletteConversationRunning() string {
+	return Catalog.Format(msgs.locale, "paletteConversationRunning", nil)
 }
 
 // AgoNow says "now"
@@ -2016,6 +2178,66 @@ func SetLoginFailed(error string) string { return In(i18n.Locale()).SetLoginFail
 // in the language of msgs.
 func (msgs Messages) SetLoginFailed(error string) string {
 	return Catalog.Format(msgs.locale, "setLoginFailed", map[string]any{"error": error})
+}
+
+// SetAppIcon says "Show app icon"
+// in the language the app shows.
+func SetAppIcon() string { return In(i18n.Locale()).SetAppIcon() }
+
+// SetAppIcon says "Show app icon"
+// in the language of msgs.
+func (msgs Messages) SetAppIcon() string {
+	return Catalog.Format(msgs.locale, "setAppIcon", nil)
+}
+
+// SetAppIconBoth says "Dock and menu bar"
+// in the language the app shows.
+func SetAppIconBoth() string { return In(i18n.Locale()).SetAppIconBoth() }
+
+// SetAppIconBoth says "Dock and menu bar"
+// in the language of msgs.
+func (msgs Messages) SetAppIconBoth() string {
+	return Catalog.Format(msgs.locale, "setAppIconBoth", nil)
+}
+
+// SetAppIconDock says "Dock only"
+// in the language the app shows.
+func SetAppIconDock() string { return In(i18n.Locale()).SetAppIconDock() }
+
+// SetAppIconDock says "Dock only"
+// in the language of msgs.
+func (msgs Messages) SetAppIconDock() string {
+	return Catalog.Format(msgs.locale, "setAppIconDock", nil)
+}
+
+// SetAppIconMenuBar says "Menu bar only"
+// in the language the app shows.
+func SetAppIconMenuBar() string { return In(i18n.Locale()).SetAppIconMenuBar() }
+
+// SetAppIconMenuBar says "Menu bar only"
+// in the language of msgs.
+func (msgs Messages) SetAppIconMenuBar() string {
+	return Catalog.Format(msgs.locale, "setAppIconMenuBar", nil)
+}
+
+// SetAppIconDetail says "Closing the window keeps Kero running in the menu bar."
+// in the language the app shows.
+func SetAppIconDetail() string { return In(i18n.Locale()).SetAppIconDetail() }
+
+// SetAppIconDetail says "Closing the window keeps Kero running in the menu bar."
+// in the language of msgs.
+func (msgs Messages) SetAppIconDetail() string {
+	return Catalog.Format(msgs.locale, "setAppIconDetail", nil)
+}
+
+// TrayOpen says "Open {app}"
+// in the language the app shows.
+func TrayOpen(app string) string { return In(i18n.Locale()).TrayOpen(app) }
+
+// TrayOpen says "Open {app}"
+// in the language of msgs.
+func (msgs Messages) TrayOpen(app string) string {
+	return Catalog.Format(msgs.locale, "trayOpen", map[string]any{"app": app})
 }
 
 // SetVersionNoUpdate says " · this copy can’t update itself"
@@ -4972,4 +5194,302 @@ func BrowserAddress() string { return In(i18n.Locale()).BrowserAddress() }
 // in the language of msgs.
 func (msgs Messages) BrowserAddress() string {
 	return Catalog.Format(msgs.locale, "browserAddress", nil)
+}
+
+// WorktreeTitle says "New Session in Worktree"
+// in the language the app shows.
+func WorktreeTitle() string { return In(i18n.Locale()).WorktreeTitle() }
+
+// WorktreeTitle says "New Session in Worktree"
+// in the language of msgs.
+func (msgs Messages) WorktreeTitle() string {
+	return Catalog.Format(msgs.locale, "worktreeTitle", nil)
+}
+
+// WorktreeDetailDefault says "Kero checks out a new branch from the default branch in a folder of its own, so the session’s agent works apart fro…"
+// in the language the app shows.
+func WorktreeDetailDefault() string { return In(i18n.Locale()).WorktreeDetailDefault() }
+
+// WorktreeDetailDefault says "Kero checks out a new branch from the default branch in a folder of its own, so the session’s agent works apart fro…"
+// in the language of msgs.
+func (msgs Messages) WorktreeDetailDefault() string {
+	return Catalog.Format(msgs.locale, "worktreeDetailDefault", nil)
+}
+
+// WorktreeDetailCurrent says "Kero checks out a new branch from the current branch in a folder of its own, so the session’s agent works apart fro…"
+// in the language the app shows.
+func WorktreeDetailCurrent() string { return In(i18n.Locale()).WorktreeDetailCurrent() }
+
+// WorktreeDetailCurrent says "Kero checks out a new branch from the current branch in a folder of its own, so the session’s agent works apart fro…"
+// in the language of msgs.
+func (msgs Messages) WorktreeDetailCurrent() string {
+	return Catalog.Format(msgs.locale, "worktreeDetailCurrent", nil)
+}
+
+// WorktreeBranch says "Branch name"
+// in the language the app shows.
+func WorktreeBranch() string { return In(i18n.Locale()).WorktreeBranch() }
+
+// WorktreeBranch says "Branch name"
+// in the language of msgs.
+func (msgs Messages) WorktreeBranch() string {
+	return Catalog.Format(msgs.locale, "worktreeBranch", nil)
+}
+
+// WorktreeCreate says "Create"
+// in the language the app shows.
+func WorktreeCreate() string { return In(i18n.Locale()).WorktreeCreate() }
+
+// WorktreeCreate says "Create"
+// in the language of msgs.
+func (msgs Messages) WorktreeCreate() string {
+	return Catalog.Format(msgs.locale, "worktreeCreate", nil)
+}
+
+// WorktreeRemoveTitle says "Remove the worktree of “{name}” too?"
+// in the language the app shows.
+func WorktreeRemoveTitle(name string) string { return In(i18n.Locale()).WorktreeRemoveTitle(name) }
+
+// WorktreeRemoveTitle says "Remove the worktree of “{name}” too?"
+// in the language of msgs.
+func (msgs Messages) WorktreeRemoveTitle(name string) string {
+	return Catalog.Format(msgs.locale, "worktreeRemoveTitle", map[string]any{"name": name})
+}
+
+// WorktreeRemoveMerged says "Its folder {path} goes, and its branch {branch}, which is merged."
+// in the language the app shows.
+func WorktreeRemoveMerged(path string, branch string) string {
+	return In(i18n.Locale()).WorktreeRemoveMerged(path, branch)
+}
+
+// WorktreeRemoveMerged says "Its folder {path} goes, and its branch {branch}, which is merged."
+// in the language of msgs.
+func (msgs Messages) WorktreeRemoveMerged(path string, branch string) string {
+	return Catalog.Format(msgs.locale, "worktreeRemoveMerged", map[string]any{"path": path, "branch": branch})
+}
+
+// WorktreeRemoveUnmerged says "Its folder {path} goes. Its branch {branch} stays, with its commits."
+// in the language the app shows.
+func WorktreeRemoveUnmerged(path string, branch string) string {
+	return In(i18n.Locale()).WorktreeRemoveUnmerged(path, branch)
+}
+
+// WorktreeRemoveUnmerged says "Its folder {path} goes. Its branch {branch} stays, with its commits."
+// in the language of msgs.
+func (msgs Messages) WorktreeRemoveUnmerged(path string, branch string) string {
+	return Catalog.Format(msgs.locale, "worktreeRemoveUnmerged", map[string]any{"path": path, "branch": branch})
+}
+
+// WorktreeRemoveDirty says "{count, plural, one {# changed file} other {# changed files}} in {path} will be lost. Its branch {branch} stays, with…"
+// in the language the app shows.
+func WorktreeRemoveDirty(count int, path string, branch string) string {
+	return In(i18n.Locale()).WorktreeRemoveDirty(count, path, branch)
+}
+
+// WorktreeRemoveDirty says "{count, plural, one {# changed file} other {# changed files}} in {path} will be lost. Its branch {branch} stays, with…"
+// in the language of msgs.
+func (msgs Messages) WorktreeRemoveDirty(count int, path string, branch string) string {
+	return Catalog.Format(msgs.locale, "worktreeRemoveDirty", map[string]any{"count": count, "path": path, "branch": branch})
+}
+
+// WorktreeRemove says "Remove Worktree"
+// in the language the app shows.
+func WorktreeRemove() string { return In(i18n.Locale()).WorktreeRemove() }
+
+// WorktreeRemove says "Remove Worktree"
+// in the language of msgs.
+func (msgs Messages) WorktreeRemove() string {
+	return Catalog.Format(msgs.locale, "worktreeRemove", nil)
+}
+
+// WorktreeKeep says "Keep Worktree"
+// in the language the app shows.
+func WorktreeKeep() string { return In(i18n.Locale()).WorktreeKeep() }
+
+// WorktreeKeep says "Keep Worktree"
+// in the language of msgs.
+func (msgs Messages) WorktreeKeep() string {
+	return Catalog.Format(msgs.locale, "worktreeKeep", nil)
+}
+
+// WorktreeRemoveAnyway says "Remove Anyway"
+// in the language the app shows.
+func WorktreeRemoveAnyway() string { return In(i18n.Locale()).WorktreeRemoveAnyway() }
+
+// WorktreeRemoveAnyway says "Remove Anyway"
+// in the language of msgs.
+func (msgs Messages) WorktreeRemoveAnyway() string {
+	return Catalog.Format(msgs.locale, "worktreeRemoveAnyway", nil)
+}
+
+// SetSessionHistory says "Session history"
+// in the language the app shows.
+func SetSessionHistory() string { return In(i18n.Locale()).SetSessionHistory() }
+
+// SetSessionHistory says "Session history"
+// in the language of msgs.
+func (msgs Messages) SetSessionHistory() string {
+	return Catalog.Format(msgs.locale, "setSessionHistory", nil)
+}
+
+// SetSessionHistoryDetail says "List the coding agents' ended conversations in the sidebar, to resume them later or archive them."
+// in the language the app shows.
+func SetSessionHistoryDetail() string { return In(i18n.Locale()).SetSessionHistoryDetail() }
+
+// SetSessionHistoryDetail says "List the coding agents' ended conversations in the sidebar, to resume them later or archive them."
+// in the language of msgs.
+func (msgs Messages) SetSessionHistoryDetail() string {
+	return Catalog.Format(msgs.locale, "setSessionHistoryDetail", nil)
+}
+
+// EndedTitle says "Ended"
+// in the language the app shows.
+func EndedTitle() string { return In(i18n.Locale()).EndedTitle() }
+
+// EndedTitle says "Ended"
+// in the language of msgs.
+func (msgs Messages) EndedTitle() string {
+	return Catalog.Format(msgs.locale, "endedTitle", nil)
+}
+
+// EndedArchived says "Archived"
+// in the language the app shows.
+func EndedArchived() string { return In(i18n.Locale()).EndedArchived() }
+
+// EndedArchived says "Archived"
+// in the language of msgs.
+func (msgs Messages) EndedArchived() string {
+	return Catalog.Format(msgs.locale, "endedArchived", nil)
+}
+
+// EndedArchive says "Archive"
+// in the language the app shows.
+func EndedArchive() string { return In(i18n.Locale()).EndedArchive() }
+
+// EndedArchive says "Archive"
+// in the language of msgs.
+func (msgs Messages) EndedArchive() string {
+	return Catalog.Format(msgs.locale, "endedArchive", nil)
+}
+
+// EndedShowAll says "Show all {n}"
+// in the language the app shows.
+func EndedShowAll(n int) string { return In(i18n.Locale()).EndedShowAll(n) }
+
+// EndedShowAll says "Show all {n}"
+// in the language of msgs.
+func (msgs Messages) EndedShowAll(n int) string {
+	return Catalog.Format(msgs.locale, "endedShowAll", map[string]any{"n": n})
+}
+
+// EndedResume says "Resume"
+// in the language the app shows.
+func EndedResume() string { return In(i18n.Locale()).EndedResume() }
+
+// EndedResume says "Resume"
+// in the language of msgs.
+func (msgs Messages) EndedResume() string {
+	return Catalog.Format(msgs.locale, "endedResume", nil)
+}
+
+// EndedRestore says "Restore"
+// in the language the app shows.
+func EndedRestore() string { return In(i18n.Locale()).EndedRestore() }
+
+// EndedRestore says "Restore"
+// in the language of msgs.
+func (msgs Messages) EndedRestore() string {
+	return Catalog.Format(msgs.locale, "endedRestore", nil)
+}
+
+// EndedDelete says "Delete"
+// in the language the app shows.
+func EndedDelete() string { return In(i18n.Locale()).EndedDelete() }
+
+// EndedDelete says "Delete"
+// in the language of msgs.
+func (msgs Messages) EndedDelete() string {
+	return Catalog.Format(msgs.locale, "endedDelete", nil)
+}
+
+// EndedArchiveAll says "Archive All"
+// in the language the app shows.
+func EndedArchiveAll() string { return In(i18n.Locale()).EndedArchiveAll() }
+
+// EndedArchiveAll says "Archive All"
+// in the language of msgs.
+func (msgs Messages) EndedArchiveAll() string {
+	return Catalog.Format(msgs.locale, "endedArchiveAll", nil)
+}
+
+// EndedDeleteAll says "Delete All…"
+// in the language the app shows.
+func EndedDeleteAll() string { return In(i18n.Locale()).EndedDeleteAll() }
+
+// EndedDeleteAll says "Delete All…"
+// in the language of msgs.
+func (msgs Messages) EndedDeleteAll() string {
+	return Catalog.Format(msgs.locale, "endedDeleteAll", nil)
+}
+
+// EndedDeleteAllTitle says "Delete {n} archived conversations?"
+// in the language the app shows.
+func EndedDeleteAllTitle(n int) string { return In(i18n.Locale()).EndedDeleteAllTitle(n) }
+
+// EndedDeleteAllTitle says "Delete {n} archived conversations?"
+// in the language of msgs.
+func (msgs Messages) EndedDeleteAllTitle(n int) string {
+	return Catalog.Format(msgs.locale, "endedDeleteAllTitle", map[string]any{"n": n})
+}
+
+// EndedDeleteAllDetail says "Kero forgets them; each agent keeps its own history of the conversation."
+// in the language the app shows.
+func EndedDeleteAllDetail() string { return In(i18n.Locale()).EndedDeleteAllDetail() }
+
+// EndedDeleteAllDetail says "Kero forgets them; each agent keeps its own history of the conversation."
+// in the language of msgs.
+func (msgs Messages) EndedDeleteAllDetail() string {
+	return Catalog.Format(msgs.locale, "endedDeleteAllDetail", nil)
+}
+
+// EndedSetUpSkill says "Set up Kero's skill for your agents to list their ended conversations here"
+// in the language the app shows.
+func EndedSetUpSkill() string { return In(i18n.Locale()).EndedSetUpSkill() }
+
+// EndedSetUpSkill says "Set up Kero's skill for your agents to list their ended conversations here"
+// in the language of msgs.
+func (msgs Messages) EndedSetUpSkill() string {
+	return Catalog.Format(msgs.locale, "endedSetUpSkill", nil)
+}
+
+// ActionQuickTerminal says "Quick Terminal"
+// in the language the app shows.
+func ActionQuickTerminal() string { return In(i18n.Locale()).ActionQuickTerminal() }
+
+// ActionQuickTerminal says "Quick Terminal"
+// in the language of msgs.
+func (msgs Messages) ActionQuickTerminal() string {
+	return Catalog.Format(msgs.locale, "actionQuickTerminal", nil)
+}
+
+// ToastGlobalShortcutFailed says "Couldn’t use {keys} for the quick terminal: {error}"
+// in the language the app shows.
+func ToastGlobalShortcutFailed(keys string, error string) string {
+	return In(i18n.Locale()).ToastGlobalShortcutFailed(keys, error)
+}
+
+// ToastGlobalShortcutFailed says "Couldn’t use {keys} for the quick terminal: {error}"
+// in the language of msgs.
+func (msgs Messages) ToastGlobalShortcutFailed(keys string, error string) string {
+	return Catalog.Format(msgs.locale, "toastGlobalShortcutFailed", map[string]any{"keys": keys, "error": error})
+}
+
+// SetShortcutGlobal says "Works in every app"
+// in the language the app shows.
+func SetShortcutGlobal() string { return In(i18n.Locale()).SetShortcutGlobal() }
+
+// SetShortcutGlobal says "Works in every app"
+// in the language of msgs.
+func (msgs Messages) SetShortcutGlobal() string {
+	return Catalog.Format(msgs.locale, "setShortcutGlobal", nil)
 }

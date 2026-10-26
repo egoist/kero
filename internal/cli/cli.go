@@ -39,6 +39,9 @@ Usage:
       -f, --focus                 show it in the app
       -w, --wait                  wait for cmd to end, exit with its status
       -u, --url <url>             a browser showing url, not a shell
+      --worktree <branch>         in a git worktree of its own, on a new
+                                  branch from the default branch
+      --base <ref>                the branch to start it from instead
   kero split [target] [options] [-- cmd…]
                                 start a pane beside a pane, printing its id
       --right (default), --down, --left, --up
@@ -61,6 +64,17 @@ Usage:
                                 reaches one of the statuses), print it
       -x, --exit                  instead wait for the command it started
                                   with to end, exit with its status
+  kero events [target] [-p project] [--for statuses] [--json]
+                                print what happens as it does, a line an
+                                event: panes changing status, sessions
+                                and panes starting and closing, renames,
+                                moves to another project, notifications;
+                                until the target closes
+      --for <statuses>            only panes going to these: idle,
+                                  working, waiting, error, exited
+      --once                      exit after the first event (1 if the
+                                  target closes or the timeout comes first)
+      -t, --timeout <dur>         stop watching after this long
   kero status [target] [--json]
   kero diff [target] [--turn | --branch] [path…]
                                 the changes in the pane's git worktree, as
@@ -77,6 +91,8 @@ Usage:
       back, forward, reload       and wait for the page to load
       text [selector]             print the page's text, or an element's
       html [selector]             print the page's HTML, or an element's
+      snapshot [selector]         print what the page shows: roles, names,
+                                  and a ref for each element
       click <selector>            click an element
       type <selector> <text…>     type text into a field, in place of what
                                   it holds (--enter: press Enter after it)
@@ -84,10 +100,26 @@ Usage:
                                   to), or without either, the page to load
       eval <js…>                  run JavaScript, print its value
       screenshot [-o file.png]    save a picture of the page, print where
+      cookies save [file]         save the browser's cookies (Playwright's
+                                  JSON, or cookies.txt for a .txt file)
+      cookies load <file>         load cookies from either
+      --ref <ref>                 a snapshot's element, in place of a
+                                  selector
+      --domain <domain>           cookies of a site and its subdomains
       -t, --timeout <dur>         how long to wait (default 10s)
+  kero history [query] [-p project] [-n count] [--json]
+                                the agents' conversations panes ran, the
+                                last to run first, to resume
+  kero resume <conversation> [-f]
+                                start a session resuming a conversation
+                                (its id, a prefix of it, or its name), or
+                                show the one running it, printing its id
   kero rename <session> <name>
   kero focus <target>           show a session (and pane) in the app
   kero close <target>           end a session (or, given a pane, the pane)
+      --remove-worktree           remove the session's own worktree too,
+                                  and its branch once merged
+      --force                     even if that loses changes or commits
   kero restart <target>         start an exited pane's shell again
   kero notify [target] <message>
                                 flag the pane as needing you
@@ -134,8 +166,8 @@ ambiguous one), 4 kerod unreachable.
 `
 
 // Commands lists the subcommands, which main sends here.
-var Commands = []string{"ls", "list", "new", "split", "send", "key", "prompt", "read", "capture", "wait", "status", "diff",
-	"rename", "focus", "close", "kill", "restart", "notify", "report", "projects", "skill", "hook", "daemon", "do", "actions", "config",
+var Commands = []string{"ls", "list", "new", "split", "send", "key", "prompt", "read", "capture", "wait", "events", "status", "diff",
+	"history", "resume", "rename", "focus", "close", "kill", "restart", "notify", "report", "projects", "skill", "hook", "daemon", "do", "actions", "config",
 	"browser", "hosts", "clients", "__bridge", "-H", "--host", "help", "--help", "-h", "version", "--version"}
 
 // IsCommand reports whether an argument starts a command of the CLI, as
@@ -330,7 +362,7 @@ func run(args []string, host string) error {
 	case "new":
 		f, err := parse(args,
 			map[string]string{"p": "project", "project": "project", "n": "name", "name": "name", "d": "dir", "dir": "dir", "timeout": "timeout", "t": "timeout",
-				"u": "url", "url": "url"},
+				"u": "url", "url": "url", "worktree": "worktree", "base": "base"},
 			map[string]string{"f": "focus", "focus": "focus", "json": "json", "wait": "wait", "w": "wait"})
 		if err != nil {
 			return err
@@ -342,6 +374,9 @@ func run(args []string, host string) error {
 		if f.vals["url"] != "" && (len(command) > 0 || f.set["wait"]) {
 			return usageErr("kero new --url shows a page, and runs no command")
 		}
+		if f.vals["base"] != "" && f.vals["worktree"] == "" {
+			return usageErr("kero new --base starts a --worktree's branch")
+		}
 		dir := f.vals["dir"]
 		// Here, unless the session is of another machine, whose kerod
 		// then starts it in the project's directory, or the home.
@@ -351,7 +386,7 @@ func run(args []string, host string) error {
 		var s proto.Session
 		if err := c.Call("create", proto.CreateParams{
 			Project: f.vals["project"], Name: f.vals["name"], Dir: dir, Command: command, URL: f.vals["url"],
-			After: os.Getenv("KERO_SESSION"),
+			After: os.Getenv("KERO_SESSION"), Worktree: f.vals["worktree"], Base: f.vals["base"],
 		}, &s); err != nil {
 			return err
 		}
@@ -543,6 +578,9 @@ func run(args []string, host string) error {
 		}
 		return err
 
+	case "events":
+		return eventsCmd(c, st, args)
+
 	case "status":
 		f, err := parse(args, nil, map[string]string{"json": "json"})
 		if err != nil {
@@ -620,6 +658,59 @@ func run(args []string, host string) error {
 		}
 		return nil
 
+	case "history":
+		f, err := parse(args, map[string]string{"p": "project", "project": "project", "n": "count", "count": "count"}, map[string]string{"json": "json", "j": "json"})
+		if err != nil {
+			return err
+		}
+		list, err := conversations(c, st, f.vals["project"], strings.Join(f.pos, " "))
+		if err != nil {
+			return err
+		}
+		n := 20
+		if v := f.vals["count"]; v != "" {
+			if n, err = strconv.Atoi(v); err != nil || n < 0 {
+				return usageErr("kero history -n takes a count")
+			}
+		}
+		if n > 0 && len(list) > n && !f.set["json"] {
+			list = list[:n]
+		}
+		if f.set["json"] {
+			return printJSON(list)
+		}
+		listConversations(st, list)
+		return nil
+
+	case "resume":
+		f, err := parse(args, nil, map[string]string{"f": "focus", "focus": "focus", "json": "json"})
+		if err != nil {
+			return err
+		}
+		if len(f.pos) == 0 {
+			return usageErr("kero resume <conversation> (see kero history)")
+		}
+		list, err := conversations(c, st, "", "")
+		if err != nil {
+			return err
+		}
+		conv, err := findConversation(list, strings.Join(f.pos, " "))
+		if err != nil {
+			return err
+		}
+		var s proto.Session
+		if err := c.Call("conversation.resume", proto.ConversationParams{Agent: conv.Agent, ID: conv.ID, After: os.Getenv("KERO_SESSION")}, &s); err != nil {
+			return err
+		}
+		if f.set["focus"] {
+			c.Call("select", proto.FocusParams{Session: s.ID}, nil)
+		}
+		if f.set["json"] {
+			return printJSON(s)
+		}
+		fmt.Println(s.ID)
+		return nil
+
 	case "rename":
 		if len(args) < 2 {
 			return usageErr("kero rename <session> <name>")
@@ -648,20 +739,28 @@ func run(args []string, host string) error {
 		return nil
 
 	case "close", "kill", "restart":
-		if len(args) < 1 {
-			return usageErr("kero %s <target>", cmd)
-		}
-		t, err := find(st, args[0])
+		f, err := parse(args, nil, map[string]string{"remove-worktree": "remove", "force": "force"})
 		if err != nil {
 			return err
+		}
+		if len(f.pos) < 1 {
+			return usageErr("kero %s <target>", cmd)
+		}
+		t, err := find(st, f.pos[0])
+		if err != nil {
+			return err
+		}
+		remove := f.set["remove"]
+		if remove && t.s.Worktree == nil {
+			return fmt.Errorf("session %s has no worktree of its own", t.s.ID)
 		}
 		switch {
 		case cmd == "restart":
 			return c.Call("restart", proto.IDParams{ID: t.ref()}, nil)
-		case t.pane != "" && len(t.s.Panes) > 1:
+		case t.pane != "" && len(t.s.Panes) > 1 && !remove:
 			return c.Call("pane.close", proto.IDParams{ID: t.pane}, nil)
 		}
-		return c.Call("close", proto.IDParams{ID: t.s.ID}, nil)
+		return c.Call("close", proto.CloseParams{ID: t.s.ID, RemoveWorktree: remove, Force: f.set["force"]}, nil)
 
 	case "do":
 		if len(args) < 1 {
@@ -1039,6 +1138,84 @@ func StopDaemon() error {
 		time.Sleep(30 * time.Millisecond)
 	}
 	return errors.New("kerod did not stop")
+}
+
+// conversations lists the conversations kerod remembers, of a project
+// (by id or name) when one is named, matching query when there is one.
+func conversations(c *client.Client, st proto.State, project, query string) ([]proto.Conversation, error) {
+	var list []proto.Conversation
+	if err := c.Call("conversations", nil, &list); err != nil {
+		if strings.Contains(err.Error(), "unknown method") {
+			return nil, errors.New("this kerod remembers no conversations: update it, or run `kero daemon restart`")
+		}
+		return nil, err
+	}
+	if project != "" {
+		id := ""
+		for _, p := range st.Projects {
+			if p.ID == project || strings.EqualFold(p.Name, project) {
+				id = p.ID
+			}
+		}
+		if id == "" {
+			return nil, fmt.Errorf("no project %q", project)
+		}
+		list = slices.DeleteFunc(list, func(cv proto.Conversation) bool { return cv.Project != id })
+	}
+	if q := strings.ToLower(strings.TrimSpace(query)); q != "" {
+		list = slices.DeleteFunc(list, func(cv proto.Conversation) bool {
+			for _, w := range strings.Fields(q) {
+				if !strings.Contains(strings.ToLower(cv.Name+" "+cv.Title+" "+cv.Dir+" "+cv.Agent+" "+cv.ID), w) {
+					return true
+				}
+			}
+			return false
+		})
+	}
+	return list, nil
+}
+
+// findConversation finds a conversation by its id, a unique prefix of
+// it, or its name.
+func findConversation(list []proto.Conversation, ref string) (proto.Conversation, error) {
+	var found []proto.Conversation
+	for _, cv := range list {
+		if cv.ID == ref {
+			return cv, nil
+		}
+		if strings.HasPrefix(cv.ID, ref) || strings.EqualFold(cv.Label(), ref) {
+			found = append(found, cv)
+		}
+	}
+	switch len(found) {
+	case 0:
+		return proto.Conversation{}, fmt.Errorf("%w: no conversation %q (see kero history)", errNotFound, ref)
+	case 1:
+		return found[0], nil
+	}
+	return proto.Conversation{}, fmt.Errorf("%q could be %d conversations: give more of its id (see kero history)", ref, len(found))
+}
+
+func listConversations(st proto.State, list []proto.Conversation) {
+	if len(list) == 0 {
+		fmt.Println("no conversations yet (agents' conversations show here once Kero's skill is set up: kero skill setup)")
+		return
+	}
+	names := map[string]string{}
+	for _, p := range st.Projects {
+		names[p.ID] = p.Name
+	}
+	now := time.Now()
+	w := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
+	fmt.Fprintln(w, "ID\tAGENT\tPROJECT\tNAME\tLAST RAN\tDIR")
+	for _, cv := range list {
+		when := proto.Ago(cv.Updated, now)
+		if cv.Session != "" {
+			when = "running in " + cv.Session
+		}
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n", cv.ID, cv.Agent, orDash(names[cv.Project]), cv.Label(), when, proto.ShortDir(cv.Dir))
+	}
+	w.Flush()
 }
 
 func listSessions(st proto.State) {

@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/egoist/mygo"
@@ -496,6 +497,9 @@ func (a *App) generalPage(c *ui.Context, pal *palette) {
 				toggle(c.Key("resume"), &s.ResumeAgents, pal)
 			})
 		}
+		settingRow(c, pal, locales.SetSessionHistory(), locales.SetSessionHistoryDetail(), func() {
+			toggle(c.Key("session-history"), &s.SessionHistory, pal)
+		})
 	})
 	settingsGroup(c, pal, locales.SetGit(), locales.SetGitDetail(), func() {
 		settingRow(c, pal, locales.SetGitStatus(), locales.SetGitStatusDetail(), func() {
@@ -506,6 +510,18 @@ func (a *App) generalPage(c *ui.Context, pal *palette) {
 				[]string{locales.SetDiffAuto(), locales.ChangesUnified(), locales.ChangesSplit()})
 		})
 	})
+	// Windows and Linux always show the icon, in the notification area.
+	if runtime.GOOS == "darwin" {
+		detail := ""
+		if s.AppIcon != "dock" {
+			detail = locales.SetAppIconDetail()
+		}
+		settingsGroup(c, pal, "", "", func() {
+			settingRow(c, pal, locales.SetAppIcon(), detail, func() {
+				popup(c, "app-icon", &s.AppIcon, settings.AppIcons, appIconName, 180, pal)
+			})
+		})
+	}
 	settingsGroup(c, pal, locales.SetStartup(), "", func() {
 		settingRow(c, pal, locales.SetOpenAtLogin(), "", func() {
 			toggle(c.Key("login"), &a.ss.loginOpen, pal).OnChange(func() {
@@ -644,6 +660,17 @@ func languageName(tag string) string {
 	return i18n.Autonym(tag)
 }
 
+// appIconName names a place the app's icon shows (settings.AppIcons).
+func appIconName(id string) string {
+	switch id {
+	case "dock":
+		return locales.SetAppIconDock()
+	case "menubar":
+		return locales.SetAppIconMenuBar()
+	}
+	return locales.SetAppIconBoth()
+}
+
 // localeTag is the tag of a language setting for App.SetLocale: "" follows
 // the system's languages.
 func localeTag(language string) string {
@@ -698,6 +725,38 @@ func (a *App) backgroundTile(c *ui.Context, pal *palette, id, name string) {
 var fontChoices = []string{"JetBrains Mono Nerd Font", "System", "SF Mono", "Menlo", "Monaco", "JetBrains Mono", "Fira Code", "Cascadia Code",
 	"Iosevka", "Berkeley Mono", "Geist Mono", "IBM Plex Mono", "Source Code Pro", "Hack", "Maple Mono"}
 
+// fontOptions are the families the font menu offers: kero's own, the
+// system's, the common coding fonts, and every monospaced family the
+// machine has, so that a font installed with the system is there to pick.
+// Fonts installed while kero runs show after a restart, as MyGo lists
+// them once. The system's is named in the language the app shows now.
+func fontOptions() []string {
+	return append([]string{fontChoices[0], locales.SetFontSystem()}, otherFonts()...)
+}
+
+// otherFonts are the families of fontOptions after kero's own and the
+// system's, listed once.
+var otherFonts = sync.OnceValue(func() []string {
+	var opts []string
+	seen := map[string]bool{fontChoices[0]: true, bundledFont: true}
+	add := func(name string) {
+		if name == "" || seen[name] {
+			return
+		}
+		seen[name] = true
+		opts = append(opts, name)
+	}
+	for _, name := range fontChoices[2:] {
+		add(name)
+	}
+	for _, f := range ui.FontFamilies() {
+		if f.Monospaced {
+			add(f.Name)
+		}
+	}
+	return opts
+})
+
 func (a *App) terminalPage(c *ui.Context, pal *palette) {
 	s := &a.set
 	a.terminalPreview(c, pal)
@@ -712,7 +771,7 @@ func (a *App) terminalPage(c *ui.Context, pal *palette) {
 			case "monospace":
 				family = locales.SetFontSystem()
 			}
-			opts := append([]string{fontChoices[0], locales.SetFontSystem()}, fontChoices[2:]...)
+			opts := fontOptions()
 			if !slices.Contains(opts, family) {
 				opts = append([]string{family}, opts...)
 			}
@@ -1106,7 +1165,12 @@ func (a *App) shortcutRow(c *ui.Context, pal *palette, act actions.Action) {
 	keys := actions.Keys(act, a.set.Shortcuts)
 	_, custom := a.set.Shortcuts[act.ID]
 	ui.Row(c.Key(act.ID)).Padding(7, 0).Gap(10).AlignItems(ui.Center).Children(func() {
-		ui.Text(c, strings.TrimSuffix(actionTitle(act.ID), "…")).FontSize(13.5).TextColor(pal.text).Grow(1).SingleLine()
+		ui.Column(c).Grow(1).Gap(2).Children(func() {
+			ui.Text(c, strings.TrimSuffix(actionTitle(act.ID), "…")).FontSize(13.5).TextColor(pal.text).SingleLine()
+			if act.Global {
+				ui.Text(c, locales.SetShortcutGlobal()).FontSize(11.5).TextColor(pal.textFaint).SingleLine()
+			}
+		})
 		if custom && keys != act.Keys {
 			b := ui.ButtonBase(c.Key("undo")).Size(22, 22).Radius(6).Center().TextColor(pal.textFaint).Label(locales.SetUseDefault(actions.Glyphs(act.Keys))).Tooltip(locales.SetDefaultKeys(actions.Glyphs(act.Keys)))
 			if b.Hovered() {
@@ -1170,6 +1234,7 @@ func (a *App) setRecording(id string) {
 	a.ss.recording = id
 	if was != (id != "") && a.win != nil {
 		mygo.App.SetMenu(a.menu())
+		a.applyGlobalShortcuts()
 	}
 }
 

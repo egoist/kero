@@ -1,5 +1,132 @@
 # Changelog
 
+## 2.1.21
+
+- In a narrow sidebar, a session's time, and its ⌘ number while you
+  hold ⌘, show whole beside a long name, which ends in an ellipsis
+  instead. Thanks @jamdaniels for the report
+
+## 2.1.20
+
+- A quick terminal drops down from the top of the screen over any app
+  and goes back up when you press its shortcut again. Give it a
+  shortcut in Settings › Keyboard (**Quick Terminal**); **View › Quick
+  Terminal** and the menu bar icon open it too. Its session keeps
+  running while it's hidden.
+- On Windows, an agent finishing in the session you have selected
+  shows its notification while another app is in front. Thanks @Maasea
+  for the report
+- Return presses a confirmation's action, such as Close Pane, as its
+  ↩ says. Thanks @iamvicliu
+- On a Mac, after Kero updates itself, quitting an app you started in
+  a pane no longer ends every pane's shell.
+
+## 2.1.19
+
+- **Session › New Session in Worktree…** (⌘⌥T) starts a session on a
+  new branch in a git worktree of its own, so agents working side by
+  side don't trip over each other's changes. Closing the session offers
+  to remove the worktree. `kero new --worktree <branch>` does the same
+  from the command line.
+- Kero remembers the conversations of Claude Code, Codex, Pi and
+  OpenCode that ran in its panes, so you can resume one after its
+  session is closed: ⌘P lists recent ones, and **Session › Resume
+  Conversation…** (⌘⇧O) lists them all. Turn on Settings › General ›
+  **Session history** to list them at the bottom of the sidebar too,
+  under **Ended** and **Archived**. `kero history` and `kero resume` do
+  the same from the command line. Thanks @ak4duy
+- Drop folders onto the sidebar to open them as projects. Thanks
+  @p1xelll
+- Dragging the sidebar's empty space moves the window, as the top bar
+  does. Thanks @jamdaniels for the request
+
+## 2.1.18
+
+- On a Mac, programs run in Kero can use the microphone and the camera,
+  and control other apps: macOS asks first, as it does for other
+  terminals. Thanks @jamdaniels for the report
+- Kero reaches SSH hosts with the SSH agent your shell sets up, such as
+  1Password's, as `ssh` in a terminal does. Thanks @frankittee for the
+  report
+- **Close All Sessions** in a project's menu ends every session in the
+  project and keeps the project. Thanks @netube99
+- Pressing Command while a trackpad scroll is still coasting no longer
+  changes the font size. Thanks @iamvicliu
+
+## 2.1.17
+
+- Codex 0.164's panes resume their own conversations after kerod
+  restarts, now that one Codex app server runs every pane's hooks. On
+  another machine, this works once that host gets this update. Thanks
+  @voidyuu for the report
+- `kero browser snapshot` prints what a page shows as roles and names,
+  each element with a ref that `click`, `type` and the rest take with
+  `--ref`. `kero browser screenshot` works on a pane not on screen, and
+  `kero browser cookies save` and `load` keep a browser's sign-ins, as
+  Playwright's storage state or a `cookies.txt`.
+- With Kero's icon showing, Command+W and the close button close the
+  main window rather than hide it, and Kero keeps running in the menu
+  bar or the notification area.
+- macOS 27 no longer runs an AutoFill helper process for Kero.
+
+## 2.1.16
+
+- **Settings › General › Show app icon** on a Mac puts Kero in the Dock
+  and the menu bar, the Dock only, or the menu bar only. Windows and
+  Linux always show it in the notification area. Its menu opens Kero
+  and Settings and checks for updates. While the icon shows, closing
+  the window keeps Kero running there.
+- `kero events` prints what happens to sessions and panes as it
+  happens, such as a pane coming to need you, so a script can follow
+  every agent without polling `kero status`. On another machine, it
+  works once that host gets this update.
+- macOS no longer runs an AutoFill helper process for Kero.
+
+## 2.1.15
+
+- yazi's image previews show the image, not a box of placeholder
+  characters, locally and over SSH. Thanks @voidyuu for the report
+
+## 2.1.14
+
+- On a Mac, Command+Left and Command+Right go to the start and end of
+  the line in the shell, as in Ghostty. Thanks @eliottwantz
+- Kero speaks Japanese: pick it under **Language** in Settings.
+- Powerline's rounded separators in prompts fill the line's height,
+  with no gap when the line height is above 1.
+- On Linux, closing Settings no longer closes the app.
+
+## 2.1.13
+
+- Mouse clicks and drags work in herdr and other apps built on
+  crossterm, locally and over SSH.
+- Programs that change what Backspace or Alt sends, or how the keypad
+  works with NumLock, get the keys as they asked for them.
+
+## 2.1.12
+
+- Pasting an image alone, such as a screenshot, into a pane pastes the
+  path of a file with it, which agents like Claude Code attach as an
+  image. Before, it pasted nothing. Thanks @jorben
+- **Settings › Terminal › Font** lists every monospaced font you have
+  installed, such as Nerd Font builds, not only the common ones.
+  Thanks @smallnest
+- The Changes panel no longer closes the app when it shows Python code
+  with a single-quoted f-string, such as `f'{x}'`.
+
+## 2.1.11
+
+- You can drag the terminal's scroll bar. It shows when you scroll or
+  point at the right edge of a pane, even at the bottom, widens under
+  the pointer, and fades out a second after you stop.
+- In panes on Windows, Ctrl+C ends programs such as `vite` or
+  `ping -t`. Windows hosts get it with their next update.
+
+## 2.1.10
+
+- On Windows, pasting with Ctrl+V into a text field, such as a host's
+  address in **Settings › Hosts**, pastes once, not twice.
+
 ## 2.1.9
 
 - On a Mac, Command+Backspace clears the line you're typing in the

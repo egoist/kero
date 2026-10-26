@@ -17,6 +17,9 @@ type Action struct {
 	// Remote tells that `kero do` may run it: what needs no dialog or
 	// focus of the user's.
 	Remote bool
+	// Global tells that its shortcut works in every app, as the system's
+	// global shortcut, rather than as a key of the app's menus.
+	Global bool
 }
 
 // All are the app's actions, in their menus' order.
@@ -27,8 +30,10 @@ var All = []Action{
 
 	{ID: "session.new", Title: "New Session", Menu: "Session", Keys: "CmdOrCtrl+T", Remote: true},
 	{ID: "session.newHome", Title: "New Session in Home", Menu: "Session", Keys: "CmdOrCtrl+Shift+T", Remote: true},
+	{ID: "session.newWorktree", Title: "New Session in Worktree…", Menu: "Session", Keys: "CmdOrCtrl+Alt+T"},
 	{ID: "project.open", Title: "Open Project…", Menu: "Session", Keys: "CmdOrCtrl+O"},
 	{ID: "palette.open", Title: "Go to Session…", Menu: "Session", Keys: "CmdOrCtrl+P", Remote: true},
+	{ID: "conversation.resume", Title: "Resume Conversation…", Menu: "Session", Keys: "CmdOrCtrl+Shift+O", Remote: true},
 	{ID: "session.attention", Title: "Jump to Session Needing You", Menu: "Session", Keys: "CmdOrCtrl+J", Remote: true},
 	{ID: "session.next", Title: "Next Session", Menu: "Session", Keys: "CmdOrCtrl+Shift+]", Remote: true},
 	{ID: "session.previous", Title: "Previous Session", Menu: "Session", Keys: "CmdOrCtrl+Shift+[", Remote: true},
@@ -58,44 +63,49 @@ var All = []Action{
 	{ID: "text.bigger", Title: "Bigger", Menu: "View", Keys: "CmdOrCtrl+=", Remote: true},
 	{ID: "text.smaller", Title: "Smaller", Menu: "View", Keys: "CmdOrCtrl+-", Remote: true},
 	{ID: "text.reset", Title: "Actual Size", Menu: "View", Keys: "CmdOrCtrl+0", Remote: true},
+	// No shortcut until the user gives it one: a global shortcut takes its
+	// keys from every other app, as Control+` from VS Code's terminal.
+	{ID: "quickTerminal.toggle", Title: "Quick Terminal", Menu: "View", Remote: true, Global: true},
 }
 
 // pcKeys are the defaults on Windows and Linux, where Control is the
 // terminal's: Control+T, D, W or R belong to the shell, so the shortcuts add
 // Shift, as Windows Terminal's do, or Alt; "" leaves an action without one.
 var pcKeys = map[string]string{
-	"settings.open":     "Ctrl+,",
-	"app.quitAll":       "",
-	"session.new":       "Ctrl+Shift+T",
-	"session.newHome":   "",
-	"project.open":      "Ctrl+Shift+O",
-	"palette.open":      "Ctrl+Shift+P",
-	"session.attention": "Ctrl+Shift+J",
-	"session.next":      "Ctrl+PageDown",
-	"session.previous":  "Ctrl+PageUp",
-	"session.rename":    "",
-	"pane.restart":      "Ctrl+Shift+R",
-	"pane.close":        "Ctrl+Shift+W",
-	"session.close":     "",
-	"find.open":         "Ctrl+Shift+F",
-	"find.next":         "",
-	"find.previous":     "",
-	"pane.split.right":  "Alt+Shift+=",
-	"pane.split.down":   "Alt+Shift+-",
-	"pane.browser":      "Alt+Shift+B",
-	"browser.address":   "",
-	"pane.zoom":         "Ctrl+Shift+Enter",
-	"pane.next":         "Ctrl+Shift+]",
-	"pane.previous":     "Ctrl+Shift+[",
-	"pane.left":         "Alt+Left",
-	"pane.right":        "Alt+Right",
-	"pane.up":           "Alt+Up",
-	"pane.down":         "Alt+Down",
-	"sidebar.toggle":    "Ctrl+Shift+B",
-	"changes.toggle":    "Ctrl+Shift+G",
-	"text.bigger":       "Ctrl+=",
-	"text.smaller":      "Ctrl+-",
-	"text.reset":        "Ctrl+0",
+	"settings.open":       "Ctrl+,",
+	"app.quitAll":         "",
+	"session.new":         "Ctrl+Shift+T",
+	"session.newHome":     "",
+	"session.newWorktree": "",
+	"project.open":        "Ctrl+Shift+O",
+	"palette.open":        "Ctrl+Shift+P",
+	"conversation.resume": "",
+	"session.attention":   "Ctrl+Shift+J",
+	"session.next":        "Ctrl+PageDown",
+	"session.previous":    "Ctrl+PageUp",
+	"session.rename":      "",
+	"pane.restart":        "Ctrl+Shift+R",
+	"pane.close":          "Ctrl+Shift+W",
+	"session.close":       "",
+	"find.open":           "Ctrl+Shift+F",
+	"find.next":           "",
+	"find.previous":       "",
+	"pane.split.right":    "Alt+Shift+=",
+	"pane.split.down":     "Alt+Shift+-",
+	"pane.browser":        "Alt+Shift+B",
+	"browser.address":     "",
+	"pane.zoom":           "Ctrl+Shift+Enter",
+	"pane.next":           "Ctrl+Shift+]",
+	"pane.previous":       "Ctrl+Shift+[",
+	"pane.left":           "Alt+Left",
+	"pane.right":          "Alt+Right",
+	"pane.up":             "Alt+Up",
+	"pane.down":           "Alt+Down",
+	"sidebar.toggle":      "Ctrl+Shift+B",
+	"changes.toggle":      "Ctrl+Shift+G",
+	"text.bigger":         "Ctrl+=",
+	"text.smaller":        "Ctrl+-",
+	"text.reset":          "Ctrl+0",
 }
 
 func init() {

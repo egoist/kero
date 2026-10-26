@@ -48,6 +48,24 @@ func TestBrowseRefuses(t *testing.T) {
 	}
 }
 
+// The cookies are every page's: a host's programs neither read nor set
+// them, though Remote Control lets them drive the host's browsers.
+func TestCookiesStayHome(t *testing.T) {
+	a := testApp(t)
+	h := withHost(t, a, "devbox")
+	h.cfg.RemoteControl = true
+	s := a.sessionOfPane("rpa-devbox")
+	s.Panes[0].URL = "http://localhost:3000"
+	for _, op := range []string{"save", "load"} {
+		var got error
+		a.browse(h, &proto.BrowserRequest{Pane: "rpa-devbox", BrowserParams: proto.BrowserParams{Op: "cookies", Text: op}},
+			func(_ *proto.BrowserResult, err error) { got = err })
+		if got == nil || !strings.Contains(got.Error(), "cookies stay on this machine") {
+			t.Errorf("%s from a host: %v", op, got)
+		}
+	}
+}
+
 // The page's load ends for every call waiting on it; the script those
 // that wait on the page run carries what it does as JSON.
 func TestLoadEnds(t *testing.T) {
@@ -65,7 +83,7 @@ func TestLoadEnds(t *testing.T) {
 	}
 	// A selector's quotes can't break out of it.
 	js := pageScript(proto.BrowserParams{Op: "click", Selector: `a[href="x"]`}, 2*time.Second)
-	if !strings.HasSuffix(js, `)({"enter":false,"op":"click","selector":"a[href=\"x\"]","text":"","timeout":2000})`) {
+	if !strings.HasSuffix(js, `)({"enter":false,"op":"click","ref":"","selector":"a[href=\"x\"]","text":"","timeout":2000})`) {
 		t.Errorf("script ends %q", js[strings.LastIndex(js, ")("):])
 	}
 }

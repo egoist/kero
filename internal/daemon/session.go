@@ -249,7 +249,7 @@ func (s *pane) onNotify(title, body string) {
 		}
 		return
 	}
-	go s.d.notice(proto.Notice{Session: s.sid, Title: title, Body: body})
+	go s.d.notice(proto.Notice{Session: s.sid, Pane: s.info.ID, Title: title, Body: body})
 }
 
 // flag marks the pane as needing the user, as "kero notify" asks; s.mu
@@ -335,6 +335,7 @@ func (s *pane) tick(now time.Time) bool {
 		s.dropLive()
 		s.progress = ""
 		if s.info.AgentSession != nil {
+			s.d.noteEnded(s)
 			s.info.AgentSession = nil
 			s.d.save()
 		}
@@ -739,6 +740,7 @@ func (s *pane) close() {
 		return
 	}
 	s.closed = true
+	s.d.noteEnded(s)
 	close(s.changed) // wakes those waiting on it
 	s.changed = make(chan struct{})
 	proc := s.proc

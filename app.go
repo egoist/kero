@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"maps"
 	"net/url"
 	"os"
@@ -50,6 +51,12 @@ type prefs struct {
 	// SideWidth its width.
 	Side      string  `json:"side,omitempty"`
 	SideWidth float32 `json:"sideWidth,omitempty"`
+	// EndedOpen and ArchivedOpen tell the sidebar's sections of the
+	// agents' ended conversations unfolded (session-history).
+	EndedOpen    bool `json:"endedOpen,omitempty"`
+	ArchivedOpen bool `json:"archivedOpen,omitempty"`
+	// QuickSession is the session the quick terminal shows (quick.go).
+	QuickSession string `json:"quickSession,omitempty"`
 }
 
 const (
@@ -72,7 +79,11 @@ type termEntry struct {
 // App is the app's state. It lives on the main thread: other goroutines
 // change it through Window.Update.
 type App struct {
-	win *mygo.Window
+	// win is the main window, and winOpen whether it is open: closed, it
+	// still takes the updates of Window.Update, which run without it.
+	win     *mygo.Window
+	winOpen bool
+	tray    *mygo.Tray // the icon in the menu bar or notification area, while it shows
 
 	// hosts are the kerods the app shows, this machine's first; st is
 	// what they hold, each host's sessions and projects after the one's
@@ -115,9 +126,15 @@ type App struct {
 	renameFrames int
 	chrome       chrome // where the sidebar's animation puts things
 
-	pal          paletteState
-	find         findState
-	confirm      *confirmation
+	pal     paletteState
+	find    findState
+	confirm *confirmation
+	wtAsk   *worktreeAsk
+	// endedAll shows all of the sidebar's Ended; skillMissing tells, as
+	// of skillsAt, that no kind of agent has Kero's skill (ended.go).
+	endedAll     bool
+	skillMissing bool
+	skillsAt     time.Time
 	sideDrag     float32 // the width as a drag of the sidebar's edge began
 	pendingToast string
 	// later are actions that change what the view is building, run once
@@ -144,6 +161,7 @@ type App struct {
 	from   *host
 	picker folderPicker // the folders of a host, to open a project in
 	side   sideState    // the side panel, beside a session's panes
+	quick  quickTerm    // the terminal the global shortcut drops down
 }
 
 // confirmation is a question the app asks before something it cannot undo.
@@ -154,6 +172,11 @@ type confirmation struct {
 	action  string
 	destroy bool
 	run     func()
+	// alt is a second answer besides action and Cancel, which runs
+	// altRun; altDestroy marks it as one that destroys.
+	alt        string
+	altRun     func()
+	altDestroy bool
 }
 
 func newApp() *App {
@@ -227,9 +250,7 @@ func (a *App) event(h *host, cl *client.Client, m proto.Message) {
 		}
 		a.selectSession(m.Select)
 		if a.win != nil {
-			a.win.Show()
-			a.win.Focus()
-			mygo.App.Focus()
+			a.showWindow()
 		}
 	case "action":
 		if !a.remoteControl(h) {
@@ -257,7 +278,7 @@ func (a *App) event(h *host, cl *client.Client, m proto.Message) {
 		// while the user looks at its session.
 		n := m.Notice
 		s := a.session(n.Session)
-		if s == nil || n.Session == a.selected && a.active {
+		if s == nil || a.watching(n.Session) {
 			return
 		}
 		title := n.Title
@@ -277,6 +298,9 @@ func (a *App) event(h *host, cl *client.Client, m proto.Message) {
 func (a *App) setState(h *host, st proto.State) {
 	first, hostFirst := !a.loaded, !h.loaded
 	h.loaded = true
+	if st.Conversations != h.convGen || hostFirst {
+		h.convGen, h.convKnown = st.Conversations, false
+	}
 	// A divider dragged keeps the ratios it set, which the daemon hears of
 	// only once it is let go.
 	var dragged *proto.Layout
@@ -305,6 +329,7 @@ func (a *App) setState(h *host, st proto.State) {
 			a.dropWeb(id)
 		}
 	}
+	a.quickChanged()
 	if a.session(a.selected) == nil {
 		a.reselect()
 	} else if first || hostFirst && a.hostOf(a.selected) == h {
@@ -324,8 +349,7 @@ func (a *App) showNotification(id, title, body string) {
 	n.OnClick(func() {
 		a.update(func() {
 			a.selectSession(id)
-			a.win.Show()
-			a.win.Focus()
+			a.showWindow()
 		})
 		n.Close()
 	})
@@ -348,7 +372,7 @@ func (a *App) notify(first bool) {
 		if s.Status == proto.Waiting {
 			waiting++
 		}
-		if first || !seen || prev == s.Status || s.ID == a.selected && a.active {
+		if first || !seen || prev == s.Status || a.watching(s.ID) {
 			continue
 		}
 		var title, body string
@@ -514,6 +538,14 @@ func (a *App) selectSession(id string) {
 	}
 }
 
+// watching tells whether the user looks at the session: it's selected,
+// and the main window has the keyboard. Only macOS says when the app
+// stops being the active one, so the window's focus has to tell
+// elsewhere.
+func (a *App) watching(id string) bool {
+	return id != "" && id == a.selected && a.active && a.focused
+}
+
 // reportView tells each host's kerod which of its sessions the user looks
 // at, which it then never marks unread.
 func (a *App) reportView() {
@@ -523,7 +555,10 @@ func (a *App) reportView() {
 			continue
 		}
 		id := ""
-		if a.active && a.focused && h == shown {
+		switch {
+		case a.quick.shown && h == a.local():
+			id = a.prefs.QuickSession
+		case a.watching(a.selected) && h == shown:
 			id = a.selected
 		}
 		if h.viewSent != nil && *h.viewSent == id {
@@ -705,6 +740,14 @@ func (a *App) termThemes() (light, dark *terminal.Theme) {
 	return pick(a.set.LightTheme, lightTermTheme), pick(a.set.DarkTheme, darkTermTheme)
 }
 
+// commandKeys are the keys that, with ⌘ alone on a Mac, send the program a
+// control byte, as Ghostty's do.
+var commandKeys = map[ui.Key]byte{
+	ui.KeyBackspace: 0x15, // Control+U, kill-line
+	ui.KeyLeft:      0x01, // Control+A, beginning-of-line
+	ui.KeyRight:     0x05, // Control+E, end-of-line
+}
+
 func (a *App) termOptions(id string, conn *gated) terminal.Options {
 	light, dark := a.termThemes()
 	o := terminal.Options{
@@ -739,17 +782,23 @@ func (a *App) termOptions(id string, conn *gated) terminal.Options {
 			conn.Clear(proto.ClearScreen)
 			return true
 		},
-		// ⌘⌫ clears the line the shell is on, as in Ghostty: it sends
-		// Control+U, which shells take as kill-line.
+		// ⌘⌫ clears the line the shell is on, and ⌘← and ⌘→ go to its
+		// start and end, as in Ghostty: they send Control+U, Control+A and
+		// Control+E, which shells take as kill-line, beginning-of-line and
+		// end-of-line.
 		OnKey: func(mods ui.Modifiers, key ui.Key) bool {
-			if runtime.GOOS != "darwin" || mods != ui.Super || key != ui.KeyBackspace {
+			if runtime.GOOS != "darwin" || mods != ui.Super {
 				return false
 			}
-			e := a.terms[id]
-			if e == nil || e.term == nil {
+			b, ok := commandKeys[key]
+			if !ok {
 				return false
 			}
-			e.term.Send([]byte{0x15})
+			t := a.termFor(id)
+			if t == nil {
+				return false
+			}
+			t.Send([]byte{b})
 			return true
 		},
 		// The wheel, the user's even over a window not focused, tells they
@@ -760,6 +809,9 @@ func (a *App) termOptions(id string, conn *gated) terminal.Options {
 			return false
 		},
 		OpenLink: func(link string) bool { return a.openLink(id, link) },
+		// An image alone on the clipboard pastes as the path of a file
+		// with it, which agents take as an image they attach.
+		OnPaste: func(d transfer.Data) bool { return a.pasteImage(id, d) },
 		// A selection copied as it ends shows nothing else: say so.
 		OnCopy: func(_ string, by terminal.CopySource) {
 			if by == terminal.CopySelect {
@@ -774,7 +826,7 @@ func (a *App) termOptions(id string, conn *gated) terminal.Options {
 		o.CopyOnSelect = terminal.CopyOnSelectClipboard
 	}
 	// Files and images pasted into a pane of another machine go there; a
-	// local pane's paste reads only what it takes, as it did.
+	// local pane's image alone pastes as the path of a file with it.
 	if a.hostOf(id).remote() {
 		o.OnPaste = func(d transfer.Data) bool { return a.remotePaste(id, d) }
 	}
@@ -815,6 +867,24 @@ func (a *App) apply(s settings.Settings, save bool) {
 	anew := old.Cursor != s.Cursor || old.CursorBlink != s.CursorBlink || old.OptionAsAlt != s.OptionAsAlt ||
 		old.Clipboard != s.Clipboard || old.RightClick != s.RightClick
 	light, dark := a.termThemes()
+	retune := func(t *terminal.Terminal) {
+		if font {
+			t.SetFont(a.termFont())
+		}
+		if themes {
+			t.SetTheme(light, dark)
+		}
+		if old.MinContrast != s.MinContrast {
+			t.SetMinimumContrast(s.MinContrast)
+		}
+		if old.CopyOnSelect != s.CopyOnSelect {
+			mode := terminal.CopyOnSelectNone
+			if s.CopyOnSelect {
+				mode = terminal.CopyOnSelectClipboard
+			}
+			t.SetCopyOnSelect(mode)
+		}
+	}
 	for id, e := range a.terms {
 		if e.term == nil {
 			continue
@@ -823,21 +893,16 @@ func (a *App) apply(s settings.Settings, save bool) {
 			a.dropTerm(id) // attached again as it shows
 			continue
 		}
-		if font {
-			e.term.SetFont(a.termFont())
-		}
-		if themes {
-			e.term.SetTheme(light, dark)
-		}
-		if old.MinContrast != s.MinContrast {
-			e.term.SetMinimumContrast(s.MinContrast)
-		}
-		if old.CopyOnSelect != s.CopyOnSelect {
-			mode := terminal.CopyOnSelectNone
-			if s.CopyOnSelect {
-				mode = terminal.CopyOnSelectClipboard
+		retune(e.term)
+	}
+	if t := a.quickTermFor(a.quick.pane); t != nil {
+		if anew {
+			a.dropQuick()
+			if a.quick.shown {
+				a.attachQuick()
 			}
-			e.term.SetCopyOnSelect(mode)
+		} else {
+			retune(t)
 		}
 	}
 	if old.Appearance != s.Appearance && a.win != nil {
@@ -852,9 +917,13 @@ func (a *App) apply(s settings.Settings, save bool) {
 	}
 	if !maps.Equal(old.Shortcuts, s.Shortcuts) && a.win != nil {
 		mygo.App.SetMenu(a.menu())
+		a.applyGlobalShortcuts()
 	}
 	if old.DockBadge != s.DockBadge {
 		a.notify(true)
+	}
+	if old.AppIcon != s.AppIcon && a.win != nil {
+		a.changeAppIcon()
 	}
 	// Only once a browser pane showed a page: until then, no lists are
 	// downloaded.
@@ -869,6 +938,9 @@ func (a *App) apply(s settings.Settings, save bool) {
 	}
 	if a.setWin != nil {
 		a.setWin.Invalidate()
+	}
+	if a.quick.win != nil {
+		a.quick.win.Invalidate()
 	}
 }
 
@@ -1136,20 +1208,56 @@ func (a *App) openProject() {
 
 // openProjectAt starts a session in a folder of a host, in its project.
 func (a *App) openProjectAt(h *host, dir string) {
-	cl := h.cl
+	cl, local := h.cl, !h.remote()
 	if cl == nil {
 		return
 	}
-	go func() {
+	go a.openProjectDirs(h, cl, []string{dir}, local)
+}
+
+// openProjectDirs runs off the UI thread with the host and client captured.
+func (a *App) openProjectDirs(h *host, cl *client.Client, dirs []string, local bool) {
+	seen := map[string]bool{}
+	var errs []error
+	for _, dir := range dirs {
+		// Remote paths are validated by their host, not this machine's path rules.
+		if local && !filepath.IsAbs(dir) {
+			errs = append(errs, fmt.Errorf("not an absolute directory: %s", dir))
+			continue
+		}
 		var p proto.Project
 		if err := cl.Call("project.create", proto.ProjectParams{Dir: dir}, &p); err != nil {
-			a.update(func() { a.toast(err.Error()) })
-			return
+			errs = append(errs, fmt.Errorf("%s: %w", dir, err))
+			continue
+		}
+		if seen[p.ID] {
+			continue
+		}
+		seen[p.ID] = true
+		var s proto.Session
+		if err := cl.Call("create", proto.CreateParams{Project: p.ID, Dir: dir}, &s); err != nil {
+			errs = append(errs, fmt.Errorf("%s: %w", dir, err))
+			continue
 		}
 		a.update(func() {
-			a.create(h, proto.CreateParams{Project: p.ID, Dir: dir}, p.ID)
+			if h.cl != cl {
+				return
+			}
+			delete(a.prefs.Collapsed, p.ID)
+			if a.project(p.ID) == nil {
+				a.st.Projects = append(a.st.Projects, p)
+			}
+			a.addPending(h, s)
+			a.selectSession(s.ID)
 		})
-	}()
+	}
+	if err := errors.Join(errs...); err != nil {
+		a.update(func() {
+			if h.cl == cl {
+				a.toast(err.Error())
+			}
+		})
+	}
 }
 
 // busy reports whether closing a session would end a program the user may
@@ -1163,6 +1271,10 @@ func (a *App) closeSession(id string, ask bool) {
 	if s == nil {
 		return
 	}
+	if ask && s.Worktree != nil && a.hostOf(id).cl != nil {
+		a.askCloseWorktree(id)
+		return
+	}
 	if ask && a.set.ConfirmClose && busy(s) {
 		name := s.DisplayName(a.set.SessionName)
 		a.confirm = &confirmation{
@@ -1173,6 +1285,15 @@ func (a *App) closeSession(id string, ask bool) {
 			destroy: true,
 			run:     func() { a.closeSession(id, false) },
 		}
+		return
+	}
+	a.endSession(id, proto.CloseParams{ID: id})
+}
+
+// endSession closes a session, as p says, without asking.
+func (a *App) endSession(id string, p proto.CloseParams) {
+	s := a.session(id)
+	if s == nil {
 		return
 	}
 	h := a.hostOf(id)
@@ -1195,7 +1316,21 @@ func (a *App) closeSession(id string, ask bool) {
 		a.dropTerm(p.ID)
 	}
 	a.st.Sessions = slices.DeleteFunc(a.st.Sessions, func(x proto.Session) bool { return x.ID == id })
-	a.callOn(h, "close", proto.IDParams{ID: id}, nil)
+	a.callOn(h, "close", p, nil)
+}
+
+// closeAllSessions closes every session of a group, leaving its
+// project, once the user confirmed it: what runs in them ends with
+// them. The ids are gathered first: closing moves the state the
+// group's sessions point into.
+func (a *App) closeAllSessions(g group) {
+	ids := make([]string, len(g.sessions))
+	for i, s := range g.sessions {
+		ids[i] = s.ID
+	}
+	for _, id := range ids {
+		a.closeSession(id, false)
+	}
 }
 
 func (a *App) restartSession(id string) {
