@@ -271,18 +271,45 @@ func Save(s Settings) error {
 	return nil
 }
 
-// write writes the configuration; mu is held.
+// write writes the configuration; mu is held. A configuration that is a
+// symlink, as one kept in a dotfiles repository is, stays one: the file it
+// points to is what changes.
 func write(s Settings) error {
-	old, _ := os.ReadFile(Path())
+	path := Target()
+	old, _ := os.ReadFile(path)
 	data := format(s, string(old))
-	if err := os.MkdirAll(filepath.Dir(Path()), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
-	tmp := Path() + ".tmp"
-	if err := os.WriteFile(tmp, []byte(data), 0o644); err != nil {
+	mode := os.FileMode(0o644)
+	if st, err := os.Stat(path); err == nil {
+		mode = st.Mode().Perm()
+	}
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, []byte(data), mode); err != nil {
 		return err
 	}
-	return os.Rename(tmp, Path())
+	return os.Rename(tmp, path)
+}
+
+// Target returns the file the configuration is in: Path, or the file it
+// is a symlink to, as one kept in a dotfiles repository.
+func Target() string { return target(Path()) }
+
+// target returns the file a path's symlinks lead to, even one not there
+// yet, else the path itself.
+func target(path string) string {
+	for range 40 {
+		dest, err := os.Readlink(path)
+		if err != nil {
+			return path
+		}
+		if !filepath.IsAbs(dest) {
+			dest = filepath.Join(filepath.Dir(path), dest)
+		}
+		path = dest
+	}
+	return path
 }
 
 // Clone returns a copy that shares nothing with s.
