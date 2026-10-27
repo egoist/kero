@@ -5,8 +5,10 @@
   "actionQuitAll": "Quit and End All Sessions…",
   "actionNewSession": "New Session",
   "actionNewSessionHome": "New Session in Home",
+  "actionNewSessionWorktree": "New Session in Worktree…",
   "actionOpenProject": "Open Project…",
   "actionGoToSession": "Go to Session…",
+  "actionResumeConversation": "Resume Conversation…",
   "actionJumpToAttention": "Jump to Session Needing You",
   "actionNextSession": "Next Session",
   "actionPreviousSession": "Previous Session",
@@ -16,6 +18,8 @@
   "actionCloseSession": "Close Session",
   "actionSplitRight": "Split Right",
   "actionSplitDown": "Split Down",
+  "actionNewBrowser": "New Browser Pane",
+  "actionOpenLocation": "Open Location…",
   "actionZoomPane": "Zoom Pane",
   "actionFind": "Find…",
   "actionFindNext": "Find Next",
@@ -50,6 +54,7 @@
   "commonShowIn": "Show in {app}",
   "commonNone": "None",
   "commonRemove": "Remove",
+  "commonSave": "Save",
   "commonAdd": "Add",
   "commonInstall": "Install",
   "commonReinstall": "Reinstall",
@@ -64,6 +69,11 @@
   "toastCopied": "Copied",
   "toastCopiedToClipboard": "Copied to clipboard",
   "toastSaveSettingsFailed": "Couldn’t save the settings: {error}",
+  "toastPasteImageFailed": "Couldn’t paste the image: {error}. Try again, or drop the image file on the pane.",
+  "toastPasteImageDenied": "Couldn’t paste the image: Kero can’t write to {dir}. Make it writable, or drop the image file on the pane.",
+  "toastPasteImageDiskFull": "Couldn’t paste the image: the disk is full. Free some space and try again.",
+  "toastPasteClipboardUnreadable": "Couldn’t read the clipboard. Copy it again and paste.",
+  "toastPasteImageUnsupported": "Couldn’t paste the image: {format} isn’t supported. Copy it as PNG or JPEG, or drop the image file on the pane.",
   "toastConfigProblems": "{count, plural, one {Your config has # problem: see Settings › Advanced} other {Your config has # problems: see Settings › Advanced}}",
   "@toastConfigProblems": {
     "placeholders": {
@@ -85,9 +95,18 @@
   "openProjectTitle": "Open Project",
   "openProjectMessage": "Choose a folder: its sessions are grouped under its name.",
   "confirmCloseTitle": "Close “{name}”?",
+  "confirmCloseAllSessionsTitle": "Close all sessions of “{name}”?",
   "confirmCloseSessionDetail": "{process} is still running in it. Closing the session ends it.",
   "confirmCloseProjectDetail": "{count, plural, one {This ends its # session, with what runs in it.} other {This ends its # sessions, with what runs in them.}}",
   "@confirmCloseProjectDetail": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "confirmCloseAllSessionsDetail": "{count, plural, one {The project stays; its # session ends, with what runs in it.} other {The project stays; its # sessions end, with what runs in them.}}",
+  "@confirmCloseAllSessionsDetail": {
     "placeholders": {
       "count": {
         "type": "int"
@@ -139,6 +158,7 @@
   "sidebarExpand": "Expand",
   "sidebarCloseProjectMenu": "Close Project…",
   "sidebarCloseProject": "Close Project",
+  "sidebarCloseAllSessions": "Close All Sessions",
   "sidebarNeedsYou": "{count} needs you",
   "@sidebarNeedsYou": {
     "placeholders": {
@@ -199,10 +219,16 @@
   "paletteSettingsPage": "Settings: {page}",
   "paletteRestartService": "Restart Background Service",
   "paletteRestartServiceDetail": "Sessions start again where they were",
+  "paletteOpenInBrowser": "Open in Browser Pane",
   "paletteLabel": "Go to Session",
   "palettePlaceholder": "Go to session or run a command…",
   "paletteNoMatches": "No matches",
   "paletteCommands": "Commands",
+  "paletteConversations": "Recent Conversations",
+  "paletteConversationsLabel": "Resume Conversation",
+  "paletteConversationsPlaceholder": "Find a conversation to resume…",
+  "paletteNoConversations": "No conversations yet. Coding agents’ conversations show here once Kero’s skill is set up for them.",
+  "paletteConversationRunning": "running",
   "agoNow": "now",
   "agoMinutes": "{n}m",
   "@agoMinutes": {
@@ -323,6 +349,8 @@
   "setNameFocused": "Pane You’re In",
   "setNameLead": "Pane That Needs You",
   "setNameFolder": "Folder",
+  "setFocusFollowsMouse": "Focus follows mouse",
+  "setFocusFollowsMouseDetail": "A pane takes the focus when the pointer moves into it, without a click.",
   "setAskBeforeClosing": "Ask before closing a running program",
   "setAskBeforeClosingDetail": "When a pane or session you close has a program other than the shell running.",
   "setRestoreSessions": "Restore sessions after a restart",
@@ -332,6 +360,12 @@
   "setStartup": "Startup",
   "setOpenAtLogin": "Open Kero at login",
   "setLoginFailed": "Couldn’t change it: {error}",
+  "setAppIcon": "Show app icon",
+  "setAppIconBoth": "Dock and menu bar",
+  "setAppIconDock": "Dock only",
+  "setAppIconMenuBar": "Menu bar only",
+  "setAppIconDetail": "Closing the window keeps Kero running in the menu bar.",
+  "trayOpen": "Open {app}",
   "setVersionNoUpdate": " · this copy can’t update itself",
   "setVersionNotChecked": " · not checked yet",
   "setVersionLastChecked": " · last checked {duration} ago",
@@ -350,6 +384,8 @@
   "setLanguageSystem": "System",
   "setTranslucent": "Translucent window",
   "setTranslucentDetail": "Let the desktop show through the window’s background.",
+  "setDimUnfocused": "Dim unfocused terminals",
+  "setDimUnfocusedDetail": "When a session has several panes, the terminals you’re not in fade.",
   "setBackground": "Background",
   "bgPetal": "Petal",
   "bgMist": "Mist",
@@ -425,7 +461,7 @@
   "setNotifyError": "Couldn’t notify: {error}",
   "setRemoteControl": "Remote Control",
   "setRemoteControlRow": "Let commands drive this window",
-  "setRemoteControlDetail": "kero do and kero focus run the app’s actions, as its menus do: splitting, switching sessions, opening the palette.",
+  "setRemoteControlDetail": "kero do and kero focus run the app’s actions, as its menus do: splitting, switching sessions, opening the palette. kero browser clicks, types and reads in browser panes.",
   "setCli": "Command line tool",
   "setCliDetail": "Inside Kero, every pane has the kero command on its PATH already.",
   "setCliNotInstalled": "Not installed: other terminals don’t know the kero command.",
@@ -466,5 +502,595 @@
   "findPlaceholder": "Find",
   "findCount": "{selected} of {total}",
   "findNoMatches": "No matches",
-  "findClose": "Close Find Bar"
+  "findClose": "Close Find Bar",
+  "actionToggleChanges": "Toggle Changes",
+  "sideChanges": "Changes",
+  "sideClose": "Close Panel",
+  "changesTurn": "Last Turn",
+  "changesUncommitted": "Uncommitted",
+  "changesBranch": "Branch",
+  "changesTurnTip": "What the agent changed since it last started working",
+  "changesUncommittedTip": "What isn't committed, untracked files too",
+  "changesBranchTip": "What this branch changed since it left {branch}",
+  "changesFiles": "{count, plural, one {# file} other {# files}}",
+  "@changesFiles": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "changesSince": "since {base}",
+  "changesNone": "No changes",
+  "changesNoneTurn": "The agent hasn't changed any files since it started working.",
+  "changesNoneUncommitted": "Everything is committed.",
+  "changesNoneBranch": "Nothing changed since {branch}.",
+  "changesNoRepo": "Not a git repository",
+  "changesNoRepoDetail": "A session's changes show here while it works in a git repository.",
+  "changesGitOff": "Git status is off",
+  "changesGitOffDetail": "Turn on Show Git Status in Settings to see the changes here.",
+  "changesCantRead": "Can't read the changes",
+  "changesOpenFile": "Open File",
+  "changesUnified": "Unified",
+  "changesSplit": "Side by Side",
+  "changesBinary": "Binary file",
+  "changesTooLarge": "Too large to show",
+  "changesRevert": "Revert",
+  "changesKeep": "Keep",
+  "changesRevertTip": "Put the old lines back in the file",
+  "changesKeepTip": "Mark this change as reviewed",
+  "changesRevertFailed": "Couldn't revert: {error}",
+  "gitShowChanges": "Show Changes",
+  "gitMerging": "merging",
+  "gitRebasing": "rebasing",
+  "gitCherryPicking": "cherry-picking",
+  "gitReverting": "reverting",
+  "setGit": "Git",
+  "setGitDetail": "Branches and changes of the repositories sessions work in.",
+  "setGitStatus": "Show git status",
+  "setGitStatusDetail": "Each session's branch and changes, by its panes' titles and in the sidebar.",
+  "setDiffLayout": "Diffs",
+  "setDiffLayoutDetail": "Auto shows diffs unified while the changes panel is narrow, and side by side once it's wide.",
+  "setDiffAuto": "Auto",
+  "pageBrowser": "Browser",
+  "setAdBlocking": "Ad blocking",
+  "setBlockAds": "Block ads",
+  "setBlockAdsDetail": "Blocks ads and trackers with filter lists, which Kero downloads and keeps up to date.",
+  "setAdListEasylist": "Ads, the list most blockers start from.",
+  "setAdListEasyprivacy": "Trackers and analytics.",
+  "setAdListPeterLowe": "Ad and tracker servers, by their domains.",
+  "setAdListEasylistChina": "Ads on Chinese sites.",
+  "setAdListFanboyCookie": "Cookie notices and consent banners.",
+  "setAdListFanboySocial": "Social media buttons and embeds.",
+  "setAdListFanboyAnnoyance": "Pop-ups, newsletter prompts and chat boxes, and the cookie and social lists' too.",
+  "setAdListsNote": "Lists hide more as they add up, and may break a page now and then. Lists of other URLs go in the configuration, as browser-filter-list.",
+  "changesUnmodified": "{count, plural, one {# unmodified line} other {# unmodified lines}}",
+  "@changesUnmodified": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "changesExpandUp": "Expand Up",
+  "changesExpandDown": "Expand Down",
+  "changesExpandAll": "Expand All",
+  "pageHosts": "Hosts",
+  "pageExperimental": "Experimental",
+  "hostThisComputer": "This Computer",
+  "hostColor": "Color",
+  "hostColorAuto": "From Its Name",
+  "colorRed": "Red",
+  "colorOrange": "Orange",
+  "colorAmber": "Amber",
+  "colorGreen": "Green",
+  "colorTeal": "Teal",
+  "colorBlue": "Blue",
+  "colorPurple": "Purple",
+  "colorPink": "Pink",
+  "hostNotConnected": "Not connected to {host}",
+  "@hostNotConnected": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "hostReconnect": "Reconnect",
+  "hostReconnectTo": "Reconnect to {host}",
+  "@hostReconnectTo": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "hostReconnecting": "Reconnecting…",
+  "hostReconnectingTo": "Reconnecting to {host}…",
+  "@hostReconnectingTo": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "hostCantConnect": "Can't connect to {host}",
+  "@hostCantConnect": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "hostNotInstalled": "Kero isn't installed on {host}",
+  "@hostNotInstalled": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "hostRefused": "{host} refused the connection",
+  "@hostRefused": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "hostAuthHint": "Kero signs in with your SSH keys and agent, and never asks for a password. To trust a host's key, run ssh {address} once in a terminal.",
+  "@hostAuthHint": {
+    "placeholders": {
+      "address": {
+        "type": "String"
+      }
+    }
+  },
+  "hostAbout": "Kero {version} on {platform} · {hostname}, as {user}",
+  "@hostAbout": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      },
+      "platform": {
+        "type": "String"
+      },
+      "hostname": {
+        "type": "String"
+      },
+      "user": {
+        "type": "String"
+      }
+    }
+  },
+  "hostConnected": "Connected: Kero {version} on {platform} · {hostname}, as {user}",
+  "@hostConnected": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      },
+      "platform": {
+        "type": "String"
+      },
+      "hostname": {
+        "type": "String"
+      },
+      "user": {
+        "type": "String"
+      }
+    }
+  },
+  "hostSessions": "{count, plural, one {# session} other {# sessions}}",
+  "@hostSessions": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "hostCopyAddress": "Copy Address",
+  "hostSettings": "Host Settings…",
+  "hostRemove": "Remove Host…",
+  "hostEdit": "Edit Host",
+  "hostRemoveTitle": "Remove {host}?",
+  "@hostRemoveTitle": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "hostRemoveDetail": "Its sessions keep running on {host}. Add the host again to see them.",
+  "@hostRemoveDetail": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "hostInstall": "Install Kero…",
+  "hostInstalling": "Installing Kero on {host}…",
+  "@hostInstalling": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "hostInstalled": "Installed Kero on {host}",
+  "@hostInstalled": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "hostInstallFailed": "Couldn't install Kero on {host}: {error}",
+  "@hostInstallFailed": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      },
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "hostUpdateAction": "Update Kero on {host}…",
+  "@hostUpdateAction": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "hostUpdateTitle": "Update Kero on {host} to {version}?",
+  "@hostUpdateTitle": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      },
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "hostUpdateDetail": "Kero then restarts its service on {host}. Sessions there start again where they were, with their history, and the programs running in them end.",
+  "@hostUpdateDetail": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "hostUpdateAppDetail": "The Kero app on {host} updates and relaunches, then restarts its service. Sessions there start again where they were, with their history, and the programs running in them end.",
+  "@hostUpdateAppDetail": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "hostUpdating": "Updating Kero on {host}…",
+  "@hostUpdating": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "hostUpdated": "{host} runs Kero {version}",
+  "@hostUpdated": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      },
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "hostUpdateDev": "A development build of Kero can't update a host. Run a released Kero, or update the host with kero daemon update there.",
+  "hostVersionTitle": "Kero on {host} is another version",
+  "@hostVersionTitle": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "hostVersionDetail": "{host} runs Kero {version}, and this app is Kero {app}. Update Kero there to see and start its sessions here.",
+  "@hostVersionDetail": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      },
+      "version": {
+        "type": "String"
+      },
+      "app": {
+        "type": "String"
+      }
+    }
+  },
+  "hostDesktopDetail": "{host} runs the Kero app, version {version}, and this is Kero {app}. Update Kero on {host}, or turn on Let them update Kero there (Settings › Hosts) to update it from here.",
+  "@hostDesktopDetail": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      },
+      "version": {
+        "type": "String"
+      },
+      "app": {
+        "type": "String"
+      }
+    }
+  },
+  "hostRestartAction": "Restart Service on {host}…",
+  "@hostRestartAction": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "hostRestartTitle": "Restart the service on {host}?",
+  "@hostRestartTitle": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "hostRestartDetail": "Sessions on {host} start again where they were, with their history, and the programs running in them end.",
+  "@hostRestartDetail": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "hostRestarting": "Restarting the service on {host}…",
+  "@hostRestarting": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "hostStaleTip": "The service on {host} still runs Kero {was}, and Kero {version} is installed there: restart it to run the new version.",
+  "@hostStaleTip": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      },
+      "was": {
+        "type": "String"
+      },
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "hostNoSuchFile": "There's no {path} on {host}",
+  "@hostNoSuchFile": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      },
+      "path": {
+        "type": "String"
+      }
+    }
+  },
+  "pasteNotAFile": "Kero pastes files into a pane on another machine, not folders: {name}",
+  "@pasteNotAFile": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "pasteTooLarge": "Kero pastes at most {size} MB into a pane on another machine",
+  "@pasteTooLarge": {
+    "placeholders": {
+      "size": {
+        "type": "int"
+      }
+    }
+  },
+  "pasteUploading": "Copying to {host}…",
+  "@pasteUploading": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "pickerTitle": "Open Project on {host}",
+  "@pickerTitle": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "pickerPlaceholder": "Filter folders, or type a path: ~/code",
+  "pickerShowHidden": "Show Hidden",
+  "pickerHideHidden": "Hide Hidden",
+  "pickerNoFolders": "No folders",
+  "pickerHint": "↩ go in · {open} open the folder chosen",
+  "@pickerHint": {
+    "placeholders": {
+      "open": {
+        "type": "String"
+      }
+    }
+  },
+  "setHosts": "Hosts",
+  "setHostsDetail": "Other machines whose sessions show in the sidebar after this computer's. Kero reaches them over SSH with your keys and agent, through WSL, or through kerod's listener on your tailnet, and kero -H <name> drives them from the command line.",
+  "setHostsNone": "No hosts",
+  "setHostsNoneDetail": "Add a machine you reach with ssh. If Kero isn't installed there, Kero offers to install it.",
+  "setHostsDocs": "Setting up hosts",
+  "setHostAdd": "Add a Host",
+  "setHostAddDetail": "me@devbox or ssh://me@devbox:2222 over SSH, as ssh takes it with your ~/.ssh/config; wsl://Ubuntu for a WSL distribution; http://devbox:7373 or https://devbox.tail1234.ts.net for kerod's tailnet listener.",
+  "setHostAddressPlaceholder": "me@devbox",
+  "setHostNamePlaceholder": "Name: {name}",
+  "@setHostNamePlaceholder": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "setHostNameTaken": "There's a host named {name} already",
+  "@setHostNameTaken": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "setHostNeedsAddress": "Type the host's address",
+  "setHostRemoteControl": "Remote Control",
+  "setHostRemoteControlDetail": "Let programs on {host} show sessions and run the app's actions (kero focus, kero do)",
+  "@setHostRemoteControlDetail": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "setListenTitle": "This Computer as a Host",
+  "setListen": "Let other machines connect",
+  "setListenDetail": "kerod listens at this computer's Tailscale addresses, for Kero on your other machines. Only your Tailscale account may connect.",
+  "setListenOn": "Add this computer as a host on your other machines at this address. Only your Tailscale account may connect.",
+  "setListenNoTailscale": "Tailscale isn't running here: kerod listens once it is.",
+  "setRemoteUpdates": "Let them update Kero here",
+  "setRemoteUpdatesDetail": "Kero on your other machines can update this app to its version. The app relaunches, and the programs running in its sessions end.",
+  "setHostSettingsSplit": "A host's own settings",
+  "setHostSettingsSplitDetail": "The shell, environment, scrollback and session restore of a host's sessions come from its own configuration: run kero config edit on the host. Appearance, keyboard and notifications are this app's.",
+  "setShellThisComputer": "These apply to this computer's sessions. Each host's come from its own configuration (Settings › Hosts).",
+  "confirmQuitAllHosts": "Sessions on other machines keep running.",
+  "hostInstallTitle": "Install Kero on {host}?",
+  "@hostInstallTitle": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "hostInstallDetail": "Kero runs its install script on {host}: the server build of Kero goes in your home folder there (~/.local, or %LOCALAPPDATA% on Windows), and kerod runs as a service of yours.",
+  "@hostInstallDetail": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "hostLinkRefused": "Kero opens only web links of {host}, not {scheme} ones",
+  "@hostLinkRefused": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      },
+      "scheme": {
+        "type": "String"
+      }
+    }
+  },
+  "hostManualDetail": "{host} runs Kero {version}, and this app is Kero {app}. Update Kero on {host} as you installed it, then restart its service.",
+  "@hostManualDetail": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      },
+      "version": {
+        "type": "String"
+      },
+      "app": {
+        "type": "String"
+      }
+    }
+  },
+  "hostNewerDetail": "{host} runs Kero {version}, newer than this app's {app}. Update this app to see and start the host's sessions.",
+  "@hostNewerDetail": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      },
+      "version": {
+        "type": "String"
+      },
+      "app": {
+        "type": "String"
+      }
+    }
+  },
+  "hostSameAs": "This host's kerod is {other}'s, which the app shows already",
+  "@hostSameAs": {
+    "placeholders": {
+      "other": {
+        "type": "String"
+      }
+    }
+  },
+  "browserCantShow": "Can’t show the page",
+  "browserBlank": "Type an address or a search above",
+  "browserBack": "Back",
+  "browserForward": "Forward",
+  "browserReload": "Reload",
+  "browserStop": "Stop",
+  "browserAddress": "Address or search",
+  "worktreeTitle": "New Session in Worktree",
+  "worktreeDetailDefault": "Kero checks out a new branch from the default branch in a folder of its own, so the session’s agent works apart from the others.",
+  "worktreeDetailCurrent": "Kero checks out a new branch from the current branch in a folder of its own, so the session’s agent works apart from the others.",
+  "worktreeBranch": "Branch name",
+  "worktreeCreate": "Create",
+  "worktreeRemoveTitle": "Remove the worktree of “{name}” too?",
+  "worktreeRemoveMerged": "Its folder {path} goes, and its branch {branch}, which is merged.",
+  "worktreeRemoveUnmerged": "Its folder {path} goes. Its branch {branch} stays, with its commits.",
+  "worktreeRemoveDirty": "{count, plural, one {# changed file} other {# changed files}} in {path} will be lost. Its branch {branch} stays, with its commits.",
+  "@worktreeRemoveDirty": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "worktreeRemove": "Remove Worktree",
+  "worktreeKeep": "Keep Worktree",
+  "worktreeRemoveAnyway": "Remove Anyway",
+  "setSessionHistory": "Session history",
+  "setSessionHistoryDetail": "List the coding agents' ended conversations in the sidebar, to resume them later or archive them.",
+  "endedTitle": "Ended",
+  "endedArchived": "Archived",
+  "endedArchive": "Archive",
+  "endedShowAll": "Show all {n}",
+  "@endedShowAll": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "endedResume": "Resume",
+  "endedRestore": "Restore",
+  "endedDelete": "Delete",
+  "endedArchiveAll": "Archive All",
+  "endedDeleteAll": "Delete All…",
+  "endedDeleteAllTitle": "Delete {n} archived conversations?",
+  "@endedDeleteAllTitle": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "endedDeleteAllDetail": "Kero forgets them; each agent keeps its own history of the conversation.",
+  "endedSetUpSkill": "Set up Kero's skill for your agents to list their ended conversations here",
+  "actionQuickTerminal": "Quick Terminal",
+  "toastGlobalShortcutFailed": "Couldn’t use {keys} for the quick terminal: {error}",
+  "setShortcutGlobal": "Works in every app"
 }

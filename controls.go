@@ -239,7 +239,7 @@ func (a *App) searchPopup(c *ui.Context, key, value string, options []string, wi
 		frame := ui.Row(c.Key("search")).Margin(inset, inset, menuPad+inset, inset).Cursor(ui.CursorText)
 		frame.Children(func() {
 			ui.Icon(c, searchIcon).Size(12, 12).TextColor(pal.textFaint).Shrink(0)
-			in = ui.TextInputBase(c.Key("q"), &m.query).AutoFocus().Grow(1).MinWidth(0).FontSize(13).
+			in = ui.TextInputBase(c.Key("q"), &m.query).AutoFocus().Grow(1).MinWidth(0).AlignSelf(ui.Stretch).FontSize(13).
 				Placeholder(locales.CommonSearch()).Label(locales.CommonSearch())
 		})
 		field(c, frame, in.Focused(), pal)
@@ -306,9 +306,11 @@ func textField(c *ui.Context, key string, value *string, placeholder string, wid
 		frame.Grow(1)
 	}
 	frame.Children(func() {
-		in = ui.TextInputBase(c.Key("in"), value).Grow(1).MinWidth(0).FontSize(13).Placeholder(placeholder).Label(placeholder)
+		// The input fills the field, its padding its own, so that a click
+		// anywhere in the field lands in it.
+		in = ui.TextInputBase(c.Key("in"), value).Grow(1).MinWidth(0).AlignSelf(ui.Stretch).Padding(0, 8).FontSize(13).Placeholder(placeholder).Label(placeholder)
 	})
-	field(c, frame, in.Focused(), pal)
+	field(c, frame, in.Focused(), pal).Padding(0)
 	return in
 }
 

@@ -29,9 +29,7 @@ prefix works), or a session's name; a session stands for its focused pane.
     kero split --down -- npm run dev          # a pane under yours; prints its id
     kero new -n review -- claude              # a session of its own
     kero new -n tests -d ~/code/app -- go test ./...
-
-Name a session after its task (` + "`kero rename $KERO_SESSION fix-login-redirect`" + `)
-so the user finds it in the sidebar.
+    kero split --url localhost:3000           # a browser pane, to show the user a page
 
 ## Drive it
 
@@ -40,6 +38,11 @@ so the user finds it in the sidebar.
     kero prompt <target> "run the tests"      # send + Enter, wait, print screen
     kero wait <target> [--for idle,waiting,error,exited] [--timeout 10m]
     kero wait <target> --exit                 # until its command ends; exits with its status
+    kero new --worktree <branch> -- claude    # an agent on a new branch, in a worktree of its own
+    kero events [target] [--for waiting,error] [--json]
+                                              # a line per change, as it happens
+    kero history [query] [--json]             # agents' past conversations, to resume
+    kero resume <conversation>                # a session resuming one
     kero read <target> [-n 40] [-a]           # the screen, or with scrollback
     kero status <target> --json               # status, program, directory
     kero ls                                   # every session and pane
@@ -52,6 +55,31 @@ or start it with --wait, which exits with the command's status:
     pane=$(kero split --down -- go test ./...)
     kero wait "$pane" --exit || kero read "$pane" -n 80
     kero split --down --wait -- make build    # the same, in one step
+
+## Use a web page
+
+A browser pane's page is yours to drive, as a user would, to check what
+you built: open it with kero split --url, then
+
+    kero browser open localhost:3000/todos     # go to a page, wait for it to load
+    kero browser snapshot                      # roles, names and refs: button "Add" [ref=e5]
+    kero browser click --ref e5                # click what a snapshot showed
+    kero browser type --ref e3 "Buy milk"      # fill a field (--enter submits)
+    kero browser click 'button[type=submit]'   # or name an element by CSS selector
+    kero browser wait --text "Welcome"         # or wait <selector>; --timeout 30s
+    kero browser text [selector]               # the page's text, or an element's
+    kero browser html [selector]
+    kero browser eval 'document.title'         # run JavaScript, print its value
+    kero browser screenshot -o /tmp/page.png   # shown or not, without the focus
+    kero browser back|forward|reload
+    kero browser cookies save state.json       # or load: Playwright's, or cookies.txt
+
+Refs last until the page goes to another; one whose element is gone
+fails: take a new snapshot.
+
+With no target, kero browser drives your session's browser pane; name
+one (kero browser <target> text) when there are several. It needs the app
+open and Remote Control on, in Settings › Agents.
 
 ## Tell the user
 

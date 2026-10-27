@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: Vet
+        run: go vet ./...
+      - name: Test
+        run: go test ./internal/...
+      - name: Build for every platform
+        run: |
+          set -eu
+          for os in linux darwin windows; do
+            GOOS=$os go build ./...
+          done
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o /dev/null ./cmd/kero-server
+      - name: Check the install scripts
+        run: |
+          sh -n scripts/install-server.sh
+          sh -n scripts/build-server.sh
+          pwsh -NoProfile -Command '$e = $null; [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path scripts/install-server.ps1), [ref]$null, [ref]$e) | Out-Null; if ($e) { $e; exit 1 }'
+
+  # The server build, built and run on each of its platforms.
+  server:
+    name: Server
+    uses: ./.github/workflows/server.yml

@@ -4,12 +4,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"time"
 
 	"kero/internal/proto"
+	"kero/internal/remote"
 )
 
 // call runs a control method. Methods taking a pane take a session too,
@@ -31,12 +33,19 @@ func (d *Daemon) call(c *controlConn, method string, raw json.RawMessage) (any, 
 	case "state":
 		return d.state(), nil
 
-	case "subscribe":
+	case "subscribe", "watch":
+		// A watcher, as kero events, hears what an app does but is no app
+		// (Daemon.watchers). The first state goes out under the lock the
+		// later ones do, so none of them comes before it.
 		d.mu.Lock()
-		d.subs[c] = struct{}{}
-		d.mu.Unlock()
-		st := d.state()
+		if method == "watch" {
+			d.watchers[c] = struct{}{}
+		} else {
+			d.subs[c] = struct{}{}
+		}
+		st := d.stateLocked()
 		c.event(proto.Message{Event: "state", State: &st})
+		d.mu.Unlock()
 		return true, nil
 
 	case "create", "split":
@@ -50,11 +59,18 @@ func (d *Daemon) call(c *controlConn, method string, raw json.RawMessage) (any, 
 		return d.create(p)
 
 	case "close":
+		var p proto.CloseParams
+		if err := decode(&p); err != nil {
+			return nil, err
+		}
+		return true, d.closeSession(p)
+
+	case "worktree.check":
 		var p proto.IDParams
 		if err := decode(&p); err != nil {
 			return nil, err
 		}
-		return true, d.removeSession(p.ID)
+		return d.checkWorktree(p.ID)
 
 	case "pane.close":
 		var p proto.IDParams
@@ -180,7 +196,52 @@ func (d *Daemon) call(c *controlConn, method string, raw json.RawMessage) (any, 
 		if err != nil {
 			return nil, err
 		}
+		if pn.term == nil {
+			return nil, fmt.Errorf("pane %s is a browser, which takes no input", pn.info.ID)
+		}
 		pn.input([]byte(p.Data))
+		return true, nil
+
+	case "pane.page":
+		var p proto.PageParams
+		if err := decode(&p); err != nil {
+			return nil, err
+		}
+		if p.URL == "" {
+			return nil, errors.New("pane.page: which page?")
+		}
+		pn, err := findPane(p.ID)
+		if err != nil {
+			return nil, err
+		}
+		return true, pn.setPage(p.URL, p.Title)
+
+	case "browser":
+		var p proto.BrowserParams
+		if err := decode(&p); err != nil {
+			return nil, err
+		}
+		pn, err := findPane(p.ID)
+		if err != nil {
+			return nil, err
+		}
+		return d.browse(c, pn, p)
+
+	case "browser.answer":
+		var p proto.BrowserAnswer
+		if err := decode(&p); err != nil {
+			return nil, err
+		}
+		d.mu.Lock()
+		ch := d.asks[p.Req]
+		d.mu.Unlock()
+		if ch == nil {
+			return false, nil
+		}
+		select {
+		case ch <- p:
+		default:
+		}
 		return true, nil
 
 	case "read":
@@ -210,7 +271,10 @@ func (d *Daemon) call(c *controlConn, method string, raw json.RawMessage) (any, 
 		for _, pn := range panes {
 			pn.mu.Lock()
 			pn.info.Unread = false
+			dir := pn.info.WorkDir()
 			pn.mu.Unlock()
+			// What the user looks at is up to date.
+			d.git.poke(dir)
 		}
 		d.changed()
 		return true, nil
@@ -227,17 +291,22 @@ func (d *Daemon) call(c *controlConn, method string, raw json.RawMessage) (any, 
 				s.focus = pn.info.ID
 			}
 		}
-		n := 0
-		if s != nil {
-			for sub := range d.subs {
-				sub.event(proto.Message{Event: "select", Select: s.id})
-			}
-			n = len(d.subs)
-		}
 		d.mu.Unlock()
 		if s == nil {
 			return nil, fmt.Errorf("no session %q", p.Session)
 		}
+		// The state goes first: the subscribers hear of a session just
+		// made, as by kero new --focus, only once a burst of changes
+		// settles (broadcastLoop), and the app shows no session it does
+		// not know of.
+		st := d.state()
+		d.mu.Lock()
+		for sub := range d.subs {
+			sub.event(proto.Message{Event: "state", State: &st})
+			sub.event(proto.Message{Event: "select", Select: s.id})
+		}
+		n := len(d.subs)
+		d.mu.Unlock()
 		d.changed()
 		return n > 0, nil
 
@@ -300,14 +369,69 @@ func (d *Daemon) call(c *controlConn, method string, raw json.RawMessage) (any, 
 		d.mu.Lock()
 		sid := pn.sid
 		d.mu.Unlock()
+		d.noteConversations()
 		return proto.AgentSessionResult{Pane: id, Session: sid, Away: away}, nil
+
+	case "conversations":
+		return d.conversations(), nil
+
+	case "conversation.resume":
+		var p proto.ConversationParams
+		if err := decode(&p); err != nil {
+			return nil, err
+		}
+		return d.resumeConversation(p)
+
+	case "conversation.forget":
+		var p proto.ConversationParams
+		if err := decode(&p); err != nil {
+			return nil, err
+		}
+		if !d.convs.forget(p.Agent, p.ID) {
+			return nil, fmt.Errorf("no conversation %s of %s", p.ID, p.Agent)
+		}
+		d.changed()
+		return true, nil
+
+	case "conversation.archive":
+		var p proto.ConversationParams
+		if err := decode(&p); err != nil {
+			return nil, err
+		}
+		if !d.convs.archive(p.Agent, p.ID, p.Archived) {
+			return nil, fmt.Errorf("no conversation %s of %s", p.ID, p.Agent)
+		}
+		d.changed()
+		return true, nil
 
 	case "project.create":
 		var p proto.ProjectParams
 		if err := decode(&p); err != nil {
 			return nil, err
 		}
-		dir := expandHome(p.Dir)
+		dir, err := d.cleanDir(p.Dir)
+		if err != nil {
+			return nil, err
+		}
+		var info os.FileInfo
+		if dir != "" {
+			// Opening "." checks read and search access without changing the working directory.
+			f, err := os.OpenInRoot(dir, ".")
+			if err != nil {
+				return nil, err
+			}
+			info, err = f.Stat()
+			closeErr := f.Close()
+			if err != nil {
+				return nil, err
+			}
+			if closeErr != nil {
+				return nil, closeErr
+			}
+			if err := checkProjectDir(dir); err != nil {
+				return nil, err
+			}
+		}
 		name := strings.TrimSpace(p.Name)
 		if name == "" && dir != "" {
 			name = filepath.Base(dir)
@@ -315,18 +439,40 @@ func (d *Daemon) call(c *controlConn, method string, raw json.RawMessage) (any, 
 		if name == "" {
 			return nil, errors.New("a project needs a name or a directory")
 		}
-		d.mu.Lock()
-		for _, pr := range d.projects {
-			if dir != "" && pr.Dir == dir {
-				d.mu.Unlock()
-				return pr, nil
+		for {
+			d.mu.Lock()
+			projects := slices.Clone(d.projects)
+			d.mu.Unlock()
+			var existing proto.Project
+			for _, pr := range projects {
+				if dir == "" || pr.Dir == "" {
+					continue
+				}
+				if pr.Dir == dir {
+					existing = pr
+					break
+				}
+				if old, err := os.Stat(pr.Dir); err == nil && os.SameFile(info, old) {
+					existing = pr
+					break
+				}
 			}
+			d.mu.Lock()
+			// Filesystem probes can block on a share; retry if projects changed meanwhile.
+			if !slices.Equal(projects, d.projects) {
+				d.mu.Unlock()
+				continue
+			}
+			if existing.ID != "" {
+				d.mu.Unlock()
+				return existing, nil
+			}
+			pr := proto.Project{ID: newID(), Name: name, Dir: dir}
+			d.projects = append(d.projects, pr)
+			d.mu.Unlock()
+			d.changed()
+			return pr, nil
 		}
-		pr := proto.Project{ID: newID(), Name: name, Dir: dir}
-		d.projects = append(d.projects, pr)
-		d.mu.Unlock()
-		d.changed()
-		return pr, nil
 
 	case "project.rename":
 		var p proto.ProjectParams
@@ -384,6 +530,60 @@ func (d *Daemon) call(c *controlConn, method string, raw json.RawMessage) (any, 
 		d.changed()
 		return true, nil
 
+	case "git.changes", "git.file", "git.diff":
+		var p proto.GitParams
+		if err := decode(&p); err != nil {
+			return nil, err
+		}
+		switch method {
+		case "git.changes":
+			return d.gitChanges(p)
+		case "git.file":
+			return d.gitText(p)
+		}
+		return d.gitPatch(p)
+
+	case "git.revert":
+		var p proto.GitWriteParams
+		if err := decode(&p); err != nil {
+			return nil, err
+		}
+		return d.gitRevert(p)
+
+	case "fs.list":
+		var p proto.FSListParams
+		if err := decode(&p); err != nil {
+			return nil, err
+		}
+		return fsList(p)
+
+	case "fs.stat":
+		var p proto.FSStatParams
+		if err := decode(&p); err != nil {
+			return nil, err
+		}
+		return fsStat(p), nil
+
+	case "fs.read":
+		var p proto.FSReadParams
+		if err := decode(&p); err != nil {
+			return nil, err
+		}
+		return fsRead(p)
+
+	case "paste.file":
+		var p proto.PasteFileParams
+		if err := decode(&p); err != nil {
+			return nil, err
+		}
+		return pasteFile(p)
+
+	case "host.info":
+		return remote.LocalInfo(""), nil
+
+	case "clients":
+		return d.clientList(), nil
+
 	case "shutdown":
 		d.mu.Lock()
 		d.ending = true
@@ -403,6 +603,70 @@ func (d *Daemon) call(c *controlConn, method string, raw json.RawMessage) (any, 
 		return true, nil
 	}
 	return nil, fmt.Errorf("unknown method %q", method)
+}
+
+// browseGrace is how long kerod waits for the app's answer to a browser
+// call past the call's own timeout: what the page does may take a while,
+// and the app waits on the page.
+const browseGrace = 30 * time.Second
+
+// browse has the app do something on a browser pane's page, which lives
+// in the app, not in kerod, and waits for its answer. Every subscriber
+// is asked: one that shows the pane answers with the page's result, the
+// others why they can't; the first result wins, else the first refusal.
+func (d *Daemon) browse(c *controlConn, s *pane, p proto.BrowserParams) (any, error) {
+	s.mu.Lock()
+	id, browser := s.info.ID, s.info.Browser()
+	s.mu.Unlock()
+	if !browser {
+		return nil, fmt.Errorf("pane %s is a terminal, not a browser", id)
+	}
+	d.mu.Lock()
+	n := len(d.subs)
+	if n == 0 {
+		d.mu.Unlock()
+		return nil, errors.New("the app is not open: a browser pane's page lives in it")
+	}
+	if d.asks == nil {
+		d.asks = map[int64]chan proto.BrowserAnswer{}
+	}
+	d.lastAsk++
+	req := d.lastAsk
+	ch := make(chan proto.BrowserAnswer, n)
+	d.asks[req] = ch
+	for sub := range d.subs {
+		sub.event(proto.Message{Event: "browser", Browser: &proto.BrowserRequest{Req: req, Pane: id, BrowserParams: p}})
+	}
+	d.mu.Unlock()
+	defer func() {
+		d.mu.Lock()
+		delete(d.asks, req)
+		d.mu.Unlock()
+	}()
+	t := time.NewTimer(time.Duration(p.Timeout)*time.Millisecond + browseGrace)
+	defer t.Stop()
+	var refused error
+	for range n {
+		select {
+		case a := <-ch:
+			if a.Error == "" {
+				if a.Result == nil {
+					a.Result = &proto.BrowserResult{}
+				}
+				return a.Result, nil
+			}
+			if refused == nil {
+				refused = errors.New(a.Error)
+			}
+		case <-t.C:
+			return nil, errors.New("the app did not answer")
+		case <-c.done:
+			return nil, errors.New("canceled")
+		case <-d.quit:
+			return nil, errors.New("kerod exited")
+		}
+	}
+	return nil, refused
 }
 
 // wait waits for a pane's status to be one of p.Status.

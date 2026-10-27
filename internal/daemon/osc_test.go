@@ -150,3 +150,35 @@ func TestFullResetClearsRecords(t *testing.T) {
 		t.Fatalf("after RIS: records %v, status %s, reported %v", s.info.Records, s.info.Status, s.reported)
 	}
 }
+
+// Progress (OSC 9;4) is no work of itself, as Neovim's for its language
+// servers: only an agent's rules read it, as Kiro's, whose progress turns
+// while it works.
+func TestProgressOnlyForAgents(t *testing.T) {
+	s := testPane(t)
+	now := time.Now()
+	s.output([]byte("\x1b[?1049h\x1b]9;4;1;40\x1b\\"))
+	if st := s.status(now); st != proto.Idle || len(s.info.Records) != 0 {
+		t.Fatalf("a program's progress: status %s, records %v", st, s.info.Records)
+	}
+	s.output([]byte("\x1b[?1049l\x1b]9;4;3\x07"))
+	if st := s.status(now); st != proto.Idle {
+		t.Fatalf("a command's progress: status %s", st)
+	}
+
+	s.info.Agent = "kiro-cli"
+	s.output([]byte("\x1b]9;4;3\x1b\\"))
+	if st := s.status(now); st != proto.Working {
+		t.Fatalf("Kiro's progress: status %s, want working", st)
+	}
+	s.output([]byte("\x1b]9;4;0;0\x1b\\"))
+	s.status(now)
+	if st := s.status(now.Add(time.Minute)); st != proto.Idle {
+		t.Fatalf("Kiro's progress cleared: status %s, want idle", st)
+	}
+
+	s.output([]byte("\x1b]9;4;3\x07\x1bc"))
+	if s.progress != "" {
+		t.Fatalf("after RIS: progress %q", s.progress)
+	}
+}

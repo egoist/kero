@@ -62,9 +62,20 @@ func TestRegions(t *testing.T) {
 		"prompt_box_body":            "box\n",
 		"above_prompt_box":           "a\n\nb\n",
 		"osc_title":                  "T",
+		"osc_progress":               "4;3",
 	} {
-		if got := region(Input{Screen: s, Title: "T"}, spec); got != want {
+		if got := region(Input{Screen: s, Title: "T", Progress: "4;3"}, spec); got != want {
 			t.Errorf("%s: %q, want %q", spec, got, want)
 		}
+	}
+}
+
+// Kiro's progress turns while it works.
+func TestProgress(t *testing.T) {
+	if got := Detect("kiro-cli", Input{Progress: "4;3"}); got.State != Working {
+		t.Errorf("progress 4;3: %s (rule %q), want working", got.State, got.Rule)
+	}
+	if got := Detect("kiro-cli", Input{Progress: "4;0"}); got.State != Idle {
+		t.Errorf("progress 4;0: %s (rule %q), want idle", got.State, got.Rule)
 	}
 }

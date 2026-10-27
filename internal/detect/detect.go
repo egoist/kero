@@ -30,11 +30,13 @@ const (
 	Unknown State = "unknown"
 )
 
-// Input is what the rules read: the screen's text, its last rows, and the
-// terminal's title.
+// Input is what the rules read: the screen's text, its last rows, the
+// terminal's title, and the last progress the agent reported (OSC 9;4),
+// after "9;", as "4;3".
 type Input struct {
-	Screen string
-	Title  string
+	Screen   string
+	Title    string
+	Progress string
 }
 
 // Result is what the rules tell.
@@ -276,7 +278,7 @@ func region(in Input, spec string) string {
 	case "osc_title":
 		return in.Title
 	case "osc_progress":
-		return "" // kero keeps no OSC 9;4 progress
+		return in.Progress
 	case "whole_recent":
 		return s
 	case "after_last_prompt_marker":

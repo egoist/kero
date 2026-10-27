@@ -39,6 +39,27 @@ func (a *App) focusOf(s *proto.Session) string {
 	return ""
 }
 
+// shownPanes returns the panes of a session the window shows, as panes
+// lays them out: the zoomed one alone, or the one the user is in without
+// a layout.
+func shownPanes(s *proto.Session) []string {
+	p := s.PaneByID(s.Zoomed)
+	if p == nil && s.Layout != nil && len(s.Panes) > 1 {
+		ids := make([]string, len(s.Panes))
+		for i, p := range s.Panes {
+			ids[i] = p.ID
+		}
+		return ids
+	}
+	if p == nil {
+		p = s.FocusPane()
+	}
+	if p == nil {
+		return nil
+	}
+	return []string{p.ID}
+}
+
 // setFocus moves the user into a pane, and tells kerod, which remembers it.
 func (a *App) setFocus(s *proto.Session, pane string) {
 	if a.focus == nil {
@@ -54,7 +75,7 @@ func (a *App) setFocus(s *proto.Session, pane string) {
 	}
 	a.ensureTerm(pane)
 	a.touch(pane)
-	a.call("focus", proto.FocusParams{Session: s.ID, Pane: pane}, nil)
+	a.call(s.ID, "focus", proto.FocusParams{Session: s.ID, Pane: pane}, nil)
 }
 
 // focusTerminal gives the keyboard to the pane the user is in.
@@ -63,11 +84,14 @@ func (a *App) focusTerminal() {
 		if id := a.focusOf(s); id != "" {
 			a.paneRef(id).Focus()
 		}
+		a.claimShown()
 	}
 }
 
 // panes shows a session's panes in their layout: the zoomed one alone.
-func (a *App) panes(c *ui.Context, pal *palette, bar ui.TitleBar, shown float32, s *proto.Session) {
+// right tells that they reach the window's right edge, which the side
+// panel takes while it shows.
+func (a *App) panes(c *ui.Context, pal *palette, bar ui.TitleBar, shown float32, s *proto.Session, right bool) {
 	multi := len(s.Panes) > 1
 	if z := s.PaneByID(s.Zoomed); z != nil || s.Layout == nil || !multi {
 		p := z
@@ -75,11 +99,11 @@ func (a *App) panes(c *ui.Context, pal *palette, bar ui.TitleBar, shown float32,
 			p = s.FocusPane()
 		}
 		if p != nil {
-			a.paneCard(c, pal, bar, shown, s, p, true, true, true, multi)
+			a.paneCard(c, pal, bar, shown, s, p, true, true, right, multi)
 		}
 		return
 	}
-	a.layoutNode(c, pal, bar, shown, s, s.Layout, "", true, true, true)
+	a.layoutNode(c, pal, bar, shown, s, s.Layout, "", true, true, right)
 }
 
 func (a *App) layoutNode(c *ui.Context, pal *palette, bar ui.TitleBar, shown float32, s *proto.Session, l *proto.Layout, path string, top, left, right bool) {
@@ -93,9 +117,13 @@ func (a *App) layoutNode(c *ui.Context, pal *palette, bar ui.TitleBar, shown flo
 	if ratio <= 0 || ratio >= 1 {
 		ratio = 0.5
 	}
+	// Row and Column each build an element, so make only the one used: a
+	// Row made and replaced would stay, an empty sibling under the key.
 	key := "split-" + s.ID + path
-	box := ui.Row(c.Key(key))
-	if !l.Row {
+	var box ui.Element
+	if l.Row {
+		box = ui.Row(c.Key(key))
+	} else {
 		box = ui.Column(c.Key(key))
 	}
 	box.Grow(1).Basis(0).MinWidth(0).MinHeight(0).AlignItems(ui.Stretch).Bind(a.paneRef(key))
@@ -112,7 +140,8 @@ func (a *App) layoutNode(c *ui.Context, pal *palette, bar ui.TitleBar, shown flo
 
 // divider is the gap between two panes, which a drag moves.
 func (a *App) divider(c *ui.Context, pal *palette, s *proto.Session, l *proto.Layout, key string) {
-	d := ui.Box(c.Key("div")).Shrink(0)
+	// A drag leaves the keyboard in the pane the user is in.
+	d := ui.Box(c.Key("div")).Shrink(0).KeepFocus()
 	if l.Row {
 		d.Width(paneGap).Cursor(ui.CursorResizeColumn)
 	} else {
@@ -129,26 +158,35 @@ func (a *App) divider(c *ui.Context, pal *palette, s *proto.Session, l *proto.La
 		})
 	}
 	if dx, dy, ok := d.Dragged(); ok {
+		// The ratio shares out the room the panes take, the split's less
+		// the divider's.
 		b := a.paneRef(key).Bounds(c)
-		size, delta := b.W, dx
+		size, delta := b.W-paneGap, dx
 		if !l.Row {
-			size, delta = b.H, dy
+			size, delta = b.H-paneGap, dy
 		}
 		if size > 0 {
-			r := l.Ratio
-			if r <= 0 || r >= 1 {
-				r = 0.5
+			// The ratio goes on past its bounds, unclamped, so the divider
+			// comes back as the pointer comes back to it.
+			if a.layoutDrag.split != key {
+				r := l.Ratio
+				if r <= 0 || r >= 1 {
+					r = 0.5
+				}
+				a.layoutDrag.session, a.layoutDrag.split, a.layoutDrag.ratio = s.ID, key, r
 			}
-			l.Ratio = math.Min(math.Max(r+float64(delta/size), 0.12), 0.88)
-			a.layoutDirty = s.ID
+			a.layoutDrag.ratio += float64(delta / size)
+			l.Ratio = math.Min(math.Max(a.layoutDrag.ratio, 0.12), 0.88)
 		}
-	} else if a.layoutDirty == s.ID && !d.Pressed() {
-		a.layoutDirty = ""
-		a.call("layout", proto.LayoutParams{Session: s.ID, Layout: s.Layout.Clone()}, nil)
+	} else if a.layoutDrag.split == key && !d.Pressed() {
+		// Only the divider dragged saves the layout: another of the same
+		// session would save it every frame of the drag.
+		a.layoutDrag.session, a.layoutDrag.split = "", ""
+		a.call(s.ID, "layout", proto.LayoutParams{Session: s.ID, Layout: s.Layout.Clone()}, nil)
 	}
 	if d.DoubleClicked() {
 		l.Ratio = 0.5
-		a.call("layout", proto.LayoutParams{Session: s.ID, Layout: s.Layout.Clone()}, nil)
+		a.call(s.ID, "layout", proto.LayoutParams{Session: s.ID, Layout: s.Layout.Clone()}, nil)
 	}
 }
 
@@ -159,12 +197,17 @@ func (a *App) divider(c *ui.Context, pal *palette, s *proto.Session, l *proto.La
 func (a *App) paneCard(c *ui.Context, pal *palette, bar ui.TitleBar, shown float32, s *proto.Session, p *proto.Pane, top, left, right, multi bool) {
 	focused := p.ID == a.focusOf(s)
 	bg := pal.card
-	if multi && !focused {
+	// A browser's page stays opaque, so its toolbar does too, and neither
+	// fades: a page is read, not typed into, from beside it.
+	if multi && !focused && !p.Browser() && a.set.DimUnfocused {
 		bg = pal.cardDim
 	}
 	card := ui.Column(c.Key("pane-" + p.ID)).Grow(1).Basis(0).MinWidth(0).MinHeight(0).Radius(14).Clip().Bind(a.paneRef("card-" + p.ID))
 	raised(card.Background(card.AnimateColor("bg", bg, ui.Animation{Duration: 140 * time.Millisecond})), pal)
 	hovered := card.Hovered()
+	if a.set.FocusFollowsMouse && multi {
+		a.followMouse(c, s, p, card, hovered, focused)
+	}
 	// The card takes presses: one on its padding, beside the terminal,
 	// focuses the pane, rather than going on to what drags the window.
 	if card.Pressed() && !focused {
@@ -193,10 +236,15 @@ func (a *App) paneCard(c *ui.Context, pal *palette, bar ui.TitleBar, shown float
 
 	dragging := false
 	card.Children(func() {
-		dragging = a.paneHeader(c, pal, bar, shown, s, p, top, left, right, multi, focused, hovered)
-		a.paneTerminal(c, pal, s, p)
-		if multi {
-			// The panes the user is not in fade, text and all.
+		if p.Browser() {
+			// A browser's address bar is its header.
+			dragging = a.paneBrowser(c, pal, bar, shown, s, p, top, left, right, multi, focused, hovered)
+		} else {
+			dragging = a.paneHeader(c, pal, bar, shown, s, p, top, left, right, multi, focused, hovered)
+			a.paneTerminal(c, pal, s, p)
+		}
+		if multi && !p.Browser() && a.set.DimUnfocused {
+			// The terminals the user is not in fade, text and all.
 			v := ui.Box(c.Key("veil")).Absolute().Top(0).Left(0).Right(0).Bottom(0).PassThrough().Background(pal.veil)
 			v.Opacity(v.Animate("on", b2f(!focused), 160*time.Millisecond))
 		}
@@ -217,6 +265,35 @@ func (a *App) paneCard(c *ui.Context, pal *palette, bar ui.TitleBar, shown float
 		c.Invalidate()
 	}
 	card.AnimatePose(pose, ui.Animation{Spring: ui.SpringOptions{Duration: 420 * time.Millisecond, Bounce: 0.18}})
+}
+
+// followMouse focuses the pane the pointer moves into. Only the pointer
+// moving does: a pane that comes under a pointer standing still, as another
+// session shows or the layout changes, leaves the focus where the keyboard
+// put it. And only going in does, so the keyboard can take the focus from
+// the pane the pointer rests in.
+func (a *App) followMouse(c *ui.Context, s *proto.Session, p *proto.Pane, card ui.Element, hovered, focused bool) {
+	x, y, over := card.PointerPosition()
+	if !over {
+		if a.hoverPane == p.ID {
+			a.hoverPane = ""
+		}
+		return
+	}
+	b := a.paneRef("card-" + p.ID).Bounds(c)
+	at := [2]float32{b.X + x, b.Y + y}
+	moved := at != a.hoverAt
+	a.hoverAt = at
+	// A press begun in another pane, as a selection dragged on past its
+	// edge, does not hover this one.
+	if !hovered || a.hoverPane == p.ID {
+		return
+	}
+	a.hoverPane = p.ID
+	if moved && !focused {
+		a.setFocus(s, p.ID)
+		a.paneRef(p.ID).Focus()
+	}
 }
 
 // paneDrag is a pane dragged by its title to another place.
@@ -325,16 +402,17 @@ func (a *App) movePane(sid, pane, target string, zone dropZone) {
 	s.Zoomed = ""
 	a.setFocus(s, pane)
 	a.paneRef(pane).Focus()
-	a.call("layout", proto.LayoutParams{Session: sid, Layout: s.Layout.Clone()}, nil)
+	a.call(sid, "layout", proto.LayoutParams{Session: sid, Layout: s.Layout.Clone()}, nil)
 }
 
 // paneHeader builds a pane's header, and reports whether its title is
 // being dragged.
 func (a *App) paneHeader(c *ui.Context, pal *palette, bar ui.TitleBar, shown float32, s *proto.Session, p *proto.Pane, top, left, right, multi, focused, hovered bool) (dragging bool) {
 	pad := float32(16)
-	if left {
-		// With the sidebar hidden, the header starts after the traffic
-		// lights and the sidebar's buttons, which come here.
+	if top && left {
+		// With the sidebar hidden, the header at the window's top left
+		// starts after the traffic lights and the sidebar's buttons,
+		// which come here.
 		pad = a.chrome.headerPad
 	}
 	h := ui.Row(c.Key("hdr")).Height(headerH).Shrink(0).AlignItems(ui.Center).Padding(0, 10, 0, pad).Gap(8)
@@ -343,11 +421,8 @@ func (a *App) paneHeader(c *ui.Context, pal *palette, bar ui.TitleBar, shown flo
 		a.paneRef(p.ID).Focus()
 	}
 	h.Children(func() {
-		if top && left && shown < 0.5 {
-			ui.Row(c).Absolute().Left(a.chrome.buttonsLeft(bar)).Top(0).Bottom(0).AlignItems(ui.Center).Gap(2).Opacity(1 - 2*shown).Children(func() {
-				iconButton(c, "show-sidebar", sidebarIcon, a.tip(locales.SidebarShow(), "sidebar.toggle"), pal, a.toggleSidebar)
-				iconButton(c, "new-session-2", plusIcon, a.tip(locales.ActionNewSession(), "session.new"), pal, func() { a.newSession("") })
-			})
+		if top && left {
+			a.sidebarButtons(c, pal, bar, shown)
 		}
 		// The title is the pane's handle: dragged, it takes the pane to
 		// another place in the session.
@@ -383,11 +458,24 @@ func (a *App) paneHeader(c *ui.Context, pal *palette, bar ui.TitleBar, shown flo
 				a.startRename(s.ID)
 			}
 			// The home directory names itself "~", which the title may
-			// already say.
-			if dir := proto.ShortDir(p.WorkDir()); dir != title {
-				ui.Text(c, dir).FontSize(13).TextColor(pal.textFaint).SingleLine().Ellipsis("…").Shrink(2).MinWidth(0)
+			// already say; another machine's, as scp writes it: devbox:~/api.
+			h := a.hostOf(p.ID)
+			if dir := h.shortDir(p.WorkDir()); dir != title || h.remote() {
+				if !h.remote() {
+					ui.Text(c, dir).FontSize(13).TextColor(pal.textFaint).SingleLine().Ellipsis("…").Shrink(2).MinWidth(0)
+				} else {
+					// The host's name in its color, as the sidebar's strip
+					// marks it: no pane passes for another machine's.
+					ui.Row(c.Key("where")).Shrink(2).MinWidth(0).AlignItems(ui.Center).Children(func() {
+						ui.Text(c, h.name+":").FontSize(13).FontWeight(500).TextColor(pal.hostColor(h)).SingleLine().Shrink(0)
+						ui.Text(c, dir).FontSize(13).TextColor(pal.textFaint).SingleLine().Ellipsis("…").Shrink(1).MinWidth(0)
+					})
+				}
 			}
 		})
+		if p.Git != nil {
+			a.gitChip(c, pal, s, p)
+		}
 		// The header's empty stretch moves the window, as a title bar
 		// does, and zooms it on a double click: the header around it
 		// takes clicks, which focus the pane.
@@ -396,30 +484,47 @@ func (a *App) paneHeader(c *ui.Context, pal *palette, bar ui.TitleBar, shown flo
 			gap.DragWindow()
 		}
 		a.paneChips(c, pal, p, !multi)
-		show := (hovered || focused && multi) && !dragging
-		ctl := ui.Row(c.Key("controls")).Gap(0).AlignItems(ui.Center)
-		ctl.Opacity(ctl.Animate("shown", b2f(show), 120*time.Millisecond)).Children(func() {
-			if !show {
-				return
-			}
-			iconButton(c, "split-r", splitRightIcon, a.tip(locales.ActionSplitRight(), "pane.split.right"), pal, func() { a.splitPane(s, p.ID, "right") })
-			iconButton(c, "split-d", splitDownIcon, a.tip(locales.ActionSplitDown(), "pane.split.down"), pal, func() { a.splitPane(s, p.ID, "down") })
-			if multi {
-				sid, pid := s.ID, p.ID
-				zoom := func() { a.defer_(func() { a.zoomPane(a.session(sid), pid) }) }
-				if s.Zoomed == p.ID {
-					iconButton(c, "zoom", unzoomIcon, a.tip(locales.PaneShowAll(), "pane.zoom"), pal, zoom)
-				} else {
-					iconButton(c, "zoom", zoomIcon, a.tip(locales.ActionZoomPane(), "pane.zoom"), pal, zoom)
-				}
-				iconButton(c, "close", closeIcon, a.tip(locales.PaneClose(), "pane.close"), pal, func() { a.defer_(func() { a.closePane(a.session(sid), pid, true) }) })
-			}
-		})
+		a.paneControls(c, pal, s, p, (hovered || focused && multi) && !dragging, multi)
 		if top && right {
 			windowControls(c, pal, a.win)
 		}
 	})
 	return dragging
+}
+
+// sidebarButtons are the sidebar's buttons, which the header at the
+// window's top left holds while the sidebar hides.
+func (a *App) sidebarButtons(c *ui.Context, pal *palette, bar ui.TitleBar, shown float32) {
+	if shown >= 0.5 {
+		return
+	}
+	ui.Row(c).Absolute().Left(a.chrome.buttonsLeft(bar)).Top(0).Bottom(0).AlignItems(ui.Center).Gap(2).Opacity(1 - 2*shown).Children(func() {
+		iconButton(c, "show-sidebar", sidebarIcon, a.tip(locales.SidebarShow(), "sidebar.toggle"), pal, a.toggleSidebar)
+		iconButton(c, "new-session-2", plusIcon, a.tip(locales.ActionNewSession(), "session.new"), pal, func() { a.newSession("") })
+	})
+}
+
+// paneControls are a header's buttons acting on its pane, which show while
+// the pointer is over it.
+func (a *App) paneControls(c *ui.Context, pal *palette, s *proto.Session, p *proto.Pane, show, multi bool) {
+	ctl := ui.Row(c.Key("controls")).Gap(0).AlignItems(ui.Center)
+	ctl.Opacity(ctl.Animate("shown", b2f(show), 120*time.Millisecond)).Children(func() {
+		if !show {
+			return
+		}
+		iconButton(c, "split-r", splitRightIcon, a.tip(locales.ActionSplitRight(), "pane.split.right"), pal, func() { a.splitPane(s, p.ID, "right") })
+		iconButton(c, "split-d", splitDownIcon, a.tip(locales.ActionSplitDown(), "pane.split.down"), pal, func() { a.splitPane(s, p.ID, "down") })
+		if multi {
+			sid, pid := s.ID, p.ID
+			zoom := func() { a.defer_(func() { a.zoomPane(a.session(sid), pid) }) }
+			if s.Zoomed == p.ID {
+				iconButton(c, "zoom", unzoomIcon, a.tip(locales.PaneShowAll(), "pane.zoom"), pal, zoom)
+			} else {
+				iconButton(c, "zoom", zoomIcon, a.tip(locales.ActionZoomPane(), "pane.zoom"), pal, zoom)
+			}
+			iconButton(c, "close", closeIcon, a.tip(locales.PaneClose(), "pane.close"), pal, func() { a.defer_(func() { a.closePane(a.session(sid), pid, true) }) })
+		}
+	})
 }
 
 // paneChips says what the pane is doing. With several panes the title
@@ -512,6 +617,18 @@ func (a *App) paneTerminal(c *ui.Context, pal *palette, s *proto.Session, p *pro
 			if a.find.pane == p.ID {
 				a.findBar(c, pal, p, e.term)
 			}
+		case e == nil && a.hostOf(p.ID).remote() && a.hostOf(p.ID).conn != connReady:
+			// Shown as it was, until its host is back.
+			h := a.hostOf(p.ID)
+			switch {
+			case h.conn == connConnecting || h.busy != "":
+				ui.Column(c).Fill().Center().Gap(10).Children(func() {
+					ui.Spinner(c)
+					ui.Text(c, locales.HostReconnectingTo(h.name)).FontSize(12.5).TextColor(pal.textFaint)
+				})
+			default:
+				a.message(c, pal, a.hostProblem(h), h.err, locales.CommonTryAgain(), func() { a.reconnectHost(h) })
+			}
 		case e != nil && e.err != "":
 			a.message(c, pal, locales.PaneCantShow(), e.err, locales.CommonTryAgain(), func() {
 				a.dropTerm(p.ID)
@@ -532,22 +649,34 @@ func (a *App) paneTerminal(c *ui.Context, pal *palette, s *proto.Session, p *pro
 // --- pane actions ---
 
 func (a *App) splitPane(s *proto.Session, at, direction string) {
-	if a.cl == nil || s == nil {
+	if s == nil {
 		return
 	}
 	if at == "" {
 		at = a.focusOf(s)
 	}
-	p := proto.CreateParams{Split: at, Direction: direction}
-	if pane := s.PaneByID(at); pane != nil {
+	a.split(s, proto.CreateParams{Split: at, Direction: direction})
+}
+
+// split makes a pane beside another, as p asks, on the session's host,
+// and puts the user in it.
+func (a *App) split(s *proto.Session, p proto.CreateParams) {
+	if s == nil {
+		return
+	}
+	h := a.hostOf(s.ID)
+	if pane := s.PaneByID(p.Split); pane != nil && !pane.Browser() {
 		p.Cols, p.Rows = pane.Cols, pane.Rows
-		if direction == "down" || direction == "up" {
+		if p.Direction == "down" || p.Direction == "up" {
 			p.Rows = max(p.Rows/2, 4)
 		} else {
 			p.Cols = max(p.Cols/2, 10)
 		}
 	}
-	cl := a.cl
+	cl := h.cl
+	if cl == nil {
+		return
+	}
 	go func() {
 		var ns proto.Session
 		err := cl.Call("split", p, &ns)
@@ -556,7 +685,7 @@ func (a *App) splitPane(s *proto.Session, at, direction string) {
 				a.toast(err.Error())
 				return
 			}
-			a.replaceSession(ns)
+			a.replaceSession(h, ns)
 			if cur := a.session(ns.ID); cur != nil {
 				if a.focus == nil {
 					a.focus = map[string]string{}
@@ -564,7 +693,11 @@ func (a *App) splitPane(s *proto.Session, at, direction string) {
 				a.focus[ns.ID] = ns.Focus
 				a.ensureTerm(ns.Focus)
 				a.touch(ns.Focus)
-				a.paneRef(ns.Focus).Focus()
+				if !a.isBrowser(ns.Focus) {
+					// A browser takes the keyboard in its address bar, or
+					// its page once it has one.
+					a.paneRef(ns.Focus).Focus()
+				}
 			}
 		})
 	}()
@@ -572,14 +705,16 @@ func (a *App) splitPane(s *proto.Session, at, direction string) {
 
 // replaceSession puts a session as kerod answered into the state, before
 // the state that has it comes.
-func (a *App) replaceSession(ns proto.Session) {
+func (a *App) replaceSession(h *host, ns proto.Session) {
+	// Its new pane is the host's from now, as its terminal attaches there.
+	a.own(h, ns)
 	for i := range a.st.Sessions {
 		if a.st.Sessions[i].ID == ns.ID {
 			a.st.Sessions[i] = ns
 			return
 		}
 	}
-	a.addPending(ns)
+	a.addPending(h, ns)
 }
 
 func (a *App) closePane(s *proto.Session, pane string, ask bool) {
@@ -633,7 +768,8 @@ func (a *App) closePane(s *proto.Session, pane string, ask bool) {
 		}
 	}
 	a.dropTerm(pane)
-	a.call("pane.close", proto.IDParams{ID: pane}, nil)
+	a.dropWeb(pane)
+	a.call(pane, "pane.close", proto.IDParams{ID: pane}, nil)
 	a.focusTerminal()
 }
 
@@ -650,7 +786,7 @@ func (a *App) zoomPane(s *proto.Session, pane string) {
 		s.Zoomed = pane
 		a.setFocus(s, pane)
 	}
-	a.call("zoom", proto.FocusParams{Session: s.ID, Pane: pane}, nil)
+	a.call(s.ID, "zoom", proto.FocusParams{Session: s.ID, Pane: pane}, nil)
 	a.paneRef(pane).Focus()
 }
 

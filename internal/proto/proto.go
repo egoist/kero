@@ -34,6 +34,12 @@ type Hello struct {
 	Session string `json:"session,omitempty"`
 	Cols    int    `json:"cols,omitempty"`
 	Rows    int    `json:"rows,omitempty"`
+	// Who connects, which `kero __bridge` adds to the Hello of a remote
+	// client's stream, for `kero clients`: the SSH client's address, how it
+	// came (ssh, wsl), and what the client said it is (MuxHello.Client).
+	Peer   string `json:"peer,omitempty"`
+	Via    string `json:"via,omitempty"`
+	Client string `json:"client,omitempty"`
 }
 
 // Welcome answers a Hello.
@@ -43,7 +49,11 @@ type Welcome struct {
 	Started int64 `json:"started"` // unix ms
 	// App is the version of Kero that kerod runs (App.Version): after an
 	// update it is the version before, until kerod restarts.
-	App   string `json:"app,omitempty"`
+	App string `json:"app,omitempty"`
+	// Build fingerprints the code kerod runs (build.Daemon): an update
+	// that leaves it as it was needs no restart. An earlier kerod, or the
+	// server build's, tells none.
+	Build string `json:"build,omitempty"`
 	Error string `json:"error,omitempty"`
 	// Attach only: the size of the snapshot that follows.
 	Cols int `json:"cols,omitempty"`
@@ -64,7 +74,7 @@ type Message struct {
 	Result any    `json:"result,omitempty"`
 	Error  string `json:"error,omitempty"`
 
-	Event string `json:"event,omitempty"` // "state", "select", "action", "notice"
+	Event string `json:"event,omitempty"` // "state", "select", "action", "notice", "browser"
 	State *State `json:"state,omitempty"`
 	// Select asks the app to show a session ("kero focus").
 	Select string `json:"select,omitempty"`
@@ -74,13 +84,18 @@ type Message struct {
 	Args   map[string]string `json:"args,omitempty"`
 	// Notice is a program's desktop notification, to show as it is.
 	Notice *Notice `json:"notice,omitempty"`
+	// Browser asks the app to do something on a browser pane's page
+	// ("kero browser"), which it answers with browser.answer.
+	Browser *BrowserRequest `json:"browser,omitempty"`
 }
 
 // Notice is a desktop notification a program in a session sent.
 type Notice struct {
 	Session string `json:"session"`
-	Title   string `json:"title,omitempty"`
-	Body    string `json:"body"`
+	// Pane is the pane whose program sent it.
+	Pane  string `json:"pane,omitempty"`
+	Title string `json:"title,omitempty"`
+	Body  string `json:"body"`
 }
 
 // Status is what a session is doing, as the sidebar shows it.
@@ -123,6 +138,11 @@ type State struct {
 	// Viewed is the session a client shows in a focused window.
 	Viewed  string `json:"viewed,omitempty"`
 	Started int64  `json:"started"` // unix ms, the daemon's start
+	// Conversations counts the changes to the conversations kerod
+	// remembers that show in the sidebar, for the app to ask for them
+	// anew (the conversations method) rather than have them in every
+	// state.
+	Conversations uint64 `json:"conversations,omitempty"`
 }
 
 // Project groups sessions, usually those of one repository.
@@ -133,11 +153,15 @@ type Project struct {
 }
 
 // Pane is a terminal the daemon keeps running: a shell in a
-// pseudo-terminal, one of a session's.
+// pseudo-terminal, one of a session's; or, with a URL, a browser, which
+// the app shows and the daemon only keeps the place and page of.
 type Pane struct {
-	ID      string   `json:"id"`
-	Title   string   `json:"title,omitempty"` // set by the program (OSC 0/2)
-	Dir     string   `json:"dir,omitempty"`   // the shell's working directory
+	ID    string `json:"id"`
+	Title string `json:"title,omitempty"` // set by the program (OSC 0/2), or the page
+	// URL is the page a browser pane shows, as the app last told: set,
+	// the pane runs no shell.
+	URL     string   `json:"url,omitempty"`
+	Dir     string   `json:"dir,omitempty"` // the shell's working directory
 	Command []string `json:"command,omitempty"`
 	// Process is the foreground program, "" while the shell is.
 	Process string `json:"process,omitempty"`
@@ -185,6 +209,41 @@ type Pane struct {
 	Cols     int  `json:"cols"`
 	Rows     int  `json:"rows"`
 	PID      int  `json:"pid,omitempty"`
+	// Git is the git worktree the pane works in (WorkDir), nil for none,
+	// or while the configuration's git-status is off.
+	Git *GitInfo `json:"git,omitempty"`
+	// Turn is where the pane's agent last started working: a snapshot of
+	// its worktree, which its changes since are of.
+	Turn *Turn `json:"turn,omitempty"`
+}
+
+// GitInfo is a git worktree's branch and changes, as kerod last found
+// them. kerod replaces it whole, never changing one it sent.
+type GitInfo struct {
+	Root     string `json:"root"`             // the worktree's top level
+	Branch   string `json:"branch,omitempty"` // "" when detached
+	Head     string `json:"head,omitempty"`   // the commit, "" before the first
+	Upstream string `json:"upstream,omitempty"`
+	Ahead    int    `json:"ahead,omitempty"`
+	Behind   int    `json:"behind,omitempty"`
+	// Default is the repository's default branch: origin's HEAD, else
+	// main or master.
+	Default string `json:"default,omitempty"`
+	// Files changed since HEAD, untracked ones too, and the lines they
+	// add and remove.
+	Files   int `json:"files,omitempty"`
+	Added   int `json:"added,omitempty"`
+	Removed int `json:"removed,omitempty"`
+	// State is an operation in progress: merge, rebase, cherry-pick or
+	// revert.
+	State string `json:"state,omitempty"`
+}
+
+// Turn is a snapshot of a worktree, as an agent's turn started from it.
+type Turn struct {
+	Tree string `json:"tree"` // the tree's id
+	Root string `json:"root"` // the worktree's
+	At   int64  `json:"at"`   // unix ms
 }
 
 // AgentSession is a coding agent's conversation, by its id.
@@ -192,6 +251,46 @@ type AgentSession struct {
 	Agent string `json:"agent"` // "claude", "codex", "pi", "opencode" or "vibe"
 	ID    string `json:"id"`
 }
+
+// Conversation is a coding agent's conversation that ran in one of
+// kerod's panes, as kerod remembers it after the pane is gone, to resume
+// (kero history, kero resume).
+type Conversation struct {
+	Agent string `json:"agent"` // as AgentSession's
+	ID    string `json:"id"`
+	Dir   string `json:"dir,omitempty"` // where the agent worked
+	// Project is the project of the session it ran in, Name that
+	// session's name, the user's or an agent's, and Title what the
+	// agent titled the conversation.
+	Project string `json:"project,omitempty"`
+	Name    string `json:"name,omitempty"`
+	Title   string `json:"title,omitempty"`
+	Started int64  `json:"started"` // unix ms
+	Updated int64  `json:"updated"` // when it last ran
+	// Session and Pane run it now; "" when none does.
+	Session string `json:"session,omitempty"`
+	Pane    string `json:"pane,omitempty"`
+	// Archived: the user moved it to the sidebar's Archived, until it
+	// runs again.
+	Archived bool `json:"archived,omitempty"`
+}
+
+// Label is what to call a conversation: its session's name, else its
+// title, else its directory's name.
+func (c *Conversation) Label() string {
+	switch {
+	case c.Name != "":
+		return c.Name
+	case c.Title != "":
+		return c.Title
+	case c.Dir != "":
+		return DirName(c.Dir)
+	}
+	return c.Agent
+}
+
+// AgentNames are the coding agents' names as they show them.
+var AgentNames = map[string]string{"claude": "Claude Code", "codex": "Codex", "pi": "Pi", "opencode": "OpenCode"}
 
 // Session is a row of the sidebar: one task, with its terminals, its
 // panes, side by side. Its Pane fields are those of its lead pane, the
@@ -213,6 +312,32 @@ type Session struct {
 	Lead   string `json:"lead,omitempty"`
 	Focus  string `json:"focus,omitempty"`
 	Zoomed string `json:"zoomed,omitempty"`
+	// Worktree is the linked git worktree kero made for the session to
+	// work in, nil for none.
+	Worktree *Worktree `json:"worktree,omitempty"`
+}
+
+// Worktree is a linked git worktree kero made for a session: Path checks
+// out Branch, which started from Base, in the repository whose main
+// checkout is Main.
+type Worktree struct {
+	Path   string `json:"path"`
+	Branch string `json:"branch"`
+	Base   string `json:"base,omitempty"`
+	Main   string `json:"main"`
+}
+
+// Losses writes what removing the worktree would lose, in English, as
+// "3 files changed"; "" for nothing. Its branch stays unless merged, and
+// keeps its commits.
+func (wc *WorktreeCheck) Losses() string {
+	switch {
+	case wc.Files == 1:
+		return "1 file changed"
+	case wc.Files > 1:
+		return fmt.Sprintf("%d files changed", wc.Files)
+	}
+	return ""
 }
 
 // PaneByID returns a pane of the session, or nil.
@@ -270,6 +395,15 @@ func Lead(panes []Pane, focus string) int {
 // foreground set, else the program, else the shell, else its directory's
 // name.
 func (p *Pane) PaneName() string {
+	if p.Browser() {
+		if t := strings.TrimSpace(p.Title); t != "" {
+			return t
+		}
+		if p.URL == BlankURL {
+			return "browser"
+		}
+		return URLHost(p.URL)
+	}
 	if p.Process != "" {
 		if t := CleanTitle(p.Title); t != "" && !looksLikePath(t) {
 			return t
@@ -283,10 +417,13 @@ func (p *Pane) PaneName() string {
 		if p.Dir == Home() {
 			return "~"
 		}
-		return filepath.Base(p.Dir)
+		return DirName(p.Dir)
 	}
 	return "shell"
 }
+
+// Browser reports whether the pane is a browser's, not a terminal's.
+func (p *Pane) Browser() bool { return p.URL != "" }
 
 // WorkDir is where the pane works: the foreground program's directory,
 // else the shell's.
@@ -335,13 +472,27 @@ func (s *Session) DisplayName(from string) string {
 			return p.Agent
 		}
 	}
+	// A session of browsers alone goes by its page: beside a terminal,
+	// a browser names it no more than a shell does.
+	if p.Browser() && !s.hasTerminal() {
+		return p.PaneName()
+	}
 	if p.Dir != "" {
 		if p.Dir == Home() {
 			return "~"
 		}
-		return filepath.Base(p.Dir)
+		return DirName(p.Dir)
 	}
 	return "shell"
+}
+
+func (s *Session) hasTerminal() bool {
+	for i := range s.Panes {
+		if !s.Panes[i].Browser() {
+			return true
+		}
+	}
+	return false
 }
 
 // CleanTitle strips the status glyphs agents put before their titles:
@@ -386,6 +537,20 @@ func isTitleGlyph(r rune) bool {
 		return true
 	}
 	return false
+}
+
+// DirName is a directory's last element, whichever system's it is: the
+// app shows a Windows host's C:\src\kero as kero on a Mac, where
+// filepath.Base doesn't split at a backslash.
+func DirName(dir string) string {
+	t := strings.TrimRight(dir, `/\`)
+	if i := strings.LastIndexAny(t, `/\`); i >= 0 && i < len(t)-1 && !strings.HasSuffix(t, ":") {
+		return t[i+1:]
+	}
+	if t != "" && !strings.HasSuffix(t, ":") {
+		return t
+	}
+	return dir
 }
 
 func looksLikePath(t string) bool {
@@ -547,12 +712,39 @@ type (
 		Dir     string   `json:"dir,omitempty"` // "" the project's, else home
 		Command []string `json:"command,omitempty"`
 		Env     []string `json:"env,omitempty"`
-		After   string   `json:"after,omitempty"` // put it after this session
-		Cols    int      `json:"cols,omitempty"`
-		Rows    int      `json:"rows,omitempty"`
+		// URL makes a browser pane showing it, instead of a shell.
+		URL   string `json:"url,omitempty"`
+		After string `json:"after,omitempty"` // put it after this session
+		Cols  int    `json:"cols,omitempty"`
+		Rows  int    `json:"rows,omitempty"`
+		// Worktree starts the session in a linked git worktree of its own
+		// of Dir's repository, on a new branch of this name from Base: the
+		// repository's default branch when "", "HEAD" for Dir's. An
+		// existing branch no worktree has is checked out as it is.
+		Worktree string `json:"worktree,omitempty"`
+		Base     string `json:"base,omitempty"`
 	}
 	IDParams struct {
 		ID string `json:"id"`
+	}
+	// CloseParams closes a session; RemoveWorktree removes the worktree
+	// kero made for it too, unless another session works in it, and
+	// unless changes it would lose (WorktreeCheck.Files) need Force.
+	CloseParams struct {
+		ID             string `json:"id"`
+		RemoveWorktree bool   `json:"removeWorktree,omitempty"`
+		Force          bool   `json:"force,omitempty"`
+	}
+	// WorktreeCheck is what removing a session's worktree would lose:
+	// Files changed, untracked ones too, and Unpushed commits on neither
+	// its base nor a remote. Merged: its base has its branch, which goes
+	// with it. Shared: another session works in it, which keeps it.
+	WorktreeCheck struct {
+		Worktree
+		Files    int  `json:"files"`
+		Unpushed int  `json:"unpushed"`
+		Merged   bool `json:"merged"`
+		Shared   bool `json:"shared"`
 	}
 	RenameParams struct {
 		ID   string `json:"id"`
@@ -590,6 +782,74 @@ type (
 		Session string  `json:"session"`
 		Layout  *Layout `json:"layout"`
 	}
+	// PageParams tell the page a browser pane shows, as the app's user
+	// went to it (pane.page).
+	PageParams struct {
+		ID    string `json:"id"`
+		URL   string `json:"url"`
+		Title string `json:"title,omitempty"`
+	}
+	// BrowserParams ask a browser pane's page to do something (browser),
+	// which the app showing it does.
+	BrowserParams struct {
+		ID string `json:"id"`
+		// Op is what to do: open, back, forward, reload, text, html,
+		// snapshot, click, type, wait, eval, screenshot or cookies.
+		Op       string `json:"op"`
+		Selector string `json:"selector,omitempty"`
+		// Ref names the element a snapshot gave a ref, in place of a
+		// selector.
+		Ref string `json:"ref,omitempty"`
+		// Text is the URL to open, the text to type or wait for, the
+		// script to evaluate, or what to do with cookies: save or load.
+		Text  string `json:"text,omitempty"`
+		Enter bool   `json:"enter,omitempty"` // press Enter after typing
+		// Domain keeps the cookies saved to those of a domain and its
+		// subdomains.
+		Domain string `json:"domain,omitempty"`
+		// Cookies are the cookies to load.
+		Cookies []Cookie `json:"cookies,omitempty"`
+		// Timeout is how long to wait for the element, or the page to
+		// load, in ms: 0 for the app's default.
+		Timeout int64 `json:"timeout,omitempty"`
+	}
+	// BrowserRequest is a browser call as kerod hands it to the app: Req
+	// is what the app answers it by, and Pane the browser pane's id.
+	BrowserRequest struct {
+		Req  int64  `json:"req"`
+		Pane string `json:"pane"`
+		BrowserParams
+	}
+	// BrowserResult is what the page answered: text for text, html,
+	// snapshot and eval, an image for screenshot, the cookies saved.
+	BrowserResult struct {
+		Text    string   `json:"text,omitempty"`
+		PNG     []byte   `json:"png,omitempty"`
+		Cookies []Cookie `json:"cookies,omitempty"`
+	}
+	// Cookie is a cookie of the browser panes' pages, in the shape of
+	// Playwright's storage state.
+	Cookie struct {
+		Name  string `json:"name"`
+		Value string `json:"value"`
+		// Domain is the host the cookie goes to, or with a leading dot,
+		// the domain whose subdomains get it too.
+		Domain string `json:"domain"`
+		Path   string `json:"path"`
+		// Expires is when the cookie expires, in Unix seconds: -1 for one
+		// that lasts until the app quits.
+		Expires  float64 `json:"expires"`
+		HTTPOnly bool    `json:"httpOnly"`
+		Secure   bool    `json:"secure"`
+		SameSite string  `json:"sameSite"` // Strict, Lax or None
+	}
+	// BrowserAnswer answers a BrowserRequest (browser.answer): a result,
+	// or why there is none.
+	BrowserAnswer struct {
+		Req    int64          `json:"req"`
+		Result *BrowserResult `json:"result,omitempty"`
+		Error  string         `json:"error,omitempty"`
+	}
 	NotifyParams struct {
 		ID    string `json:"id"`
 		Title string `json:"title,omitempty"`
@@ -615,6 +875,17 @@ type (
 		Session string `json:"session"`
 		Dir     string `json:"dir,omitempty"` // the agent's, to tell its pane by
 	}
+	// ConversationParams names a conversation (Conversation), to resume
+	// in a session after After, of Cols and Rows, to forget, or to
+	// archive or not, as Archived.
+	ConversationParams struct {
+		Agent    string `json:"agent"`
+		ID       string `json:"id"`
+		After    string `json:"after,omitempty"`
+		Cols     int    `json:"cols,omitempty"`
+		Rows     int    `json:"rows,omitempty"`
+		Archived bool   `json:"archived,omitempty"`
+	}
 	// AgentSessionResult is the pane told of, and its session; Away: the
 	// agent runs under none of kero's shells, and so do its commands.
 	AgentSessionResult struct {
@@ -632,6 +903,58 @@ type (
 		Index int    `json:"index"`
 	}
 	ReadResult struct {
+		Text string `json:"text"`
+	}
+
+	// GitParams ask about a pane's worktree, since a base: "turn" (its
+	// Turn), "head" or "branch" (where HEAD left the default branch).
+	// Path and OldPath name a file, slash-separated from the worktree's
+	// root, the file of a rename was OldPath in the base.
+	GitParams struct {
+		Pane    string `json:"pane"`
+		Base    string `json:"base"`
+		Path    string `json:"path,omitempty"`
+		OldPath string `json:"oldPath,omitempty"`
+		// Known is the hash of the file's text the client has (GitText),
+		// which git.file then sends again only when it changed.
+		Known string `json:"known,omitempty"`
+	}
+	// GitChanges are the files changed since a base.
+	GitChanges struct {
+		Root string `json:"root"`
+		// BaseName is what the base is to show: "HEAD", or the default
+		// branch's name for "branch"; "" for a turn.
+		BaseName string    `json:"baseName,omitempty"`
+		Files    []GitFile `json:"files"`
+	}
+	GitFile struct {
+		Path    string `json:"path"`
+		OldPath string `json:"oldPath,omitempty"`
+		// Status is added, modified, deleted, renamed, or type (a file
+		// that became a link, or one that stopped being one).
+		Status  string `json:"status"`
+		Added   int    `json:"added,omitempty"`
+		Removed int    `json:"removed,omitempty"`
+		Binary  bool   `json:"binary,omitempty"`
+	}
+	// GitText is a file's text in the base and now. Same: as Known, so
+	// nothing else is sent.
+	GitText struct {
+		Old    string `json:"old,omitempty"`
+		New    string `json:"new,omitempty"`
+		Hash   string `json:"hash"`
+		Same   bool   `json:"same,omitempty"`
+		Binary bool   `json:"binary,omitempty"`
+		Large  bool   `json:"large,omitempty"`
+		Patch  string `json:"patch,omitempty"`
+	}
+	// GitWriteParams write a file of a pane's worktree back as it was in
+	// part (git.revert): Text, when its content still hashes to Hash.
+	GitWriteParams struct {
+		Pane string `json:"pane"`
+		Base string `json:"base"`
+		Path string `json:"path"`
+		Hash string `json:"hash"`
 		Text string `json:"text"`
 	}
 )

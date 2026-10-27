@@ -1,0 +1,77 @@
+---
+title: Changes
+description: See a session's git branch and what its agent changed, file by file, beside its panes.
+---
+
+# Changes
+
+When a session works in a git repository, Kero shows its branch and what changed, and lets you review an agent's work beside its panes.
+
+## Branches at a glance
+
+Each pane's title shows the branch it works on, with the lines its changes add and remove since the last commit: `fix-login +40 −2`. A merge or rebase in progress shows there too.
+
+In the sidebar, a session on a branch other than the repository's default one, such as an agent's in a worktree of its own, shows that branch by its name. Hover a session for its branch, how far it is ahead of or behind its upstream, and how many files changed.
+
+## The changes panel
+
+Click a pane's branch, or press <kbd>⌥</kbd> <kbd>⌘</kbd> <kbd>G</kbd>, to open the changes panel at the right of the session. It lists the files that changed, with what each adds and removes, since one of:
+
+- **Last Turn**: where the session's agent last started working, so you see what it did in its latest turn, and nothing that changed before it. Kero takes a snapshot of the worktree as the agent starts, without touching your index or files.
+- **Uncommitted**: the last commit, untracked files included.
+- **Branch**: where the branch left the repository's default branch, as a pull request would show it.
+
+Each file shows with its diff right below it, one after another, and the diffs follow the files while the agent keeps editing them. Scrolled into a long diff, its file's name stays at the top. Click a file's name to fold its diff away, or to unfold it: a binary file and one with very many changed lines start folded. Drag the panel's edge to resize it.
+
+Diffs show unified while the panel is narrow and side by side once it's wide. The button at the right of the list's summary switches between the two, which the `diff-layout` setting keeps.
+
+### Reviewing a turn
+
+In **Last Turn**, hover a change for two buttons:
+
+- **Revert** puts the old lines back in the file.
+- **Keep** marks the change as reviewed, and hides it.
+
+Revert works only while no agent in the session is working, so it never races an agent's edits, and only on a file that's still as the diff shows it. A file that changed meanwhile shows anew instead.
+
+<a id="sessions-in-their-own-worktree"></a>
+
+## Sessions in their own worktree
+
+Agents working side by side in one checkout trip over each other's changes. **Session › New Session in Worktree…** (<kbd>⌘</kbd> <kbd>⌥</kbd> <kbd>T</kbd>) asks for a branch name, then starts a session in a git worktree of its own: a folder checking out that new branch, from the repository's default branch.
+
+- The worktree goes in `.kero/worktrees/<branch>` inside the repository, which Kero ignores through `.git/info/exclude`, not your `.gitignore`. Set `worktree-dir` to put worktrees elsewhere.
+- Set `worktree-base = current` to branch from the session you're in instead of the default branch.
+- The session joins the repository's project, and the sidebar shows its branch.
+
+Closing the session asks whether its worktree goes too:
+
+- **Nothing uncommitted:** Remove Worktree is the default. The branch goes with it once it's merged; otherwise it stays, with its commits.
+- **Uncommitted changes:** Kero says how many files would be lost, and Keep Worktree is the default.
+- **Another session works in the worktree:** it stays, and Kero doesn't ask.
+
+From the command line:
+
+```sh
+kero new --worktree fix-login -- claude   # a session on a new branch, in its own worktree
+kero new --worktree fix-login --base dev  # branch from dev
+kero close fix-login --remove-worktree    # close it and remove the worktree
+kero close fix-login --remove-worktree --force   # even with uncommitted changes
+```
+
+## From the command line
+
+`kero diff` prints a pane's changes as `git diff` does, untracked files included:
+
+```sh
+kero diff                       # this pane's uncommitted changes
+kero diff --turn                # what its agent changed in its last turn
+kero diff review --branch       # the review session's changes since the default branch
+kero diff src/auth              # just these paths
+```
+
+`kero status --json` and `kero ls --json` include each pane's branch and changes as `git`.
+
+## Turning it off
+
+Set `git-status = false`, or turn off **Show git status** in Settings, to stop Kero running git in your repositories.

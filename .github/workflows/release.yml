@@ -98,3 +98,80 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           MYGO_UPDATER_PRIVATE_KEY: ${{ secrets.MYGO_UPDATER_PRIVATE_KEY }}
         run: go tool mygo build -platform "${{ matrix.platform }}" -upload
+
+  # What a release is of passes its tests, as from a branch run by hand.
+  test:
+    needs: draft-release
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - run: go test ./internal/...
+
+  # The server build of Kero, for machines whose sessions the app shows
+  # (Settings › Hosts): kerod and the kero CLI without the app, with
+  # libghostty-vt, for Linux, macOS and Windows, which the install scripts
+  # install and the server build updates itself from (internal/update).
+  # Each archive is checked on its own platform.
+  server:
+    needs: draft-release
+    name: Server
+    uses: ./.github/workflows/server.yml
+
+  # Signed apart from the jobs that run what was built, with the key the
+  # app's updates are signed with, which the server build checks.
+  server-sign:
+    needs: [server, test]
+    name: Sign the server build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - uses: actions/download-artifact@v4
+        with:
+          name: server
+          path: build/server
+      - name: Sign
+        env:
+          MYGO_UPDATER_PRIVATE_KEY: ${{ secrets.MYGO_UPDATER_PRIVATE_KEY }}
+        run: go run ./internal/update/sign build/server/*.tar.gz build/server/*.zip
+      - name: Upload
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="v$(jq -r .version mygo.json)"
+          gh release upload "$tag" --repo "$GITHUB_REPOSITORY" --clobber \
+            build/server/*.tar.gz build/server/*.tar.gz.sig build/server/*.tar.gz.sha256 \
+            build/server/*.zip build/server/*.zip.sig build/server/*.zip.sha256 \
+            build/server/install-server.sh build/server/install-server.ps1
+
+  # A release without the server build would break the install scripts'
+  # latest links, and the app's Install and Update of hosts: say so before
+  # it is published.
+  assets:
+    needs: [build, server-sign]
+    name: Check the release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          version="$(jq -r .version mygo.json)"
+          names="$(gh release view "v$version" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name')"
+          want="install-server.sh install-server.ps1 install.sh"
+          for p in linux-amd64 linux-arm64 darwin-amd64 darwin-arm64 windows-amd64 windows-arm64; do
+            ext=tar.gz
+            case "$p" in windows-*) ext=zip ;; esac
+            a="kero-server-$version-$p.$ext"
+            want="$want $a $a.sig $a.sha256"
+          done
+          for w in $want; do
+            echo "$names" | grep -qxF "$w" || { echo "::error::v$version has no $w"; exit 1; }
+          done

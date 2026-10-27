@@ -75,7 +75,6 @@ kero wait "$pane" --exit || kero read "$pane" -n 80
 Tell you what's going on:
 
 ```sh
-kero rename $KERO_SESSION fix-login-redirect
 kero report working "Migrating the database" --progress 40
 kero report blocked "Approve the production deploy?"
 kero report done "Deployed to staging"

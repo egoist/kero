@@ -3,13 +3,17 @@ package main
 import (
 	"fmt"
 	"runtime"
+	"slices"
 	"testing"
 	"time"
 
+	"github.com/egoist/mygo/i18n"
 	"github.com/egoist/mygo/ui"
 
 	"kero/internal/actions"
 	"kero/internal/settings"
+
+	"kero/locales"
 )
 
 // Every page builds, and shows its settings.
@@ -20,7 +24,7 @@ func TestSettingsPages(t *testing.T) {
 	want := map[string]string{
 		"general": "Restore sessions after a restart", "appearance": "Translucent window", "terminal": "Line height",
 		"shell": "Scrollback", "notifications": "A session needs me", "keyboard": "Split Right",
-		"agents": "Let commands drive this window", "advanced": "Background service",
+		"agents": "Let commands drive this window", "hosts": "Experimental", "advanced": "Background service",
 	}
 	for _, p := range settingsPages {
 		if p.id == "notifications" {
@@ -30,6 +34,9 @@ func TestSettingsPages(t *testing.T) {
 		tt.Frame()
 		if !tt.HasText(want[p.id]) {
 			t.Errorf("page %s: no %q; texts %q", p.id, want[p.id], tt.Texts())
+		}
+		if p.id != "hosts" && tt.HasText("Experimental") {
+			t.Errorf("page %s is tagged experimental", p.id)
 		}
 		shot(t, tt, "settings-"+p.id)
 	}
@@ -462,6 +469,41 @@ func TestPopupMenuStaysInWindow(t *testing.T) {
 	}
 }
 
+// The font menu offers every monospaced family installed, so a font
+// installed with the system is there to pick.
+func TestFontOptionsInstalled(t *testing.T) {
+	opts := fontOptions()
+	for _, want := range []string{fontChoices[0], locales.SetFontSystem(), "Monaco"} {
+		if !slices.Contains(opts, want) {
+			t.Errorf("%q is not offered", want)
+		}
+	}
+	n := 0
+	for _, f := range ui.FontFamilies() {
+		if !f.Monospaced || f.Name == bundledFont {
+			continue
+		}
+		n++
+		if !slices.Contains(opts, f.Name) {
+			t.Errorf("the installed monospaced family %q is not offered", f.Name)
+		}
+	}
+	if n == 0 {
+		t.Log("no system monospaced fonts to check")
+	}
+}
+
+// The font menu names the system's font in the language the app shows
+// now, as the menu's choice is read back, after the language changes.
+func TestFontOptionsFollowLanguage(t *testing.T) {
+	en := fontOptions()[1]
+	i18n.SetLocaleFunc(func() string { return "zh-Hans" })
+	t.Cleanup(func() { i18n.SetLocaleFunc(nil) })
+	if got, want := fontOptions()[1], locales.SetFontSystem(); got != want || got == en {
+		t.Errorf("the system's font is offered as %q, want %q", got, want)
+	}
+}
+
 // The font menu stays in the window, however little room the window has
 // below its button.
 func TestSearchMenuStaysInWindow(t *testing.T) {
@@ -591,5 +633,70 @@ func TestSearchMenuIsModal(t *testing.T) {
 	tt.Frame()
 	if a.ss.scrolls["terminal"].Y == 0 {
 		t.Error("the page does not scroll once the menu closed")
+	}
+}
+
+// A form's button stands as high as the field beside it, as Hosts' Add
+// ($KERO_SHOTS).
+func TestFieldButtonHeight(t *testing.T) {
+	a := testApp(t)
+	a.ss.page = "hosts"
+	tt := ui.NewTester(a.settingsView, 820, 900)
+	tt.Frame()
+	shot(t, tt, "hosts-add")
+	add, ok := tt.Find(locales.CommonAdd())
+	if !ok {
+		t.Fatalf("no Add; texts %q", tt.Texts())
+	}
+	name, ok := tt.Find(locales.SetHostNamePlaceholder("devbox"))
+	if !ok {
+		t.Fatal("no name field")
+	}
+	if add.H != controlH+2 || abs32(add.Y+add.H/2-(name.Y+name.H/2)) > 0.5 {
+		t.Errorf("Add %+v beside the field %+v", add, name)
+	}
+	// The input is the whole field: 130 wide, as high as Add.
+	if name.W != 130 || name.H != add.H {
+		t.Errorf("the name's input is %+v, in a field of 130×%v", name, add.H)
+	}
+}
+
+func abs32(f float32) float32 {
+	if f < 0 {
+		return -f
+	}
+	return f
+}
+
+// The filter lists under Block ads add up and save, and hide with it.
+func TestAdListToggles(t *testing.T) {
+	a := testApp(t)
+	a.ss.page = "browser"
+	tt := ui.NewTester(a.settingsView, 820, 1500)
+	tt.Frame()
+	flip := func(label string) {
+		t.Helper()
+		r, ok := tt.Find(label)
+		if !ok {
+			t.Fatalf("no row %q", label)
+		}
+		tt.ClickAt(752, r.Y+r.H/2) // its switch, at the row's end
+		tt.Frame()
+		tt.Frame()
+	}
+	flip("Peter Lowe's Ad and tracking server list")
+	flip("EasyList")
+	if want := []string{"easyprivacy", "peter-lowe"}; !slices.Equal(a.set.AdLists, want) || !slices.Equal(settings.Load().AdLists, want) {
+		t.Fatalf("lists %q, saved %q, want %q", a.set.AdLists, settings.Load().AdLists, want)
+	}
+	flip("EasyPrivacy")
+	flip("Peter Lowe's Ad and tracking server list")
+	if got := settings.Load().AdLists; len(got) != 0 {
+		t.Fatalf("no lists saved as %q", got)
+	}
+	a.set.BlockAds = false
+	tt.Frame()
+	if tt.HasText("EasyPrivacy") {
+		t.Error("the lists show while Block ads is off")
 	}
 }

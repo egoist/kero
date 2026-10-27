@@ -25,7 +25,9 @@ const idleHold = 700 * time.Millisecond
 
 // pane is a shell the daemon keeps running in a pseudo-terminal, with a
 // terminal emulator of its own (libghostty-vt, headless) that keeps its
-// screen and scrollback for the clients that attach later.
+// screen and scrollback for the clients that attach later; or a browser
+// (info.URL), which the app shows: it has neither, only its place in its
+// session and the page the app last told.
 type pane struct {
 	d   *Daemon
 	sid string // the session's it belongs to
@@ -41,9 +43,13 @@ type pane struct {
 	proc         *ptyProc
 	term         *terminal.Terminal
 	clients      map[*attachment]struct{}
-	shellPID     int
-	fgPGID       int
-	cwdAt        time.Time
+	// claimer is the client the user claimed the pane in last (claim), nil
+	// once it detached; stamp orders the clients' asks and claims.
+	claimer  *attachment
+	stamp    uint64
+	shellPID int
+	fgPGID   int
+	cwdAt    time.Time
 
 	dirty bool // output since the history on disk
 	// seen is what the screen showed when the status last came from it,
@@ -54,11 +60,14 @@ type pane struct {
 	seen     detect.State
 	looked   bool
 	idleFrom time.Time
-	// osc finds OSC 7501 and 133 in the output; records are the programs'
-	// status reports (OSC 7501), by id, and reported tells that one came.
+	// osc finds OSC 7501, 133 and 9;4 in the output; records are the
+	// programs' status reports (OSC 7501), by id, and reported tells that
+	// one came; progress is the last OSC 9;4 after "9;", as "4;1;40",
+	// which only agents' rules read.
 	osc      oscScanner
 	records  map[string]proto.Record
 	reported bool
+	progress string
 	// awaiting tells that the command the pane started with runs, whose
 	// end its shell will tell (OSC 133;D, see shellArgs).
 	awaiting bool
@@ -102,6 +111,9 @@ func (h *headless) Close() error {
 func newPane(d *Daemon, sid string, info proto.Pane) (*pane, error) {
 	s := &pane{d: d, sid: sid, info: info, clients: map[*attachment]struct{}{}, changed: make(chan struct{})}
 	s.info.Progress = -1
+	if s.info.Browser() {
+		return s, nil
+	}
 	if s.info.Cols <= 0 || s.info.Rows <= 0 {
 		s.info.Cols, s.info.Rows = 120, 36
 	}
@@ -131,7 +143,11 @@ func newPane(d *Daemon, sid string, info proto.Pane) (*pane, error) {
 func (s *pane) start(command []string, env []string) error {
 	shell := userShell()
 	name := shellName(shell)
-	args := shellArgs(shell, command)
+	bin := s.d.binFirst()
+	args := shellArgs(shell, bin, command)
+	if bin != "" && name == "zsh" {
+		env = append(env[:len(env):len(env)], zshEnv(bin)...)
+	}
 	dir := s.info.Dir
 	if st, err := os.Stat(dir); dir == "" || err != nil || !st.IsDir() {
 		dir = proto.Home()
@@ -140,6 +156,9 @@ func (s *pane) start(command []string, env []string) error {
 		Path: shell, Args: args, Dir: dir,
 		Env:  s.d.environment(s.sid, s.info.ID, shell, env),
 		Cols: s.info.Cols, Rows: s.info.Rows,
+		// The pane's terminal answers the console's question of where
+		// its cursor is: under a restored pane's history.
+		InheritCursor: true,
 	})
 	if err != nil {
 		return err
@@ -230,7 +249,7 @@ func (s *pane) onNotify(title, body string) {
 		}
 		return
 	}
-	go s.d.notice(proto.Notice{Session: s.sid, Title: title, Body: body})
+	go s.d.notice(proto.Notice{Session: s.sid, Pane: s.info.ID, Title: title, Body: body})
 }
 
 // flag marks the pane as needing the user, as "kero notify" asks; s.mu
@@ -265,9 +284,16 @@ func (s *pane) setStatus(st proto.Status) {
 	if s.info.Status == st {
 		return
 	}
+	// An agent going to work from idle starts a turn, which a snapshot of
+	// its worktree marks; one going on after the user answered it, from
+	// waiting, goes on with its turn.
+	if st == proto.Working && (s.info.Status == proto.Idle || s.info.Status == proto.Failed) && s.info.Agent != "" {
+		go s.d.git.snapshot(s, s.info.WorkDir(), time.Now())
+	}
 	s.info.Status = st
 	s.info.Since = time.Now().UnixMilli()
 	s.wake()
+	s.d.git.poke(s.info.WorkDir())
 }
 
 // wake wakes those waiting on the pane; s.mu is held.
@@ -307,12 +333,19 @@ func (s *pane) tick(now time.Time) bool {
 		// The program ended: its live reports go with it, and an agent's
 		// session is no more to resume.
 		s.dropLive()
+		s.progress = ""
 		if s.info.AgentSession != nil {
+			s.d.noteEnded(s)
 			s.info.AgentSession = nil
 			s.d.save()
 		}
 	}
 	if proc != s.info.Process || agent != s.info.Agent || runtime != s.info.Runtime {
+		if s.info.Agent != "" && agent != s.info.Agent {
+			// Another agent starts from no progress; the first keeps what
+			// it showed before it was told.
+			s.progress = ""
+		}
 		s.info.Process, s.info.Agent, s.info.Runtime = proc, agent, runtime
 		s.seen, s.looked = "", false
 		changed = true
@@ -323,6 +356,7 @@ func (s *pane) tick(now time.Time) bool {
 			s.info.Dir = dir
 			changed = true
 			s.d.save()
+			s.d.git.poke(dir)
 		}
 		// The program's own, from its group's leader, as an agent's that
 		// went into a worktree: the shell under it stays where it was.
@@ -336,6 +370,7 @@ func (s *pane) tick(now time.Time) bool {
 		if pdir != s.info.ProcessDir {
 			s.info.ProcessDir = pdir
 			changed = true
+			s.d.git.poke(s.info.WorkDir())
 		}
 	}
 	if s.look(now) {
@@ -362,7 +397,7 @@ func (s *pane) look(now time.Time) bool {
 	s.looked = true
 	st, visible := detect.Idle, true
 	if detect.Known(s.info.Agent) {
-		r := detect.Detect(s.info.Agent, detect.Input{Screen: s.screen(), Title: s.info.Title})
+		r := detect.Detect(s.info.Agent, detect.Input{Screen: s.screen(), Title: s.info.Title, Progress: s.progress})
 		if r.Skip {
 			return false
 		}
@@ -439,6 +474,23 @@ func (s *pane) input(p []byte) {
 	}
 }
 
+// setPage keeps the page a browser pane shows, as the app told it.
+func (s *pane) setPage(url, title string) error {
+	s.mu.Lock()
+	if !s.info.Browser() {
+		s.mu.Unlock()
+		return fmt.Errorf("pane %s is no browser", s.info.ID)
+	}
+	changed := s.info.URL != url || s.info.Title != title
+	s.info.URL, s.info.Title = url, title
+	s.mu.Unlock()
+	if changed {
+		s.d.save()
+		s.d.changed()
+	}
+	return nil
+}
+
 // useTheme gives the panes, and those to come, a client's colors, which
 // programs asking about them get: Copilot CLI drew its input box dark on
 // a light background, as kerod's terminals answered with a dark theme.
@@ -456,17 +508,79 @@ func (d *Daemon) useTheme(t proto.Theme) {
 	}
 	d.mu.Unlock()
 	for _, p := range panes {
-		p.term.UseTheme(th)
+		if p.term != nil {
+			p.term.UseTheme(th)
+		}
 	}
 }
 
 func (s *pane) resize(cols, rows, cellW, cellH int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.resizeLocked(cols, rows, cellW, cellH)
+}
+
+// ask takes the size a client's terminal fits, which the pane takes when
+// the client sizes it (sizer); s.mu is not held.
+func (s *pane) ask(c *attachment, cols, rows, cellW, cellH int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	c.asked = [4]int{cols, rows, cellW, cellH}
+	s.stamp++
+	c.askedAt = s.stamp
+	s.fit()
+}
+
+// claim gives the pane's size to the client the user is in, typing in it
+// or showing it as they use the machine (proto.FrameClaim): the pane takes
+// the size it asked for last, and the sizes others ask for wait until
+// they claim it again. A pane has one size, and a layout synced from the
+// app the user is in resizes another machine's app's panes too, whose
+// sizes would take it.
+func (s *pane) claim(c *attachment) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.claimer == c {
+		return
+	}
+	if _, ok := s.clients[c]; !ok {
+		return
+	}
+	s.claimer = c
+	s.stamp++
+	c.claimed = s.stamp
+	s.fit()
+}
+
+// sizer returns the client whose size the pane takes: of those that
+// asked one, the one claimed in last, else, none claimed, the one that
+// asked last. s.mu is held.
+func (s *pane) sizer() *attachment {
+	var best *attachment
+	for c := range s.clients {
+		if c.asked[0] <= 0 {
+			continue
+		}
+		if best == nil || c.claimed > best.claimed || c.claimed == best.claimed && c.askedAt > best.askedAt {
+			best = c
+		}
+	}
+	return best
+}
+
+// fit gives the pane its sizer's size; s.mu is held.
+func (s *pane) fit() {
+	if c := s.sizer(); c != nil {
+		s.resizeLocked(c.asked[0], c.asked[1], c.asked[2], c.asked[3])
+	}
+}
+
+// resizeLocked resizes the pane's terminal and program; s.mu is held.
+func (s *pane) resizeLocked(cols, rows, cellW, cellH int) {
 	if cols <= 0 || rows <= 0 {
 		return
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.closed {
+	if s.closed || s.term == nil {
 		return
 	}
 	if cellW > 0 && cellH > 0 && (cellW != s.cellW || cellH != s.cellH) {
@@ -506,13 +620,16 @@ func (s *pane) resize(cols, rows, cellW, cellH int) {
 func (s *pane) clear(what byte) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.closed {
+	if s.closed || s.term == nil {
 		return
 	}
 	switch what {
 	case proto.ClearScreen:
 		if !s.term.ClearScreen() {
 			return
+		}
+		if s.proc != nil {
+			s.proc.ClearScreen()
 		}
 	case proto.ClearScrollback:
 		s.term.ClearScrollback()
@@ -598,7 +715,7 @@ func (s *pane) exited(proc *ptyProc) {
 // restart starts a shell again in a session that exited.
 func (s *pane) restart() error {
 	s.mu.Lock()
-	if s.proc != nil {
+	if s.proc != nil || s.term == nil {
 		s.mu.Unlock()
 		return fmt.Errorf("session %s is running", s.info.ID)
 	}
@@ -623,6 +740,7 @@ func (s *pane) close() {
 		return
 	}
 	s.closed = true
+	s.d.noteEnded(s)
 	close(s.changed) // wakes those waiting on it
 	s.changed = make(chan struct{})
 	proc := s.proc
@@ -643,7 +761,9 @@ func (s *pane) close() {
 			}
 		}()
 	}
-	s.term.Close()
+	if s.term != nil {
+		s.term.Close()
+	}
 }
 
 // attach registers a client, returning the first frame of its mirror,
@@ -652,7 +772,7 @@ func (s *pane) close() {
 func (s *pane) attach(c *attachment) (first []byte, cols, rows int, ok bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.closed {
+	if s.closed || s.term == nil {
 		return nil, 0, 0, false
 	}
 	m, err := s.term.NewMirror()
@@ -671,6 +791,12 @@ func (s *pane) detach(c *attachment) {
 		delete(s.clients, c)
 		c.mirror.Close()
 	}
+	if s.claimer == c {
+		s.claimer = nil
+	}
+	// The client left, the user's of those left takes the pane, as one
+	// left on another machine would show it cut off at the gone one's.
+	s.fit()
 	s.mu.Unlock()
 }
 
@@ -680,16 +806,22 @@ func (s *pane) detach(c *attachment) {
 func (s *pane) history(force bool) []byte {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.closed || !s.dirty && !force {
+	if s.closed || s.term == nil || !s.dirty && !force {
 		return nil
 	}
 	s.dirty = false
 	return s.term.History()
 }
 
-// readText returns the session's text: the screen, or with scrollback.
+// readText returns the session's text: the screen, or with scrollback; a
+// browser's is its page's title and URL.
 func (s *pane) readText(scrollback bool, lines int) string {
 	s.mu.Lock()
+	if s.term == nil {
+		text := strings.TrimSpace(s.info.Title + "\n" + s.info.URL)
+		s.mu.Unlock()
+		return text + "\n"
+	}
 	text := s.term.Text()
 	rows := s.info.Rows
 	s.mu.Unlock()
@@ -711,9 +843,14 @@ func (s *pane) readText(scrollback bool, lines int) string {
 type attachment struct {
 	conn   net.Conn
 	mirror *terminal.Mirror // what its terminal shows of the session's
-	out    chan []byte
-	once   sync.Once
-	done   chan struct{}
+	// asked is the size its terminal fits (pane.ask), askedAt and claimed
+	// when it asked it and the user last claimed the pane in it
+	// (pane.stamp); pane.mu guards them.
+	asked            [4]int
+	askedAt, claimed uint64
+	out              chan []byte
+	once             sync.Once
+	done             chan struct{}
 }
 
 func newAttachment(conn net.Conn) *attachment {

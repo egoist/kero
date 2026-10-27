@@ -45,6 +45,17 @@ var (
 	unzoomIcon      = glyph("f7-arrow-down-right-arrow-up-left")
 	closeIcon       = glyph("f7-xmark")
 	swapIcon        = glyph("f7-arrow-right-arrow-left")
+	branchIcon      = glyph("f7-arrow-branch")
+	diffIcon        = glyph("octicon-file-diff-16")
+	revertIcon      = glyph("f7-arrow-uturn-left")
+	openFileIcon    = glyph("f7-arrow-up-right-square")
+	globeIcon       = glyph("f7-globe")
+	chevronLeftIcon = glyph("f7-chevron-left")
+	reloadIcon      = glyph("f7-arrow-clockwise")
+	copyIcon        = glyph("f7-doc-on-doc")
+	linkIcon        = glyph("f7-arrow-up-right")
+	editIcon        = glyph("f7-pencil")
+	archiveIcon     = icon(`<rect x="2" y="3" width="12" height="3" rx="1"/><path d="M3 6v6.5a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V6M6.5 9h3"/>`)
 )
 
 // programIcons are the logos of programs a pane may run, by the name kerod
@@ -65,8 +76,12 @@ func init() {
 
 // programIcon is the logo of the pane's foreground program, as Claude's
 // for Claude Code and Node.js's for a script node runs; the terminal's
-// while the shell is in the foreground or the program has none.
+// while the shell is in the foreground or the program has none; a globe
+// for a browser.
 func programIcon(p *proto.Pane) *ui.SVG {
+	if p.Browser() {
+		return globeIcon
+	}
 	for _, name := range []string{p.Agent, p.Process, p.Runtime} {
 		if i := programIcons[name]; i != nil {
 			return i

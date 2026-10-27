@@ -35,3 +35,23 @@ func TestWithin(t *testing.T) {
 		}
 	}
 }
+
+// A Windows host's directory names its pane by its last element on any
+// system the app runs on.
+func TestDirName(t *testing.T) {
+	for dir, want := range map[string]string{
+		`C:\Users\egoist\dev\mygo`: "mygo",
+		`C:\src\kero\`:             "kero",
+		`C:\`:                      `C:\`,
+		"/home/me/src":             "src",
+		"/":                        "/",
+	} {
+		if got := DirName(dir); got != want {
+			t.Errorf("DirName(%q) = %q", dir, got)
+		}
+	}
+	p := Pane{Dir: `C:\Users\egoist\dev\mygo`}
+	if got := p.PaneName(); got != "mygo" {
+		t.Errorf("pane named %q", got)
+	}
+}

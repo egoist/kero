@@ -1,8 +1,9 @@
 node_modules
 dist
-.void
+.output
+.tanstack
 .wrangler
-.void-wrangler.jsonc
+.dev.vars
 .env
 .env.*
 !.env.example

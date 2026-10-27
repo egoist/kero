@@ -1,6 +1,7 @@
 package proto
 
 import (
+	"bufio"
 	"encoding/binary"
 	"errors"
 	"io"
@@ -38,6 +39,13 @@ const (
 	// daemon), a Theme's Payload, which the daemon's terminals answer
 	// programs' questions about the colors with.
 	FrameTheme byte = 't'
+	// FrameClaim tells the daemon the user is at the client's terminal
+	// (client → daemon), shown as they use its machine, with no payload:
+	// the session takes the size it asked for last, as it does once the
+	// user types in it, and the sizes other clients ask for wait until they
+	// claim it again; it goes back to the client claimed in before as this
+	// one detaches. A daemon before it ignores it.
+	FrameClaim byte = 'm'
 )
 
 // What a FrameClear clears.
@@ -171,4 +179,31 @@ func ParseResizePixels(p []byte) (cols, rows, cellWidth, cellHeight int, ok bool
 	}
 	cols, rows, _ = ParseResize(p[:4])
 	return cols, rows, int(binary.BigEndian.Uint16(p[4:])), int(binary.BigEndian.Uint16(p[6:])), true
+}
+
+// MaxLine bounds a JSON line of a control connection: kerod's state, sent
+// whole, and a request carrying a pasted file (paste.file).
+const MaxLine = 64 << 20
+
+// ErrLineTooLong is ReadLine's for a line past its bound.
+var ErrLineTooLong = errors.New("proto: line too long")
+
+// ReadLine reads a line of at most max bytes, its newline included, so
+// that the other side of a connection, as a host far away, cannot make
+// this one hold a line without end.
+func ReadLine(r *bufio.Reader, max int) ([]byte, error) {
+	var line []byte
+	for {
+		chunk, err := r.ReadSlice('\n')
+		if len(line)+len(chunk) > max {
+			return nil, ErrLineTooLong
+		}
+		line = append(line, chunk...)
+		if err == nil {
+			return line, nil
+		}
+		if err != bufio.ErrBufferFull {
+			return line, err
+		}
+	}
 }

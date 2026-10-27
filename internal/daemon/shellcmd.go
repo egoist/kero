@@ -24,8 +24,9 @@ func posixShell(name string) bool {
 	return false
 }
 
-// shellArgs is the argv that starts shell, running command first when set.
-func shellArgs(shell string, command []string) []string {
+// shellArgs is the argv that starts shell, running command first when set,
+// with bin first on PATH when set (binFirst).
+func shellArgs(shell, bin string, command []string) []string {
 	name := shellName(shell)
 	switch {
 	case name == "pwsh" || name == "powershell":
@@ -43,6 +44,9 @@ func shellArgs(shell string, command []string) []string {
 			// Windows takes argv[0] from the path: no "-bash" there.
 			return []string{name, "-l", "-i"}
 		}
+		if bin != "" && name == "fish" {
+			return []string{"-" + name, "-C", fishBinFirst(bin)}
+		}
 		return []string{"-" + name}
 	}
 	// The command runs in an interactive login shell, so that it finds
@@ -52,11 +56,27 @@ func shellArgs(shell string, command []string) []string {
 	if name == "fish" {
 		status = "$status"
 	}
-	script := shellJoin(name, command) + `; printf '\033]133;D;%s\007' ` + status + "; exec " + shellQuote(name, shell) + " -l"
+	again := "exec " + shellQuote(name, shell) + " -l"
+	pre := ""
+	if bin != "" {
+		switch name {
+		case "fish":
+			again += " -C " + shellQuote(name, fishBinFirst(bin))
+		case "zsh":
+			again = "exec env ZDOTDIR=" + shellQuote(name, zdotdir(bin)) + " " + shellQuote(name, shell) + " -l"
+		}
+		if name != "fish" {
+			pre = "PATH=" + shellQuote(name, bin) + `:"$PATH"; `
+		}
+	}
+	script := pre + shellJoin(name, command) + `; printf '\033]133;D;%s\007' ` + status + "; " + again
 	if name == "fish" {
 		// fish leaves job control off for -c, so the command would run in
 		// the shell's process group, where tick doesn't see it.
 		script = "status job-control full; " + script
+		if bin != "" {
+			return []string{name, "-l", "-i", "-C", fishBinFirst(bin), "-c", script}
+		}
 	}
 	return []string{name, "-l", "-i", "-c", script}
 }

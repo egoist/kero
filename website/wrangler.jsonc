@@ -1,0 +1,12 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "kero",
+  "account_id": "87bf36939a17a592421d0baec04a7a53",
+  "compatibility_date": "2026-02-24",
+  "compatibility_flags": ["nodejs_compat"],
+  "main": "@tanstack/solid-start/server-entry",
+  "workers_dev": true,
+  "preview_urls": true,
+  "routes": [{ "pattern": "kero.sh", "custom_domain": true }],
+  "keep_vars": true
+}

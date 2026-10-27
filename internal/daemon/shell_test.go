@@ -23,7 +23,7 @@ func TestCommandInForeground(t *testing.T) {
 				t.Skip(name, "not installed")
 			}
 			proc, err := startPTY(ptyOptions{
-				Path: shell, Args: shellArgs(shell, command),
+				Path: shell, Args: shellArgs(shell, "", command),
 				Dir: t.TempDir(), Env: testEnv(t),
 				Cols: 80, Rows: 24,
 			})
@@ -66,7 +66,7 @@ func TestCommandTellsExit(t *testing.T) {
 				t.Fatal("marksExit is false")
 			}
 			proc, err := startPTY(ptyOptions{
-				Path: shell, Args: shellArgs(shell, command),
+				Path: shell, Args: shellArgs(shell, "", command),
 				Dir: t.TempDir(), Env: testEnv(t),
 				Cols: 80, Rows: 24,
 			})

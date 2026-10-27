@@ -17,6 +17,9 @@ import (
 // run runs one of the app's actions, from a menu, the palette or
 // `kero do`, on the main thread.
 func (a *App) run(id string, args map[string]string) {
+	if !a.fromMay(id, args) {
+		return
+	}
 	s := a.session(a.selected)
 	switch id {
 	case "settings.open":
@@ -26,17 +29,29 @@ func (a *App) run(id string, args map[string]string) {
 	case "app.quitAll":
 		a.quitAndEnd()
 	case "session.new":
-		if dir := args["dir"]; dir != "" {
-			a.newSessionIn(dir)
-		} else {
+		// A directory kero do names is of the host it runs on.
+		switch dir := args["dir"]; {
+		case dir != "":
+			a.newSessionIn(a.actionHost(), dir)
+		case a.from != nil:
+			a.newSessionOn(a.from, args["project"])
+		default:
 			a.newSession(args["project"])
 		}
 	case "session.newHome":
-		a.newSessionIn(proto.Home())
+		if h := a.actionHost(); h.remote() {
+			a.newSessionIn(h, "~")
+		} else {
+			a.newSessionIn(h, proto.Home())
+		}
+	case "session.newWorktree":
+		a.newWorktreeSession()
 	case "project.open":
 		a.openProject()
 	case "palette.open":
 		a.openPalette()
+	case "conversation.resume":
+		a.openConversations()
 	case "session.attention":
 		a.jumpToAttention()
 	case "session.next":
@@ -54,15 +69,28 @@ func (a *App) run(id string, args map[string]string) {
 	case "session.close":
 		a.closeSession(a.selected, true)
 	case "find.open":
+		// In the changes panel, its diff's find bar.
+		if f := a.side.changes.focus; a.side.focused && f != nil && f.d != nil {
+			f.d.Find("")
+			break
+		}
 		a.openFind()
 	case "find.next":
 		a.findStep(false)
 	case "find.previous":
 		a.findStep(true)
 	case "pane.split.right":
+		if s == nil {
+			a.run("session.new", args)
+			return
+		}
 		a.splitPane(s, "", "right")
 	case "pane.split.down":
 		a.splitPane(s, "", "down")
+	case "pane.browser":
+		a.openBrowser(args["url"])
+	case "browser.address":
+		a.focusAddress()
 	case "pane.zoom":
 		a.zoomPane(s, "")
 	case "pane.next":
@@ -73,12 +101,16 @@ func (a *App) run(id string, args map[string]string) {
 		a.focusDirection(id[len("pane."):])
 	case "sidebar.toggle":
 		a.toggleSidebar()
+	case "changes.toggle":
+		a.toggleSide(sideChanges)
 	case "text.bigger":
 		a.zoom(1, false)
 	case "text.smaller":
 		a.zoom(-1, false)
 	case "text.reset":
 		a.zoom(0, true)
+	case quickAction:
+		a.toggleQuick()
 	}
 	if a.win != nil {
 		a.win.Invalidate()
@@ -105,36 +137,42 @@ func (a *App) item(id string) *mygo.MenuItem {
 // actionTitles are the actions' titles in the language the app shows;
 // an Action's Title stays English, for `kero actions`.
 var actionTitles = map[string]func() string{
-	"settings.open":     locales.ActionSettings,
-	"cli.install":       locales.ActionInstallCli,
-	"app.quitAll":       locales.ActionQuitAll,
-	"session.new":       locales.ActionNewSession,
-	"session.newHome":   locales.ActionNewSessionHome,
-	"project.open":      locales.ActionOpenProject,
-	"palette.open":      locales.ActionGoToSession,
-	"session.attention": locales.ActionJumpToAttention,
-	"session.next":      locales.ActionNextSession,
-	"session.previous":  locales.ActionPreviousSession,
-	"session.rename":    locales.ActionRenameSession,
-	"pane.restart":      locales.ActionRestartPane,
-	"pane.close":        locales.ActionClose,
-	"session.close":     locales.ActionCloseSession,
-	"find.open":         locales.ActionFind,
-	"find.next":         locales.ActionFindNext,
-	"find.previous":     locales.ActionFindPrevious,
-	"pane.split.right":  locales.ActionSplitRight,
-	"pane.split.down":   locales.ActionSplitDown,
-	"pane.zoom":         locales.ActionZoomPane,
-	"pane.next":         locales.ActionNextPane,
-	"pane.previous":     locales.ActionPreviousPane,
-	"pane.left":         locales.ActionPaneLeft,
-	"pane.right":        locales.ActionPaneRight,
-	"pane.up":           locales.ActionPaneAbove,
-	"pane.down":         locales.ActionPaneBelow,
-	"sidebar.toggle":    locales.ActionToggleSidebar,
-	"text.bigger":       locales.ActionBigger,
-	"text.smaller":      locales.ActionSmaller,
-	"text.reset":        locales.ActionActualSize,
+	"settings.open":       locales.ActionSettings,
+	"cli.install":         locales.ActionInstallCli,
+	"app.quitAll":         locales.ActionQuitAll,
+	"session.new":         locales.ActionNewSession,
+	"session.newHome":     locales.ActionNewSessionHome,
+	"session.newWorktree": locales.ActionNewSessionWorktree,
+	"project.open":        locales.ActionOpenProject,
+	"palette.open":        locales.ActionGoToSession,
+	"conversation.resume": locales.ActionResumeConversation,
+	"session.attention":   locales.ActionJumpToAttention,
+	"session.next":        locales.ActionNextSession,
+	"session.previous":    locales.ActionPreviousSession,
+	"session.rename":      locales.ActionRenameSession,
+	"pane.restart":        locales.ActionRestartPane,
+	"pane.close":          locales.ActionClose,
+	"session.close":       locales.ActionCloseSession,
+	"find.open":           locales.ActionFind,
+	"find.next":           locales.ActionFindNext,
+	"find.previous":       locales.ActionFindPrevious,
+	"pane.split.right":    locales.ActionSplitRight,
+	"pane.split.down":     locales.ActionSplitDown,
+	"pane.browser":        locales.ActionNewBrowser,
+	"browser.address":     locales.ActionOpenLocation,
+	"pane.zoom":           locales.ActionZoomPane,
+	"pane.next":           locales.ActionNextPane,
+	"pane.previous":       locales.ActionPreviousPane,
+	"pane.left":           locales.ActionPaneLeft,
+	"pane.right":          locales.ActionPaneRight,
+	"pane.up":             locales.ActionPaneAbove,
+	"pane.down":           locales.ActionPaneBelow,
+	"sidebar.toggle":      locales.ActionToggleSidebar,
+	"changes.toggle":      locales.ActionToggleChanges,
+	"text.bigger":         locales.ActionBigger,
+	"text.smaller":        locales.ActionSmaller,
+	"text.reset":          locales.ActionActualSize,
+	quickAction:           locales.ActionQuickTerminal,
 }
 
 // actionTitle is an action's title as the menus, the palette and
@@ -148,9 +186,10 @@ func actionTitle(id string) string {
 }
 
 // accelerator is an action's shortcut in the menus: none while the user
-// types a new one in Settings.
+// types a new one in Settings, and none of a global one, which the system
+// takes before the menus.
 func (a *App) accelerator(act actions.Action) string {
-	if a.ss.recording != "" {
+	if a.ss.recording != "" || act.Global {
 		return ""
 	}
 	return actions.Keys(act, a.set.Shortcuts)
@@ -184,13 +223,13 @@ func (a *App) menu() *mygo.Menu {
 			{Label: locales.MenuQuit(), Accelerator: quitKeys, ToolTip: locales.MenuQuitTip(), Click: func(*mygo.MenuItem, *mygo.Window) { mygo.App.Quit() }},
 			a.item("app.quitAll")}}
 	}
-	view := append(a.items("View", []string{"sidebar.toggle"}, []string{"text.bigger", "text.smaller", "text.reset"}),
+	view := append(a.items("View", []string{"sidebar.toggle", "changes.toggle"}, []string{"text.bigger", "text.smaller", "text.reset"}, []string{quickAction}),
 		mygo.Separator(), &mygo.MenuItem{Role: mygo.RoleToggleFullScreen}, &mygo.MenuItem{Role: mygo.RoleToggleDevTools})
 	return mygo.NewMenu([]*mygo.MenuItem{
 		kero,
 		{Label: locales.MenuSession(), Submenu: a.items("Session",
-			[]string{"session.new", "session.newHome", "project.open"},
-			[]string{"palette.open", "session.attention", "session.next", "session.previous"},
+			[]string{"session.new", "session.newHome", "session.newWorktree", "project.open"},
+			[]string{"palette.open", "conversation.resume", "session.attention", "session.next", "session.previous"},
 			[]string{"session.rename", "pane.restart"},
 			[]string{"pane.close", "session.close"})},
 		// The Edit menu's own items, then finding.
@@ -199,6 +238,7 @@ func (a *App) menu() *mygo.Menu {
 			a.items("Edit", []string{"find.open", "find.next", "find.previous"})...)},
 		{Label: locales.MenuPane(), Submenu: a.items("Pane",
 			[]string{"pane.split.right", "pane.split.down"},
+			[]string{"pane.browser", "browser.address"},
 			[]string{"pane.zoom"},
 			[]string{"pane.next", "pane.previous", "pane.left", "pane.right", "pane.up", "pane.down"})},
 		{Label: locales.MenuView(), Submenu: view},
@@ -254,3 +294,24 @@ var quitKeys = func() string {
 	}
 	return "Ctrl+Shift+Q"
 }()
+
+// fromMay reports whether an action another machine's program asked for
+// (kero do, a.from) may run: one that acts on a session acts on one of
+// that host's alone, never on this machine's, which a local agent's may;
+// one of the app, as Settings or the sidebar, may.
+func (a *App) fromMay(id string, args map[string]string) bool {
+	h := a.from
+	if h == nil || !h.remote() {
+		return true
+	}
+	switch {
+	case id == "session.new" || id == "session.newHome":
+		p := args["project"]
+		return p == "" || a.hostOf(p) == h
+	case strings.HasPrefix(id, "pane.") || id == "changes.toggle":
+		return a.session(a.selected) != nil && a.selectedHost() == h
+	case id == quickAction:
+		return false // this machine's screen is no other's to drop on
+	}
+	return true
+}

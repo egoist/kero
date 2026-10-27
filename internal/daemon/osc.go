@@ -14,9 +14,9 @@ import (
 )
 
 // oscScanner finds, in a program's output, the OSC sequences the daemon
-// handles itself, which the emulator ignores: OSC 7501 (program status)
-// and OSC 133 (shell prompts), and full resets (RIS). It follows them
-// across reads.
+// handles itself, which the emulator ignores: OSC 7501 (program status),
+// OSC 133 (shell prompts) and OSC 9;4 (progress), and full resets (RIS).
+// It follows them across reads.
 type oscScanner struct {
 	state int // 0 text, 1 after ESC, 2 in an OSC we keep, 3 in one we skip, 4 ESC in an OSC
 	skip  bool
@@ -25,7 +25,7 @@ type oscScanner struct {
 
 const maxOSC = 4096 // OSC 7501's limit on a whole sequence
 
-// scan calls fn with the body of each OSC 7501 and 133 in p (what is
+// scan calls fn with the body of each OSC 7501, 133 and 9;4 in p (what is
 // between "ESC ]" and the terminator), and reset at each RIS (ESC c).
 func (o *oscScanner) scan(p []byte, fn func(body []byte), reset func()) {
 	for _, b := range p {
@@ -225,34 +225,12 @@ func (s *pane) handleOSC(body []byte) {
 			}
 			return
 		}
-		s.applyReport(rep.rec, true)
+		s.applyReport(rep.rec)
 	case bytes.HasPrefix(body, []byte("9;4;")):
-		// ConEmu's progress (OSC 9;4), as the root's record, until the
-		// program reports with OSC 7501, which says more.
-		if s.reported {
-			return
-		}
-		parts := strings.Split(string(body[4:]), ";")
-		r := proto.Record{Progress: -1, Updated: time.Now().UnixMilli()}
-		pr := -1
-		if len(parts) > 1 {
-			if n, err := strconv.Atoi(parts[1]); err == nil && n >= 0 && n <= 100 {
-				pr = n
-			}
-		}
-		switch parts[0] {
-		case "0":
-			r.State = "clear"
-		case "1", "4":
-			r.State, r.Progress = "working", pr
-		case "2":
-			r.State = "error"
-		case "3":
-			r.State = "working"
-		default:
-			return
-		}
-		s.applyReport(r, false)
+		// ConEmu's progress (OSC 9;4), which only agents' rules read: a
+		// program's progress bar, as Neovim's for its language servers,
+		// tells no work the user waits on.
+		s.progress = string(body[2:])
 	case bytes.HasPrefix(body, []byte("133;A")):
 		// A new prompt: what ran is over.
 		s.dropLive()
@@ -271,17 +249,18 @@ func (s *pane) handleOSC(body []byte) {
 	}
 }
 
-// fullReset forgets every record, as a full reset (RIS) does, and takes
-// OSC 9;4 again; s.mu is held.
+// fullReset forgets every record and the progress, as a full reset (RIS)
+// does; s.mu is held.
 func (s *pane) fullReset() {
 	if len(s.records) > 0 {
 		clear(s.records)
 		s.fromRecords()
 	}
 	s.reported = false
+	s.progress = ""
 }
 
-func (s *pane) applyReport(r proto.Record, osc7501 bool) {
+func (s *pane) applyReport(r proto.Record) {
 	if s.records == nil {
 		s.records = map[string]proto.Record{}
 	}
@@ -308,9 +287,7 @@ func (s *pane) applyReport(r proto.Record, osc7501 bool) {
 		}
 		s.records[r.ID] = r
 	}
-	if osc7501 {
-		s.reported = true
-	}
+	s.reported = true
 	s.fromRecords()
 }
 

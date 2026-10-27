@@ -3,6 +3,7 @@ package main
 import (
 	"unicode/utf8"
 
+	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/plugins/terminal"
 	"github.com/egoist/mygo/ui"
 
@@ -48,6 +49,10 @@ func (a *App) findStep(back bool) {
 		a.openFind()
 		return
 	}
+	if e := a.webs[a.find.pane]; e != nil {
+		a.findInPage(e, true, back)
+		return
+	}
 	t := a.findTerm()
 	if t == nil {
 		return
@@ -66,6 +71,11 @@ func (a *App) closeFind() {
 		t.EndSearch()
 	}
 	pane := a.find.pane
+	if e := a.webs[pane]; e != nil && e.view != nil {
+		e.findText, e.found = "", mygo.FindResult{}
+		e.findSeq++
+		go e.view.Page().StopFindInPage()
+	}
 	a.find.pane = ""
 	if pane != "" {
 		a.paneRef(pane).Focus()

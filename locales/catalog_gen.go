@@ -8,14 +8,16 @@ import (
 	"github.com/egoist/mygo/i18n"
 
 	// MyGo's own strings in the app's languages.
+	_ "github.com/egoist/mygo/locales/ja"
 	_ "github.com/egoist/mygo/locales/zh-Hans"
 )
 
 //go:embed *.json
 var files embed.FS
 
-// Catalog holds the messages in en, the source language, and zh-Hans. It is
-// registered with package i18n, which makes its languages the app's.
+// Catalog holds the messages in en, the source language, and ja and
+// zh-Hans. It is registered with package i18n, which makes its languages
+// the app's.
 var Catalog *i18n.Catalog
 
 func init() {
@@ -84,6 +86,16 @@ func (msgs Messages) ActionNewSessionHome() string {
 	return Catalog.Format(msgs.locale, "actionNewSessionHome", nil)
 }
 
+// ActionNewSessionWorktree says "New Session in Worktree…"
+// in the language the app shows.
+func ActionNewSessionWorktree() string { return In(i18n.Locale()).ActionNewSessionWorktree() }
+
+// ActionNewSessionWorktree says "New Session in Worktree…"
+// in the language of msgs.
+func (msgs Messages) ActionNewSessionWorktree() string {
+	return Catalog.Format(msgs.locale, "actionNewSessionWorktree", nil)
+}
+
 // ActionOpenProject says "Open Project…"
 // in the language the app shows.
 func ActionOpenProject() string { return In(i18n.Locale()).ActionOpenProject() }
@@ -102,6 +114,16 @@ func ActionGoToSession() string { return In(i18n.Locale()).ActionGoToSession() }
 // in the language of msgs.
 func (msgs Messages) ActionGoToSession() string {
 	return Catalog.Format(msgs.locale, "actionGoToSession", nil)
+}
+
+// ActionResumeConversation says "Resume Conversation…"
+// in the language the app shows.
+func ActionResumeConversation() string { return In(i18n.Locale()).ActionResumeConversation() }
+
+// ActionResumeConversation says "Resume Conversation…"
+// in the language of msgs.
+func (msgs Messages) ActionResumeConversation() string {
+	return Catalog.Format(msgs.locale, "actionResumeConversation", nil)
 }
 
 // ActionJumpToAttention says "Jump to Session Needing You"
@@ -192,6 +214,26 @@ func ActionSplitDown() string { return In(i18n.Locale()).ActionSplitDown() }
 // in the language of msgs.
 func (msgs Messages) ActionSplitDown() string {
 	return Catalog.Format(msgs.locale, "actionSplitDown", nil)
+}
+
+// ActionNewBrowser says "New Browser Pane"
+// in the language the app shows.
+func ActionNewBrowser() string { return In(i18n.Locale()).ActionNewBrowser() }
+
+// ActionNewBrowser says "New Browser Pane"
+// in the language of msgs.
+func (msgs Messages) ActionNewBrowser() string {
+	return Catalog.Format(msgs.locale, "actionNewBrowser", nil)
+}
+
+// ActionOpenLocation says "Open Location…"
+// in the language the app shows.
+func ActionOpenLocation() string { return In(i18n.Locale()).ActionOpenLocation() }
+
+// ActionOpenLocation says "Open Location…"
+// in the language of msgs.
+func (msgs Messages) ActionOpenLocation() string {
+	return Catalog.Format(msgs.locale, "actionOpenLocation", nil)
 }
 
 // ActionZoomPane says "Zoom Pane"
@@ -534,6 +576,16 @@ func (msgs Messages) CommonRemove() string {
 	return Catalog.Format(msgs.locale, "commonRemove", nil)
 }
 
+// CommonSave says "Save"
+// in the language the app shows.
+func CommonSave() string { return In(i18n.Locale()).CommonSave() }
+
+// CommonSave says "Save"
+// in the language of msgs.
+func (msgs Messages) CommonSave() string {
+	return Catalog.Format(msgs.locale, "commonSave", nil)
+}
+
 // CommonAdd says "Add"
 // in the language the app shows.
 func CommonAdd() string { return In(i18n.Locale()).CommonAdd() }
@@ -674,6 +726,60 @@ func ToastSaveSettingsFailed(error string) string {
 // in the language of msgs.
 func (msgs Messages) ToastSaveSettingsFailed(error string) string {
 	return Catalog.Format(msgs.locale, "toastSaveSettingsFailed", map[string]any{"error": error})
+}
+
+// ToastPasteImageFailed says "Couldn’t paste the image: {error}. Try again, or drop the image file on the pane."
+// in the language the app shows.
+func ToastPasteImageFailed(error string) string {
+	return In(i18n.Locale()).ToastPasteImageFailed(error)
+}
+
+// ToastPasteImageFailed says "Couldn’t paste the image: {error}. Try again, or drop the image file on the pane."
+// in the language of msgs.
+func (msgs Messages) ToastPasteImageFailed(error string) string {
+	return Catalog.Format(msgs.locale, "toastPasteImageFailed", map[string]any{"error": error})
+}
+
+// ToastPasteImageDenied says "Couldn’t paste the image: Kero can’t write to {dir}. Make it writable, or drop the image file on the pane."
+// in the language the app shows.
+func ToastPasteImageDenied(dir string) string { return In(i18n.Locale()).ToastPasteImageDenied(dir) }
+
+// ToastPasteImageDenied says "Couldn’t paste the image: Kero can’t write to {dir}. Make it writable, or drop the image file on the pane."
+// in the language of msgs.
+func (msgs Messages) ToastPasteImageDenied(dir string) string {
+	return Catalog.Format(msgs.locale, "toastPasteImageDenied", map[string]any{"dir": dir})
+}
+
+// ToastPasteImageDiskFull says "Couldn’t paste the image: the disk is full. Free some space and try again."
+// in the language the app shows.
+func ToastPasteImageDiskFull() string { return In(i18n.Locale()).ToastPasteImageDiskFull() }
+
+// ToastPasteImageDiskFull says "Couldn’t paste the image: the disk is full. Free some space and try again."
+// in the language of msgs.
+func (msgs Messages) ToastPasteImageDiskFull() string {
+	return Catalog.Format(msgs.locale, "toastPasteImageDiskFull", nil)
+}
+
+// ToastPasteClipboardUnreadable says "Couldn’t read the clipboard. Copy it again and paste."
+// in the language the app shows.
+func ToastPasteClipboardUnreadable() string { return In(i18n.Locale()).ToastPasteClipboardUnreadable() }
+
+// ToastPasteClipboardUnreadable says "Couldn’t read the clipboard. Copy it again and paste."
+// in the language of msgs.
+func (msgs Messages) ToastPasteClipboardUnreadable() string {
+	return Catalog.Format(msgs.locale, "toastPasteClipboardUnreadable", nil)
+}
+
+// ToastPasteImageUnsupported says "Couldn’t paste the image: {format} isn’t supported. Copy it as PNG or JPEG, or drop the image file on the pane."
+// in the language the app shows.
+func ToastPasteImageUnsupported(format string) string {
+	return In(i18n.Locale()).ToastPasteImageUnsupported(format)
+}
+
+// ToastPasteImageUnsupported says "Couldn’t paste the image: {format} isn’t supported. Copy it as PNG or JPEG, or drop the image file on the pane."
+// in the language of msgs.
+func (msgs Messages) ToastPasteImageUnsupported(format string) string {
+	return Catalog.Format(msgs.locale, "toastPasteImageUnsupported", map[string]any{"format": format})
 }
 
 // ToastConfigProblems says "{count, plural, one {Your config has # problem: see Settings › Advanced} other {Your config has # problems: see Set…"
@@ -818,6 +924,18 @@ func (msgs Messages) ConfirmCloseTitle(name string) string {
 	return Catalog.Format(msgs.locale, "confirmCloseTitle", map[string]any{"name": name})
 }
 
+// ConfirmCloseAllSessionsTitle says "Close all sessions of “{name}”?"
+// in the language the app shows.
+func ConfirmCloseAllSessionsTitle(name string) string {
+	return In(i18n.Locale()).ConfirmCloseAllSessionsTitle(name)
+}
+
+// ConfirmCloseAllSessionsTitle says "Close all sessions of “{name}”?"
+// in the language of msgs.
+func (msgs Messages) ConfirmCloseAllSessionsTitle(name string) string {
+	return Catalog.Format(msgs.locale, "confirmCloseAllSessionsTitle", map[string]any{"name": name})
+}
+
 // ConfirmCloseSessionDetail says "{process} is still running in it. Closing the session ends it."
 // in the language the app shows.
 func ConfirmCloseSessionDetail(process string) string {
@@ -840,6 +958,18 @@ func ConfirmCloseProjectDetail(count int) string {
 // in the language of msgs.
 func (msgs Messages) ConfirmCloseProjectDetail(count int) string {
 	return Catalog.Format(msgs.locale, "confirmCloseProjectDetail", map[string]any{"count": count})
+}
+
+// ConfirmCloseAllSessionsDetail says "{count, plural, one {The project stays; its # session ends, with what runs in it.} other {The project stays; its # se…"
+// in the language the app shows.
+func ConfirmCloseAllSessionsDetail(count int) string {
+	return In(i18n.Locale()).ConfirmCloseAllSessionsDetail(count)
+}
+
+// ConfirmCloseAllSessionsDetail says "{count, plural, one {The project stays; its # session ends, with what runs in it.} other {The project stays; its # se…"
+// in the language of msgs.
+func (msgs Messages) ConfirmCloseAllSessionsDetail(count int) string {
+	return Catalog.Format(msgs.locale, "confirmCloseAllSessionsDetail", map[string]any{"count": count})
 }
 
 // ConfirmClosePaneTitle says "Close this pane?"
@@ -1024,6 +1154,16 @@ func SidebarCloseProject() string { return In(i18n.Locale()).SidebarCloseProject
 // in the language of msgs.
 func (msgs Messages) SidebarCloseProject() string {
 	return Catalog.Format(msgs.locale, "sidebarCloseProject", nil)
+}
+
+// SidebarCloseAllSessions says "Close All Sessions"
+// in the language the app shows.
+func SidebarCloseAllSessions() string { return In(i18n.Locale()).SidebarCloseAllSessions() }
+
+// SidebarCloseAllSessions says "Close All Sessions"
+// in the language of msgs.
+func (msgs Messages) SidebarCloseAllSessions() string {
+	return Catalog.Format(msgs.locale, "sidebarCloseAllSessions", nil)
 }
 
 // SidebarNeedsYou says "{count} needs you"
@@ -1346,6 +1486,16 @@ func (msgs Messages) PaletteRestartServiceDetail() string {
 	return Catalog.Format(msgs.locale, "paletteRestartServiceDetail", nil)
 }
 
+// PaletteOpenInBrowser says "Open in Browser Pane"
+// in the language the app shows.
+func PaletteOpenInBrowser() string { return In(i18n.Locale()).PaletteOpenInBrowser() }
+
+// PaletteOpenInBrowser says "Open in Browser Pane"
+// in the language of msgs.
+func (msgs Messages) PaletteOpenInBrowser() string {
+	return Catalog.Format(msgs.locale, "paletteOpenInBrowser", nil)
+}
+
 // PaletteLabel says "Go to Session"
 // in the language the app shows.
 func PaletteLabel() string { return In(i18n.Locale()).PaletteLabel() }
@@ -1384,6 +1534,58 @@ func PaletteCommands() string { return In(i18n.Locale()).PaletteCommands() }
 // in the language of msgs.
 func (msgs Messages) PaletteCommands() string {
 	return Catalog.Format(msgs.locale, "paletteCommands", nil)
+}
+
+// PaletteConversations says "Recent Conversations"
+// in the language the app shows.
+func PaletteConversations() string { return In(i18n.Locale()).PaletteConversations() }
+
+// PaletteConversations says "Recent Conversations"
+// in the language of msgs.
+func (msgs Messages) PaletteConversations() string {
+	return Catalog.Format(msgs.locale, "paletteConversations", nil)
+}
+
+// PaletteConversationsLabel says "Resume Conversation"
+// in the language the app shows.
+func PaletteConversationsLabel() string { return In(i18n.Locale()).PaletteConversationsLabel() }
+
+// PaletteConversationsLabel says "Resume Conversation"
+// in the language of msgs.
+func (msgs Messages) PaletteConversationsLabel() string {
+	return Catalog.Format(msgs.locale, "paletteConversationsLabel", nil)
+}
+
+// PaletteConversationsPlaceholder says "Find a conversation to resume…"
+// in the language the app shows.
+func PaletteConversationsPlaceholder() string {
+	return In(i18n.Locale()).PaletteConversationsPlaceholder()
+}
+
+// PaletteConversationsPlaceholder says "Find a conversation to resume…"
+// in the language of msgs.
+func (msgs Messages) PaletteConversationsPlaceholder() string {
+	return Catalog.Format(msgs.locale, "paletteConversationsPlaceholder", nil)
+}
+
+// PaletteNoConversations says "No conversations yet. Coding agents’ conversations show here once Kero’s skill is set up for them."
+// in the language the app shows.
+func PaletteNoConversations() string { return In(i18n.Locale()).PaletteNoConversations() }
+
+// PaletteNoConversations says "No conversations yet. Coding agents’ conversations show here once Kero’s skill is set up for them."
+// in the language of msgs.
+func (msgs Messages) PaletteNoConversations() string {
+	return Catalog.Format(msgs.locale, "paletteNoConversations", nil)
+}
+
+// PaletteConversationRunning says "running"
+// in the language the app shows.
+func PaletteConversationRunning() string { return In(i18n.Locale()).PaletteConversationRunning() }
+
+// PaletteConversationRunning says "running"
+// in the language of msgs.
+func (msgs Messages) PaletteConversationRunning() string {
+	return Catalog.Format(msgs.locale, "paletteConversationRunning", nil)
 }
 
 // AgoNow says "now"
@@ -1868,6 +2070,26 @@ func (msgs Messages) SetNameFolder() string {
 	return Catalog.Format(msgs.locale, "setNameFolder", nil)
 }
 
+// SetFocusFollowsMouse says "Focus follows mouse"
+// in the language the app shows.
+func SetFocusFollowsMouse() string { return In(i18n.Locale()).SetFocusFollowsMouse() }
+
+// SetFocusFollowsMouse says "Focus follows mouse"
+// in the language of msgs.
+func (msgs Messages) SetFocusFollowsMouse() string {
+	return Catalog.Format(msgs.locale, "setFocusFollowsMouse", nil)
+}
+
+// SetFocusFollowsMouseDetail says "A pane takes the focus when the pointer moves into it, without a click."
+// in the language the app shows.
+func SetFocusFollowsMouseDetail() string { return In(i18n.Locale()).SetFocusFollowsMouseDetail() }
+
+// SetFocusFollowsMouseDetail says "A pane takes the focus when the pointer moves into it, without a click."
+// in the language of msgs.
+func (msgs Messages) SetFocusFollowsMouseDetail() string {
+	return Catalog.Format(msgs.locale, "setFocusFollowsMouseDetail", nil)
+}
+
 // SetAskBeforeClosing says "Ask before closing a running program"
 // in the language the app shows.
 func SetAskBeforeClosing() string { return In(i18n.Locale()).SetAskBeforeClosing() }
@@ -1956,6 +2178,66 @@ func SetLoginFailed(error string) string { return In(i18n.Locale()).SetLoginFail
 // in the language of msgs.
 func (msgs Messages) SetLoginFailed(error string) string {
 	return Catalog.Format(msgs.locale, "setLoginFailed", map[string]any{"error": error})
+}
+
+// SetAppIcon says "Show app icon"
+// in the language the app shows.
+func SetAppIcon() string { return In(i18n.Locale()).SetAppIcon() }
+
+// SetAppIcon says "Show app icon"
+// in the language of msgs.
+func (msgs Messages) SetAppIcon() string {
+	return Catalog.Format(msgs.locale, "setAppIcon", nil)
+}
+
+// SetAppIconBoth says "Dock and menu bar"
+// in the language the app shows.
+func SetAppIconBoth() string { return In(i18n.Locale()).SetAppIconBoth() }
+
+// SetAppIconBoth says "Dock and menu bar"
+// in the language of msgs.
+func (msgs Messages) SetAppIconBoth() string {
+	return Catalog.Format(msgs.locale, "setAppIconBoth", nil)
+}
+
+// SetAppIconDock says "Dock only"
+// in the language the app shows.
+func SetAppIconDock() string { return In(i18n.Locale()).SetAppIconDock() }
+
+// SetAppIconDock says "Dock only"
+// in the language of msgs.
+func (msgs Messages) SetAppIconDock() string {
+	return Catalog.Format(msgs.locale, "setAppIconDock", nil)
+}
+
+// SetAppIconMenuBar says "Menu bar only"
+// in the language the app shows.
+func SetAppIconMenuBar() string { return In(i18n.Locale()).SetAppIconMenuBar() }
+
+// SetAppIconMenuBar says "Menu bar only"
+// in the language of msgs.
+func (msgs Messages) SetAppIconMenuBar() string {
+	return Catalog.Format(msgs.locale, "setAppIconMenuBar", nil)
+}
+
+// SetAppIconDetail says "Closing the window keeps Kero running in the menu bar."
+// in the language the app shows.
+func SetAppIconDetail() string { return In(i18n.Locale()).SetAppIconDetail() }
+
+// SetAppIconDetail says "Closing the window keeps Kero running in the menu bar."
+// in the language of msgs.
+func (msgs Messages) SetAppIconDetail() string {
+	return Catalog.Format(msgs.locale, "setAppIconDetail", nil)
+}
+
+// TrayOpen says "Open {app}"
+// in the language the app shows.
+func TrayOpen(app string) string { return In(i18n.Locale()).TrayOpen(app) }
+
+// TrayOpen says "Open {app}"
+// in the language of msgs.
+func (msgs Messages) TrayOpen(app string) string {
+	return Catalog.Format(msgs.locale, "trayOpen", map[string]any{"app": app})
 }
 
 // SetVersionNoUpdate says " · this copy can’t update itself"
@@ -2138,6 +2420,26 @@ func SetTranslucentDetail() string { return In(i18n.Locale()).SetTranslucentDeta
 // in the language of msgs.
 func (msgs Messages) SetTranslucentDetail() string {
 	return Catalog.Format(msgs.locale, "setTranslucentDetail", nil)
+}
+
+// SetDimUnfocused says "Dim unfocused terminals"
+// in the language the app shows.
+func SetDimUnfocused() string { return In(i18n.Locale()).SetDimUnfocused() }
+
+// SetDimUnfocused says "Dim unfocused terminals"
+// in the language of msgs.
+func (msgs Messages) SetDimUnfocused() string {
+	return Catalog.Format(msgs.locale, "setDimUnfocused", nil)
+}
+
+// SetDimUnfocusedDetail says "When a session has several panes, the terminals you’re not in fade."
+// in the language the app shows.
+func SetDimUnfocusedDetail() string { return In(i18n.Locale()).SetDimUnfocusedDetail() }
+
+// SetDimUnfocusedDetail says "When a session has several panes, the terminals you’re not in fade."
+// in the language of msgs.
+func (msgs Messages) SetDimUnfocusedDetail() string {
+	return Catalog.Format(msgs.locale, "setDimUnfocusedDetail", nil)
 }
 
 // SetBackground says "Background"
@@ -2892,11 +3194,11 @@ func (msgs Messages) SetRemoteControlRow() string {
 	return Catalog.Format(msgs.locale, "setRemoteControlRow", nil)
 }
 
-// SetRemoteControlDetail says "kero do and kero focus run the app’s actions, as its menus do: splitting, switching sessions, opening the palette."
+// SetRemoteControlDetail says "kero do and kero focus run the app’s actions, as its menus do: splitting, switching sessions, opening the palette. …"
 // in the language the app shows.
 func SetRemoteControlDetail() string { return In(i18n.Locale()).SetRemoteControlDetail() }
 
-// SetRemoteControlDetail says "kero do and kero focus run the app’s actions, as its menus do: splitting, switching sessions, opening the palette."
+// SetRemoteControlDetail says "kero do and kero focus run the app’s actions, as its menus do: splitting, switching sessions, opening the palette. …"
 // in the language of msgs.
 func (msgs Messages) SetRemoteControlDetail() string {
 	return Catalog.Format(msgs.locale, "setRemoteControlDetail", nil)
@@ -3314,4 +3616,1880 @@ func FindClose() string { return In(i18n.Locale()).FindClose() }
 // in the language of msgs.
 func (msgs Messages) FindClose() string {
 	return Catalog.Format(msgs.locale, "findClose", nil)
+}
+
+// ActionToggleChanges says "Toggle Changes"
+// in the language the app shows.
+func ActionToggleChanges() string { return In(i18n.Locale()).ActionToggleChanges() }
+
+// ActionToggleChanges says "Toggle Changes"
+// in the language of msgs.
+func (msgs Messages) ActionToggleChanges() string {
+	return Catalog.Format(msgs.locale, "actionToggleChanges", nil)
+}
+
+// SideChanges says "Changes"
+// in the language the app shows.
+func SideChanges() string { return In(i18n.Locale()).SideChanges() }
+
+// SideChanges says "Changes"
+// in the language of msgs.
+func (msgs Messages) SideChanges() string {
+	return Catalog.Format(msgs.locale, "sideChanges", nil)
+}
+
+// SideClose says "Close Panel"
+// in the language the app shows.
+func SideClose() string { return In(i18n.Locale()).SideClose() }
+
+// SideClose says "Close Panel"
+// in the language of msgs.
+func (msgs Messages) SideClose() string {
+	return Catalog.Format(msgs.locale, "sideClose", nil)
+}
+
+// ChangesTurn says "Last Turn"
+// in the language the app shows.
+func ChangesTurn() string { return In(i18n.Locale()).ChangesTurn() }
+
+// ChangesTurn says "Last Turn"
+// in the language of msgs.
+func (msgs Messages) ChangesTurn() string {
+	return Catalog.Format(msgs.locale, "changesTurn", nil)
+}
+
+// ChangesUncommitted says "Uncommitted"
+// in the language the app shows.
+func ChangesUncommitted() string { return In(i18n.Locale()).ChangesUncommitted() }
+
+// ChangesUncommitted says "Uncommitted"
+// in the language of msgs.
+func (msgs Messages) ChangesUncommitted() string {
+	return Catalog.Format(msgs.locale, "changesUncommitted", nil)
+}
+
+// ChangesBranch says "Branch"
+// in the language the app shows.
+func ChangesBranch() string { return In(i18n.Locale()).ChangesBranch() }
+
+// ChangesBranch says "Branch"
+// in the language of msgs.
+func (msgs Messages) ChangesBranch() string {
+	return Catalog.Format(msgs.locale, "changesBranch", nil)
+}
+
+// ChangesTurnTip says "What the agent changed since it last started working"
+// in the language the app shows.
+func ChangesTurnTip() string { return In(i18n.Locale()).ChangesTurnTip() }
+
+// ChangesTurnTip says "What the agent changed since it last started working"
+// in the language of msgs.
+func (msgs Messages) ChangesTurnTip() string {
+	return Catalog.Format(msgs.locale, "changesTurnTip", nil)
+}
+
+// ChangesUncommittedTip says "What isn't committed, untracked files too"
+// in the language the app shows.
+func ChangesUncommittedTip() string { return In(i18n.Locale()).ChangesUncommittedTip() }
+
+// ChangesUncommittedTip says "What isn't committed, untracked files too"
+// in the language of msgs.
+func (msgs Messages) ChangesUncommittedTip() string {
+	return Catalog.Format(msgs.locale, "changesUncommittedTip", nil)
+}
+
+// ChangesBranchTip says "What this branch changed since it left {branch}"
+// in the language the app shows.
+func ChangesBranchTip(branch string) string { return In(i18n.Locale()).ChangesBranchTip(branch) }
+
+// ChangesBranchTip says "What this branch changed since it left {branch}"
+// in the language of msgs.
+func (msgs Messages) ChangesBranchTip(branch string) string {
+	return Catalog.Format(msgs.locale, "changesBranchTip", map[string]any{"branch": branch})
+}
+
+// ChangesFiles says "{count, plural, one {# file} other {# files}}"
+// in the language the app shows.
+func ChangesFiles(count int) string { return In(i18n.Locale()).ChangesFiles(count) }
+
+// ChangesFiles says "{count, plural, one {# file} other {# files}}"
+// in the language of msgs.
+func (msgs Messages) ChangesFiles(count int) string {
+	return Catalog.Format(msgs.locale, "changesFiles", map[string]any{"count": count})
+}
+
+// ChangesSince says "since {base}"
+// in the language the app shows.
+func ChangesSince(base string) string { return In(i18n.Locale()).ChangesSince(base) }
+
+// ChangesSince says "since {base}"
+// in the language of msgs.
+func (msgs Messages) ChangesSince(base string) string {
+	return Catalog.Format(msgs.locale, "changesSince", map[string]any{"base": base})
+}
+
+// ChangesNone says "No changes"
+// in the language the app shows.
+func ChangesNone() string { return In(i18n.Locale()).ChangesNone() }
+
+// ChangesNone says "No changes"
+// in the language of msgs.
+func (msgs Messages) ChangesNone() string {
+	return Catalog.Format(msgs.locale, "changesNone", nil)
+}
+
+// ChangesNoneTurn says "The agent hasn't changed any files since it started working."
+// in the language the app shows.
+func ChangesNoneTurn() string { return In(i18n.Locale()).ChangesNoneTurn() }
+
+// ChangesNoneTurn says "The agent hasn't changed any files since it started working."
+// in the language of msgs.
+func (msgs Messages) ChangesNoneTurn() string {
+	return Catalog.Format(msgs.locale, "changesNoneTurn", nil)
+}
+
+// ChangesNoneUncommitted says "Everything is committed."
+// in the language the app shows.
+func ChangesNoneUncommitted() string { return In(i18n.Locale()).ChangesNoneUncommitted() }
+
+// ChangesNoneUncommitted says "Everything is committed."
+// in the language of msgs.
+func (msgs Messages) ChangesNoneUncommitted() string {
+	return Catalog.Format(msgs.locale, "changesNoneUncommitted", nil)
+}
+
+// ChangesNoneBranch says "Nothing changed since {branch}."
+// in the language the app shows.
+func ChangesNoneBranch(branch string) string { return In(i18n.Locale()).ChangesNoneBranch(branch) }
+
+// ChangesNoneBranch says "Nothing changed since {branch}."
+// in the language of msgs.
+func (msgs Messages) ChangesNoneBranch(branch string) string {
+	return Catalog.Format(msgs.locale, "changesNoneBranch", map[string]any{"branch": branch})
+}
+
+// ChangesNoRepo says "Not a git repository"
+// in the language the app shows.
+func ChangesNoRepo() string { return In(i18n.Locale()).ChangesNoRepo() }
+
+// ChangesNoRepo says "Not a git repository"
+// in the language of msgs.
+func (msgs Messages) ChangesNoRepo() string {
+	return Catalog.Format(msgs.locale, "changesNoRepo", nil)
+}
+
+// ChangesNoRepoDetail says "A session's changes show here while it works in a git repository."
+// in the language the app shows.
+func ChangesNoRepoDetail() string { return In(i18n.Locale()).ChangesNoRepoDetail() }
+
+// ChangesNoRepoDetail says "A session's changes show here while it works in a git repository."
+// in the language of msgs.
+func (msgs Messages) ChangesNoRepoDetail() string {
+	return Catalog.Format(msgs.locale, "changesNoRepoDetail", nil)
+}
+
+// ChangesGitOff says "Git status is off"
+// in the language the app shows.
+func ChangesGitOff() string { return In(i18n.Locale()).ChangesGitOff() }
+
+// ChangesGitOff says "Git status is off"
+// in the language of msgs.
+func (msgs Messages) ChangesGitOff() string {
+	return Catalog.Format(msgs.locale, "changesGitOff", nil)
+}
+
+// ChangesGitOffDetail says "Turn on Show Git Status in Settings to see the changes here."
+// in the language the app shows.
+func ChangesGitOffDetail() string { return In(i18n.Locale()).ChangesGitOffDetail() }
+
+// ChangesGitOffDetail says "Turn on Show Git Status in Settings to see the changes here."
+// in the language of msgs.
+func (msgs Messages) ChangesGitOffDetail() string {
+	return Catalog.Format(msgs.locale, "changesGitOffDetail", nil)
+}
+
+// ChangesCantRead says "Can't read the changes"
+// in the language the app shows.
+func ChangesCantRead() string { return In(i18n.Locale()).ChangesCantRead() }
+
+// ChangesCantRead says "Can't read the changes"
+// in the language of msgs.
+func (msgs Messages) ChangesCantRead() string {
+	return Catalog.Format(msgs.locale, "changesCantRead", nil)
+}
+
+// ChangesOpenFile says "Open File"
+// in the language the app shows.
+func ChangesOpenFile() string { return In(i18n.Locale()).ChangesOpenFile() }
+
+// ChangesOpenFile says "Open File"
+// in the language of msgs.
+func (msgs Messages) ChangesOpenFile() string {
+	return Catalog.Format(msgs.locale, "changesOpenFile", nil)
+}
+
+// ChangesUnified says "Unified"
+// in the language the app shows.
+func ChangesUnified() string { return In(i18n.Locale()).ChangesUnified() }
+
+// ChangesUnified says "Unified"
+// in the language of msgs.
+func (msgs Messages) ChangesUnified() string {
+	return Catalog.Format(msgs.locale, "changesUnified", nil)
+}
+
+// ChangesSplit says "Side by Side"
+// in the language the app shows.
+func ChangesSplit() string { return In(i18n.Locale()).ChangesSplit() }
+
+// ChangesSplit says "Side by Side"
+// in the language of msgs.
+func (msgs Messages) ChangesSplit() string {
+	return Catalog.Format(msgs.locale, "changesSplit", nil)
+}
+
+// ChangesBinary says "Binary file"
+// in the language the app shows.
+func ChangesBinary() string { return In(i18n.Locale()).ChangesBinary() }
+
+// ChangesBinary says "Binary file"
+// in the language of msgs.
+func (msgs Messages) ChangesBinary() string {
+	return Catalog.Format(msgs.locale, "changesBinary", nil)
+}
+
+// ChangesTooLarge says "Too large to show"
+// in the language the app shows.
+func ChangesTooLarge() string { return In(i18n.Locale()).ChangesTooLarge() }
+
+// ChangesTooLarge says "Too large to show"
+// in the language of msgs.
+func (msgs Messages) ChangesTooLarge() string {
+	return Catalog.Format(msgs.locale, "changesTooLarge", nil)
+}
+
+// ChangesRevert says "Revert"
+// in the language the app shows.
+func ChangesRevert() string { return In(i18n.Locale()).ChangesRevert() }
+
+// ChangesRevert says "Revert"
+// in the language of msgs.
+func (msgs Messages) ChangesRevert() string {
+	return Catalog.Format(msgs.locale, "changesRevert", nil)
+}
+
+// ChangesKeep says "Keep"
+// in the language the app shows.
+func ChangesKeep() string { return In(i18n.Locale()).ChangesKeep() }
+
+// ChangesKeep says "Keep"
+// in the language of msgs.
+func (msgs Messages) ChangesKeep() string {
+	return Catalog.Format(msgs.locale, "changesKeep", nil)
+}
+
+// ChangesRevertTip says "Put the old lines back in the file"
+// in the language the app shows.
+func ChangesRevertTip() string { return In(i18n.Locale()).ChangesRevertTip() }
+
+// ChangesRevertTip says "Put the old lines back in the file"
+// in the language of msgs.
+func (msgs Messages) ChangesRevertTip() string {
+	return Catalog.Format(msgs.locale, "changesRevertTip", nil)
+}
+
+// ChangesKeepTip says "Mark this change as reviewed"
+// in the language the app shows.
+func ChangesKeepTip() string { return In(i18n.Locale()).ChangesKeepTip() }
+
+// ChangesKeepTip says "Mark this change as reviewed"
+// in the language of msgs.
+func (msgs Messages) ChangesKeepTip() string {
+	return Catalog.Format(msgs.locale, "changesKeepTip", nil)
+}
+
+// ChangesRevertFailed says "Couldn't revert: {error}"
+// in the language the app shows.
+func ChangesRevertFailed(error string) string { return In(i18n.Locale()).ChangesRevertFailed(error) }
+
+// ChangesRevertFailed says "Couldn't revert: {error}"
+// in the language of msgs.
+func (msgs Messages) ChangesRevertFailed(error string) string {
+	return Catalog.Format(msgs.locale, "changesRevertFailed", map[string]any{"error": error})
+}
+
+// GitShowChanges says "Show Changes"
+// in the language the app shows.
+func GitShowChanges() string { return In(i18n.Locale()).GitShowChanges() }
+
+// GitShowChanges says "Show Changes"
+// in the language of msgs.
+func (msgs Messages) GitShowChanges() string {
+	return Catalog.Format(msgs.locale, "gitShowChanges", nil)
+}
+
+// GitMerging says "merging"
+// in the language the app shows.
+func GitMerging() string { return In(i18n.Locale()).GitMerging() }
+
+// GitMerging says "merging"
+// in the language of msgs.
+func (msgs Messages) GitMerging() string {
+	return Catalog.Format(msgs.locale, "gitMerging", nil)
+}
+
+// GitRebasing says "rebasing"
+// in the language the app shows.
+func GitRebasing() string { return In(i18n.Locale()).GitRebasing() }
+
+// GitRebasing says "rebasing"
+// in the language of msgs.
+func (msgs Messages) GitRebasing() string {
+	return Catalog.Format(msgs.locale, "gitRebasing", nil)
+}
+
+// GitCherryPicking says "cherry-picking"
+// in the language the app shows.
+func GitCherryPicking() string { return In(i18n.Locale()).GitCherryPicking() }
+
+// GitCherryPicking says "cherry-picking"
+// in the language of msgs.
+func (msgs Messages) GitCherryPicking() string {
+	return Catalog.Format(msgs.locale, "gitCherryPicking", nil)
+}
+
+// GitReverting says "reverting"
+// in the language the app shows.
+func GitReverting() string { return In(i18n.Locale()).GitReverting() }
+
+// GitReverting says "reverting"
+// in the language of msgs.
+func (msgs Messages) GitReverting() string {
+	return Catalog.Format(msgs.locale, "gitReverting", nil)
+}
+
+// SetGit says "Git"
+// in the language the app shows.
+func SetGit() string { return In(i18n.Locale()).SetGit() }
+
+// SetGit says "Git"
+// in the language of msgs.
+func (msgs Messages) SetGit() string {
+	return Catalog.Format(msgs.locale, "setGit", nil)
+}
+
+// SetGitDetail says "Branches and changes of the repositories sessions work in."
+// in the language the app shows.
+func SetGitDetail() string { return In(i18n.Locale()).SetGitDetail() }
+
+// SetGitDetail says "Branches and changes of the repositories sessions work in."
+// in the language of msgs.
+func (msgs Messages) SetGitDetail() string {
+	return Catalog.Format(msgs.locale, "setGitDetail", nil)
+}
+
+// SetGitStatus says "Show git status"
+// in the language the app shows.
+func SetGitStatus() string { return In(i18n.Locale()).SetGitStatus() }
+
+// SetGitStatus says "Show git status"
+// in the language of msgs.
+func (msgs Messages) SetGitStatus() string {
+	return Catalog.Format(msgs.locale, "setGitStatus", nil)
+}
+
+// SetGitStatusDetail says "Each session's branch and changes, by its panes' titles and in the sidebar."
+// in the language the app shows.
+func SetGitStatusDetail() string { return In(i18n.Locale()).SetGitStatusDetail() }
+
+// SetGitStatusDetail says "Each session's branch and changes, by its panes' titles and in the sidebar."
+// in the language of msgs.
+func (msgs Messages) SetGitStatusDetail() string {
+	return Catalog.Format(msgs.locale, "setGitStatusDetail", nil)
+}
+
+// SetDiffLayout says "Diffs"
+// in the language the app shows.
+func SetDiffLayout() string { return In(i18n.Locale()).SetDiffLayout() }
+
+// SetDiffLayout says "Diffs"
+// in the language of msgs.
+func (msgs Messages) SetDiffLayout() string {
+	return Catalog.Format(msgs.locale, "setDiffLayout", nil)
+}
+
+// SetDiffLayoutDetail says "Auto shows diffs unified while the changes panel is narrow, and side by side once it's wide."
+// in the language the app shows.
+func SetDiffLayoutDetail() string { return In(i18n.Locale()).SetDiffLayoutDetail() }
+
+// SetDiffLayoutDetail says "Auto shows diffs unified while the changes panel is narrow, and side by side once it's wide."
+// in the language of msgs.
+func (msgs Messages) SetDiffLayoutDetail() string {
+	return Catalog.Format(msgs.locale, "setDiffLayoutDetail", nil)
+}
+
+// SetDiffAuto says "Auto"
+// in the language the app shows.
+func SetDiffAuto() string { return In(i18n.Locale()).SetDiffAuto() }
+
+// SetDiffAuto says "Auto"
+// in the language of msgs.
+func (msgs Messages) SetDiffAuto() string {
+	return Catalog.Format(msgs.locale, "setDiffAuto", nil)
+}
+
+// PageBrowser says "Browser"
+// in the language the app shows.
+func PageBrowser() string { return In(i18n.Locale()).PageBrowser() }
+
+// PageBrowser says "Browser"
+// in the language of msgs.
+func (msgs Messages) PageBrowser() string {
+	return Catalog.Format(msgs.locale, "pageBrowser", nil)
+}
+
+// SetAdBlocking says "Ad blocking"
+// in the language the app shows.
+func SetAdBlocking() string { return In(i18n.Locale()).SetAdBlocking() }
+
+// SetAdBlocking says "Ad blocking"
+// in the language of msgs.
+func (msgs Messages) SetAdBlocking() string {
+	return Catalog.Format(msgs.locale, "setAdBlocking", nil)
+}
+
+// SetBlockAds says "Block ads"
+// in the language the app shows.
+func SetBlockAds() string { return In(i18n.Locale()).SetBlockAds() }
+
+// SetBlockAds says "Block ads"
+// in the language of msgs.
+func (msgs Messages) SetBlockAds() string {
+	return Catalog.Format(msgs.locale, "setBlockAds", nil)
+}
+
+// SetBlockAdsDetail says "Blocks ads and trackers with filter lists, which Kero downloads and keeps up to date."
+// in the language the app shows.
+func SetBlockAdsDetail() string { return In(i18n.Locale()).SetBlockAdsDetail() }
+
+// SetBlockAdsDetail says "Blocks ads and trackers with filter lists, which Kero downloads and keeps up to date."
+// in the language of msgs.
+func (msgs Messages) SetBlockAdsDetail() string {
+	return Catalog.Format(msgs.locale, "setBlockAdsDetail", nil)
+}
+
+// SetAdListEasylist says "Ads, the list most blockers start from."
+// in the language the app shows.
+func SetAdListEasylist() string { return In(i18n.Locale()).SetAdListEasylist() }
+
+// SetAdListEasylist says "Ads, the list most blockers start from."
+// in the language of msgs.
+func (msgs Messages) SetAdListEasylist() string {
+	return Catalog.Format(msgs.locale, "setAdListEasylist", nil)
+}
+
+// SetAdListEasyprivacy says "Trackers and analytics."
+// in the language the app shows.
+func SetAdListEasyprivacy() string { return In(i18n.Locale()).SetAdListEasyprivacy() }
+
+// SetAdListEasyprivacy says "Trackers and analytics."
+// in the language of msgs.
+func (msgs Messages) SetAdListEasyprivacy() string {
+	return Catalog.Format(msgs.locale, "setAdListEasyprivacy", nil)
+}
+
+// SetAdListPeterLowe says "Ad and tracker servers, by their domains."
+// in the language the app shows.
+func SetAdListPeterLowe() string { return In(i18n.Locale()).SetAdListPeterLowe() }
+
+// SetAdListPeterLowe says "Ad and tracker servers, by their domains."
+// in the language of msgs.
+func (msgs Messages) SetAdListPeterLowe() string {
+	return Catalog.Format(msgs.locale, "setAdListPeterLowe", nil)
+}
+
+// SetAdListEasylistChina says "Ads on Chinese sites."
+// in the language the app shows.
+func SetAdListEasylistChina() string { return In(i18n.Locale()).SetAdListEasylistChina() }
+
+// SetAdListEasylistChina says "Ads on Chinese sites."
+// in the language of msgs.
+func (msgs Messages) SetAdListEasylistChina() string {
+	return Catalog.Format(msgs.locale, "setAdListEasylistChina", nil)
+}
+
+// SetAdListFanboyCookie says "Cookie notices and consent banners."
+// in the language the app shows.
+func SetAdListFanboyCookie() string { return In(i18n.Locale()).SetAdListFanboyCookie() }
+
+// SetAdListFanboyCookie says "Cookie notices and consent banners."
+// in the language of msgs.
+func (msgs Messages) SetAdListFanboyCookie() string {
+	return Catalog.Format(msgs.locale, "setAdListFanboyCookie", nil)
+}
+
+// SetAdListFanboySocial says "Social media buttons and embeds."
+// in the language the app shows.
+func SetAdListFanboySocial() string { return In(i18n.Locale()).SetAdListFanboySocial() }
+
+// SetAdListFanboySocial says "Social media buttons and embeds."
+// in the language of msgs.
+func (msgs Messages) SetAdListFanboySocial() string {
+	return Catalog.Format(msgs.locale, "setAdListFanboySocial", nil)
+}
+
+// SetAdListFanboyAnnoyance says "Pop-ups, newsletter prompts and chat boxes, and the cookie and social lists' too."
+// in the language the app shows.
+func SetAdListFanboyAnnoyance() string { return In(i18n.Locale()).SetAdListFanboyAnnoyance() }
+
+// SetAdListFanboyAnnoyance says "Pop-ups, newsletter prompts and chat boxes, and the cookie and social lists' too."
+// in the language of msgs.
+func (msgs Messages) SetAdListFanboyAnnoyance() string {
+	return Catalog.Format(msgs.locale, "setAdListFanboyAnnoyance", nil)
+}
+
+// SetAdListsNote says "Lists hide more as they add up, and may break a page now and then. Lists of other URLs go in the configuration, as br…"
+// in the language the app shows.
+func SetAdListsNote() string { return In(i18n.Locale()).SetAdListsNote() }
+
+// SetAdListsNote says "Lists hide more as they add up, and may break a page now and then. Lists of other URLs go in the configuration, as br…"
+// in the language of msgs.
+func (msgs Messages) SetAdListsNote() string {
+	return Catalog.Format(msgs.locale, "setAdListsNote", nil)
+}
+
+// ChangesUnmodified says "{count, plural, one {# unmodified line} other {# unmodified lines}}"
+// in the language the app shows.
+func ChangesUnmodified(count int) string { return In(i18n.Locale()).ChangesUnmodified(count) }
+
+// ChangesUnmodified says "{count, plural, one {# unmodified line} other {# unmodified lines}}"
+// in the language of msgs.
+func (msgs Messages) ChangesUnmodified(count int) string {
+	return Catalog.Format(msgs.locale, "changesUnmodified", map[string]any{"count": count})
+}
+
+// ChangesExpandUp says "Expand Up"
+// in the language the app shows.
+func ChangesExpandUp() string { return In(i18n.Locale()).ChangesExpandUp() }
+
+// ChangesExpandUp says "Expand Up"
+// in the language of msgs.
+func (msgs Messages) ChangesExpandUp() string {
+	return Catalog.Format(msgs.locale, "changesExpandUp", nil)
+}
+
+// ChangesExpandDown says "Expand Down"
+// in the language the app shows.
+func ChangesExpandDown() string { return In(i18n.Locale()).ChangesExpandDown() }
+
+// ChangesExpandDown says "Expand Down"
+// in the language of msgs.
+func (msgs Messages) ChangesExpandDown() string {
+	return Catalog.Format(msgs.locale, "changesExpandDown", nil)
+}
+
+// ChangesExpandAll says "Expand All"
+// in the language the app shows.
+func ChangesExpandAll() string { return In(i18n.Locale()).ChangesExpandAll() }
+
+// ChangesExpandAll says "Expand All"
+// in the language of msgs.
+func (msgs Messages) ChangesExpandAll() string {
+	return Catalog.Format(msgs.locale, "changesExpandAll", nil)
+}
+
+// PageHosts says "Hosts"
+// in the language the app shows.
+func PageHosts() string { return In(i18n.Locale()).PageHosts() }
+
+// PageHosts says "Hosts"
+// in the language of msgs.
+func (msgs Messages) PageHosts() string {
+	return Catalog.Format(msgs.locale, "pageHosts", nil)
+}
+
+// PageExperimental says "Experimental"
+// in the language the app shows.
+func PageExperimental() string { return In(i18n.Locale()).PageExperimental() }
+
+// PageExperimental says "Experimental"
+// in the language of msgs.
+func (msgs Messages) PageExperimental() string {
+	return Catalog.Format(msgs.locale, "pageExperimental", nil)
+}
+
+// HostThisComputer says "This Computer"
+// in the language the app shows.
+func HostThisComputer() string { return In(i18n.Locale()).HostThisComputer() }
+
+// HostThisComputer says "This Computer"
+// in the language of msgs.
+func (msgs Messages) HostThisComputer() string {
+	return Catalog.Format(msgs.locale, "hostThisComputer", nil)
+}
+
+// HostColor says "Color"
+// in the language the app shows.
+func HostColor() string { return In(i18n.Locale()).HostColor() }
+
+// HostColor says "Color"
+// in the language of msgs.
+func (msgs Messages) HostColor() string {
+	return Catalog.Format(msgs.locale, "hostColor", nil)
+}
+
+// HostColorAuto says "From Its Name"
+// in the language the app shows.
+func HostColorAuto() string { return In(i18n.Locale()).HostColorAuto() }
+
+// HostColorAuto says "From Its Name"
+// in the language of msgs.
+func (msgs Messages) HostColorAuto() string {
+	return Catalog.Format(msgs.locale, "hostColorAuto", nil)
+}
+
+// ColorRed says "Red"
+// in the language the app shows.
+func ColorRed() string { return In(i18n.Locale()).ColorRed() }
+
+// ColorRed says "Red"
+// in the language of msgs.
+func (msgs Messages) ColorRed() string {
+	return Catalog.Format(msgs.locale, "colorRed", nil)
+}
+
+// ColorOrange says "Orange"
+// in the language the app shows.
+func ColorOrange() string { return In(i18n.Locale()).ColorOrange() }
+
+// ColorOrange says "Orange"
+// in the language of msgs.
+func (msgs Messages) ColorOrange() string {
+	return Catalog.Format(msgs.locale, "colorOrange", nil)
+}
+
+// ColorAmber says "Amber"
+// in the language the app shows.
+func ColorAmber() string { return In(i18n.Locale()).ColorAmber() }
+
+// ColorAmber says "Amber"
+// in the language of msgs.
+func (msgs Messages) ColorAmber() string {
+	return Catalog.Format(msgs.locale, "colorAmber", nil)
+}
+
+// ColorGreen says "Green"
+// in the language the app shows.
+func ColorGreen() string { return In(i18n.Locale()).ColorGreen() }
+
+// ColorGreen says "Green"
+// in the language of msgs.
+func (msgs Messages) ColorGreen() string {
+	return Catalog.Format(msgs.locale, "colorGreen", nil)
+}
+
+// ColorTeal says "Teal"
+// in the language the app shows.
+func ColorTeal() string { return In(i18n.Locale()).ColorTeal() }
+
+// ColorTeal says "Teal"
+// in the language of msgs.
+func (msgs Messages) ColorTeal() string {
+	return Catalog.Format(msgs.locale, "colorTeal", nil)
+}
+
+// ColorBlue says "Blue"
+// in the language the app shows.
+func ColorBlue() string { return In(i18n.Locale()).ColorBlue() }
+
+// ColorBlue says "Blue"
+// in the language of msgs.
+func (msgs Messages) ColorBlue() string {
+	return Catalog.Format(msgs.locale, "colorBlue", nil)
+}
+
+// ColorPurple says "Purple"
+// in the language the app shows.
+func ColorPurple() string { return In(i18n.Locale()).ColorPurple() }
+
+// ColorPurple says "Purple"
+// in the language of msgs.
+func (msgs Messages) ColorPurple() string {
+	return Catalog.Format(msgs.locale, "colorPurple", nil)
+}
+
+// ColorPink says "Pink"
+// in the language the app shows.
+func ColorPink() string { return In(i18n.Locale()).ColorPink() }
+
+// ColorPink says "Pink"
+// in the language of msgs.
+func (msgs Messages) ColorPink() string {
+	return Catalog.Format(msgs.locale, "colorPink", nil)
+}
+
+// HostNotConnected says "Not connected to {host}"
+// in the language the app shows.
+func HostNotConnected(host string) string { return In(i18n.Locale()).HostNotConnected(host) }
+
+// HostNotConnected says "Not connected to {host}"
+// in the language of msgs.
+func (msgs Messages) HostNotConnected(host string) string {
+	return Catalog.Format(msgs.locale, "hostNotConnected", map[string]any{"host": host})
+}
+
+// HostReconnect says "Reconnect"
+// in the language the app shows.
+func HostReconnect() string { return In(i18n.Locale()).HostReconnect() }
+
+// HostReconnect says "Reconnect"
+// in the language of msgs.
+func (msgs Messages) HostReconnect() string {
+	return Catalog.Format(msgs.locale, "hostReconnect", nil)
+}
+
+// HostReconnectTo says "Reconnect to {host}"
+// in the language the app shows.
+func HostReconnectTo(host string) string { return In(i18n.Locale()).HostReconnectTo(host) }
+
+// HostReconnectTo says "Reconnect to {host}"
+// in the language of msgs.
+func (msgs Messages) HostReconnectTo(host string) string {
+	return Catalog.Format(msgs.locale, "hostReconnectTo", map[string]any{"host": host})
+}
+
+// HostReconnecting says "Reconnecting…"
+// in the language the app shows.
+func HostReconnecting() string { return In(i18n.Locale()).HostReconnecting() }
+
+// HostReconnecting says "Reconnecting…"
+// in the language of msgs.
+func (msgs Messages) HostReconnecting() string {
+	return Catalog.Format(msgs.locale, "hostReconnecting", nil)
+}
+
+// HostReconnectingTo says "Reconnecting to {host}…"
+// in the language the app shows.
+func HostReconnectingTo(host string) string { return In(i18n.Locale()).HostReconnectingTo(host) }
+
+// HostReconnectingTo says "Reconnecting to {host}…"
+// in the language of msgs.
+func (msgs Messages) HostReconnectingTo(host string) string {
+	return Catalog.Format(msgs.locale, "hostReconnectingTo", map[string]any{"host": host})
+}
+
+// HostCantConnect says "Can't connect to {host}"
+// in the language the app shows.
+func HostCantConnect(host string) string { return In(i18n.Locale()).HostCantConnect(host) }
+
+// HostCantConnect says "Can't connect to {host}"
+// in the language of msgs.
+func (msgs Messages) HostCantConnect(host string) string {
+	return Catalog.Format(msgs.locale, "hostCantConnect", map[string]any{"host": host})
+}
+
+// HostNotInstalled says "Kero isn't installed on {host}"
+// in the language the app shows.
+func HostNotInstalled(host string) string { return In(i18n.Locale()).HostNotInstalled(host) }
+
+// HostNotInstalled says "Kero isn't installed on {host}"
+// in the language of msgs.
+func (msgs Messages) HostNotInstalled(host string) string {
+	return Catalog.Format(msgs.locale, "hostNotInstalled", map[string]any{"host": host})
+}
+
+// HostRefused says "{host} refused the connection"
+// in the language the app shows.
+func HostRefused(host string) string { return In(i18n.Locale()).HostRefused(host) }
+
+// HostRefused says "{host} refused the connection"
+// in the language of msgs.
+func (msgs Messages) HostRefused(host string) string {
+	return Catalog.Format(msgs.locale, "hostRefused", map[string]any{"host": host})
+}
+
+// HostAuthHint says "Kero signs in with your SSH keys and agent, and never asks for a password. To trust a host's key, run ssh {address} o…"
+// in the language the app shows.
+func HostAuthHint(address string) string { return In(i18n.Locale()).HostAuthHint(address) }
+
+// HostAuthHint says "Kero signs in with your SSH keys and agent, and never asks for a password. To trust a host's key, run ssh {address} o…"
+// in the language of msgs.
+func (msgs Messages) HostAuthHint(address string) string {
+	return Catalog.Format(msgs.locale, "hostAuthHint", map[string]any{"address": address})
+}
+
+// HostAbout says "Kero {version} on {platform} · {hostname}, as {user}"
+// in the language the app shows.
+func HostAbout(version string, platform string, hostname string, user string) string {
+	return In(i18n.Locale()).HostAbout(version, platform, hostname, user)
+}
+
+// HostAbout says "Kero {version} on {platform} · {hostname}, as {user}"
+// in the language of msgs.
+func (msgs Messages) HostAbout(version string, platform string, hostname string, user string) string {
+	return Catalog.Format(msgs.locale, "hostAbout", map[string]any{"version": version, "platform": platform, "hostname": hostname, "user": user})
+}
+
+// HostConnected says "Connected: Kero {version} on {platform} · {hostname}, as {user}"
+// in the language the app shows.
+func HostConnected(version string, platform string, hostname string, user string) string {
+	return In(i18n.Locale()).HostConnected(version, platform, hostname, user)
+}
+
+// HostConnected says "Connected: Kero {version} on {platform} · {hostname}, as {user}"
+// in the language of msgs.
+func (msgs Messages) HostConnected(version string, platform string, hostname string, user string) string {
+	return Catalog.Format(msgs.locale, "hostConnected", map[string]any{"version": version, "platform": platform, "hostname": hostname, "user": user})
+}
+
+// HostSessions says "{count, plural, one {# session} other {# sessions}}"
+// in the language the app shows.
+func HostSessions(count int) string { return In(i18n.Locale()).HostSessions(count) }
+
+// HostSessions says "{count, plural, one {# session} other {# sessions}}"
+// in the language of msgs.
+func (msgs Messages) HostSessions(count int) string {
+	return Catalog.Format(msgs.locale, "hostSessions", map[string]any{"count": count})
+}
+
+// HostCopyAddress says "Copy Address"
+// in the language the app shows.
+func HostCopyAddress() string { return In(i18n.Locale()).HostCopyAddress() }
+
+// HostCopyAddress says "Copy Address"
+// in the language of msgs.
+func (msgs Messages) HostCopyAddress() string {
+	return Catalog.Format(msgs.locale, "hostCopyAddress", nil)
+}
+
+// HostSettings says "Host Settings…"
+// in the language the app shows.
+func HostSettings() string { return In(i18n.Locale()).HostSettings() }
+
+// HostSettings says "Host Settings…"
+// in the language of msgs.
+func (msgs Messages) HostSettings() string {
+	return Catalog.Format(msgs.locale, "hostSettings", nil)
+}
+
+// HostRemove says "Remove Host…"
+// in the language the app shows.
+func HostRemove() string { return In(i18n.Locale()).HostRemove() }
+
+// HostRemove says "Remove Host…"
+// in the language of msgs.
+func (msgs Messages) HostRemove() string {
+	return Catalog.Format(msgs.locale, "hostRemove", nil)
+}
+
+// HostEdit says "Edit Host"
+// in the language the app shows.
+func HostEdit() string { return In(i18n.Locale()).HostEdit() }
+
+// HostEdit says "Edit Host"
+// in the language of msgs.
+func (msgs Messages) HostEdit() string {
+	return Catalog.Format(msgs.locale, "hostEdit", nil)
+}
+
+// HostRemoveTitle says "Remove {host}?"
+// in the language the app shows.
+func HostRemoveTitle(host string) string { return In(i18n.Locale()).HostRemoveTitle(host) }
+
+// HostRemoveTitle says "Remove {host}?"
+// in the language of msgs.
+func (msgs Messages) HostRemoveTitle(host string) string {
+	return Catalog.Format(msgs.locale, "hostRemoveTitle", map[string]any{"host": host})
+}
+
+// HostRemoveDetail says "Its sessions keep running on {host}. Add the host again to see them."
+// in the language the app shows.
+func HostRemoveDetail(host string) string { return In(i18n.Locale()).HostRemoveDetail(host) }
+
+// HostRemoveDetail says "Its sessions keep running on {host}. Add the host again to see them."
+// in the language of msgs.
+func (msgs Messages) HostRemoveDetail(host string) string {
+	return Catalog.Format(msgs.locale, "hostRemoveDetail", map[string]any{"host": host})
+}
+
+// HostInstall says "Install Kero…"
+// in the language the app shows.
+func HostInstall() string { return In(i18n.Locale()).HostInstall() }
+
+// HostInstall says "Install Kero…"
+// in the language of msgs.
+func (msgs Messages) HostInstall() string {
+	return Catalog.Format(msgs.locale, "hostInstall", nil)
+}
+
+// HostInstalling says "Installing Kero on {host}…"
+// in the language the app shows.
+func HostInstalling(host string) string { return In(i18n.Locale()).HostInstalling(host) }
+
+// HostInstalling says "Installing Kero on {host}…"
+// in the language of msgs.
+func (msgs Messages) HostInstalling(host string) string {
+	return Catalog.Format(msgs.locale, "hostInstalling", map[string]any{"host": host})
+}
+
+// HostInstalled says "Installed Kero on {host}"
+// in the language the app shows.
+func HostInstalled(host string) string { return In(i18n.Locale()).HostInstalled(host) }
+
+// HostInstalled says "Installed Kero on {host}"
+// in the language of msgs.
+func (msgs Messages) HostInstalled(host string) string {
+	return Catalog.Format(msgs.locale, "hostInstalled", map[string]any{"host": host})
+}
+
+// HostInstallFailed says "Couldn't install Kero on {host}: {error}"
+// in the language the app shows.
+func HostInstallFailed(host string, error string) string {
+	return In(i18n.Locale()).HostInstallFailed(host, error)
+}
+
+// HostInstallFailed says "Couldn't install Kero on {host}: {error}"
+// in the language of msgs.
+func (msgs Messages) HostInstallFailed(host string, error string) string {
+	return Catalog.Format(msgs.locale, "hostInstallFailed", map[string]any{"host": host, "error": error})
+}
+
+// HostUpdateAction says "Update Kero on {host}…"
+// in the language the app shows.
+func HostUpdateAction(host string) string { return In(i18n.Locale()).HostUpdateAction(host) }
+
+// HostUpdateAction says "Update Kero on {host}…"
+// in the language of msgs.
+func (msgs Messages) HostUpdateAction(host string) string {
+	return Catalog.Format(msgs.locale, "hostUpdateAction", map[string]any{"host": host})
+}
+
+// HostUpdateTitle says "Update Kero on {host} to {version}?"
+// in the language the app shows.
+func HostUpdateTitle(host string, version string) string {
+	return In(i18n.Locale()).HostUpdateTitle(host, version)
+}
+
+// HostUpdateTitle says "Update Kero on {host} to {version}?"
+// in the language of msgs.
+func (msgs Messages) HostUpdateTitle(host string, version string) string {
+	return Catalog.Format(msgs.locale, "hostUpdateTitle", map[string]any{"host": host, "version": version})
+}
+
+// HostUpdateDetail says "Kero then restarts its service on {host}. Sessions there start again where they were, with their history, and the pro…"
+// in the language the app shows.
+func HostUpdateDetail(host string) string { return In(i18n.Locale()).HostUpdateDetail(host) }
+
+// HostUpdateDetail says "Kero then restarts its service on {host}. Sessions there start again where they were, with their history, and the pro…"
+// in the language of msgs.
+func (msgs Messages) HostUpdateDetail(host string) string {
+	return Catalog.Format(msgs.locale, "hostUpdateDetail", map[string]any{"host": host})
+}
+
+// HostUpdateAppDetail says "The Kero app on {host} updates and relaunches, then restarts its service. Sessions there start again where they were,…"
+// in the language the app shows.
+func HostUpdateAppDetail(host string) string { return In(i18n.Locale()).HostUpdateAppDetail(host) }
+
+// HostUpdateAppDetail says "The Kero app on {host} updates and relaunches, then restarts its service. Sessions there start again where they were,…"
+// in the language of msgs.
+func (msgs Messages) HostUpdateAppDetail(host string) string {
+	return Catalog.Format(msgs.locale, "hostUpdateAppDetail", map[string]any{"host": host})
+}
+
+// HostUpdating says "Updating Kero on {host}…"
+// in the language the app shows.
+func HostUpdating(host string) string { return In(i18n.Locale()).HostUpdating(host) }
+
+// HostUpdating says "Updating Kero on {host}…"
+// in the language of msgs.
+func (msgs Messages) HostUpdating(host string) string {
+	return Catalog.Format(msgs.locale, "hostUpdating", map[string]any{"host": host})
+}
+
+// HostUpdated says "{host} runs Kero {version}"
+// in the language the app shows.
+func HostUpdated(host string, version string) string {
+	return In(i18n.Locale()).HostUpdated(host, version)
+}
+
+// HostUpdated says "{host} runs Kero {version}"
+// in the language of msgs.
+func (msgs Messages) HostUpdated(host string, version string) string {
+	return Catalog.Format(msgs.locale, "hostUpdated", map[string]any{"host": host, "version": version})
+}
+
+// HostUpdateDev says "A development build of Kero can't update a host. Run a released Kero, or update the host with kero daemon update there."
+// in the language the app shows.
+func HostUpdateDev() string { return In(i18n.Locale()).HostUpdateDev() }
+
+// HostUpdateDev says "A development build of Kero can't update a host. Run a released Kero, or update the host with kero daemon update there."
+// in the language of msgs.
+func (msgs Messages) HostUpdateDev() string {
+	return Catalog.Format(msgs.locale, "hostUpdateDev", nil)
+}
+
+// HostVersionTitle says "Kero on {host} is another version"
+// in the language the app shows.
+func HostVersionTitle(host string) string { return In(i18n.Locale()).HostVersionTitle(host) }
+
+// HostVersionTitle says "Kero on {host} is another version"
+// in the language of msgs.
+func (msgs Messages) HostVersionTitle(host string) string {
+	return Catalog.Format(msgs.locale, "hostVersionTitle", map[string]any{"host": host})
+}
+
+// HostVersionDetail says "{host} runs Kero {version}, and this app is Kero {app}. Update Kero there to see and start its sessions here."
+// in the language the app shows.
+func HostVersionDetail(host string, version string, app string) string {
+	return In(i18n.Locale()).HostVersionDetail(host, version, app)
+}
+
+// HostVersionDetail says "{host} runs Kero {version}, and this app is Kero {app}. Update Kero there to see and start its sessions here."
+// in the language of msgs.
+func (msgs Messages) HostVersionDetail(host string, version string, app string) string {
+	return Catalog.Format(msgs.locale, "hostVersionDetail", map[string]any{"host": host, "version": version, "app": app})
+}
+
+// HostDesktopDetail says "{host} runs the Kero app, version {version}, and this is Kero {app}. Update Kero on {host}, or turn on Let them updat…"
+// in the language the app shows.
+func HostDesktopDetail(host string, version string, app string) string {
+	return In(i18n.Locale()).HostDesktopDetail(host, version, app)
+}
+
+// HostDesktopDetail says "{host} runs the Kero app, version {version}, and this is Kero {app}. Update Kero on {host}, or turn on Let them updat…"
+// in the language of msgs.
+func (msgs Messages) HostDesktopDetail(host string, version string, app string) string {
+	return Catalog.Format(msgs.locale, "hostDesktopDetail", map[string]any{"host": host, "version": version, "app": app})
+}
+
+// HostRestartAction says "Restart Service on {host}…"
+// in the language the app shows.
+func HostRestartAction(host string) string { return In(i18n.Locale()).HostRestartAction(host) }
+
+// HostRestartAction says "Restart Service on {host}…"
+// in the language of msgs.
+func (msgs Messages) HostRestartAction(host string) string {
+	return Catalog.Format(msgs.locale, "hostRestartAction", map[string]any{"host": host})
+}
+
+// HostRestartTitle says "Restart the service on {host}?"
+// in the language the app shows.
+func HostRestartTitle(host string) string { return In(i18n.Locale()).HostRestartTitle(host) }
+
+// HostRestartTitle says "Restart the service on {host}?"
+// in the language of msgs.
+func (msgs Messages) HostRestartTitle(host string) string {
+	return Catalog.Format(msgs.locale, "hostRestartTitle", map[string]any{"host": host})
+}
+
+// HostRestartDetail says "Sessions on {host} start again where they were, with their history, and the programs running in them end."
+// in the language the app shows.
+func HostRestartDetail(host string) string { return In(i18n.Locale()).HostRestartDetail(host) }
+
+// HostRestartDetail says "Sessions on {host} start again where they were, with their history, and the programs running in them end."
+// in the language of msgs.
+func (msgs Messages) HostRestartDetail(host string) string {
+	return Catalog.Format(msgs.locale, "hostRestartDetail", map[string]any{"host": host})
+}
+
+// HostRestarting says "Restarting the service on {host}…"
+// in the language the app shows.
+func HostRestarting(host string) string { return In(i18n.Locale()).HostRestarting(host) }
+
+// HostRestarting says "Restarting the service on {host}…"
+// in the language of msgs.
+func (msgs Messages) HostRestarting(host string) string {
+	return Catalog.Format(msgs.locale, "hostRestarting", map[string]any{"host": host})
+}
+
+// HostStaleTip says "The service on {host} still runs Kero {was}, and Kero {version} is installed there: restart it to run the new version."
+// in the language the app shows.
+func HostStaleTip(host string, was string, version string) string {
+	return In(i18n.Locale()).HostStaleTip(host, was, version)
+}
+
+// HostStaleTip says "The service on {host} still runs Kero {was}, and Kero {version} is installed there: restart it to run the new version."
+// in the language of msgs.
+func (msgs Messages) HostStaleTip(host string, was string, version string) string {
+	return Catalog.Format(msgs.locale, "hostStaleTip", map[string]any{"host": host, "was": was, "version": version})
+}
+
+// HostNoSuchFile says "There's no {path} on {host}"
+// in the language the app shows.
+func HostNoSuchFile(host string, path string) string {
+	return In(i18n.Locale()).HostNoSuchFile(host, path)
+}
+
+// HostNoSuchFile says "There's no {path} on {host}"
+// in the language of msgs.
+func (msgs Messages) HostNoSuchFile(host string, path string) string {
+	return Catalog.Format(msgs.locale, "hostNoSuchFile", map[string]any{"host": host, "path": path})
+}
+
+// PasteNotAFile says "Kero pastes files into a pane on another machine, not folders: {name}"
+// in the language the app shows.
+func PasteNotAFile(name string) string { return In(i18n.Locale()).PasteNotAFile(name) }
+
+// PasteNotAFile says "Kero pastes files into a pane on another machine, not folders: {name}"
+// in the language of msgs.
+func (msgs Messages) PasteNotAFile(name string) string {
+	return Catalog.Format(msgs.locale, "pasteNotAFile", map[string]any{"name": name})
+}
+
+// PasteTooLarge says "Kero pastes at most {size} MB into a pane on another machine"
+// in the language the app shows.
+func PasteTooLarge(size int) string { return In(i18n.Locale()).PasteTooLarge(size) }
+
+// PasteTooLarge says "Kero pastes at most {size} MB into a pane on another machine"
+// in the language of msgs.
+func (msgs Messages) PasteTooLarge(size int) string {
+	return Catalog.Format(msgs.locale, "pasteTooLarge", map[string]any{"size": size})
+}
+
+// PasteUploading says "Copying to {host}…"
+// in the language the app shows.
+func PasteUploading(host string) string { return In(i18n.Locale()).PasteUploading(host) }
+
+// PasteUploading says "Copying to {host}…"
+// in the language of msgs.
+func (msgs Messages) PasteUploading(host string) string {
+	return Catalog.Format(msgs.locale, "pasteUploading", map[string]any{"host": host})
+}
+
+// PickerTitle says "Open Project on {host}"
+// in the language the app shows.
+func PickerTitle(host string) string { return In(i18n.Locale()).PickerTitle(host) }
+
+// PickerTitle says "Open Project on {host}"
+// in the language of msgs.
+func (msgs Messages) PickerTitle(host string) string {
+	return Catalog.Format(msgs.locale, "pickerTitle", map[string]any{"host": host})
+}
+
+// PickerPlaceholder says "Filter folders, or type a path: ~/code"
+// in the language the app shows.
+func PickerPlaceholder() string { return In(i18n.Locale()).PickerPlaceholder() }
+
+// PickerPlaceholder says "Filter folders, or type a path: ~/code"
+// in the language of msgs.
+func (msgs Messages) PickerPlaceholder() string {
+	return Catalog.Format(msgs.locale, "pickerPlaceholder", nil)
+}
+
+// PickerShowHidden says "Show Hidden"
+// in the language the app shows.
+func PickerShowHidden() string { return In(i18n.Locale()).PickerShowHidden() }
+
+// PickerShowHidden says "Show Hidden"
+// in the language of msgs.
+func (msgs Messages) PickerShowHidden() string {
+	return Catalog.Format(msgs.locale, "pickerShowHidden", nil)
+}
+
+// PickerHideHidden says "Hide Hidden"
+// in the language the app shows.
+func PickerHideHidden() string { return In(i18n.Locale()).PickerHideHidden() }
+
+// PickerHideHidden says "Hide Hidden"
+// in the language of msgs.
+func (msgs Messages) PickerHideHidden() string {
+	return Catalog.Format(msgs.locale, "pickerHideHidden", nil)
+}
+
+// PickerNoFolders says "No folders"
+// in the language the app shows.
+func PickerNoFolders() string { return In(i18n.Locale()).PickerNoFolders() }
+
+// PickerNoFolders says "No folders"
+// in the language of msgs.
+func (msgs Messages) PickerNoFolders() string {
+	return Catalog.Format(msgs.locale, "pickerNoFolders", nil)
+}
+
+// PickerHint says "↩ go in · {open} open the folder chosen"
+// in the language the app shows.
+func PickerHint(open string) string { return In(i18n.Locale()).PickerHint(open) }
+
+// PickerHint says "↩ go in · {open} open the folder chosen"
+// in the language of msgs.
+func (msgs Messages) PickerHint(open string) string {
+	return Catalog.Format(msgs.locale, "pickerHint", map[string]any{"open": open})
+}
+
+// SetHosts says "Hosts"
+// in the language the app shows.
+func SetHosts() string { return In(i18n.Locale()).SetHosts() }
+
+// SetHosts says "Hosts"
+// in the language of msgs.
+func (msgs Messages) SetHosts() string {
+	return Catalog.Format(msgs.locale, "setHosts", nil)
+}
+
+// SetHostsDetail says "Other machines whose sessions show in the sidebar after this computer's. Kero reaches them over SSH with your keys an…"
+// in the language the app shows.
+func SetHostsDetail() string { return In(i18n.Locale()).SetHostsDetail() }
+
+// SetHostsDetail says "Other machines whose sessions show in the sidebar after this computer's. Kero reaches them over SSH with your keys an…"
+// in the language of msgs.
+func (msgs Messages) SetHostsDetail() string {
+	return Catalog.Format(msgs.locale, "setHostsDetail", nil)
+}
+
+// SetHostsNone says "No hosts"
+// in the language the app shows.
+func SetHostsNone() string { return In(i18n.Locale()).SetHostsNone() }
+
+// SetHostsNone says "No hosts"
+// in the language of msgs.
+func (msgs Messages) SetHostsNone() string {
+	return Catalog.Format(msgs.locale, "setHostsNone", nil)
+}
+
+// SetHostsNoneDetail says "Add a machine you reach with ssh. If Kero isn't installed there, Kero offers to install it."
+// in the language the app shows.
+func SetHostsNoneDetail() string { return In(i18n.Locale()).SetHostsNoneDetail() }
+
+// SetHostsNoneDetail says "Add a machine you reach with ssh. If Kero isn't installed there, Kero offers to install it."
+// in the language of msgs.
+func (msgs Messages) SetHostsNoneDetail() string {
+	return Catalog.Format(msgs.locale, "setHostsNoneDetail", nil)
+}
+
+// SetHostsDocs says "Setting up hosts"
+// in the language the app shows.
+func SetHostsDocs() string { return In(i18n.Locale()).SetHostsDocs() }
+
+// SetHostsDocs says "Setting up hosts"
+// in the language of msgs.
+func (msgs Messages) SetHostsDocs() string {
+	return Catalog.Format(msgs.locale, "setHostsDocs", nil)
+}
+
+// SetHostAdd says "Add a Host"
+// in the language the app shows.
+func SetHostAdd() string { return In(i18n.Locale()).SetHostAdd() }
+
+// SetHostAdd says "Add a Host"
+// in the language of msgs.
+func (msgs Messages) SetHostAdd() string {
+	return Catalog.Format(msgs.locale, "setHostAdd", nil)
+}
+
+// SetHostAddDetail says "me@devbox or ssh://me@devbox:2222 over SSH, as ssh takes it with your ~/.ssh/config; wsl://Ubuntu for a WSL distribut…"
+// in the language the app shows.
+func SetHostAddDetail() string { return In(i18n.Locale()).SetHostAddDetail() }
+
+// SetHostAddDetail says "me@devbox or ssh://me@devbox:2222 over SSH, as ssh takes it with your ~/.ssh/config; wsl://Ubuntu for a WSL distribut…"
+// in the language of msgs.
+func (msgs Messages) SetHostAddDetail() string {
+	return Catalog.Format(msgs.locale, "setHostAddDetail", nil)
+}
+
+// SetHostAddressPlaceholder says "me@devbox"
+// in the language the app shows.
+func SetHostAddressPlaceholder() string { return In(i18n.Locale()).SetHostAddressPlaceholder() }
+
+// SetHostAddressPlaceholder says "me@devbox"
+// in the language of msgs.
+func (msgs Messages) SetHostAddressPlaceholder() string {
+	return Catalog.Format(msgs.locale, "setHostAddressPlaceholder", nil)
+}
+
+// SetHostNamePlaceholder says "Name: {name}"
+// in the language the app shows.
+func SetHostNamePlaceholder(name string) string {
+	return In(i18n.Locale()).SetHostNamePlaceholder(name)
+}
+
+// SetHostNamePlaceholder says "Name: {name}"
+// in the language of msgs.
+func (msgs Messages) SetHostNamePlaceholder(name string) string {
+	return Catalog.Format(msgs.locale, "setHostNamePlaceholder", map[string]any{"name": name})
+}
+
+// SetHostNameTaken says "There's a host named {name} already"
+// in the language the app shows.
+func SetHostNameTaken(name string) string { return In(i18n.Locale()).SetHostNameTaken(name) }
+
+// SetHostNameTaken says "There's a host named {name} already"
+// in the language of msgs.
+func (msgs Messages) SetHostNameTaken(name string) string {
+	return Catalog.Format(msgs.locale, "setHostNameTaken", map[string]any{"name": name})
+}
+
+// SetHostNeedsAddress says "Type the host's address"
+// in the language the app shows.
+func SetHostNeedsAddress() string { return In(i18n.Locale()).SetHostNeedsAddress() }
+
+// SetHostNeedsAddress says "Type the host's address"
+// in the language of msgs.
+func (msgs Messages) SetHostNeedsAddress() string {
+	return Catalog.Format(msgs.locale, "setHostNeedsAddress", nil)
+}
+
+// SetHostRemoteControl says "Remote Control"
+// in the language the app shows.
+func SetHostRemoteControl() string { return In(i18n.Locale()).SetHostRemoteControl() }
+
+// SetHostRemoteControl says "Remote Control"
+// in the language of msgs.
+func (msgs Messages) SetHostRemoteControl() string {
+	return Catalog.Format(msgs.locale, "setHostRemoteControl", nil)
+}
+
+// SetHostRemoteControlDetail says "Let programs on {host} show sessions and run the app's actions (kero focus, kero do)"
+// in the language the app shows.
+func SetHostRemoteControlDetail(host string) string {
+	return In(i18n.Locale()).SetHostRemoteControlDetail(host)
+}
+
+// SetHostRemoteControlDetail says "Let programs on {host} show sessions and run the app's actions (kero focus, kero do)"
+// in the language of msgs.
+func (msgs Messages) SetHostRemoteControlDetail(host string) string {
+	return Catalog.Format(msgs.locale, "setHostRemoteControlDetail", map[string]any{"host": host})
+}
+
+// SetListenTitle says "This Computer as a Host"
+// in the language the app shows.
+func SetListenTitle() string { return In(i18n.Locale()).SetListenTitle() }
+
+// SetListenTitle says "This Computer as a Host"
+// in the language of msgs.
+func (msgs Messages) SetListenTitle() string {
+	return Catalog.Format(msgs.locale, "setListenTitle", nil)
+}
+
+// SetListen says "Let other machines connect"
+// in the language the app shows.
+func SetListen() string { return In(i18n.Locale()).SetListen() }
+
+// SetListen says "Let other machines connect"
+// in the language of msgs.
+func (msgs Messages) SetListen() string {
+	return Catalog.Format(msgs.locale, "setListen", nil)
+}
+
+// SetListenDetail says "kerod listens at this computer's Tailscale addresses, for Kero on your other machines. Only your Tailscale account ma…"
+// in the language the app shows.
+func SetListenDetail() string { return In(i18n.Locale()).SetListenDetail() }
+
+// SetListenDetail says "kerod listens at this computer's Tailscale addresses, for Kero on your other machines. Only your Tailscale account ma…"
+// in the language of msgs.
+func (msgs Messages) SetListenDetail() string {
+	return Catalog.Format(msgs.locale, "setListenDetail", nil)
+}
+
+// SetListenOn says "Add this computer as a host on your other machines at this address. Only your Tailscale account may connect."
+// in the language the app shows.
+func SetListenOn() string { return In(i18n.Locale()).SetListenOn() }
+
+// SetListenOn says "Add this computer as a host on your other machines at this address. Only your Tailscale account may connect."
+// in the language of msgs.
+func (msgs Messages) SetListenOn() string {
+	return Catalog.Format(msgs.locale, "setListenOn", nil)
+}
+
+// SetListenNoTailscale says "Tailscale isn't running here: kerod listens once it is."
+// in the language the app shows.
+func SetListenNoTailscale() string { return In(i18n.Locale()).SetListenNoTailscale() }
+
+// SetListenNoTailscale says "Tailscale isn't running here: kerod listens once it is."
+// in the language of msgs.
+func (msgs Messages) SetListenNoTailscale() string {
+	return Catalog.Format(msgs.locale, "setListenNoTailscale", nil)
+}
+
+// SetRemoteUpdates says "Let them update Kero here"
+// in the language the app shows.
+func SetRemoteUpdates() string { return In(i18n.Locale()).SetRemoteUpdates() }
+
+// SetRemoteUpdates says "Let them update Kero here"
+// in the language of msgs.
+func (msgs Messages) SetRemoteUpdates() string {
+	return Catalog.Format(msgs.locale, "setRemoteUpdates", nil)
+}
+
+// SetRemoteUpdatesDetail says "Kero on your other machines can update this app to its version. The app relaunches, and the programs running in its s…"
+// in the language the app shows.
+func SetRemoteUpdatesDetail() string { return In(i18n.Locale()).SetRemoteUpdatesDetail() }
+
+// SetRemoteUpdatesDetail says "Kero on your other machines can update this app to its version. The app relaunches, and the programs running in its s…"
+// in the language of msgs.
+func (msgs Messages) SetRemoteUpdatesDetail() string {
+	return Catalog.Format(msgs.locale, "setRemoteUpdatesDetail", nil)
+}
+
+// SetHostSettingsSplit says "A host's own settings"
+// in the language the app shows.
+func SetHostSettingsSplit() string { return In(i18n.Locale()).SetHostSettingsSplit() }
+
+// SetHostSettingsSplit says "A host's own settings"
+// in the language of msgs.
+func (msgs Messages) SetHostSettingsSplit() string {
+	return Catalog.Format(msgs.locale, "setHostSettingsSplit", nil)
+}
+
+// SetHostSettingsSplitDetail says "The shell, environment, scrollback and session restore of a host's sessions come from its own configuration: run kero…"
+// in the language the app shows.
+func SetHostSettingsSplitDetail() string { return In(i18n.Locale()).SetHostSettingsSplitDetail() }
+
+// SetHostSettingsSplitDetail says "The shell, environment, scrollback and session restore of a host's sessions come from its own configuration: run kero…"
+// in the language of msgs.
+func (msgs Messages) SetHostSettingsSplitDetail() string {
+	return Catalog.Format(msgs.locale, "setHostSettingsSplitDetail", nil)
+}
+
+// SetShellThisComputer says "These apply to this computer's sessions. Each host's come from its own configuration (Settings › Hosts)."
+// in the language the app shows.
+func SetShellThisComputer() string { return In(i18n.Locale()).SetShellThisComputer() }
+
+// SetShellThisComputer says "These apply to this computer's sessions. Each host's come from its own configuration (Settings › Hosts)."
+// in the language of msgs.
+func (msgs Messages) SetShellThisComputer() string {
+	return Catalog.Format(msgs.locale, "setShellThisComputer", nil)
+}
+
+// ConfirmQuitAllHosts says "Sessions on other machines keep running."
+// in the language the app shows.
+func ConfirmQuitAllHosts() string { return In(i18n.Locale()).ConfirmQuitAllHosts() }
+
+// ConfirmQuitAllHosts says "Sessions on other machines keep running."
+// in the language of msgs.
+func (msgs Messages) ConfirmQuitAllHosts() string {
+	return Catalog.Format(msgs.locale, "confirmQuitAllHosts", nil)
+}
+
+// HostInstallTitle says "Install Kero on {host}?"
+// in the language the app shows.
+func HostInstallTitle(host string) string { return In(i18n.Locale()).HostInstallTitle(host) }
+
+// HostInstallTitle says "Install Kero on {host}?"
+// in the language of msgs.
+func (msgs Messages) HostInstallTitle(host string) string {
+	return Catalog.Format(msgs.locale, "hostInstallTitle", map[string]any{"host": host})
+}
+
+// HostInstallDetail says "Kero runs its install script on {host}: the server build of Kero goes in your home folder there (~/.local, or %LOCALA…"
+// in the language the app shows.
+func HostInstallDetail(host string) string { return In(i18n.Locale()).HostInstallDetail(host) }
+
+// HostInstallDetail says "Kero runs its install script on {host}: the server build of Kero goes in your home folder there (~/.local, or %LOCALA…"
+// in the language of msgs.
+func (msgs Messages) HostInstallDetail(host string) string {
+	return Catalog.Format(msgs.locale, "hostInstallDetail", map[string]any{"host": host})
+}
+
+// HostLinkRefused says "Kero opens only web links of {host}, not {scheme} ones"
+// in the language the app shows.
+func HostLinkRefused(host string, scheme string) string {
+	return In(i18n.Locale()).HostLinkRefused(host, scheme)
+}
+
+// HostLinkRefused says "Kero opens only web links of {host}, not {scheme} ones"
+// in the language of msgs.
+func (msgs Messages) HostLinkRefused(host string, scheme string) string {
+	return Catalog.Format(msgs.locale, "hostLinkRefused", map[string]any{"host": host, "scheme": scheme})
+}
+
+// HostManualDetail says "{host} runs Kero {version}, and this app is Kero {app}. Update Kero on {host} as you installed it, then restart its s…"
+// in the language the app shows.
+func HostManualDetail(host string, version string, app string) string {
+	return In(i18n.Locale()).HostManualDetail(host, version, app)
+}
+
+// HostManualDetail says "{host} runs Kero {version}, and this app is Kero {app}. Update Kero on {host} as you installed it, then restart its s…"
+// in the language of msgs.
+func (msgs Messages) HostManualDetail(host string, version string, app string) string {
+	return Catalog.Format(msgs.locale, "hostManualDetail", map[string]any{"host": host, "version": version, "app": app})
+}
+
+// HostNewerDetail says "{host} runs Kero {version}, newer than this app's {app}. Update this app to see and start the host's sessions."
+// in the language the app shows.
+func HostNewerDetail(host string, version string, app string) string {
+	return In(i18n.Locale()).HostNewerDetail(host, version, app)
+}
+
+// HostNewerDetail says "{host} runs Kero {version}, newer than this app's {app}. Update this app to see and start the host's sessions."
+// in the language of msgs.
+func (msgs Messages) HostNewerDetail(host string, version string, app string) string {
+	return Catalog.Format(msgs.locale, "hostNewerDetail", map[string]any{"host": host, "version": version, "app": app})
+}
+
+// HostSameAs says "This host's kerod is {other}'s, which the app shows already"
+// in the language the app shows.
+func HostSameAs(other string) string { return In(i18n.Locale()).HostSameAs(other) }
+
+// HostSameAs says "This host's kerod is {other}'s, which the app shows already"
+// in the language of msgs.
+func (msgs Messages) HostSameAs(other string) string {
+	return Catalog.Format(msgs.locale, "hostSameAs", map[string]any{"other": other})
+}
+
+// BrowserCantShow says "Can’t show the page"
+// in the language the app shows.
+func BrowserCantShow() string { return In(i18n.Locale()).BrowserCantShow() }
+
+// BrowserCantShow says "Can’t show the page"
+// in the language of msgs.
+func (msgs Messages) BrowserCantShow() string {
+	return Catalog.Format(msgs.locale, "browserCantShow", nil)
+}
+
+// BrowserBlank says "Type an address or a search above"
+// in the language the app shows.
+func BrowserBlank() string { return In(i18n.Locale()).BrowserBlank() }
+
+// BrowserBlank says "Type an address or a search above"
+// in the language of msgs.
+func (msgs Messages) BrowserBlank() string {
+	return Catalog.Format(msgs.locale, "browserBlank", nil)
+}
+
+// BrowserBack says "Back"
+// in the language the app shows.
+func BrowserBack() string { return In(i18n.Locale()).BrowserBack() }
+
+// BrowserBack says "Back"
+// in the language of msgs.
+func (msgs Messages) BrowserBack() string {
+	return Catalog.Format(msgs.locale, "browserBack", nil)
+}
+
+// BrowserForward says "Forward"
+// in the language the app shows.
+func BrowserForward() string { return In(i18n.Locale()).BrowserForward() }
+
+// BrowserForward says "Forward"
+// in the language of msgs.
+func (msgs Messages) BrowserForward() string {
+	return Catalog.Format(msgs.locale, "browserForward", nil)
+}
+
+// BrowserReload says "Reload"
+// in the language the app shows.
+func BrowserReload() string { return In(i18n.Locale()).BrowserReload() }
+
+// BrowserReload says "Reload"
+// in the language of msgs.
+func (msgs Messages) BrowserReload() string {
+	return Catalog.Format(msgs.locale, "browserReload", nil)
+}
+
+// BrowserStop says "Stop"
+// in the language the app shows.
+func BrowserStop() string { return In(i18n.Locale()).BrowserStop() }
+
+// BrowserStop says "Stop"
+// in the language of msgs.
+func (msgs Messages) BrowserStop() string {
+	return Catalog.Format(msgs.locale, "browserStop", nil)
+}
+
+// BrowserAddress says "Address or search"
+// in the language the app shows.
+func BrowserAddress() string { return In(i18n.Locale()).BrowserAddress() }
+
+// BrowserAddress says "Address or search"
+// in the language of msgs.
+func (msgs Messages) BrowserAddress() string {
+	return Catalog.Format(msgs.locale, "browserAddress", nil)
+}
+
+// WorktreeTitle says "New Session in Worktree"
+// in the language the app shows.
+func WorktreeTitle() string { return In(i18n.Locale()).WorktreeTitle() }
+
+// WorktreeTitle says "New Session in Worktree"
+// in the language of msgs.
+func (msgs Messages) WorktreeTitle() string {
+	return Catalog.Format(msgs.locale, "worktreeTitle", nil)
+}
+
+// WorktreeDetailDefault says "Kero checks out a new branch from the default branch in a folder of its own, so the session’s agent works apart fro…"
+// in the language the app shows.
+func WorktreeDetailDefault() string { return In(i18n.Locale()).WorktreeDetailDefault() }
+
+// WorktreeDetailDefault says "Kero checks out a new branch from the default branch in a folder of its own, so the session’s agent works apart fro…"
+// in the language of msgs.
+func (msgs Messages) WorktreeDetailDefault() string {
+	return Catalog.Format(msgs.locale, "worktreeDetailDefault", nil)
+}
+
+// WorktreeDetailCurrent says "Kero checks out a new branch from the current branch in a folder of its own, so the session’s agent works apart fro…"
+// in the language the app shows.
+func WorktreeDetailCurrent() string { return In(i18n.Locale()).WorktreeDetailCurrent() }
+
+// WorktreeDetailCurrent says "Kero checks out a new branch from the current branch in a folder of its own, so the session’s agent works apart fro…"
+// in the language of msgs.
+func (msgs Messages) WorktreeDetailCurrent() string {
+	return Catalog.Format(msgs.locale, "worktreeDetailCurrent", nil)
+}
+
+// WorktreeBranch says "Branch name"
+// in the language the app shows.
+func WorktreeBranch() string { return In(i18n.Locale()).WorktreeBranch() }
+
+// WorktreeBranch says "Branch name"
+// in the language of msgs.
+func (msgs Messages) WorktreeBranch() string {
+	return Catalog.Format(msgs.locale, "worktreeBranch", nil)
+}
+
+// WorktreeCreate says "Create"
+// in the language the app shows.
+func WorktreeCreate() string { return In(i18n.Locale()).WorktreeCreate() }
+
+// WorktreeCreate says "Create"
+// in the language of msgs.
+func (msgs Messages) WorktreeCreate() string {
+	return Catalog.Format(msgs.locale, "worktreeCreate", nil)
+}
+
+// WorktreeRemoveTitle says "Remove the worktree of “{name}” too?"
+// in the language the app shows.
+func WorktreeRemoveTitle(name string) string { return In(i18n.Locale()).WorktreeRemoveTitle(name) }
+
+// WorktreeRemoveTitle says "Remove the worktree of “{name}” too?"
+// in the language of msgs.
+func (msgs Messages) WorktreeRemoveTitle(name string) string {
+	return Catalog.Format(msgs.locale, "worktreeRemoveTitle", map[string]any{"name": name})
+}
+
+// WorktreeRemoveMerged says "Its folder {path} goes, and its branch {branch}, which is merged."
+// in the language the app shows.
+func WorktreeRemoveMerged(path string, branch string) string {
+	return In(i18n.Locale()).WorktreeRemoveMerged(path, branch)
+}
+
+// WorktreeRemoveMerged says "Its folder {path} goes, and its branch {branch}, which is merged."
+// in the language of msgs.
+func (msgs Messages) WorktreeRemoveMerged(path string, branch string) string {
+	return Catalog.Format(msgs.locale, "worktreeRemoveMerged", map[string]any{"path": path, "branch": branch})
+}
+
+// WorktreeRemoveUnmerged says "Its folder {path} goes. Its branch {branch} stays, with its commits."
+// in the language the app shows.
+func WorktreeRemoveUnmerged(path string, branch string) string {
+	return In(i18n.Locale()).WorktreeRemoveUnmerged(path, branch)
+}
+
+// WorktreeRemoveUnmerged says "Its folder {path} goes. Its branch {branch} stays, with its commits."
+// in the language of msgs.
+func (msgs Messages) WorktreeRemoveUnmerged(path string, branch string) string {
+	return Catalog.Format(msgs.locale, "worktreeRemoveUnmerged", map[string]any{"path": path, "branch": branch})
+}
+
+// WorktreeRemoveDirty says "{count, plural, one {# changed file} other {# changed files}} in {path} will be lost. Its branch {branch} stays, with…"
+// in the language the app shows.
+func WorktreeRemoveDirty(count int, path string, branch string) string {
+	return In(i18n.Locale()).WorktreeRemoveDirty(count, path, branch)
+}
+
+// WorktreeRemoveDirty says "{count, plural, one {# changed file} other {# changed files}} in {path} will be lost. Its branch {branch} stays, with…"
+// in the language of msgs.
+func (msgs Messages) WorktreeRemoveDirty(count int, path string, branch string) string {
+	return Catalog.Format(msgs.locale, "worktreeRemoveDirty", map[string]any{"count": count, "path": path, "branch": branch})
+}
+
+// WorktreeRemove says "Remove Worktree"
+// in the language the app shows.
+func WorktreeRemove() string { return In(i18n.Locale()).WorktreeRemove() }
+
+// WorktreeRemove says "Remove Worktree"
+// in the language of msgs.
+func (msgs Messages) WorktreeRemove() string {
+	return Catalog.Format(msgs.locale, "worktreeRemove", nil)
+}
+
+// WorktreeKeep says "Keep Worktree"
+// in the language the app shows.
+func WorktreeKeep() string { return In(i18n.Locale()).WorktreeKeep() }
+
+// WorktreeKeep says "Keep Worktree"
+// in the language of msgs.
+func (msgs Messages) WorktreeKeep() string {
+	return Catalog.Format(msgs.locale, "worktreeKeep", nil)
+}
+
+// WorktreeRemoveAnyway says "Remove Anyway"
+// in the language the app shows.
+func WorktreeRemoveAnyway() string { return In(i18n.Locale()).WorktreeRemoveAnyway() }
+
+// WorktreeRemoveAnyway says "Remove Anyway"
+// in the language of msgs.
+func (msgs Messages) WorktreeRemoveAnyway() string {
+	return Catalog.Format(msgs.locale, "worktreeRemoveAnyway", nil)
+}
+
+// SetSessionHistory says "Session history"
+// in the language the app shows.
+func SetSessionHistory() string { return In(i18n.Locale()).SetSessionHistory() }
+
+// SetSessionHistory says "Session history"
+// in the language of msgs.
+func (msgs Messages) SetSessionHistory() string {
+	return Catalog.Format(msgs.locale, "setSessionHistory", nil)
+}
+
+// SetSessionHistoryDetail says "List the coding agents' ended conversations in the sidebar, to resume them later or archive them."
+// in the language the app shows.
+func SetSessionHistoryDetail() string { return In(i18n.Locale()).SetSessionHistoryDetail() }
+
+// SetSessionHistoryDetail says "List the coding agents' ended conversations in the sidebar, to resume them later or archive them."
+// in the language of msgs.
+func (msgs Messages) SetSessionHistoryDetail() string {
+	return Catalog.Format(msgs.locale, "setSessionHistoryDetail", nil)
+}
+
+// EndedTitle says "Ended"
+// in the language the app shows.
+func EndedTitle() string { return In(i18n.Locale()).EndedTitle() }
+
+// EndedTitle says "Ended"
+// in the language of msgs.
+func (msgs Messages) EndedTitle() string {
+	return Catalog.Format(msgs.locale, "endedTitle", nil)
+}
+
+// EndedArchived says "Archived"
+// in the language the app shows.
+func EndedArchived() string { return In(i18n.Locale()).EndedArchived() }
+
+// EndedArchived says "Archived"
+// in the language of msgs.
+func (msgs Messages) EndedArchived() string {
+	return Catalog.Format(msgs.locale, "endedArchived", nil)
+}
+
+// EndedArchive says "Archive"
+// in the language the app shows.
+func EndedArchive() string { return In(i18n.Locale()).EndedArchive() }
+
+// EndedArchive says "Archive"
+// in the language of msgs.
+func (msgs Messages) EndedArchive() string {
+	return Catalog.Format(msgs.locale, "endedArchive", nil)
+}
+
+// EndedShowAll says "Show all {n}"
+// in the language the app shows.
+func EndedShowAll(n int) string { return In(i18n.Locale()).EndedShowAll(n) }
+
+// EndedShowAll says "Show all {n}"
+// in the language of msgs.
+func (msgs Messages) EndedShowAll(n int) string {
+	return Catalog.Format(msgs.locale, "endedShowAll", map[string]any{"n": n})
+}
+
+// EndedResume says "Resume"
+// in the language the app shows.
+func EndedResume() string { return In(i18n.Locale()).EndedResume() }
+
+// EndedResume says "Resume"
+// in the language of msgs.
+func (msgs Messages) EndedResume() string {
+	return Catalog.Format(msgs.locale, "endedResume", nil)
+}
+
+// EndedRestore says "Restore"
+// in the language the app shows.
+func EndedRestore() string { return In(i18n.Locale()).EndedRestore() }
+
+// EndedRestore says "Restore"
+// in the language of msgs.
+func (msgs Messages) EndedRestore() string {
+	return Catalog.Format(msgs.locale, "endedRestore", nil)
+}
+
+// EndedDelete says "Delete"
+// in the language the app shows.
+func EndedDelete() string { return In(i18n.Locale()).EndedDelete() }
+
+// EndedDelete says "Delete"
+// in the language of msgs.
+func (msgs Messages) EndedDelete() string {
+	return Catalog.Format(msgs.locale, "endedDelete", nil)
+}
+
+// EndedArchiveAll says "Archive All"
+// in the language the app shows.
+func EndedArchiveAll() string { return In(i18n.Locale()).EndedArchiveAll() }
+
+// EndedArchiveAll says "Archive All"
+// in the language of msgs.
+func (msgs Messages) EndedArchiveAll() string {
+	return Catalog.Format(msgs.locale, "endedArchiveAll", nil)
+}
+
+// EndedDeleteAll says "Delete All…"
+// in the language the app shows.
+func EndedDeleteAll() string { return In(i18n.Locale()).EndedDeleteAll() }
+
+// EndedDeleteAll says "Delete All…"
+// in the language of msgs.
+func (msgs Messages) EndedDeleteAll() string {
+	return Catalog.Format(msgs.locale, "endedDeleteAll", nil)
+}
+
+// EndedDeleteAllTitle says "Delete {n} archived conversations?"
+// in the language the app shows.
+func EndedDeleteAllTitle(n int) string { return In(i18n.Locale()).EndedDeleteAllTitle(n) }
+
+// EndedDeleteAllTitle says "Delete {n} archived conversations?"
+// in the language of msgs.
+func (msgs Messages) EndedDeleteAllTitle(n int) string {
+	return Catalog.Format(msgs.locale, "endedDeleteAllTitle", map[string]any{"n": n})
+}
+
+// EndedDeleteAllDetail says "Kero forgets them; each agent keeps its own history of the conversation."
+// in the language the app shows.
+func EndedDeleteAllDetail() string { return In(i18n.Locale()).EndedDeleteAllDetail() }
+
+// EndedDeleteAllDetail says "Kero forgets them; each agent keeps its own history of the conversation."
+// in the language of msgs.
+func (msgs Messages) EndedDeleteAllDetail() string {
+	return Catalog.Format(msgs.locale, "endedDeleteAllDetail", nil)
+}
+
+// EndedSetUpSkill says "Set up Kero's skill for your agents to list their ended conversations here"
+// in the language the app shows.
+func EndedSetUpSkill() string { return In(i18n.Locale()).EndedSetUpSkill() }
+
+// EndedSetUpSkill says "Set up Kero's skill for your agents to list their ended conversations here"
+// in the language of msgs.
+func (msgs Messages) EndedSetUpSkill() string {
+	return Catalog.Format(msgs.locale, "endedSetUpSkill", nil)
+}
+
+// ActionQuickTerminal says "Quick Terminal"
+// in the language the app shows.
+func ActionQuickTerminal() string { return In(i18n.Locale()).ActionQuickTerminal() }
+
+// ActionQuickTerminal says "Quick Terminal"
+// in the language of msgs.
+func (msgs Messages) ActionQuickTerminal() string {
+	return Catalog.Format(msgs.locale, "actionQuickTerminal", nil)
+}
+
+// ToastGlobalShortcutFailed says "Couldn’t use {keys} for the quick terminal: {error}"
+// in the language the app shows.
+func ToastGlobalShortcutFailed(keys string, error string) string {
+	return In(i18n.Locale()).ToastGlobalShortcutFailed(keys, error)
+}
+
+// ToastGlobalShortcutFailed says "Couldn’t use {keys} for the quick terminal: {error}"
+// in the language of msgs.
+func (msgs Messages) ToastGlobalShortcutFailed(keys string, error string) string {
+	return Catalog.Format(msgs.locale, "toastGlobalShortcutFailed", map[string]any{"keys": keys, "error": error})
+}
+
+// SetShortcutGlobal says "Works in every app"
+// in the language the app shows.
+func SetShortcutGlobal() string { return In(i18n.Locale()).SetShortcutGlobal() }
+
+// SetShortcutGlobal says "Works in every app"
+// in the language of msgs.
+func (msgs Messages) SetShortcutGlobal() string {
+	return Catalog.Format(msgs.locale, "setShortcutGlobal", nil)
 }

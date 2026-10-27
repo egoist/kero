@@ -12,8 +12,9 @@ var (
 )
 
 // Login returns the user's login shell: the account's (dscl on macOS,
-// /etc/passwd elsewhere, PowerShell on Windows), whatever $SHELL this
-// process inherited from whoever started it, else $SHELL, else zsh.
+// NSS elsewhere, as getent passwd reads it, PowerShell on Windows),
+// whatever $SHELL this process inherited from whoever started it, else
+// $SHELL, else zsh.
 func Login() string {
 	once.Do(func() {
 		login = account()

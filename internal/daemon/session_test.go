@@ -2,7 +2,9 @@ package daemon
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -294,4 +296,29 @@ func TestAgentPane(t *testing.T) {
 	// Run under a pane's shell: that pane, whatever the others.
 	a.shellPID = os.Getppid()
 	check("under a's shell", os.Getpid(), "", "a", false)
+
+	// Under Codex's app server that panes share, which a's Codex started
+	// under a's shell: not a, which has its session, but the one pane yet
+	// to tell its own (kero#237).
+	if runtime.GOOS == "windows" {
+		return
+	}
+	d.panes["c"].mu.Lock()
+	d.panes["c"].info.Status = proto.Exited
+	d.panes["c"].mu.Unlock()
+	server := exec.Command("sh", "-c", "sleep 30; :", "codex", "app-server", "--listen", "unix://", "--managed-daemon")
+	if err := server.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { server.Process.Kill(); server.Wait() })
+	// Its command line shows once it has exec'd, which Start may return
+	// before.
+	for i := 0; !sharedService(server.Process.Pid); i++ {
+		if i == 5000 {
+			t.Fatalf("the app server shows %q", procArgs(server.Process.Pid))
+		}
+		time.Sleep(time.Millisecond)
+	}
+	a.shellPID = os.Getpid()
+	check("under the app server a's Codex started", server.Process.Pid, "", "b", true)
 }

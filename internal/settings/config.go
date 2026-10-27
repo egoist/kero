@@ -9,7 +9,9 @@ import (
 	"strings"
 
 	"kero/internal/actions"
+	"kero/internal/adblock"
 	"kero/internal/proto"
+	"kero/internal/remote"
 )
 
 // kero's configuration is a file of lines `key = value`, as Ghostty's:
@@ -108,9 +110,13 @@ var keys = []key{
 		[]string{"current", "project", "home"}, []string{"current", "project", "home"}),
 	choiceKey("session-name", "what names a session you or an agent didn't: the program in the pane you're in, else in the one that most needs you; the program in the one that most needs you; or the first pane's folder",
 		func(s *Settings) *string { return &s.SessionName }, proto.NameFocused, proto.NameLead, proto.NameFolder),
+	boolKey("focus-follows-mouse", "focus the pane the pointer moves into", func(s *Settings) *bool { return &s.FocusFollowsMouse }),
 	boolKey("confirm-close", "ask before closing a pane a program runs in", func(s *Settings) *bool { return &s.ConfirmClose }),
 	boolKey("restore-sessions", "start sessions again after kerod restarts, as after a reboot", func(s *Settings) *bool { return &s.RestoreSessions }),
 	boolKey("resume-agents", "as sessions start again, resume the conversation of the coding agent each pane ran", func(s *Settings) *bool { return &s.ResumeAgents }),
+	boolKey("session-history", "list the coding agents' ended conversations in the sidebar, to resume or archive", func(s *Settings) *bool { return &s.SessionHistory }),
+	choiceKey("macos-show-app-icon", "where Kero's icon shows; closing the window keeps Kero running in the menu bar while it shows there. Windows and Linux always show it in the notification area",
+		func(s *Settings) *string { return &s.AppIcon }, AppIcons...),
 
 	choiceKey("window-theme", "the app's appearance", func(s *Settings) *string { return &s.Appearance }, "system", "light", "dark"),
 	choiceKey("language", "the app's language; system follows the system's", func(s *Settings) *string { return &s.Language }, append([]string{"system"}, Languages...)...),
@@ -125,6 +131,7 @@ var keys = []key{
 	boolKey("font-ligatures", "join characters as the font draws them", func(s *Settings) *bool { return &s.Ligatures }),
 	boolKey("font-thicken", "a heavier stroke, as Ghostty's", func(s *Settings) *bool { return &s.Thicken }),
 	numberKey("minimum-contrast", "the least contrast text keeps with its background, 1 (none) to 21, as Ghostty's", func(s *Settings) float64 { return float64(s.MinContrast) }, func(s *Settings, n float64) { s.MinContrast = float32(min(max(n, 1), 21)) }),
+	boolKey("dim-unfocused-terminals", "fade the terminals you're not in, when a session has several panes", func(s *Settings) *bool { return &s.DimUnfocused }),
 	{name: "theme", doc: "terminal colors: kero, a Ghostty theme, or light:<theme>,dark:<theme>",
 		get: func(s *Settings) []string {
 			if s.LightTheme == s.DarkTheme {
@@ -181,7 +188,100 @@ var keys = []key{
 	boolKey("dock-badge", "the number of sessions that need you", func(s *Settings) *bool { return &s.DockBadge }),
 	boolKey("dock-bounce", "once, when a session comes to need you", func(s *Settings) *bool { return &s.BounceDock }),
 
-	boolKey("remote-control", "kero do and kero focus drive the app", func(s *Settings) *bool { return &s.RemoteControl }),
+	boolKey("remote-control", "kero do, kero focus and kero browser drive the app", func(s *Settings) *bool { return &s.RemoteControl }),
+	{name: "host", doc: "another machine whose sessions the app shows, as name=address: [user@]host or ssh://… over SSH, wsl://distro, http(s)://… for kerod's tailnet listener; add remote-control after it to let its programs drive the app, and color=red, orange, amber, green, teal, blue, purple or pink to mark its sessions; repeat it", list: true,
+		get: func(s *Settings) []string {
+			var out []string
+			for _, h := range s.Hosts {
+				v := h.Name + "=" + h.Addr
+				if h.RemoteControl {
+					v += " remote-control"
+				}
+				if h.Color != "" {
+					v += " color=" + h.Color
+				}
+				out = append(out, v)
+			}
+			return out
+		},
+		set: func(s *Settings, v []string) error {
+			s.Hosts = nil
+			var bad []string
+			for _, line := range v {
+				h, err := ParseHost(line)
+				if err == nil && s.Host(h.Name) != nil {
+					err = fmt.Errorf("%q is named twice", h.Name)
+				}
+				if err != nil {
+					bad = append(bad, err.Error())
+					continue
+				}
+				s.Hosts = append(s.Hosts, h)
+			}
+			if bad != nil {
+				return fmt.Errorf("%s", strings.Join(bad, "; "))
+			}
+			return nil
+		}},
+	{name: "listen", doc: "let Kero on other machines reach this one's sessions: tailnet://:7373 on its Tailscale addresses, tailnet-serve:// for Tailscale Serve; repeat it", list: true,
+		get: func(s *Settings) []string { return slices.Clone(s.Listen) },
+		set: func(s *Settings, v []string) error {
+			s.Listen = nil
+			var bad []string
+			for _, l := range v {
+				if _, err := remote.ParseListen(l); err != nil {
+					bad = append(bad, err.Error())
+					continue
+				}
+				s.Listen = append(s.Listen, strings.TrimSpace(l))
+			}
+			if bad != nil {
+				return fmt.Errorf("%s", strings.Join(bad, "; "))
+			}
+			return nil
+		}},
+	{name: "listen-allow", doc: "who besides this machine's owner may connect to a listener: a tailnet login, tag:name, or * for anyone on the tailnet; repeat it", list: true,
+		get: func(s *Settings) []string { return slices.Clone(s.ListenAllow) },
+		set: func(s *Settings, v []string) error {
+			s.ListenAllow = nil
+			for _, a := range v {
+				if a = strings.TrimSpace(a); a != "" {
+					s.ListenAllow = append(s.ListenAllow, a)
+				}
+			}
+			return nil
+		}},
+	boolKey("remote-updates", "let Kero on another machine that connects update the Kero app here to its version, which restarts it", func(s *Settings) *bool { return &s.RemoteUpdates }),
+	boolKey("git-status", "show the git branch and changes of each session", func(s *Settings) *bool { return &s.GitStatus }),
+	choiceKey("worktree-base", "what a session's own git worktree branches from: the repository's default branch, or the branch of the session you're in", func(s *Settings) *string { return &s.WorktreeBase }, "default", "current"),
+	stringKey("worktree-dir", "where sessions' own git worktrees go, each under its repository's name; empty for .kero/worktrees in the repository", func(s *Settings) *string { return &s.WorktreeDir }),
+	choiceKey("diff-layout", "the changes panel's diffs: unified while the panel is narrow and side by side once it's wide, or always one", func(s *Settings) *string { return &s.DiffLayout }, "auto", "unified", "split"),
+	boolKey("browser-block-ads", "block ads and trackers in browser panes, with the browser-filter-list lists", func(s *Settings) *bool { return &s.BlockAds }),
+	{name: "browser-filter-list", doc: "a filter list browser-block-ads blocks with: " + strings.Join(adListIDs(), ", ") + ", or a list's https URL; repeat it, and leave it empty for none", list: true,
+		get: func(s *Settings) []string {
+			if len(s.AdLists) == 0 {
+				return []string{""} // none, rather than the defaults
+			}
+			return slices.Clone(s.AdLists)
+		},
+		set: func(s *Settings, v []string) error {
+			s.AdLists = []string{}
+			var bad []string
+			for _, id := range v {
+				switch _, ok := adblock.Find(id); {
+				case id == "":
+					s.AdLists = s.AdLists[:0] // an empty value clears the lists before it
+				case !ok:
+					bad = append(bad, fmt.Sprintf("%q is no list", id))
+				case !slices.Contains(s.AdLists, id):
+					s.AdLists = append(s.AdLists, id)
+				}
+			}
+			if bad != nil {
+				return fmt.Errorf("%s", strings.Join(bad, "; "))
+			}
+			return nil
+		}},
 	{name: "keybind", doc: "<keys>=<action>, over the defaults, as cmd+shift+d=pane.split.down; <keys>=unbind frees keys; see kero actions", list: true,
 		get: func(s *Settings) []string {
 			var out []string
@@ -210,7 +310,9 @@ var keys = []key{
 					bad = append(bad, fmt.Sprintf("%q is not <keys>=<action>", b))
 					continue
 				}
-				keys, id := accelerator(b[:i]), strings.TrimSpace(b[i+1:])
+				// Ghostty marks a global shortcut global:; kero's actions
+				// know which are.
+				keys, id := accelerator(strings.TrimPrefix(strings.TrimSpace(b[:i]), "global:")), strings.TrimSpace(b[i+1:])
 				if id == "unbind" {
 					for _, a := range actions.All {
 						if strings.EqualFold(actions.Keys(a, sc), keys) {
@@ -233,6 +335,14 @@ var keys = []key{
 			}
 			return nil
 		}},
+}
+
+func adListIDs() []string {
+	var ids []string
+	for _, s := range adblock.Catalog {
+		ids = append(ids, s.ID)
+	}
+	return ids
 }
 
 func findKey(name string) *key {

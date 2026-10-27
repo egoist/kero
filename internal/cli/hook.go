@@ -24,9 +24,9 @@ import (
 
 // hookCmd is what an agent runs as its session starts (the hook `kero
 // skill setup` installs): it tells the agent that it runs in Kero, in
-// which session and pane, and to name the session after its task; and
-// tells kerod the agent's own session, to resume after a restart. It never
-// fails the agent: outside Kero, or on any trouble, it says nothing.
+// which session and pane, and tells kerod the agent's own session, to
+// resume after a restart. It never fails the agent: outside Kero, or on
+// any trouble, it says nothing.
 func hookCmd(args []string) error {
 	agent := ""
 	if len(args) > 0 {
@@ -90,7 +90,7 @@ func hookCmd(args []string) error {
 
 // forgetAgentName drops the name an agent gave session sid, as a new
 // conversation starts in its first pane, the one the name came from: the
-// session shows the pane's title until the new agent names its own task.
+// session shows the pane's title again.
 func forgetAgentName(c *client.Client, pane, sid string) {
 	var st proto.State
 	if c.Call("state", nil, &st) != nil {
@@ -165,12 +165,6 @@ func hookContext(c *client.Client, pane, sid string, away bool) string {
 			fmt.Fprintf(&b, " This conversation named the session %q: leave its name alone.", s.Name)
 		case s.Name != "":
 			fmt.Fprintf(&b, " The user knows this session as %q: leave its name alone.", s.Name)
-		case s.Panes[0].ID != pane:
-			b.WriteString(" You run in one of the session's other panes: leave its name alone.")
-		default:
-			fmt.Fprintf(&b, " The session has no name yet. As soon as you know your task, name the session after it "+
-				"in a few words joined by dashes, so the user finds it in Kero's sidebar: `kero rename %s fix-login-redirect`. "+
-				"Do it once, without asking or mentioning it.", sid)
 		}
 	}
 	return b.String()

@@ -1,5 +1,4 @@
 {
-  "extends": "./.void/tsconfig.json",
   "compilerOptions": {
     "target": "ES2022",
     "module": "ESNext",
@@ -7,22 +6,10 @@
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "types": [
-      "void/env",
-      "vite/client"
-    ],
+    "noEmit": true,
+    "types": ["vite/client", "node"],
     "jsx": "preserve",
     "jsxImportSource": "solid-js"
   },
-  "include": [
-    "src",
-    "pages",
-    "routes",
-    "middleware",
-    "crons",
-    "queues",
-    "db",
-    "components",
-    "lib"
-  ]
+  "include": ["src", "plugins", "vite.config.ts"]
 }

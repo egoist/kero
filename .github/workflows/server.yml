@@ -1,0 +1,137 @@
+name: Server build
+
+# The server build of Kero (cmd/kero-server), for machines whose sessions
+# the app shows (Settings › Hosts): built for every platform as a release
+# publishes it (scripts/build-server.sh), then each archive installed as a
+# user gets it, by its install script, from a mirror of the release
+# (KERO_RELEASES), and run, on its own platform. CI runs it on pull
+# requests; release.yml before it signs what it built.
+on:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: Build
+        run: sh scripts/build-server.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: server
+          path: |
+            build/server/*.tar.gz
+            build/server/*.zip
+            build/server/install-server.sh
+            build/server/install-server.ps1
+
+  check:
+    needs: build
+    name: Check (${{ matrix.os }}/${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: linux, arch: amd64, runner: ubuntu-latest }
+          - { os: linux, arch: arm64, runner: ubuntu-24.04-arm }
+          - { os: darwin, arch: arm64, runner: macos-latest }
+          # Intel's, through Rosetta, which uname -m then tells.
+          - { os: darwin, arch: amd64, runner: macos-latest, as: arch -x86_64 }
+          - { os: windows, arch: amd64, runner: windows-latest }
+          - { os: windows, arch: arm64, runner: windows-11-arm }
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v4
+        with:
+          name: server
+          path: build/server
+      - name: Install Rosetta
+        if: matrix.as != ''
+        run: sudo softwareupdate --install-rosetta --agree-to-license || true
+      - name: Install and run a session
+        if: matrix.os != 'windows'
+        shell: bash
+        run: |
+          set -eu
+          version="$(jq -r .version mygo.json)"
+          name="kero-server-$version-${{ matrix.os }}-${{ matrix.arch }}.tar.gz"
+          rel="$RUNNER_TEMP/releases/v$version"
+          mkdir -p "$rel"
+          cp "build/server/$name" "$rel/"
+          (cd "$rel" && shasum -a 256 "$name" > "$name.sha256")
+          export HOME="$RUNNER_TEMP/home" XDG_CACHE_HOME="$RUNNER_TEMP/cache"
+          mkdir -p "$HOME"
+          unset DISPLAY WAYLAND_DISPLAY
+          KERO_RELEASES="file://$RUNNER_TEMP/releases" ${{ matrix.as }} /bin/sh build/server/install-server.sh --no-service
+          kero="$HOME/.local/bin/kero"
+          "$kero" version
+          "$kero" new -n check -- sh -c 'echo kero-ok; sleep 300'
+          for i in $(seq 240); do
+            "$kero" read check | grep -q kero-ok && break
+            if [ "$i" = 240 ]; then
+              "$kero" read check
+              cat "$HOME/.config/kero/kerod.log" "$HOME/Library/Application Support/kero/kerod.log" 2>/dev/null || true
+              exit 1
+            fi
+            sleep 0.25
+          done
+          "$kero" daemon stop
+          # libghostty-vt came with the archive: none was downloaded.
+          test ! -e "$XDG_CACHE_HOME/mygo/natives"
+          test ! -e "$HOME/Library/Caches/mygo/natives"
+          sh build/server/install-server.sh --uninstall
+          test ! -e "$HOME/.local/lib/kero"
+      - name: Install and run a session
+        if: matrix.os == 'windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = (Get-Content mygo.json -Raw | ConvertFrom-Json).version
+          $name = "kero-server-$version-windows-${{ matrix.arch }}.zip"
+          $rel = Join-Path $env:RUNNER_TEMP "releases\v$version"
+          New-Item -ItemType Directory -Force $rel | Out-Null
+          Copy-Item "build/server/$name" $rel
+          $sum = (Get-FileHash (Join-Path $rel $name) -Algorithm SHA256).Hash.ToLower()
+          Set-Content -Encoding ascii -LiteralPath (Join-Path $rel "$name.sha256") -Value "$sum  $name"
+          $env:KERO_RELEASES = 'file:///' + ((Join-Path $env:RUNNER_TEMP releases) -replace '\\', '/')
+          # As kero hosts install runs it: Windows PowerShell, the script
+          # from memory.
+          $install = "& ([scriptblock]::Create((Get-Content -Raw build/server/install-server.ps1)))"
+          powershell -NoProfile -ExecutionPolicy Bypass -Command "$install -NoService"
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          $kero = Join-Path $env:LOCALAPPDATA 'Programs\kero-server\kero.exe'
+          & $kero version
+          # The ConPTY panes run in came with the archive.
+          foreach ($f in 'conpty.dll', 'OpenConsole.exe') {
+            if (-not (Test-Path (Join-Path $env:LOCALAPPDATA "Programs\kero-server\$f"))) { throw "no $f" }
+          }
+          & $kero new -n check -- powershell -NoProfile -Command 'Write-Output kero-ok; Start-Sleep 300'
+          $ok = $false
+          foreach ($i in 1..240) {
+            if ((& $kero read check) -match 'kero-ok') { $ok = $true; break }
+            Start-Sleep -Milliseconds 250
+          }
+          if (-not $ok) {
+            & $kero read check
+            Get-Content (Join-Path $env:APPDATA 'kero\kerod.log')
+            exit 1
+          }
+          # Task Scheduler takes the task kerod runs as.
+          & $kero daemon install-service
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          & $kero daemon status
+          & $kero daemon uninstall-service
+          & $kero daemon stop
+          # libghostty-vt came with the archive: none was downloaded.
+          if (Test-Path (Join-Path $env:LOCALAPPDATA 'mygo\natives')) { throw 'libghostty-vt was downloaded' }
+          powershell -NoProfile -ExecutionPolicy Bypass -Command "$install -Uninstall"
+          if (Test-Path (Join-Path $env:LOCALAPPDATA 'Programs\kero-server')) { throw 'the install stayed' }

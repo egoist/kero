@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"runtime"
+	"slices"
 	"time"
 
 	"github.com/egoist/mygo/ui"
@@ -24,6 +25,9 @@ const (
 	headerH = 2 * (barMid - cardGap)
 	cardGap = 8 // around the card
 	rowH    = 34
+	// rowInset is where a sidebar row's text starts: a session's name and
+	// its group's.
+	rowInset = 12
 )
 
 // chrome is where the sidebar's animation puts things, in whole pixels so
@@ -99,6 +103,16 @@ func (a *App) view(c *ui.Context) {
 	row.Children(func() {
 		w := a.chrome.sideW
 		side := ui.Row(c).Width(w).Shrink(0).AlignItems(ui.Stretch).ClipX()
+		if h := a.local(); h.conn == connReady && h.cl != nil && !a.prefs.SidebarHidden && !a.pal.open && !a.picker.open && (a.confirm == nil || !a.confirm.open) {
+			if files := side.DroppedFiles(); len(files) > 0 {
+				go a.openProjectDirs(h, h.cl, slices.Clone(files), true)
+			}
+			if side.FileDragOver() {
+				side.Background(pal.accent.Alpha(0.08)).Draw(func(p *ui.Painter, r ui.Rect) {
+					p.Stroke(ui.Rect{X: r.X + 4, Y: r.Y + 4, W: r.W - 8, H: r.H - 8}, pal.accent.Alpha(0.55), 8, 1)
+				})
+			}
+		}
 		side.Children(func() {
 			ui.Column(c).Width(a.prefs.SidebarWidth).Shrink(0).Margin(0, 0, 0, w-a.prefs.SidebarWidth).
 				Opacity(0.4 + 0.6*shown).Children(func() { a.sidebar(c, pal, bar) })
@@ -112,8 +126,19 @@ func (a *App) view(c *ui.Context) {
 			a.card(c, pal, bar, shown)
 		})
 	})
+	// A page staged for a screenshot takes the window's size, under its
+	// content, which hides it: at no opacity, it paints no hole there.
+	for id, e := range a.webs {
+		if e.staged && e.view != nil {
+			ui.Box(c.Key("staged-"+id)).Absolute().Left(0).Top(0).Right(0).Bottom(0).AlignItems(ui.Stretch).Opacity(0).Children(func() {
+				ui.WebView(c.Key("web"), e.view).Grow(1)
+			})
+		}
+	}
 	a.paletteView(c, pal)
+	a.pickerView(c, pal)
 	a.confirmView(c, pal)
+	a.worktreeView(c, pal)
 	// A preview that showed no more fades in anew next time.
 	if !a.previewShown {
 		a.previewKey = ""
@@ -136,7 +161,8 @@ func (a *App) view(c *ui.Context) {
 
 // resizeHandle is the sidebar's edge, which a drag moves.
 func (a *App) resizeHandle(c *ui.Context, pal *palette) {
-	h := ui.Box(c.Key("resize")).Absolute().Left(-4).Top(0).Bottom(0).Width(9).Cursor(ui.CursorResizeColumn)
+	// A drag leaves the keyboard in the pane the user is in.
+	h := ui.Box(c.Key("resize")).Absolute().Left(-4).Top(0).Bottom(0).Width(9).Cursor(ui.CursorResizeColumn).KeepFocus()
 	if dx, _, ok := h.Dragged(); ok {
 		if a.sideDrag == 0 {
 			a.sideDrag = a.prefs.SidebarWidth
@@ -234,16 +260,42 @@ func (a *App) sidebar(c *ui.Context, pal *palette, bar ui.TitleBar) {
 		iconButton(c, "hide-sidebar", sidebarIcon, a.tip(locales.SidebarHide(), "sidebar.toggle"), pal, a.toggleSidebar)
 		iconButton(c, "new-session", plusIcon, a.tip(locales.ActionNewSession(), "session.new"), pal, func() { a.newSession("") })
 	})
-	ui.Scroll(c.Key("sessions")).Grow(1).Padding(0, 10, 16, 10).Children(func() {
-		if !a.loaded {
-			return
+	// The space between and below the rows moves the window, as the top
+	// bar does.
+	ui.Scroll(c.Key("sessions")).Grow(1).Padding(0, 10, 16, 10).DragWindow().Children(func() {
+		n := 0  // the rows shown, for ⌘1–9 (Ctrl+1–9 elsewhere)
+		gi := 0 // the groups shown, the first of which sits higher
+		// This machine's projects first, unlabeled; then each host's,
+		// under its name.
+		if local := a.local(); local.loaded {
+			for _, g := range a.hostGroups(local) {
+				a.groupView(c, pal, g, gi, &n)
+				gi++
+			}
+			if len(a.st.Sessions) == 0 && local.conn == connReady && len(a.hosts) == 1 {
+				ui.Text(c, locales.SidebarNoSessions()).FontSize(12.5).TextColor(pal.textFaint).Padding(8, 10)
+			}
 		}
-		n := 0 // the rows shown, for ⌘1–9 (Ctrl+1–9 elsewhere)
-		for gi, g := range a.groups() {
-			a.groupView(c, pal, g, gi, &n)
+		// Then each host's, flat, tagged with its name: a host has a row
+		// of its own only while it needs one (hostNeedsRow).
+		for _, h := range a.hosts[1:] {
+			groups := a.hostGroups(h)
+			if a.hostNeedsRow(h) {
+				top := float32(18)
+				if gi == 0 {
+					top = 2
+				}
+				a.hostLine(c, pal, h, top)
+				gi++
+			}
+			for i, g := range groups {
+				g.first = i == 0
+				a.groupView(c, pal, g, gi, &n)
+				gi++
+			}
 		}
-		if len(a.st.Sessions) == 0 && a.conn == connReady {
-			ui.Text(c, locales.SidebarNoSessions()).FontSize(12.5).TextColor(pal.textFaint).Padding(8, 10)
+		if a.set.SessionHistory {
+			a.endedSections(c, pal)
 		}
 	})
 	a.sidebarFooter(c, pal)
@@ -251,8 +303,8 @@ func (a *App) sidebar(c *ui.Context, pal *palette, bar ui.TitleBar) {
 }
 
 func (a *App) groupView(c *ui.Context, pal *palette, g group, gi int, n *int) {
-	id := g.project.ID
-	collapsed := a.prefs.Collapsed[id]
+	id, key := g.project.ID, g.key()
+	collapsed := a.prefs.Collapsed[key]
 	needs := 0
 	for _, s := range g.sessions {
 		if s.Status == proto.Waiting {
@@ -263,28 +315,52 @@ func (a *App) groupView(c *ui.Context, pal *palette, g group, gi int, n *int) {
 	if gi == 0 {
 		top = 2
 	}
-	hdr := ui.Row(c.Key("project-"+id)).Height(28).Margin(top, 0, 3, 0).Padding(0, 6, 0, 10).Gap(6).AlignItems(ui.Center).Radius(6)
+	// Its name starts where its sessions' names do (sessionRow), past the
+	// edge a row keeps in dark mode.
+	inset := float32(rowInset)
+	if pal.dark {
+		inset++
+	}
+	hdr := ui.Row(c.Key("project-"+key)).Height(28).Margin(top, 0, 3, 0).Padding(0, 6, 0, inset).Gap(6).AlignItems(ui.Center).Radius(6)
 	hovered := hdr.Hovered()
 	renaming := id != "" && a.renamingProject == id
 	if hdr.Clicked() && !renaming {
-		a.toggleProject(id)
+		a.toggleProject(key)
 	}
-	pointerTooltip(c, hdr, "tip-project-"+id, proto.ShortDir(g.project.Dir))
+	pointerTooltip(c, hdr, "tip-project-"+key, g.host.shortDir(g.project.Dir))
 	hdr.ContextMenu(func(m *ui.Menu) {
 		if m.Item(locales.ActionNewSession()).Chosen() {
-			a.newSession(id)
+			a.newSessionOn(g.host, id)
 		}
 		label := locales.SidebarCollapse()
 		if collapsed {
 			label = locales.SidebarExpand()
 		}
 		if m.Item(label).Chosen() {
-			a.toggleProject(id)
+			a.toggleProject(key)
 		}
 		if m.Item(locales.SessionRename()).Disabled(id == "").Chosen() {
 			a.startProjectRename(id)
 		}
 		m.Separator()
+		// A remote group's menu has its host's, as the host has no header.
+		if g.host.remote() {
+			m.Submenu(g.host.name, func(m *ui.Menu) { a.hostMenu(m, g.host) })
+		}
+		// Close All Sessions ends the sessions the project holds, not the
+		// project itself, asking first as closing the project does: what
+		// runs in them ends with them.
+		if m.Item(locales.SidebarCloseAllSessions()).Disabled(len(g.sessions) == 0).Chosen() {
+			name, count := g.project.Name, len(g.sessions)
+			a.confirm = &confirmation{
+				open:    true,
+				title:   locales.ConfirmCloseAllSessionsTitle(name),
+				detail:  locales.ConfirmCloseAllSessionsDetail(count),
+				action:  locales.SidebarCloseAllSessions(),
+				destroy: true,
+				run:     func() { a.closeAllSessions(g) },
+			}
+		}
 		if m.Item(locales.SidebarCloseProjectMenu()).Disabled(id == "").Chosen() {
 			name, count := g.project.Name, len(g.sessions)
 			a.confirm = &confirmation{
@@ -293,7 +369,7 @@ func (a *App) groupView(c *ui.Context, pal *palette, g group, gi int, n *int) {
 				detail:  locales.ConfirmCloseProjectDetail(count),
 				action:  locales.SidebarCloseProject(),
 				destroy: true,
-				run:     func() { a.call("project.close", proto.IDParams{ID: id}, nil) },
+				run:     func() { a.call(id, "project.close", proto.IDParams{ID: id}, nil) },
 			}
 		}
 	})
@@ -309,11 +385,19 @@ func (a *App) groupView(c *ui.Context, pal *palette, g group, gi int, n *int) {
 			return
 		}
 		ui.Text(c, g.project.Name).FontSize(12.5).FontWeight(600).TextColor(pal.textMuted).SingleLine().Ellipsis("…").MinWidth(0).Shrink(1)
+		if g.host.remote() {
+			a.hostTag(c, pal, g.host)
+		}
 		ui.Textf(c, "%d", len(g.sessions)).FontSize(12.5).TextColor(pal.textFaint).FontFeatures("tnum")
 		chev := ui.Icon(c, chevronIcon).Size(11, 11).TextColor(pal.textFaint)
 		turn := chev.AnimateTo("turn", 90*(1-b2f(collapsed)), ui.Snappy)
 		chev.Rotate(turn).Opacity(chev.Animate("shown", b2f(hovered || collapsed), 120*time.Millisecond))
 		ui.Spacer(c)
+		// A host with no row of its own tells how the app stands with it
+		// here: reconnecting, or wanting an update or restart.
+		if g.first && g.host.remote() && !a.hostNeedsRow(g.host) {
+			a.hostState(c, pal, g.host)
+		}
 		if needs > 0 {
 			ui.Text(c, locales.SidebarNeedsYou(needs)).FontSize(12.5).FontWeight(500).TextColor(pal.attention).SingleLine()
 		}
@@ -324,7 +408,7 @@ func (a *App) groupView(c *ui.Context, pal *palette, g group, gi int, n *int) {
 			}
 			b.Children(func() { ui.Icon(c, plusIcon).Size(13, 13) })
 			if b.Clicked() {
-				a.newSession(id)
+				a.newSessionOn(g.host, id)
 			}
 		}
 	})
@@ -346,7 +430,7 @@ func (a *App) sessionRow(c *ui.Context, pal *palette, s *proto.Session, n *int) 
 	*n++
 	index := *n
 	selected := s.ID == a.selected
-	row := ui.Row(c.Key(s.ID)).Height(rowH).Padding(0, 10, 0, 12).Gap(10).AlignItems(ui.Center).Radius(8).Margin(0, 0, 1, 0)
+	row := ui.Row(c.Key(s.ID)).Height(rowH).Padding(0, 10, 0, rowInset).Gap(10).AlignItems(ui.Center).Radius(8).Margin(0, 0, 1, 0)
 	hovered := row.Hovered()
 	if pal.dark {
 		// Room for the chosen row's edge in every row, so that choosing
@@ -362,18 +446,27 @@ func (a *App) sessionRow(c *ui.Context, pal *palette, s *proto.Session, n *int) 
 		bg = pal.rowHover
 	}
 	row.Background(row.AnimateColor("bg", bg, ui.Animation{Duration: 110 * time.Millisecond}))
+	// A session of a host the app lost shows as it was, faded, until the
+	// host is back.
+	if h := a.hostOf(s.ID); h.remote() && h.conn != connReady {
+		row.Opacity(0.55)
+	}
 	if (row.Pressed() || row.Clicked()) && !selected {
 		a.selectSession(s.ID)
 	}
 	if row.DoubleClicked() {
 		a.startRename(s.ID)
 	}
-	tip := proto.ShortDir(s.WorkDir())
+	tip := a.hostOf(s.ID).shortDir(s.WorkDir())
 	if s.Process != "" {
 		tip = s.Process + " · " + tip
 	}
 	if s.Message != "" {
 		tip = s.Message + "\n" + tip
+	}
+	g := sessionGit(s)
+	if g != nil {
+		tip += "\n" + gitSummary(g)
 	}
 	pointerTooltip(c, row, "tip-"+s.ID, tip)
 	row.ContextMenu(func(m *ui.Menu) { a.sessionMenu(m, s) })
@@ -392,18 +485,24 @@ func (a *App) sessionRow(c *ui.Context, pal *palette, s *proto.Session, n *int) 
 			}
 			return
 		}
-		name := ui.Text(c, s.DisplayName(a.set.SessionName)).FontSize(13.5).SingleLine().Ellipsis("…").Grow(1).MinWidth(0).TextColor(pal.text)
+		name := ui.Text(c, s.DisplayName(a.set.SessionName)).FontSize(13.5).SingleLine().Ellipsis("…").Shrink(1).MinWidth(0).TextColor(pal.text)
 		if s.Unread {
 			name.FontWeight(650)
 		}
 		if s.Status == proto.Exited && !s.Unread {
 			name.TextColor(pal.textMuted)
 		}
+		// A branch of its own, as an agent's in a worktree, by the name.
+		if b := offBranch(g); b != "" {
+			ui.Text(c, b).FontSize(12).TextColor(pal.textFaint).SingleLine().Ellipsis("…").Shrink(3).MinWidth(24).MaxWidth(120)
+		}
+		ui.Spacer(c)
 		cmd := c.Modifiers() == ui.Cmd
 		if cmd && index <= 9 {
-			ui.Text(c, actions.Glyphs(fmt.Sprintf("CmdOrCtrl+%d", index))).FontSize(12).TextColor(pal.textMuted).FontFeatures("tnum").SingleLine()
+			ui.Text(c, actions.Glyphs(fmt.Sprintf("CmdOrCtrl+%d", index))).FontSize(12).TextColor(pal.textMuted).FontFeatures("tnum").SingleLine().Shrink(0)
 		} else {
-			ui.Text(c, ago(s.Since, c.Now())).FontSize(12.5).TextColor(pal.textFaint).FontFeatures("tnum").SingleLine()
+			// The name gives way to these, never they to the name.
+			ui.Text(c, ago(s.Since, c.Now())).FontSize(12.5).TextColor(pal.textFaint).FontFeatures("tnum").SingleLine().Shrink(0)
 		}
 		statusIconP(c, pal, s.Status, s.Unread, s.Progress, 15)
 	})
@@ -432,11 +531,13 @@ func (a *App) sessionMenu(m *ui.Menu, s *proto.Session) {
 	}
 	if s.Unread {
 		if m.Item(locales.SessionMarkRead()).Chosen() {
-			a.call("view", proto.ViewParams{ID: id}, func(error) { a.viewSent = nil; a.reportView() })
+			a.call(id, "view", proto.ViewParams{ID: id}, func(error) { a.hostOf(id).viewSent = nil; a.reportView() })
 		}
 	}
+	h := a.hostOf(id)
 	m.Submenu(locales.SessionMoveToProject(), func(m *ui.Menu) {
-		for _, p := range a.st.Projects {
+		// A session moves among its host's projects alone.
+		for _, p := range a.projectsOf(h) {
 			if m.Item(p.Name).Checked(p.ID == s.Project).Disabled(p.ID == s.Project).Chosen() {
 				pid := p.ID
 				a.defer_(func() { a.moveSession(id, pid) })
@@ -450,7 +551,7 @@ func (a *App) sessionMenu(m *ui.Menu, s *proto.Session) {
 	if m.Item(locales.SessionCopyDirectory()).Disabled(s.WorkDir() == "").Chosen() {
 		a.copyText = s.WorkDir()
 	}
-	if m.Item(locales.SessionRevealIn(fileManager())).Disabled(s.WorkDir() == "").Chosen() {
+	if m.Item(locales.SessionRevealIn(fileManager())).Disabled(s.WorkDir() == "" || h.remote()).Chosen() {
 		a.openLink(id, s.WorkDir())
 	}
 	m.Separator()
@@ -470,7 +571,7 @@ func (a *App) sidebarFooter(c *ui.Context, pal *palette) {
 		iconButton(c, "palette", searchIcon, a.tip(locales.ActionGoToSession(), "palette.open"), pal, a.openPalette)
 		iconButton(c, "settings", gearIcon, a.tip(locales.SettingsTitle(), "settings.open"), pal, func() { a.openSettings("") })
 		ui.Spacer(c)
-		switch a.conn {
+		switch a.local().conn {
 		case connReady:
 			if a.daemonStale() {
 				a.restartChip(c, pal)
@@ -496,6 +597,10 @@ func (a *App) sidebarFooter(c *ui.Context, pal *palette) {
 func (a *App) footerChip(c *ui.Context, pal *palette, st proto.Status, unread bool, is func(*proto.Session) bool, fg ui.Color, say func(int) string, hint string, jump func()) {
 	n := 0
 	for i := range a.st.Sessions {
+		// A host the app lost says nothing new, as for the Dock's badge.
+		if h := a.hostOf(a.st.Sessions[i].ID); h.remote() && h.conn != connReady {
+			continue
+		}
 		if is(&a.st.Sessions[i]) {
 			n++
 		}
@@ -665,8 +770,26 @@ func statusIconP(c *ui.Context, pal *palette, st proto.Status, unread bool, prog
 
 func (a *App) card(c *ui.Context, pal *palette, bar ui.TitleBar, shown float32) {
 	s := a.session(a.selected)
-	if s != nil && a.conn != connVersion && a.loaded {
-		a.panes(c, pal, bar, shown, s)
+	h := a.local()
+	if s != nil {
+		h = a.hostOf(s.ID)
+	}
+	if s != nil && h.conn != connVersion && a.loaded {
+		if a.prefs.Side == "" {
+			a.panes(c, pal, bar, shown, s, true)
+			return
+		}
+		// The panes, then the side panel, which takes the window's
+		// right edge.
+		row := ui.Row(c.Key("with-side")).Grow(1).MinHeight(0).AlignItems(ui.Stretch).Bind(a.paneRef("with-side"))
+		w := a.paneRef("with-side").Bounds(c).W
+		row.Children(func() {
+			ui.Column(c.Key("panes")).Grow(1).Basis(0).MinWidth(0).AlignItems(ui.Stretch).Children(func() {
+				a.panes(c, pal, bar, shown, s, false)
+			})
+			a.sideEdge(c, pal, w)
+			a.sidePanel(c, pal, s, a.sideWidth(w), true)
+		})
 		return
 	}
 	// No session: one card, for what the app has to say.
@@ -686,10 +809,12 @@ func (a *App) card(c *ui.Context, pal *palette, bar ui.TitleBar, shown float32) 
 		})
 		ui.Column(c).Grow(1).MinHeight(0).Children(func() {
 			switch {
-			case a.conn == connVersion:
+			case h.conn == connVersion && h.remote():
+				a.message(c, pal, locales.HostVersionTitle(h.name), a.hostVersionDetail(h), locales.HostUpdateAction(h.name), func() { a.offerHostUpdate(h) })
+			case h.conn == connVersion:
 				a.message(c, pal, locales.UpdatedTitle(), locales.UpdatedDetail(), locales.CommonRestartService(), a.restartDaemon)
-			case a.conn == connFailed && a.cl == nil:
-				a.message(c, pal, locales.ConnCantReach(), a.connErr, locales.CommonTryAgain(), func() { a.retries = 0; a.conn = connConnecting; a.connect() })
+			case h.conn == connFailed && h.cl == nil && !h.remote():
+				a.message(c, pal, locales.ConnCantReach(), h.err, locales.CommonTryAgain(), func() { h.retries = 0; h.conn = connConnecting; a.connect() })
 			case !a.loaded:
 				ui.Column(c).Fill().Center().Children(func() {
 					ui.Spinner(c).Label(locales.StatusConnectingLabel())

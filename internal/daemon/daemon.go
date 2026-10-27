@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"os"
@@ -17,25 +18,29 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"syscall"
 	"time"
 
-	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/plugins/terminal"
 
+	"kero/internal/build"
 	"kero/internal/clilink"
+	"kero/internal/detach"
 	"kero/internal/proto"
 	"kero/internal/settings"
 	"kero/internal/shell"
+	"kero/internal/update"
 )
 
 // Daemon is kerod's state.
 type Daemon struct {
 	dir     string
 	exe     string
+	opts    Options
 	started time.Time
 	log     *log.Logger
 
@@ -44,23 +49,50 @@ type Daemon struct {
 	sessions []*session
 	panes    map[string]*pane
 	subs     map[*controlConn]struct{}
+	// watchers are the connections that follow the state and notices,
+	// as kero events does, but are no app: no action, select or browser
+	// call goes to them, nor do they count as an app being open.
+	watchers map[*controlConn]struct{}
+	clients  map[*proto.ClientInfo]struct{} // the connections, for kero clients
 	conns    int
 	idleAt   time.Time
 	ending   bool
+	// restarting: kerod stops to start again, as a remote client asked
+	// (proto.KindRestart).
+	restarting bool
+	// asks are the browser calls waiting for the app's answer, by the
+	// number they went out with.
+	asks    map[int64]chan proto.BrowserAnswer
+	lastAsk int64
 
 	viewed atomic.Pointer[string]
 	// theme is the colors of the client that last told them, which the
 	// panes answer programs' questions about the colors with.
 	theme    atomic.Pointer[terminal.Theme]
+	git      *gitFollow
+	convs    convStore
+	net      *listeners
 	changeCh chan struct{}
 	saveCh   chan struct{}
 	quit     chan struct{}
 	quitOnce sync.Once
 }
 
-// Run runs the daemon until it is told to shut down, or has had no session
-// and no client for a while.
-func Run() error {
+// Options are how kerod runs.
+type Options struct {
+	// Serve: kerod runs in the foreground, as a service does (kero daemon
+	// serve): it logs to its standard error too, and never exits for being
+	// idle.
+	Serve bool
+	// Listen are network listeners, in place of the configuration's
+	// (remote.ParseListen).
+	Listen []string
+}
+
+// Run runs the daemon until it is told to shut down, or, unless it serves
+// (Options.Serve) or listens on the network, has had no session and no
+// client for a while.
+func Run(opts Options) error {
 	dir := proto.Dir()
 	if err := os.MkdirAll(filepath.Join(dir, "sessions"), 0o700); err != nil {
 		return err
@@ -73,41 +105,65 @@ func Run() error {
 	if st, _ := logf.Stat(); st != nil && st.Size() > 4<<20 {
 		logf.Truncate(0)
 	}
-	lg := log.New(logf, "", log.LstdFlags|log.Lmicroseconds)
+	var logw io.Writer = logf
+	if opts.Serve {
+		logw = io.MultiWriter(logf, os.Stderr)
+	}
+	lg := log.New(logw, "", log.LstdFlags|log.Lmicroseconds)
+	// What an update of the server build on Windows moved aside, which
+	// it could not remove as it ran (update.Replace).
+	if build.Server && runtime.GOOS == "windows" {
+		update.RemoveOld(update.InstallDir())
+	}
 
-	// One daemon at a time: the lock is the daemon's while it runs.
+	// One daemon at a time: the lock is the daemon's while it runs. One
+	// that takes over from a kerod restarting waits for it to let go.
 	lock, err := os.OpenFile(filepath.Join(dir, "kerod.lock"), os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
 		return err
 	}
 	defer lock.Close()
-	if err := lockFile(lock); err != nil {
-		return errors.New("kerod is already running")
+	for wait := time.Now().Add(15 * time.Second); ; {
+		err := lockFile(lock)
+		if err == nil {
+			break
+		}
+		if os.Getenv(takeoverEnv) == "" || time.Now().After(wait) {
+			return errors.New("kerod is already running")
+		}
+		time.Sleep(100 * time.Millisecond)
 	}
+	os.Unsetenv(takeoverEnv)
 
 	sock := proto.SocketPath()
 	os.Remove(sock)
-	ln, err := net.Listen("unix", sock)
+	ln, err := listenSocket(sock)
 	if err != nil {
 		return err
 	}
-	os.Chmod(sock, 0o600)
 	defer os.Remove(sock)
 
 	exe, _ := os.Executable()
 	d := &Daemon{
-		dir: dir, exe: exe, started: time.Now(), log: lg,
+		dir: dir, exe: exe, opts: opts, started: time.Now(), log: lg,
 		subs:     map[*controlConn]struct{}{},
+		watchers: map[*controlConn]struct{}{},
+		clients:  map[*proto.ClientInfo]struct{}{},
 		panes:    map[string]*pane{},
 		changeCh: make(chan struct{}, 1),
 		saveCh:   make(chan struct{}, 1),
 		quit:     make(chan struct{}),
 		idleAt:   time.Now(),
 	}
+	d.git = newGitFollow(d)
 	empty := ""
 	d.viewed.Store(&empty)
-	lg.Printf("kerod %d started (pid %d, %s)", proto.Version, os.Getpid(), exe)
+	lg.Printf("kerod %d started (Kero %s, pid %d, %s)", proto.Version, build.Version(), os.Getpid(), exe)
 	d.linkCLI()
+	// The listeners first: Tailscale Serve's socket takes a umask of its
+	// own, which no program kerod starts may get.
+	d.net = d.listen()
+	d.loadConversations()
 	d.restore()
 
 	signal.Ignore(syscall.SIGHUP, syscall.SIGPIPE)
@@ -119,24 +175,71 @@ func Run() error {
 		lg.Printf("%v: saving and exiting", s)
 		d.saveHistories(true)
 		d.saveState()
+		d.saveConversations()
 		d.stop()
 	}()
 
 	go d.broadcastLoop()
 	go d.saveLoop()
 	go d.tickLoop()
+	go d.git.loop()
+	uid := os.Getuid()
 	go func() {
 		for {
 			conn, err := ln.Accept()
 			if err != nil {
 				return
 			}
-			go d.serve(conn)
+			// The socket is its user's: anyone else's process, as root's
+			// that can reach any file, is refused.
+			if p := peerUID(conn); p >= 0 && uid >= 0 && p != uid {
+				lg.Printf("refused a connection of uid %d", p)
+				conn.Close()
+				continue
+			}
+			go d.serve(conn, identity{peer: localPeer(conn), via: "unix"})
 		}
 	}()
 	<-d.quit
 	ln.Close()
+	d.net.close()
+	if d.restarting {
+		d.successor()
+	}
 	return nil
+}
+
+// takeoverEnv tells a kerod that starts as another restarts to wait for
+// its lock.
+const takeoverEnv = "KERO_TAKEOVER"
+
+// successor starts the kerod that follows this one, as it restarts: the
+// service's, which its manager starts again, else one of this executable,
+// which waits for this one to let go of the lock, and restores its
+// sessions.
+func (d *Daemon) successor() {
+	if underService() {
+		return
+	}
+	cmd := exec.Command(d.exe, os.Args[1:]...)
+	cmd.Dir = proto.Home()
+	cmd.Env = append(os.Environ(), takeoverEnv+"=1")
+	if _, err := detach.Start(cmd); err != nil {
+		d.log.Printf("restarting: %v", err)
+	}
+}
+
+// underService reports whether a service manager runs kerod, which starts
+// it again as it exits: the unit and the agent of kero daemon
+// install-service say so.
+func underService() bool { return os.Getenv("KERO_SERVICE") == "1" }
+
+// localPeer names the process at the other end of the socket.
+func localPeer(c net.Conn) string {
+	if uid := peerUID(c); uid >= 0 {
+		return fmt.Sprintf("uid %d", uid)
+	}
+	return "local"
 }
 
 func (d *Daemon) stop() { d.quitOnce.Do(func() { close(d.quit) }) }
@@ -150,6 +253,11 @@ func (d *Daemon) linkCLI() {
 	}
 	if err := clilink.Link(d.exe, filepath.Join(d.dir, "bin")); err != nil {
 		d.log.Printf("linking the CLI: %v", err)
+	}
+	if bin := d.binFirst(); bin != "" {
+		if err := writeZshenv(bin); err != nil {
+			d.log.Printf("writing zsh's startup file: %v", err)
+		}
 	}
 }
 
@@ -176,8 +284,16 @@ func (d *Daemon) save() {
 func (d *Daemon) notice(n proto.Notice) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	d.broadcastLocked(proto.Message{Event: "notice", Notice: &n})
+}
+
+// broadcastLocked sends m to the apps and the watchers; d.mu is held.
+func (d *Daemon) broadcastLocked(m proto.Message) {
 	for c := range d.subs {
-		c.event(proto.Message{Event: "notice", Notice: &n})
+		c.event(m)
+	}
+	for c := range d.watchers {
+		c.watchEvent(m)
 	}
 }
 
@@ -189,11 +305,12 @@ func (d *Daemon) broadcastLoop() {
 		case <-d.changeCh:
 		default:
 		}
-		st := d.state()
+		// The state is taken under the lock it goes out under, so that
+		// the states a connection gets are in order: a watcher tells
+		// changes from the difference of two.
 		d.mu.Lock()
-		for c := range d.subs {
-			c.event(proto.Message{Event: "state", State: &st})
-		}
+		st := d.stateLocked()
+		d.broadcastLocked(proto.Message{Event: "state", State: &st})
 		d.mu.Unlock()
 	}
 }
@@ -207,7 +324,8 @@ func (d *Daemon) tickLoop() {
 		for _, p := range d.panes {
 			panes = append(panes, p)
 		}
-		idle := len(d.sessions) == 0 && d.conns == 0
+		// A server, or a kerod others reach over the network, stays.
+		idle := len(d.sessions) == 0 && d.conns == 0 && !d.opts.Serve && !d.net.active()
 		if !idle {
 			d.idleAt = now
 		}
@@ -280,10 +398,16 @@ func (d *Daemon) projectFor(ref, dir string) string {
 	return p.ID
 }
 
-// repoRoot returns the root of the git repository holding dir, or dir.
+// repoRoot returns the root of the git repository holding dir, or dir. A
+// linked worktree's is its repository's main checkout, wherever it lies.
 func repoRoot(dir string) string {
 	for d := dir; ; {
-		if _, err := os.Stat(filepath.Join(d, ".git")); err == nil {
+		if fi, err := os.Stat(filepath.Join(d, ".git")); err == nil {
+			if !fi.IsDir() {
+				if main := worktreeMain(d); main != "" {
+					return main
+				}
+			}
 			return d
 		}
 		parent := filepath.Dir(d)
@@ -292,6 +416,43 @@ func repoRoot(dir string) string {
 		}
 		d = parent
 	}
+}
+
+// worktreeMain returns the main checkout of the linked worktree at dir,
+// whose .git is a file, or "" when it is none: a submodule's, or a bare
+// repository's worktree. The file names the worktree's git directory, and
+// that directory's commondir file the repository's.
+func worktreeMain(dir string) string {
+	b, err := os.ReadFile(filepath.Join(dir, ".git"))
+	if err != nil {
+		return ""
+	}
+	gitdir, ok := strings.CutPrefix(strings.TrimSpace(string(b)), "gitdir:")
+	if !ok {
+		return ""
+	}
+	gitdir = gitPath(dir, strings.TrimSpace(gitdir))
+	b, err = os.ReadFile(filepath.Join(gitdir, "commondir"))
+	if err != nil {
+		return ""
+	}
+	common := gitPath(gitdir, strings.TrimSpace(string(b)))
+	if filepath.Base(common) != ".git" {
+		return ""
+	}
+	if fi, err := os.Stat(common); err != nil || !fi.IsDir() {
+		return ""
+	}
+	return filepath.Dir(common)
+}
+
+// gitPath returns a path as git writes it, against dir when relative.
+func gitPath(dir, path string) string {
+	path = filepath.FromSlash(path)
+	if !filepath.IsAbs(path) {
+		path = filepath.Join(dir, path)
+	}
+	return filepath.Clean(path)
 }
 
 // environment returns the environment of a session's shell.
@@ -306,7 +467,7 @@ func (d *Daemon) environment(sid, pid, shell string, extra []string) []string {
 		switch {
 		case k == "CLAUDECODE", k == "TERM_PROGRAM", k == "TERM_PROGRAM_VERSION", k == "TERM_SESSION_ID",
 			k == "ITERM_SESSION_ID", k == "WINDOWID", k == "KITTY_WINDOW_ID", k == "LC_TERMINAL", k == "LC_TERMINAL_VERSION",
-			k == "KERO_SESSION", k == "KERO_PANE", k == "MYGO_GHOSTTY_VT", k == "TMUX", k == "TMUX_PANE",
+			k == "KERO_SESSION", k == "KERO_PANE", k == "KERO_HOST", k == "KERO_ZDOTDIR", k == takeoverEnv, k == "KERO_SERVICE", k == "INVOCATION_ID", k == "MYGO_GHOSTTY_VT", k == "TMUX", k == "TMUX_PANE",
 			strings.HasPrefix(k, "CLAUDE_CODE_"), strings.HasPrefix(k, "GHOSTTY_"),
 			strings.HasPrefix(k, "VSCODE_"), strings.HasPrefix(k, "__CF"), k == "XPC_SERVICE_NAME":
 			continue
@@ -455,7 +616,43 @@ func (c *controlConn) event(m proto.Message) {
 	}
 }
 
-func (d *Daemon) serve(conn net.Conn) {
+// watchEvent queues an event for a watcher, which tells changes from
+// each state and notice in turn: one far behind is cut off, as a stalled
+// write cuts it off, rather than left to miss some without knowing.
+func (c *controlConn) watchEvent(m proto.Message) {
+	select {
+	case c.out <- m:
+	default:
+		if c.conn != nil {
+			c.conn.Close()
+		}
+	}
+}
+
+// identity is who a connection comes from, as kero clients shows it.
+type identity struct {
+	peer string // "uid 501", "alice@example.com"
+	via  string // "unix", "tailnet", "tailnet-serve"
+	// client is what the client said it is, for a remote connection.
+	client string
+}
+
+// serve serves a connection of the socket.
+func (d *Daemon) serve(conn net.Conn, id identity) {
+	defer conn.Close()
+	r := bufio.NewReaderSize(conn, 64<<10)
+	conn.SetReadDeadline(time.Now().Add(15 * time.Second))
+	line, err := proto.ReadLine(r, 64<<10)
+	if err != nil {
+		return
+	}
+	conn.SetReadDeadline(time.Time{})
+	d.serveHello(conn, r, line, id)
+}
+
+// serveHello serves a connection, after its Hello, line, which r reads
+// on from.
+func (d *Daemon) serveHello(conn net.Conn, r *bufio.Reader, line []byte, id identity) {
 	d.mu.Lock()
 	d.conns++
 	d.mu.Unlock()
@@ -466,23 +663,40 @@ func (d *Daemon) serve(conn net.Conn) {
 	}()
 	defer conn.Close()
 
-	r := bufio.NewReaderSize(conn, 64<<10)
-	conn.SetReadDeadline(time.Now().Add(5 * time.Second))
-	line, err := r.ReadBytes('\n')
-	if err != nil {
-		return
-	}
-	conn.SetReadDeadline(time.Time{})
 	var hello proto.Hello
 	if err := json.Unmarshal(line, &hello); err != nil {
 		return
 	}
-	welcome := proto.Welcome{Version: proto.Version, PID: os.Getpid(), Started: d.started.UnixMilli(), App: mygo.App.Version()}
+	// A bridge on this machine passes on a remote client's connection,
+	// saying who it is, which kero clients shows as the bridge claims it:
+	// only a bridge's ways, ssh and wsl. A listener's own say is the only
+	// one of a connection it took.
+	if id.via == "unix" && (hello.Via == "ssh" || hello.Via == "wsl") {
+		id = identity{peer: hello.Peer, via: hello.Via, client: hello.Client}
+		if id.peer == "" {
+			id.peer = localPeer(conn)
+		}
+	}
+	welcome := proto.Welcome{Version: proto.Version, PID: os.Getpid(), Started: d.started.UnixMilli(), App: build.Version(), Build: build.Daemon}
 	if hello.Version != proto.Version {
 		welcome.Error = fmt.Sprintf("kerod speaks protocol %d, the client %d", proto.Version, hello.Version)
 		json.NewEncoder(conn).Encode(welcome)
 		return
 	}
+	info := &proto.ClientInfo{Kind: hello.Kind, Peer: id.peer, Via: id.via, Client: id.client, Since: time.Now().UnixMilli()}
+	if info.Kind != "attach" {
+		info.Kind = "control"
+	} else {
+		info.Session = hello.Session
+	}
+	d.mu.Lock()
+	d.clients[info] = struct{}{}
+	d.mu.Unlock()
+	defer func() {
+		d.mu.Lock()
+		delete(d.clients, info)
+		d.mu.Unlock()
+	}()
 	switch hello.Kind {
 	case "attach":
 		d.serveAttach(conn, r, hello, welcome)
@@ -490,6 +704,18 @@ func (d *Daemon) serve(conn net.Conn) {
 		json.NewEncoder(conn).Encode(welcome)
 		d.serveControl(conn, r)
 	}
+}
+
+// clientList lists the connections, the oldest first.
+func (d *Daemon) clientList() []proto.ClientInfo {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	out := make([]proto.ClientInfo, 0, len(d.clients))
+	for c := range d.clients {
+		out = append(out, *c)
+	}
+	slices.SortFunc(out, func(a, b proto.ClientInfo) int { return int(a.Since - b.Since) })
+	return out
 }
 
 func (d *Daemon) serveAttach(conn net.Conn, r *bufio.Reader, hello proto.Hello, welcome proto.Welcome) {
@@ -523,11 +749,16 @@ func (d *Daemon) serveAttach(conn net.Conn, r *bufio.Reader, hello proto.Hello, 
 		}
 		switch kind {
 		case proto.FrameInput:
+			if typed(payload) {
+				s.claim(a)
+			}
 			s.input(payload)
 		case proto.FrameResize:
 			if c, rr, cw, ch, ok := proto.ParseResizePixels(payload); ok {
-				s.resize(c, rr, cw, ch)
+				s.ask(a, c, rr, cw, ch)
 			}
+		case proto.FrameClaim:
+			s.claim(a)
 		case proto.FrameTheme:
 			if th, ok := proto.ParseTheme(payload); ok {
 				d.useTheme(th)
@@ -540,12 +771,22 @@ func (d *Daemon) serveAttach(conn net.Conn, r *bufio.Reader, hello proto.Hello, 
 	}
 }
 
+// typed reports whether input a client sends is the user's, typed or
+// pasted or a mouse report, and not one of the focus reports (mode 1004)
+// its terminal sends as its pane gains or loses the keyboard, which an
+// app moves without the user, as when the session it showed closed.
+func typed(input []byte) bool {
+	s := string(input)
+	return s != "\x1b[I" && s != "\x1b[O"
+}
+
 func (d *Daemon) serveControl(conn net.Conn, r *bufio.Reader) {
 	c := &controlConn{conn: conn, enc: json.NewEncoder(conn), out: make(chan proto.Message, 64), done: make(chan struct{})}
 	defer close(c.done)
 	defer func() {
 		d.mu.Lock()
 		delete(d.subs, c)
+		delete(d.watchers, c)
 		d.mu.Unlock()
 	}()
 	go func() {
@@ -559,7 +800,7 @@ func (d *Daemon) serveControl(conn net.Conn, r *bufio.Reader) {
 		}
 	}()
 	for {
-		line, err := r.ReadBytes('\n')
+		line, err := proto.ReadLine(r, proto.MaxLine)
 		if err != nil {
 			return
 		}

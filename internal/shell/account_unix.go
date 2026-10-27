@@ -25,6 +25,12 @@ func account() string {
 			return valid(strings.TrimSpace(sh))
 		}
 	}
+	// NSS, which knows the accounts of LDAP and SSSD too, then the file.
+	if out, err := exec.Command("getent", "passwd", u.Username).Output(); err == nil {
+		if f := strings.Split(strings.TrimSpace(string(out)), ":"); len(f) >= 7 && f[0] == u.Username {
+			return valid(f[6])
+		}
+	}
 	if b, err := os.ReadFile("/etc/passwd"); err == nil {
 		for _, line := range strings.Split(string(b), "\n") {
 			f := strings.Split(line, ":")

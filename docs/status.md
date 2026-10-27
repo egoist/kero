@@ -102,4 +102,4 @@ rsync -a ~/Photos backup:/photos && status done "Photos synced" || status error 
 
 A program can ask whether the terminal reads the protocol by writing `ESC ] 7501 ; ? ESC \`. Kero answers with the same sequence.
 
-Kero also reads ConEmu's progress sequence, OSC 9;4, which some build tools write, until a program reports with OSC 7501.
+A progress bar a program shows with ConEmu's sequence, OSC 9;4, doesn't make it `working`: editors such as Neovim show one while their language servers load. Kero reads it only to tell the status of coding agents that show their work that way. Programs report their status with OSC 7501.

@@ -14,7 +14,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
-	"slices"
 	"strings"
 
 	"github.com/egoist/mygo"
@@ -34,12 +33,12 @@ func main() {
 	if len(os.Args) > 1 {
 		switch {
 		case os.Args[1] == "__kerod":
-			if err := daemon.Run(); err != nil {
+			if err := daemon.Run(daemon.Options{}); err != nil {
 				fmt.Fprintln(os.Stderr, "kerod:", err)
 				os.Exit(1)
 			}
 			return
-		case slices.Contains(cli.Commands, os.Args[1]):
+		case cli.IsCommand(os.Args[1]):
 			os.Exit(cli.Run(os.Args[1:]))
 		}
 	}
@@ -92,14 +91,12 @@ func runApp() {
 			if a.setWin != nil {
 				a.setWin.SetTitle(locales.SettingsTitle())
 			}
+			if a.tray != nil {
+				a.tray.SetMenu(a.trayMenu())
+			}
 		})
 	})
-	mygo.App.OnSecondInstance(func([]string, string) {
-		if a.win != nil {
-			a.win.Restore()
-			a.win.Focus()
-		}
-	})
+	mygo.App.OnSecondInstance(func([]string, string) { a.showWindow() })
 	mygo.App.OnDidBecomeActive(func() {
 		mygo.ClearNotifications()
 		a.update(func() { a.active = true; a.reportView() })
@@ -108,27 +105,33 @@ func runApp() {
 		a.update(func() { a.active = false; a.reportView() })
 	})
 	mygo.App.OnActivate(func(hasVisible bool) {
-		if !hasVisible && a.win != nil {
-			a.win.Show()
+		if !hasVisible {
+			a.showWindow()
 		}
 	})
+	mygo.App.OnWindowAllClosed(a.lastWindowClosed)
 	mygo.App.OnBeforeQuit(func(*mygo.QuitEvent) {
 		a.savePrefs()
 	})
+	// Windows leaves an icon in the notification area after its app until
+	// the pointer passes over it.
+	mygo.App.OnWillQuit(func(*mygo.QuitEvent) {
+		if a.tray != nil {
+			a.tray.Destroy()
+		}
+	})
+	// No Dock icon from the start for the menu bar alone.
+	if runtime.GOOS == "darwin" {
+		mygo.App.SetActivationPolicy(activationPolicy(a.set))
+	}
 	mygo.App.WhenReady(func() {
-		a.win = mygo.NewWindow(framed(mygo.WindowOptions{
-			Title:     "Kero",
-			Width:     1180,
-			Height:    760,
-			MinWidth:  560,
-			MinHeight: 360,
-			StateKey:  "main",
-			Vibrancy:  vibrancyFor(a.set),
-			Content:   ui.View(a.view),
-		}))
-		a.win.OnFocus(func() { a.update(func() { a.focused = true; a.reportView() }) })
-		a.win.OnBlur(func() { a.update(func() { a.focused = false; a.reportView() }) })
+		a.openWindow()
+		a.applyTray()
+		a.applyGlobalShortcuts()
+		a.idleTime = mygo.Power.IdleTime
+		go a.watchReturn()
 		a.connect()
+		a.syncHosts()
 		go a.watchConfig()
 	})
 	if err := mygo.App.Run(); err != nil {
@@ -136,24 +139,27 @@ func runApp() {
 	}
 }
 
-// newSessionIn starts a session in a directory, in its project.
-func (a *App) newSessionIn(dir string) {
-	if a.cl == nil {
-		return
-	}
-	cl := a.cl
-	go func() {
-		var s proto.Session
-		err := cl.Call("create", proto.CreateParams{Dir: dir}, &s)
-		a.update(func() {
-			if err != nil {
-				a.toast(err.Error())
-				return
-			}
-			a.addPending(s)
-			a.selectSession(s.ID)
-		})
-	}()
+// openWindow makes the main window: as Kero starts, and again after
+// closing it left Kero running in the menu bar or the notification area.
+func (a *App) openWindow() {
+	a.win = mygo.NewWindow(framed(mygo.WindowOptions{
+		Title:     "Kero",
+		Width:     1180,
+		Height:    760,
+		MinWidth:  560,
+		MinHeight: 360,
+		StateKey:  "main",
+		Vibrancy:  vibrancyFor(a.set),
+		Content:   ui.View(a.view),
+	}))
+	a.winOpen = true
+	a.updateTitle()
+	a.win.OnFocus(func() { a.update(func() { a.focused = true; a.claimShown(); a.reportView() }) })
+	a.win.OnBlur(func() { a.update(func() { a.focused = false; a.reportView() }) })
+	a.win.OnClosed(a.windowClosed)
 }
+
+// newSessionIn starts a session in a directory of a host, in its project.
+func (a *App) newSessionIn(h *host, dir string) { a.create(h, proto.CreateParams{Dir: dir}, "") }
 
 func stopDaemon() error { return cli.StopDaemon() }
