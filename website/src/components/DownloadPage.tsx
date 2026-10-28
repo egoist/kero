@@ -108,8 +108,7 @@ const INSTALL_SCRIPTS: Partial<Record<OS, string>> = {
 type OS = 'mac' | 'windows' | 'linux';
 type Arch = 'arm' | 'x86';
 
-// The release's assets, named as GitHub names them: the spaces in mygo
-// build's names become dots.
+// The release's assets, as mygo build names them since 2.1.22.
 const platforms: {
   os: OS;
   name: string;
@@ -121,8 +120,8 @@ const platforms: {
     name: 'macOS',
     icon: AppleIcon,
     files: [
-      { label: 'Apple Silicon', kind: '.dmg', arch: 'arm', asset: (v) => `Kero.${v}.arm64.dmg` },
-      { label: 'Intel', kind: '.dmg', arch: 'x86', asset: (v) => `Kero.${v}.amd64.dmg` },
+      { label: 'Apple Silicon', kind: '.dmg', arch: 'arm', asset: (v) => `kero-${v}-arm64.dmg` },
+      { label: 'Intel', kind: '.dmg', arch: 'x86', asset: (v) => `kero-${v}-amd64.dmg` },
     ],
   },
   {
@@ -130,8 +129,8 @@ const platforms: {
     name: 'Windows',
     icon: WindowsIcon,
     files: [
-      { label: 'x64', kind: '.exe', arch: 'x86', asset: (v) => `Kero.Setup.${v}.amd64.exe` },
-      { label: 'ARM64', kind: '.exe', arch: 'arm', asset: (v) => `Kero.Setup.${v}.arm64.exe` },
+      { label: 'x64', kind: '.exe', arch: 'x86', asset: (v) => `kero-setup-${v}-amd64.exe` },
+      { label: 'ARM64', kind: '.exe', arch: 'arm', asset: (v) => `kero-setup-${v}-arm64.exe` },
     ],
   },
   {
