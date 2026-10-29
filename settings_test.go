@@ -226,8 +226,8 @@ func TestBundledFont(t *testing.T) {
 		t.Fatal("the bundled fonts did not register")
 	}
 	a := testApp(t)
-	if got := a.termFont().Family; got != bundledFont {
-		t.Errorf("default terminal font %q, want %q", got, bundledFont)
+	if got := a.termFont().Family; got != defaultTermFamily {
+		t.Errorf("default terminal font %q, want %q", got, defaultTermFamily)
 	}
 	a.set.FontFamily = "monospace"
 	if got := a.termFont().Family; got != "monospace" {
@@ -239,6 +239,9 @@ func TestBundledFont(t *testing.T) {
 	tt.Frame()
 	if !tt.HasText("JetBrains Mono Nerd Font") {
 		t.Errorf("the picker does not show the bundled font; texts %q", tt.Texts())
+	}
+	if !tt.HasText("NSimSun") {
+		t.Errorf("the font detail does not mention a CJK fallback; texts %q", tt.Texts())
 	}
 	shot(t, tt, "font-preview")
 }

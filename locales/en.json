@@ -398,7 +398,7 @@
   "bgPlain": "Plain",
   "setText": "Text",
   "setFont": "Font",
-  "setFontDetail": "JetBrains Mono with Nerd Fonts’ icons comes with Kero. Any installed monospaced font works; names separated by commas are tried in order.",
+  "setFontDetail": "JetBrains Mono with Nerd Fonts’ icons comes with Kero. CJK uses a monospaced fallback, such as NSimSun on Windows. Any installed monospaced font works; names separated by commas are tried in order.",
   "setFontSystem": "System",
   "setUseFont": "Use “{name}”",
   "setSize": "Size",

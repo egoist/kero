@@ -250,7 +250,7 @@
   "bgPlain": "無地",
   "setText": "テキスト",
   "setFont": "フォント",
-  "setFontDetail": "Nerd Fonts のアイコン入りの JetBrains Mono が Kero に付属しています。インストール済みの等幅フォントならどれでも使えます。カンマで区切った名前は順に試されます。",
+  "setFontDetail": "Nerd Fonts のアイコン入りの JetBrains Mono が Kero に付属しています。中日韓の文字は等幅フォント（Windows では最初から入っている NSimSun）にフォールバックします。インストール済みの等幅フォントならどれでも使えます。カンマで区切った名前は順に試されます。",
   "setFontSystem": "システム",
   "setUseFont": "“{name}”を使用",
   "setSize": "サイズ",

@@ -43,7 +43,7 @@ func settingsIndex() []searchEntry {
 		{"appearance", locales.SetTranslucent(), "window-translucent vibrancy blur material transparency"},
 		{"appearance", locales.SetBackground(), "background wash petal mist meadow dusk plain gradient color"},
 
-		{"terminal", locales.SetFont(), "font-family typeface jetbrains mono nerd"},
+		{"terminal", locales.SetFont(), "font-family typeface jetbrains mono nerd cjk chinese sarasa maple noto nsimsun gothic"},
 		{"terminal", locales.SetSize(), "font-size zoom bigger smaller text"},
 		{"terminal", locales.SetLineHeight(), "line-height spacing leading cell"},
 		{"terminal", locales.SetWeight(), "font-weight bold light"},

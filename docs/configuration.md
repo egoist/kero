@@ -65,7 +65,7 @@ kero config check             # report unknown keys and bad values
 | Key                   | Default | Description                                                              |
 | --------------------- | ------- | ------------------------------------------------------------------------ |
 | `theme`               | `kero`  | Terminal colors: `kero`, any Ghostty theme, or `light:<theme>,dark:<theme>` |
-| `font-family`         |         | Empty for JetBrains Mono Nerd Font, which Kero includes; `monospace` for the system's; or any installed family |
+| `font-family`         |         | Empty for JetBrains Mono Nerd Font, which Kero includes. A single family (empty included) draws CJK with monospaced fallbacks Windows already has (`NSimSun`, `MS Gothic`), then `Sarasa Mono SC`, `Maple Mono NF CN`, `Noto Sans Mono CJK` if installed; `monospace` for the system's; or a comma-separated list |
 | `font-size`           | `13`    | In points                                                                |
 | `font-weight`         | `400`   | `100` to `900`                                                           |
 | `line-height`         | `1.22`  | A multiple of the font's                                                 |

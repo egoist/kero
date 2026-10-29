@@ -65,7 +65,7 @@ kero config check             # 报告未知的配置项和无效的值
 | 配置项                | 默认值  | 说明                                                                     |
 | --------------------- | ------- | ------------------------------------------------------------------------ |
 | `theme`               | `kero`  | 终端配色：`kero`、任意 Ghostty 主题，或 `light:<theme>,dark:<theme>`      |
-| `font-family`         |         | 留空则使用 Kero 自带的 JetBrains Mono Nerd Font；设为 `monospace` 则使用系统等宽字体；也可以填任何已安装的字体族 |
+| `font-family`         |         | 留空则使用 Kero 自带的 JetBrains Mono Nerd Font。单独一个字体族（含留空）绘制中日韩时会回退到 Windows 已自带的等宽字体（`NSimSun`、`MS Gothic`），以及你安装的 `Sarasa Mono SC`、`Maple Mono NF CN`、`Noto Sans Mono CJK`；`monospace` 为系统等宽字体；也可以填逗号分隔的列表 |
 | `font-size`           | `13`    | 单位为磅                                                                 |
 | `font-weight`         | `400`   | `100` 到 `900`                                                           |
 | `line-height`         | `1.22`  | 字体默认行高的倍数                                                       |

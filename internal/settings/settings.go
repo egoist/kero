@@ -40,7 +40,7 @@ type Settings struct {
 	Vibrancy   bool   `json:"vibrancy"`   // the window's material under the wash
 
 	// Terminal
-	FontFamily   string  `json:"fontFamily"` // "" the font kero carries; "monospace" the system's
+	FontFamily   string  `json:"fontFamily"` // "" kero's font; a single family gets CJK monospaced fallbacks when drawn; "monospace" the system's
 	FontSize     float32 `json:"fontSize"`
 	LineHeight   float32 `json:"lineHeight"`
 	FontWeight   int     `json:"fontWeight"`
