@@ -763,6 +763,9 @@ func (a *App) termOptions(id string, conn *gated) terminal.Options {
 		// theme's light grays on a light one, stays legible.
 		MinimumContrast:  a.set.MinContrast,
 		ScrollMultiplier: terminal.ScrollMultiplier{Precision: a.set.ScrollPrecision, Discrete: a.set.ScrollDiscrete},
+		// The scrollback-limit kerod's copy keeps, never the terminal's
+		// default, 10 MB, which would keep more here than there.
+		Scrollback: a.set.ScrollbackBytes(),
 		// Every terminal zooms together, and the size is remembered.
 		OnZoom: func(z terminal.Zoom) bool {
 			a.zoom(z.Steps, z.Reset)

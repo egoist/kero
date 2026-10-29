@@ -344,6 +344,16 @@ func target(path string) string {
 // Clone returns a copy that shares nothing with s.
 func (s Settings) Clone() Settings { return clone(s) }
 
+// ScrollbackBytes is a terminal's terminal.Options.Scrollback for the
+// scrollback-limit, the same in kerod's copy of a pane and the app's: -1
+// keeps none, as 0 would take the terminal's default.
+func (s Settings) ScrollbackBytes() int {
+	if s.Scrollback == 0 {
+		return -1
+	}
+	return s.Scrollback << 20
+}
+
 func clone(s Settings) Settings {
 	s.Env = append([]string(nil), s.Env...)
 	s.AdLists = slices.Clone(s.AdLists)

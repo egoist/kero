@@ -117,13 +117,9 @@ func newPane(d *Daemon, sid string, info proto.Pane) (*pane, error) {
 	if s.info.Cols <= 0 || s.info.Rows <= 0 {
 		s.info.Cols, s.info.Rows = 120, 36
 	}
-	sb := settings.Load().Scrollback << 20
-	if sb == 0 {
-		sb = -1 // none
-	}
 	term, err := terminal.New(terminal.Options{
 		Conn:       &headless{s: s, closed: make(chan struct{})},
-		Scrollback: sb,
+		Scrollback: settings.Load().ScrollbackBytes(),
 		// Programs' reads of the clipboard go on to the clients, whose
 		// terminals answer them, asking the user as they would.
 		ClipboardRead: terminal.ClipboardForward,
