@@ -246,10 +246,9 @@ type Turn struct {
 	At   int64  `json:"at"`   // unix ms
 }
 
-// AgentSession is a coding agent's session: Claude Code's or Codex's,
-// by its id.
+// AgentSession is a coding agent's conversation, by its id.
 type AgentSession struct {
-	Agent string `json:"agent"` // "claude", "codex", "pi" or "opencode"
+	Agent string `json:"agent"` // "claude", "codex", "pi", "opencode" or "vibe"
 	ID    string `json:"id"`
 }
 

@@ -9,10 +9,13 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/BurntSushi/toml"
 
 	"kero/internal/client"
 	"kero/internal/clilink"
@@ -35,16 +38,24 @@ func hookCmd(args []string) error {
 	pane := os.Getenv("KERO_PANE")
 	var in struct {
 		Event   string `json:"hook_event_name"`
-		AgentID string `json:"agent_id"`   // set for Claude Code's subagents
-		Session string `json:"session_id"` // the agent's own
+		AgentID string `json:"agent_id"`          // set for Claude Code's subagents
+		Session string `json:"session_id"`        // the agent's own
+		Parent  string `json:"parent_session_id"` // set for Vibe's subagents
 		Cwd     string `json:"cwd"`
 		Source  string `json:"source"` // "startup", "resume", "clear", "compact"
 	}
-	json.NewDecoder(io.LimitReader(os.Stdin, 1<<20)).Decode(&in)
-	if pane == "" || in.Event != "SessionStart" || in.AgentID != "" {
+	if err := json.NewDecoder(io.LimitReader(os.Stdin, 1<<20)).Decode(&in); err != nil || pane == "" || in.AgentID != "" {
 		return nil
 	}
-	if t := os.Getenv("CODEX_THREAD_ID"); t != "" && in.Session != "" && t != in.Session {
+	if agent == "vibe" {
+		// shortcut: no Vibe startup/switch hooks; replace checkpoints when available.
+		if in.Session == "" || in.Parent != "" || (in.Event != "pre_tool" && in.Event != "post_agent") {
+			return nil
+		}
+	} else if in.Event != "SessionStart" {
+		return nil
+	}
+	if t := os.Getenv("CODEX_THREAD_ID"); agent != "vibe" && t != "" && in.Session != "" && t != in.Session {
 		return nil // a Codex run by another agent in this pane, not the pane's
 	}
 	sid, away := os.Getenv("KERO_SESSION"), false
@@ -63,9 +74,12 @@ func hookCmd(args []string) error {
 			}
 			pane, sid, away = r.Pane, r.Session, r.Away
 		}
-		if in.Source != "resume" && in.Source != "compact" {
+		if agent != "vibe" && in.Source != "resume" && in.Source != "compact" {
 			forgetAgentName(c, pane, sid)
 		}
+	}
+	if agent == "vibe" {
+		return nil
 	}
 	out := map[string]any{"hookSpecificOutput": map[string]string{
 		"hookEventName":     "SessionStart",
@@ -166,11 +180,11 @@ type integration interface {
 	remove() error
 }
 
-// agentHook is a hook kero installs in an agent's settings: a SessionStart
-// command running `kero hook <agent>`.
+// agentHook installs `kero hook <agent>` in the agent's settings:
+// SessionStart for Claude/Codex, or Vibe's conversation checkpoints.
 type agentHook struct {
-	agent string // as `kero hook` takes it: "claude", "codex"
-	file  string // the JSON file holding the agent's hooks
+	agent string // as `kero hook` takes it
+	file  string // the JSON or TOML file holding the agent's hooks
 }
 
 func (h agentHook) name() string { return h.agent }
@@ -203,6 +217,9 @@ func (h agentHook) ours(command string) bool {
 // state is "current", "outdated" (kero's hook, of another command line)
 // or "missing".
 func (h agentHook) state() string {
+	if h.agent == "vibe" {
+		return h.vibeState()
+	}
 	b, err := os.ReadFile(h.file)
 	if err != nil {
 		return "missing"
@@ -268,6 +285,9 @@ func (h agentHook) remove() error {
 }
 
 func (h agentHook) edit(add bool) error {
+	if h.agent == "vibe" {
+		return h.editVibe(add)
+	}
 	b, err := os.ReadFile(h.file)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
@@ -341,6 +361,104 @@ func (h agentHook) edit(add bool) error {
 		return nil
 	}
 	return writeFileAtomic(h.file, pretty.Bytes())
+}
+
+func vibeHookName(name any) bool {
+	return name == "kero-pre-tool" || name == "kero-post-agent"
+}
+
+func (h agentHook) vibeHandlers() []map[string]any {
+	return []map[string]any{
+		{"name": "kero-pre-tool", "type": "pre_tool", "command": h.command(), "timeout": int64(10)},
+		{"name": "kero-post-agent", "type": "post_agent", "command": h.command(), "timeout": int64(10)},
+	}
+}
+
+// vibeSettings reads all settings, validating the hook list before changing it.
+func (h agentHook) vibeSettings() (map[string]any, []map[string]any, error) {
+	b, err := os.ReadFile(h.file)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return nil, nil, err
+	}
+	settings := map[string]any{}
+	if _, err := toml.Decode(string(b), &settings); err != nil {
+		return nil, nil, fmt.Errorf("%s: %w", proto.ShortDir(h.file), err)
+	}
+	var hooks []map[string]any
+	badList := fmt.Errorf("%s: hooks must be a list of tables", proto.ShortDir(h.file))
+	switch raw := settings["hooks"].(type) {
+	case nil:
+	case []map[string]any:
+		hooks = raw
+	case []any:
+		for _, entry := range raw {
+			hook, ok := entry.(map[string]any)
+			if !ok {
+				return nil, nil, badList
+			}
+			hooks = append(hooks, hook)
+		}
+	default:
+		return nil, nil, badList
+	}
+	return settings, hooks, nil
+}
+
+func (h agentHook) vibeState() string {
+	_, hooks, err := h.vibeSettings()
+	if err != nil {
+		return "missing"
+	}
+	var ours []map[string]any
+	for _, hook := range hooks {
+		if vibeHookName(hook["name"]) {
+			ours = append(ours, hook)
+		}
+	}
+	switch {
+	case reflect.DeepEqual(ours, h.vibeHandlers()):
+		return "current"
+	case len(ours) == 0:
+		return "missing"
+	}
+	return "outdated"
+}
+
+func (h agentHook) editVibe(add bool) error {
+	settings, hooks, err := h.vibeSettings()
+	if err != nil {
+		return err
+	}
+	var kept, ours []map[string]any
+	for _, hook := range hooks {
+		if !vibeHookName(hook["name"]) {
+			kept = append(kept, hook)
+			continue
+		}
+		command, _ := hook["command"].(string)
+		if !h.ours(command) {
+			return fmt.Errorf("%s: hook %q is not Kero's; rename it before setup or removal", proto.ShortDir(h.file), hook["name"])
+		}
+		ours = append(ours, hook)
+	}
+	wanted := h.vibeHandlers()
+	if add && reflect.DeepEqual(ours, wanted) || !add && len(ours) == 0 {
+		return nil
+	}
+	if add {
+		kept = append(kept, wanted...)
+	}
+	if len(kept) == 0 {
+		delete(settings, "hooks")
+	} else {
+		settings["hooks"] = kept
+	}
+	// shortcut: re-encoding drops comments; use a preserving editor if required.
+	var out bytes.Buffer
+	if err := toml.NewEncoder(&out).Encode(settings); err != nil {
+		return err
+	}
+	return writeFileAtomic(h.file, out.Bytes())
 }
 
 // agentPlugin is a plugin kero installs for an agent: files of its own,
@@ -421,8 +539,7 @@ func (p agentPlugin) remove() error {
 }
 
 // agentHooks returns what kero installs to hook agents into Kero: for
-// Claude Code, and for Codex, Pi and OpenCode when they are installed (or
-// named).
+// Claude Code, and for Codex, Pi, OpenCode and Vibe when installed (or named).
 func agentHooks(agent string) []integration {
 	home := proto.Home()
 	dirOf := func(env string, def ...string) string {
@@ -434,6 +551,7 @@ func agentHooks(agent string) []integration {
 	claude := dirOf("CLAUDE_CONFIG_DIR", ".claude")
 	codex := dirOf("CODEX_HOME", ".codex")
 	pi := dirOf("PI_CODING_AGENT_DIR", ".pi", "agent")
+	vibe := dirOf("VIBE_HOME", ".vibe")
 	opencode := filepath.Join(dirOf("XDG_CONFIG_HOME", ".config"), "opencode")
 	installed := func(dir string) bool {
 		st, err := os.Stat(dir)
@@ -449,6 +567,7 @@ func agentHooks(agent string) []integration {
 		{"opencode", opencode, agentPlugin{agent: "opencode", dir: filepath.Join(opencode, "plugins", "kero"), own: true, files: map[string]string{
 			"package.json": "agents/opencode/package.json", "index.js": "agents/opencode/index.js", "tui.js": "agents/opencode/tui.js",
 		}}},
+		{"vibe", vibe, agentHook{"vibe", filepath.Join(vibe, "hooks.toml")}},
 	}
 	var out []integration
 	for _, a := range all {

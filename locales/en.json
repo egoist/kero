@@ -356,7 +356,7 @@
   "setRestoreSessions": "Restore sessions after a restart",
   "setRestoreSessionsDetail": "If the background service stops, as when the Mac restarts, sessions start again in their folders, under their history.",
   "setResumeAgents": "Resume agents",
-  "setResumeAgentsDetail": "Claude Code, Codex, Pi and OpenCode pick up their conversation where it was, once Kero’s skill is set up for them in Agents.",
+  "setResumeAgentsDetail": "Claude Code, Codex, Pi, OpenCode and Vibe pick up their conversation where it was, once Kero’s skill is set up for them in Agents.",
   "setStartup": "Startup",
   "setOpenAtLogin": "Open Kero at login",
   "setLoginFailed": "Couldn’t change it: {error}",

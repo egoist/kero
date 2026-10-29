@@ -28,7 +28,7 @@ func settingsIndex() []searchEntry {
 		{"general", locales.SetFocusFollowsMouse(), "focus-follows-mouse hover pointer niri hyprland sloppy"},
 		{"general", locales.SetAskBeforeClosing(), "confirm-close quit kill"},
 		{"general", locales.SetRestoreSessions(), "restore-sessions reboot persist"},
-		{"general", locales.SetResumeAgents(), "resume-agents claude codex pi opencode conversation restore reboot"},
+		{"general", locales.SetResumeAgents(), "resume-agents claude codex pi opencode vibe conversation restore reboot"},
 		{"general", locales.SetSessionHistory(), "session-history ended sessions archived resume claude codex conversation"},
 		{"general", locales.SetGitStatus(), "git-status branch changes diff repository worktree"},
 		{"general", locales.SetDiffLayout(), "diff-layout diff unified split side by side changes"},
@@ -74,7 +74,7 @@ func settingsIndex() []searchEntry {
 		{"agents", locales.SetRemoteControlRow(), "remote-control kero do focus browser automation"},
 		{"agents", locales.SetCliRow(), "cli command line tool install path"},
 		{"agents", "Claude Code", "skill agents install"},
-		{"agents", "Codex, OpenCode, Pi", "skill agents install"},
+		{"agents", "Codex, OpenCode, Pi, Vibe", "skill agents install"},
 		{"agents", locales.SetProgramStatus(), "osc 7501 report progress"},
 
 		{"hosts", locales.SetHosts(), "host hosts remote server ssh tailscale tailnet wsl machine linux devbox -H kero hosts"},

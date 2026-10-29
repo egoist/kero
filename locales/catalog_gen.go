@@ -2140,11 +2140,11 @@ func (msgs Messages) SetResumeAgents() string {
 	return Catalog.Format(msgs.locale, "setResumeAgents", nil)
 }
 
-// SetResumeAgentsDetail says "Claude Code, Codex, Pi and OpenCode pick up their conversation where it was, once Kero’s skill is set up for them i…"
+// SetResumeAgentsDetail says "Claude Code, Codex, Pi, OpenCode and Vibe pick up their conversation where it was, once Kero’s skill is set up for …"
 // in the language the app shows.
 func SetResumeAgentsDetail() string { return In(i18n.Locale()).SetResumeAgentsDetail() }
 
-// SetResumeAgentsDetail says "Claude Code, Codex, Pi and OpenCode pick up their conversation where it was, once Kero’s skill is set up for them i…"
+// SetResumeAgentsDetail says "Claude Code, Codex, Pi, OpenCode and Vibe pick up their conversation where it was, once Kero’s skill is set up for …"
 // in the language of msgs.
 func (msgs Messages) SetResumeAgentsDetail() string {
 	return Catalog.Format(msgs.locale, "setResumeAgentsDetail", nil)
