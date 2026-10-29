@@ -847,6 +847,27 @@ func (a *App) terminalPage(c *ui.Context, pal *palette) {
 			segmented(c, "clip", &s.Clipboard, []string{"ask", "allow", "deny"}, []string{locales.SetAsk(), locales.SetAllow(), locales.SetDeny()})
 		})
 	})
+	// mouse-scroll-multiplier's discrete: and precision:.
+	settingsGroup(c, pal, locales.SetScrolling(), "", func() {
+		settingRow(c, pal, locales.SetWheelScroll(), locales.SetWheelScrollDetail(), func() {
+			rows := []float32{1, 2, 3, 4, 5, 6, 8, 10}
+			if !slices.Contains(rows, s.ScrollDiscrete) {
+				rows = append(rows, s.ScrollDiscrete)
+				slices.Sort(rows)
+			}
+			popup(c, "wheel", &s.ScrollDiscrete, rows, func(n float32) string {
+				if n == float32(int(n)) {
+					return locales.SetScrollRows(int(n))
+				}
+				return strconv.FormatFloat(float64(n), 'f', -1, 32)
+			}, 110, pal)
+		})
+		settingRow(c, pal, locales.SetTrackpadScroll(), locales.SetTrackpadScrollDetail(), func() {
+			v := float64(s.ScrollPrecision)
+			slider(c, "trackpad", &v, 0.25, 3, 160, pal).OnChange(func() { a.set.ScrollPrecision = float32(int(v*20+0.5)) / 20 })
+			ui.Textf(c, "%.2f×", s.ScrollPrecision).FontSize(12.5).TextColor(pal.textMuted).Width(40).FontFeatures("tnum")
+		})
+	})
 }
 
 // terminalPreview shows text as the terminals would draw it: the font,

@@ -435,6 +435,19 @@
   "setRightClickCopyOrPaste": "Copies, or pastes",
   "setClipboardRead": "Programs reading the clipboard",
   "setClipboardReadDetail": "As with OSC 52: agents asking for what you copied.",
+  "setScrolling": "Scrolling",
+  "setWheelScroll": "Mouse wheel",
+  "setWheelScrollDetail": "How far a notch of the wheel scrolls.",
+  "setScrollRows": "{count, plural, one {# row} other {# rows}}",
+  "@setScrollRows": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "setTrackpadScroll": "Trackpad",
+  "setTrackpadScrollDetail": "How fast scrolling with two fingers goes.",
   "setAsk": "Ask",
   "setAllow": "Allow",
   "setDeny": "Deny",

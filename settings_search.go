@@ -58,6 +58,8 @@ func settingsIndex() []searchEntry {
 		{"terminal", locales.SetCopyOnSelect(), "copy-on-select clipboard selection"},
 		{"terminal", locales.SetRightClick(), "right-click-action context menu paste mouse"},
 		{"terminal", locales.SetClipboardRead(), "clipboard-read osc 52 paste privacy"},
+		{"terminal", locales.SetWheelScroll(), "mouse-scroll-multiplier discrete scroll speed wheel notch rows"},
+		{"terminal", locales.SetTrackpadScroll(), "mouse-scroll-multiplier precision scroll speed trackpad touchpad"},
 
 		{"shell", locales.SetShell(), "command fish zsh bash login"},
 		{"shell", locales.SetScrollback(), "scrollback-limit history buffer lines memory"},

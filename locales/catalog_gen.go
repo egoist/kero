@@ -2934,6 +2934,66 @@ func (msgs Messages) SetClipboardReadDetail() string {
 	return Catalog.Format(msgs.locale, "setClipboardReadDetail", nil)
 }
 
+// SetScrolling says "Scrolling"
+// in the language the app shows.
+func SetScrolling() string { return In(i18n.Locale()).SetScrolling() }
+
+// SetScrolling says "Scrolling"
+// in the language of msgs.
+func (msgs Messages) SetScrolling() string {
+	return Catalog.Format(msgs.locale, "setScrolling", nil)
+}
+
+// SetWheelScroll says "Mouse wheel"
+// in the language the app shows.
+func SetWheelScroll() string { return In(i18n.Locale()).SetWheelScroll() }
+
+// SetWheelScroll says "Mouse wheel"
+// in the language of msgs.
+func (msgs Messages) SetWheelScroll() string {
+	return Catalog.Format(msgs.locale, "setWheelScroll", nil)
+}
+
+// SetWheelScrollDetail says "How far a notch of the wheel scrolls."
+// in the language the app shows.
+func SetWheelScrollDetail() string { return In(i18n.Locale()).SetWheelScrollDetail() }
+
+// SetWheelScrollDetail says "How far a notch of the wheel scrolls."
+// in the language of msgs.
+func (msgs Messages) SetWheelScrollDetail() string {
+	return Catalog.Format(msgs.locale, "setWheelScrollDetail", nil)
+}
+
+// SetScrollRows says "{count, plural, one {# row} other {# rows}}"
+// in the language the app shows.
+func SetScrollRows(count int) string { return In(i18n.Locale()).SetScrollRows(count) }
+
+// SetScrollRows says "{count, plural, one {# row} other {# rows}}"
+// in the language of msgs.
+func (msgs Messages) SetScrollRows(count int) string {
+	return Catalog.Format(msgs.locale, "setScrollRows", map[string]any{"count": count})
+}
+
+// SetTrackpadScroll says "Trackpad"
+// in the language the app shows.
+func SetTrackpadScroll() string { return In(i18n.Locale()).SetTrackpadScroll() }
+
+// SetTrackpadScroll says "Trackpad"
+// in the language of msgs.
+func (msgs Messages) SetTrackpadScroll() string {
+	return Catalog.Format(msgs.locale, "setTrackpadScroll", nil)
+}
+
+// SetTrackpadScrollDetail says "How fast scrolling with two fingers goes."
+// in the language the app shows.
+func SetTrackpadScrollDetail() string { return In(i18n.Locale()).SetTrackpadScrollDetail() }
+
+// SetTrackpadScrollDetail says "How fast scrolling with two fingers goes."
+// in the language of msgs.
+func (msgs Messages) SetTrackpadScrollDetail() string {
+	return Catalog.Format(msgs.locale, "setTrackpadScrollDetail", nil)
+}
+
 // SetAsk says "Ask"
 // in the language the app shows.
 func SetAsk() string { return In(i18n.Locale()).SetAsk() }
