@@ -2874,6 +2874,26 @@ func (msgs Messages) SetRightClickCopyOrPaste() string {
 	return Catalog.Format(msgs.locale, "setRightClickCopyOrPaste", nil)
 }
 
+// SetOpenDocumentLinks says "Open document links in split panes"
+// in the language the app shows.
+func SetOpenDocumentLinks() string { return In(i18n.Locale()).SetOpenDocumentLinks() }
+
+// SetOpenDocumentLinks says "Open document links in split panes"
+// in the language of msgs.
+func (msgs Messages) SetOpenDocumentLinks() string {
+	return Catalog.Format(msgs.locale, "setOpenDocumentLinks", nil)
+}
+
+// SetOpenDocumentLinksDetail says "Local HTML and Markdown links open beside the terminal instead of in an external app. Off by default."
+// in the language the app shows.
+func SetOpenDocumentLinksDetail() string { return In(i18n.Locale()).SetOpenDocumentLinksDetail() }
+
+// SetOpenDocumentLinksDetail says "Local HTML and Markdown links open beside the terminal instead of in an external app. Off by default."
+// in the language of msgs.
+func (msgs Messages) SetOpenDocumentLinksDetail() string {
+	return Catalog.Format(msgs.locale, "setOpenDocumentLinksDetail", nil)
+}
+
 // SetClipboardRead says "Programs reading the clipboard"
 // in the language the app shows.
 func SetClipboardRead() string { return In(i18n.Locale()).SetClipboardRead() }

@@ -661,6 +661,10 @@ func (a *App) splitPane(s *proto.Session, at, direction string) {
 // split makes a pane beside another, as p asks, on the session's host,
 // and puts the user in it.
 func (a *App) split(s *proto.Session, p proto.CreateParams) {
+	a.splitThen(s, p, nil)
+}
+
+func (a *App) splitThen(s *proto.Session, p proto.CreateParams, done func(*proto.Session, error)) {
 	if s == nil {
 		return
 	}
@@ -683,6 +687,9 @@ func (a *App) split(s *proto.Session, p proto.CreateParams) {
 		a.update(func() {
 			if err != nil {
 				a.toast(err.Error())
+				if done != nil {
+					done(nil, err)
+				}
 				return
 			}
 			a.replaceSession(h, ns)
@@ -698,6 +705,9 @@ func (a *App) split(s *proto.Session, p proto.CreateParams) {
 					// its page once it has one.
 					a.paneRef(ns.Focus).Focus()
 				}
+			}
+			if done != nil {
+				done(a.session(ns.ID), nil)
 			}
 		})
 	}()

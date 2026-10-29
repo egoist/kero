@@ -840,6 +840,9 @@ func (a *App) terminalPage(c *ui.Context, pal *palette) {
 				return map[string]string{"menu": locales.SetRightClickMenu(), "paste": locales.SetRightClickPaste(), "copyOrPaste": locales.SetRightClickCopyOrPaste()}[id]
 			}, 170, pal)
 		})
+		settingRow(c, pal, locales.SetOpenDocumentLinks(), locales.SetOpenDocumentLinksDetail(), func() {
+			toggle(c.Key("document-links"), &s.OpenDocumentLinks, pal).Label(locales.SetOpenDocumentLinks())
+		})
 		settingRow(c, pal, locales.SetClipboardRead(), locales.SetClipboardReadDetail(), func() {
 			segmented(c, "clip", &s.Clipboard, []string{"ask", "allow", "deny"}, []string{locales.SetAsk(), locales.SetAllow(), locales.SetDeny()})
 		})

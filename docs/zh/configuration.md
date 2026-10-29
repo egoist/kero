@@ -72,6 +72,7 @@ kero config check             # 报告未知的配置项和无效的值
 | `font-thicken`        | `false` | 加粗笔画，同 Ghostty                                                     |
 | `minimum-contrast`    | `3`     | 文字与背景之间保持的最低对比度，从 `1`（不限制）到 `21`，让为深色背景设计的颜色在浅色背景上也清晰可读，同 Ghostty |
 | `dim-unfocused-terminals` | `true` | 会话有多个窗格时，淡化未聚焦的终端                                  |
+| `open-document-links` | `false` | 在可复用的分屏窗格中打开本地 HTML 和 Markdown 链接，而非外部应用 |
 | `cursor-style`        | `block` | `block`、`bar` 或 `underline`；程序可以更改它                            |
 | `cursor-style-blink`  | `true`  | 光标闪烁                                                                 |
 | `macos-option-as-alt` | `false` | Option 键向程序发送 Alt（Meta）                                          |

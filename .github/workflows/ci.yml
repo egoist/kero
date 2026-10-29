@@ -21,6 +21,8 @@ jobs:
         run: go vet ./...
       - name: Test
         run: go test ./internal/...
+      - name: Document link previews
+        run: go test . -run 'Test(Document|Markdown|MissingDocument)' -count=1
       - name: Build for every platform
         run: |
           set -eu

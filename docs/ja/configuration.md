@@ -72,6 +72,7 @@ kero config check             # 不明なキーと不正な値を報告
 | `font-thicken`        | `false`    | Ghostty と同じく、線を太くする                                           |
 | `minimum-contrast`    | `3`        | テキストが背景に対して保つ最小のコントラスト。`1`（なし）から `21`。Ghostty と同じく、暗い背景向けの色が明るい背景でも読めるようにする |
 | `dim-unfocused-terminals` | `true` | セッションに複数のペインがあるとき、使用中でないターミナルを薄くする |
+| `open-document-links` | `false` | ローカルの HTML と Markdown のリンクを、外部アプリではなく再利用できる分割ペインで開く |
 | `cursor-style`        | `block`    | `block`、`bar`、`underline`。プログラムが変更することがある              |
 | `cursor-style-blink`  | `true`     | カーソルを点滅させる                                                     |
 | `macos-option-as-alt` | `false`    | Option でプログラムに Alt（メタ）を送る                                  |

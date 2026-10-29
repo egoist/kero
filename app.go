@@ -111,6 +111,8 @@ type App struct {
 		ratio          float64 // where the pointer puts it, past its bounds
 	}
 
+	documentOpens map[string]string // latest link while a session's preview split opens
+
 	active   bool
 	focused  bool
 	statuses map[string]proto.Status // as last seen, for notifications
@@ -1033,9 +1035,12 @@ func vibrancyFor(s settings.Settings) mygo.Vibrancy {
 var lineSuffix = regexp.MustCompile(`(:\d+){1,2}$`)
 
 // openLink opens what a Command+click opens: URLs with the system, and
-// file paths printed in the session, relative to its directory, in the
-// app that opens them.
+// file paths printed in the session, relative to its directory, in their
+// external app or, when enabled, a document preview.
 func (a *App) openLink(id, link string) bool {
+	if a.openDocumentLink(id, link) {
+		return true
+	}
 	if h := a.hostOf(id); h.remote() {
 		// A link another machine's program printed opens here only as a
 		// web page; a file:// one, and any path, are the host's; any other,
@@ -1070,6 +1075,15 @@ func (a *App) openLink(id, link string) bool {
 // the directory of the program that printed it, or "" for no such file.
 // id is a pane's, or a session's for its pane in front.
 func (a *App) resolvePath(id, link string) string {
+	path := a.localPath(id, link)
+	if _, err := os.Stat(path); err != nil {
+		return ""
+	}
+	return path
+}
+
+// localPath resolves even a missing file, so its preview can show the error.
+func (a *App) localPath(id, link string) string {
 	path := lineSuffix.ReplaceAllString(link, "")
 	if strings.HasPrefix(path, "~/") || runtime.GOOS == "windows" && strings.HasPrefix(path, `~`) {
 		path = filepath.Join(proto.Home(), path[2:])
@@ -1078,9 +1092,6 @@ func (a *App) resolvePath(id, link string) string {
 		if dir := a.workDir(id); dir != "" {
 			path = filepath.Join(dir, path)
 		}
-	}
-	if _, err := os.Stat(path); err != nil {
-		return ""
 	}
 	return path
 }

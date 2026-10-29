@@ -56,6 +56,7 @@ func settingsIndex() []searchEntry {
 		{"terminal", locales.SetOptionMeta(), "macos-option-as-alt alt meta emacs readline keyboard"},
 		{"terminal", locales.SetCopyOnSelect(), "copy-on-select clipboard selection"},
 		{"terminal", locales.SetRightClick(), "right-click-action context menu paste mouse"},
+		{"terminal", locales.SetOpenDocumentLinks(), "open-document-links html markdown preview files browser split links"},
 		{"terminal", locales.SetClipboardRead(), "clipboard-read osc 52 paste privacy"},
 
 		{"shell", locales.SetShell(), "command fish zsh bash login"},

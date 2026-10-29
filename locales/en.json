@@ -429,6 +429,8 @@
   "setRightClickMenu": "Shows a menu",
   "setRightClickPaste": "Pastes",
   "setRightClickCopyOrPaste": "Copies, or pastes",
+  "setOpenDocumentLinks": "Open document links in split panes",
+  "setOpenDocumentLinksDetail": "Local HTML and Markdown links open beside the terminal instead of in an external app. Off by default.",
   "setClipboardRead": "Programs reading the clipboard",
   "setClipboardReadDetail": "As with OSC 52: agents asking for what you copied.",
   "setAsk": "Ask",

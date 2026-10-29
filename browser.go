@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"path/filepath"
 	"runtime"
 	"time"
 	"unicode/utf8"
@@ -18,8 +19,10 @@ import (
 // place and page, the app the page itself, which it loads where kerod
 // last had it and tells kerod of as the user goes to others.
 type webEntry struct {
-	view *mygo.WebView
-	err  string
+	view          *mygo.WebView
+	err           string
+	document      *markdownPreview
+	documentLinks bool
 	// url and title are the page's, as it last committed; told is what
 	// kerod was last told.
 	url, title string
@@ -62,13 +65,25 @@ func browserUA() string {
 // ensureWeb makes the web view of a browser pane, on the page kerod has.
 func (a *App) ensureWeb(p *proto.Pane) *webEntry {
 	if e := a.webs[p.ID]; e != nil {
+		if e.view == nil && e.document == nil && e.err == "" && a.win != nil {
+			return a.createWeb(p, e)
+		}
 		return e
 	}
-	e := &webEntry{url: p.URL, title: p.Title, address: p.URL, told: [2]string{p.URL, p.Title}}
+	e := &webEntry{url: p.URL, title: p.Title, address: p.URL, told: [2]string{p.URL, p.Title}, documentLinks: a.set.OpenDocumentLinks && !a.hostOf(p.ID).remote()}
 	if p.URL == proto.BlankURL {
 		e.address, e.focusAddress = "", true
 	}
 	a.webs[p.ID] = e
+	if e.documentLinks && markdownPath(p.URL) != "" {
+		e.load(p.URL)
+		a.tellPage(p.ID, e)
+		return e
+	}
+	return a.createWeb(p, e)
+}
+
+func (a *App) createWeb(p *proto.Pane, e *webEntry) *webEntry {
 	if a.win == nil {
 		return e
 	}
@@ -86,7 +101,7 @@ func (a *App) ensureWeb(p *proto.Pane) *webEntry {
 	// pane shows, and what kerod keeps.
 	page.OnDidNavigate(func(url string) {
 		a.update(func() {
-			if a.webs[id] != e {
+			if a.webs[id] != e || e.view != v {
 				return
 			}
 			e.url, e.err, e.iconURL = url, "", ""
@@ -99,7 +114,7 @@ func (a *App) ensureWeb(p *proto.Pane) *webEntry {
 	})
 	page.OnPageTitleUpdated(func(t *mygo.TitleEvent) {
 		a.update(func() {
-			if a.webs[id] != e {
+			if a.webs[id] != e || e.view != v {
 				return
 			}
 			e.title = t.Title
@@ -119,6 +134,9 @@ func (a *App) ensureWeb(p *proto.Pane) *webEntry {
 	})
 	page.OnDidFinishLoad(func() {
 		a.update(func() {
+			if e.view != v {
+				return
+			}
 			e.syncNav()
 			e.loadEnded(nil)
 			a.findFavicon(e)
@@ -126,6 +144,9 @@ func (a *App) ensureWeb(p *proto.Pane) *webEntry {
 	})
 	page.OnDidFailLoad(func(err *mygo.LoadError) {
 		a.update(func() {
+			if e.view != v {
+				return
+			}
 			e.syncNav()
 			// A navigation the user left before it ended fails too: the
 			// one that left it ends later.
@@ -135,9 +156,13 @@ func (a *App) ensureWeb(p *proto.Pane) *webEntry {
 			}
 		})
 	})
-	page.OnRenderProcessGone(func(string) { page.Reload() })
-	if p.URL != proto.BlankURL {
-		e.load(p.URL)
+	page.OnRenderProcessGone(func(string) {
+		if e.view == v {
+			page.Reload()
+		}
+	})
+	if e.url != proto.BlankURL {
+		e.load(e.url)
 	}
 	return e
 }
@@ -155,6 +180,18 @@ func (e *webEntry) syncNav() {
 func (e *webEntry) load(text string) {
 	url := proto.BrowserURL(text)
 	e.url, e.address, e.err = url, url, ""
+	e.document = nil
+	if path := markdownPath(url); e.documentLinks && path != "" {
+		e.document = newMarkdownPreview(path)
+		e.title, e.iconURL, e.focused = filepath.Base(path), "", false
+		e.loadEnded(errors.New("Markdown previews are native documents, not browser pages"))
+		if e.view != nil {
+			e.view.Destroy()
+			e.view = nil
+		}
+		e.loading, e.back, e.fwd = false, false, false
+		return
+	}
 	if e.view == nil {
 		return
 	}
@@ -256,6 +293,8 @@ func (a *App) paneBrowser(c *ui.Context, pal *palette, bar ui.TitleBar, shown fl
 				ui.Icon(c, globeIcon).Size(36, 36).TextColor(pal.textFaint)
 				ui.Text(c, locales.BrowserBlank()).FontSize(13).TextColor(pal.textMuted)
 			})
+		case e.document != nil:
+			a.markdownDocument(c, pal, e.document)
 		case e.view == nil:
 			a.message(c, pal, locales.BrowserCantShow(), e.err, "", nil)
 		default:
@@ -317,9 +356,13 @@ func (a *App) browserBar(c *ui.Context, pal *palette, bar ui.TitleBar, shown flo
 			c.After(500 * time.Millisecond)
 			e.syncNav()
 		} else {
-			navButton(c, "reload", reloadIcon, locales.BrowserReload(), e.view != nil && e.url != proto.BlankURL, pal, func() {
-				e.view.Page().Reload()
-				e.loading = true
+			navButton(c, "reload", reloadIcon, locales.BrowserReload(), (e.view != nil || e.document != nil) && e.url != proto.BlankURL, pal, func() {
+				if e.document != nil {
+					e.load(e.url)
+				} else {
+					e.view.Page().Reload()
+					e.loading = true
+				}
 			})
 		}
 		gap := ui.Box(c.Key("drag-l")).Width(8).Shrink(0).AlignSelf(ui.Stretch)

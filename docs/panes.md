@@ -65,6 +65,16 @@ kero browser type 'input[name=q]' "kero" --enter
 kero browser text main
 ```
 
+### Document links
+
+Turn on **Open document links in split panes** in **Settings › Terminal › Input**, or set `open-document-links = true` in the [configuration](./configuration.md#terminal). It is off by default: until enabled, file links keep opening in their external apps.
+
+Click a local `.html`, `.htm`, `.md` or `.markdown` link in terminal output to preview it to the right of that terminal. A Markdown link's label need not show its destination: Kero uses the link's file path. Relative paths resolve from the terminal's working directory; `file:///` links and paths with line numbers work too. Another document uses the session's existing document preview instead of adding a split each time.
+
+HTML uses the browser. Markdown uses a native, read-only view with selectable text, headings, lists and code blocks. Its embedded HTML stays text, scripts do not run, and images show their descriptions without fetching them. Markdown previews accept UTF-8 text up to 4 MB; read errors show in the pane. **Reload** reads the file again. Previewing does not change the file.
+
+The setting does not change web links, other file types or links printed by a remote host. It needs no agent extension or instructions.
+
 ### Blocking ads
 
 Browser panes block ads and trackers with filter lists, [EasyList](https://easylist.to) and EasyPrivacy unless you choose others. Kero downloads them the first time a browser pane opens and refreshes them every week. Pages that open before the lists are ready get them as soon as they are, from their next load on.

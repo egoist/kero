@@ -281,6 +281,8 @@
   "setRightClickMenu": "メニューを表示",
   "setRightClickPaste": "ペースト",
   "setRightClickCopyOrPaste": "コピー、またはペースト",
+  "setOpenDocumentLinks": "文書のリンクを分割ペインで開く",
+  "setOpenDocumentLinksDetail": "ローカルの HTML と Markdown のリンクを、外部アプリではなくターミナルの隣で開きます。既定ではオフです。",
   "setClipboardRead": "プログラムによるクリップボードの読み取り",
   "setClipboardReadDetail": "OSC 52 と同じく、コピーした内容をエージェントが求めるとき。",
   "setAsk": "確認",

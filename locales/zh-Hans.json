@@ -281,6 +281,8 @@
   "setRightClickMenu": "显示菜单",
   "setRightClickPaste": "粘贴",
   "setRightClickCopyOrPaste": "拷贝或粘贴",
+  "setOpenDocumentLinks": "在分屏窗格中打开文档链接",
+  "setOpenDocumentLinksDetail": "点击本地 HTML 或 Markdown 链接时，在终端旁预览，不启动外部应用。默认关闭。",
   "setClipboardRead": "程序读取剪贴板",
   "setClipboardReadDetail": "例如通过 OSC 52：智能体请求读取你拷贝的内容。",
   "setAsk": "询问",

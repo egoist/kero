@@ -61,6 +61,8 @@ type Settings struct {
 	ScrollPrecision float32 `json:"scrollPrecision"`
 	ScrollDiscrete  float32 `json:"scrollDiscrete"`
 
+	OpenDocumentLinks bool `json:"openDocumentLinks"` // local HTML and Markdown links open in a split
+
 	// Shell
 	Shell      string   `json:"shell"` // "" the account's login shell
 	Env        []string `json:"env"`   // "KEY=value", added to every pane's
