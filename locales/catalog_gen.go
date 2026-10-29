@@ -2070,6 +2070,46 @@ func (msgs Messages) SetNameFolder() string {
 	return Catalog.Format(msgs.locale, "setNameFolder", nil)
 }
 
+// SetSidebarRows says "Sidebar rows"
+// in the language the app shows.
+func SetSidebarRows() string { return In(i18n.Locale()).SetSidebarRows() }
+
+// SetSidebarRows says "Sidebar rows"
+// in the language of msgs.
+func (msgs Messages) SetSidebarRows() string {
+	return Catalog.Format(msgs.locale, "setSidebarRows", nil)
+}
+
+// SetSidebarRowsDetail says "Detailed rows add a line under each session’s name: its status message, else its branch and changes."
+// in the language the app shows.
+func SetSidebarRowsDetail() string { return In(i18n.Locale()).SetSidebarRowsDetail() }
+
+// SetSidebarRowsDetail says "Detailed rows add a line under each session’s name: its status message, else its branch and changes."
+// in the language of msgs.
+func (msgs Messages) SetSidebarRowsDetail() string {
+	return Catalog.Format(msgs.locale, "setSidebarRowsDetail", nil)
+}
+
+// SetRowsDetailed says "Detailed"
+// in the language the app shows.
+func SetRowsDetailed() string { return In(i18n.Locale()).SetRowsDetailed() }
+
+// SetRowsDetailed says "Detailed"
+// in the language of msgs.
+func (msgs Messages) SetRowsDetailed() string {
+	return Catalog.Format(msgs.locale, "setRowsDetailed", nil)
+}
+
+// SetRowsCompact says "Compact"
+// in the language the app shows.
+func SetRowsCompact() string { return In(i18n.Locale()).SetRowsCompact() }
+
+// SetRowsCompact says "Compact"
+// in the language of msgs.
+func (msgs Messages) SetRowsCompact() string {
+	return Catalog.Format(msgs.locale, "setRowsCompact", nil)
+}
+
 // SetFocusFollowsMouse says "Focus follows mouse"
 // in the language the app shows.
 func SetFocusFollowsMouse() string { return In(i18n.Locale()).SetFocusFollowsMouse() }

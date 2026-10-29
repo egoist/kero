@@ -59,7 +59,7 @@ kero report clear
 | `error`   | 失败并已停止                                               |
 | `clear`   | 不是状态：清除程序之前报告的内容                           |
 
-Kero 会在边栏中显示这条消息。`blocked` 报告会把会话变为*等待中*；你不在时，`done` 和 `blocked` 会通知你。`--kind` 可以是 `permission`（需要批准某件事）、`question`（需要输入回答）或 `auth`（需要登录或令牌）。
+Kero 会在侧边栏的会话名称下方和窗格标题栏中显示这条消息。设置 `sidebar-rows = compact` 时，侧边栏改为在该行的提示中显示。`blocked` 报告会把会话变为*等待中*；你不在时，`done` 和 `blocked` 会通知你。`--kind` 可以是 `permission`（需要批准某件事）、`question`（需要输入回答）或 `auth`（需要登录或令牌）。
 
 `working` 和 `blocked` 只在程序运行期间有效，程序退出即结束。`done` 和 `error` 会一直保留，直到你在该窗格中输入，这样程序在你离开时完成，结果也会留在那里等你查看。被中断的程序应报告 `idle`。
 

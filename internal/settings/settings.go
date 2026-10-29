@@ -24,6 +24,7 @@ type Settings struct {
 	// General
 	NewSessionDir     string `json:"newSessionDir"`     // "current", "project" or "home"
 	SessionName       string `json:"sessionName"`       // what names an unnamed session: proto.NameFocused, NameLead or NameFolder
+	SidebarRows       string `json:"sidebarRows"`       // "detailed", two lines a session, or "compact", one
 	FocusFollowsMouse bool   `json:"focusFollowsMouse"` // a pane the pointer enters takes the focus
 	ConfirmClose      bool   `json:"confirmClose"`      // before closing a pane a program runs in
 	RestoreSessions   bool   `json:"restoreSessions"`   // after kerod restarts, as after a reboot
@@ -140,6 +141,7 @@ func Default() Settings {
 	return Settings{
 		NewSessionDir:   "current",
 		SessionName:     proto.NameFocused,
+		SidebarRows:     "detailed",
 		ConfirmClose:    true,
 		RestoreSessions: true,
 		ResumeAgents:    true,
@@ -357,6 +359,7 @@ func (s *Settings) normalize() {
 		*v = def
 	}
 	oneOf(&s.NewSessionDir, d.NewSessionDir, "current", "project", "home")
+	oneOf(&s.SidebarRows, d.SidebarRows, "detailed", "compact")
 	oneOf(&s.Appearance, d.Appearance, "system", "light", "dark")
 	oneOf(&s.Language, d.Language, append([]string{"system"}, Languages...)...)
 	oneOf(&s.Cursor, d.Cursor, "block", "bar", "underline")

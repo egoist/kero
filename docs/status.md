@@ -57,7 +57,7 @@ The states are:
 | `error`   | It failed and stopped                                      |
 | `clear`   | Not a state: removes what the program reported             |
 
-Kero shows the message in the sidebar. A `blocked` report turns the session to *waiting*, and `done` or `blocked` notify you when you're away. `--kind` is `permission` (approve something), `question` (type an answer) or `auth` (a login or a token).
+Kero shows the message under the session's name in the sidebar, and in the pane's header. With `sidebar-rows = compact`, the sidebar shows it in the row's tooltip. A `blocked` report turns the session to *waiting*, and `done` or `blocked` notify you when you're away. `--kind` is `permission` (approve something), `question` (type an answer) or `auth` (a login or a token).
 
 `working` and `blocked` last only as long as the program: they end when it exits. `done` and `error` stay until you type in the pane, so a program that finishes while you're away leaves its result for you to find. A program that is interrupted should report `idle`.
 
