@@ -55,6 +55,11 @@ type Settings struct {
 	CopyOnSelect bool    `json:"copyOnSelect"`
 	Clipboard    string  `json:"clipboard"`  // programs reading it: "ask", "allow" or "deny"
 	RightClick   string  `json:"rightClick"` // "menu", "paste" or "copyOrPaste"
+	// ScrollPrecision scales a touchpad's scrolling, and ScrollDiscrete is
+	// the rows a notch of a mouse wheel scrolls, as Ghostty's
+	// mouse-scroll-multiplier = precision:…,discrete:….
+	ScrollPrecision float32 `json:"scrollPrecision"`
+	ScrollDiscrete  float32 `json:"scrollDiscrete"`
 
 	// Shell
 	Shell      string   `json:"shell"` // "" the account's login shell
@@ -156,6 +161,8 @@ func Default() Settings {
 		DarkTheme:       "kero",
 		Clipboard:       "ask",
 		RightClick:      "menu",
+		ScrollPrecision: 1,
+		ScrollDiscrete:  3,
 		Scrollback:      4,
 		NotifyWaiting:   true,
 		NotifyDone:      true,
@@ -169,6 +176,13 @@ func Default() Settings {
 		AdLists:         slices.Clone(adblock.DefaultLists),
 	}
 }
+
+// MinScrollMultiplier and MaxScrollMultiplier bound ScrollPrecision and
+// ScrollDiscrete, as Ghostty bounds mouse-scroll-multiplier.
+const (
+	MinScrollMultiplier = 0.01
+	MaxScrollMultiplier = 10000
+)
 
 // Languages are the languages the app is written in, as the catalogs of
 // kero/locales name them.
@@ -366,6 +380,12 @@ func (s *Settings) normalize() {
 	}
 	if s.FontWeight < 100 || s.FontWeight > 900 {
 		s.FontWeight = d.FontWeight
+	}
+	if s.ScrollPrecision < MinScrollMultiplier || s.ScrollPrecision > MaxScrollMultiplier {
+		s.ScrollPrecision = d.ScrollPrecision
+	}
+	if s.ScrollDiscrete < MinScrollMultiplier || s.ScrollDiscrete > MaxScrollMultiplier {
+		s.ScrollDiscrete = d.ScrollDiscrete
 	}
 	if s.Scrollback < 0 || s.Scrollback > 256 {
 		s.Scrollback = d.Scrollback

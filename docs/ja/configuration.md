@@ -78,6 +78,7 @@ kero config check             # 不明なキーと不正な値を報告
 | `copy-on-select`      | `false`    | 選択したものをクリップボードにコピーする                                 |
 | `clipboard-read`      | `ask`      | プログラムによるクリップボードの読み取り（OSC 52）: `ask`、`allow`、`deny` |
 | `right-click-action`  | `context-menu` | `context-menu`、`paste`、`copy-or-paste`                             |
+| `mouse-scroll-multiplier` | `precision:1,discrete:3` | スクロールの量。Ghostty と同じく、`precision:` はトラックパッドのスクロールの倍率、`discrete:` はマウスホイール 1 ノッチでスクロールする行数（Windows では 3 行設定のときの 1 ノッチ）。数値を 1 つだけ書くと両方に適用。`0.01` から `10000` |
 
 ## シェル
 

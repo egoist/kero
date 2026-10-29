@@ -78,6 +78,7 @@ kero config check             # 报告未知的配置项和无效的值
 | `copy-on-select`      | `false` | 选中内容即复制到剪贴板                                                   |
 | `clipboard-read`      | `ask`   | 程序读取剪贴板（OSC 52）时：`ask`、`allow` 或 `deny`                     |
 | `right-click-action`  | `context-menu` | `context-menu`、`paste` 或 `copy-or-paste`                        |
+| `mouse-scroll-multiplier` | `precision:1,discrete:3` | 滚动的幅度，同 Ghostty：`precision:` 是触控板滚动的倍数，`discrete:` 是鼠标滚轮每一格滚动的行数（Windows 上指系统设为 3 行时的一格）；只写一个数字则同时设置两者，范围 `0.01` 到 `10000` |
 
 ## Shell
 

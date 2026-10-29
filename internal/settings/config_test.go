@@ -237,3 +237,37 @@ func TestTargetFollowsSymlinks(t *testing.T) {
 		t.Errorf("target(file) = %s", got)
 	}
 }
+
+// TestMouseScrollMultiplier: Ghostty's mouse-scroll-multiplier, with its
+// precision: and discrete: prefixes or one number for both, kept in
+// Ghostty's bounds.
+func TestMouseScrollMultiplier(t *testing.T) {
+	for _, c := range []struct {
+		line                string
+		precision, discrete float32
+	}{
+		{"", 1, 3},
+		{"mouse-scroll-multiplier = 0.5", 0.5, 0.5},
+		{"mouse-scroll-multiplier = precision:0.5,discrete:3", 0.5, 3},
+		{"mouse-scroll-multiplier = discrete:1", 1, 1},
+		{"mouse-scroll-multiplier = precision: 2 , discrete: 6", 2, 6},
+		{"mouse-scroll-multiplier = precision:0,discrete:20000", 0.01, 10000},
+	} {
+		s, probs := parse(c.line + "\n")
+		if len(probs) != 0 || s.ScrollPrecision != c.precision || s.ScrollDiscrete != c.discrete {
+			t.Errorf("%q: precision %v, discrete %v, problems %q; want %v, %v", c.line, s.ScrollPrecision, s.ScrollDiscrete, probs, c.precision, c.discrete)
+		}
+		back, _ := parse(format(s, ""))
+		if back.ScrollPrecision != s.ScrollPrecision || back.ScrollDiscrete != s.ScrollDiscrete {
+			t.Errorf("%q: read back %v, %v", c.line, back.ScrollPrecision, back.ScrollDiscrete)
+		}
+	}
+	for _, bad := range []string{"mouse-scroll-multiplier = fast", "mouse-scroll-multiplier = wheel:2"} {
+		if _, probs := parse(bad + "\n"); len(probs) != 1 {
+			t.Errorf("%q: problems %q, want one", bad, probs)
+		}
+	}
+	if out := format(Default(), ""); strings.Contains(out, "mouse-scroll-multiplier =") {
+		t.Errorf("a new file sets the default:\n%s", out)
+	}
+}

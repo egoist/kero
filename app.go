@@ -769,7 +769,8 @@ func (a *App) termOptions(id string, conn *gated) terminal.Options {
 		PaddingColor: terminal.PaddingExtend,
 		// Text a program colored for the other appearance, as a dark
 		// theme's light grays on a light one, stays legible.
-		MinimumContrast: a.set.MinContrast,
+		MinimumContrast:  a.set.MinContrast,
+		ScrollMultiplier: terminal.ScrollMultiplier{Precision: a.set.ScrollPrecision, Discrete: a.set.ScrollDiscrete},
 		// Every terminal zooms together, and the size is remembered.
 		OnZoom: func(z terminal.Zoom) bool {
 			a.zoom(z.Steps, z.Reset)
@@ -876,6 +877,9 @@ func (a *App) apply(s settings.Settings, save bool) {
 		}
 		if old.MinContrast != s.MinContrast {
 			t.SetMinimumContrast(s.MinContrast)
+		}
+		if old.ScrollPrecision != s.ScrollPrecision || old.ScrollDiscrete != s.ScrollDiscrete {
+			t.SetScrollMultiplier(terminal.ScrollMultiplier{Precision: s.ScrollPrecision, Discrete: s.ScrollDiscrete})
 		}
 		if old.CopyOnSelect != s.CopyOnSelect {
 			mode := terminal.CopyOnSelectNone

@@ -166,6 +166,48 @@ var keys = []key{
 	mapChoice("right-click-action", "", func(s *Settings) *string { return &s.RightClick },
 		[]string{"context-menu", "paste", "copy-or-paste"}, []string{"menu", "paste", "copyOrPaste"}),
 
+	{name: "mouse-scroll-multiplier", doc: "how far scrolling goes, as Ghostty's: precision:<n> scales a touchpad's, discrete:<n> is the rows a notch of a mouse wheel scrolls; both comma-separated, or one number for both",
+		get: func(s *Settings) []string {
+			f := func(n float32) string { return strconv.FormatFloat(float64(n), 'f', -1, 32) }
+			return []string{"precision:" + f(s.ScrollPrecision) + ",discrete:" + f(s.ScrollDiscrete)}
+		},
+		set: func(s *Settings, v []string) error {
+			val := v[len(v)-1]
+			n := func(t string) (float32, error) {
+				f, err := strconv.ParseFloat(strings.TrimSpace(t), 32)
+				if err != nil {
+					return 0, fmt.Errorf("%q is not a number", strings.TrimSpace(t))
+				}
+				return float32(min(max(f, MinScrollMultiplier), MaxScrollMultiplier)), nil
+			}
+			if !strings.Contains(val, ":") {
+				f, err := n(val)
+				if err != nil {
+					return err
+				}
+				s.ScrollPrecision, s.ScrollDiscrete = f, f
+				return nil
+			}
+			for _, part := range strings.Split(val, ",") {
+				k, t, _ := strings.Cut(strings.TrimSpace(part), ":")
+				var dst *float32
+				switch k {
+				case "precision":
+					dst = &s.ScrollPrecision
+				case "discrete":
+					dst = &s.ScrollDiscrete
+				default:
+					return fmt.Errorf("%q: write precision:<n>,discrete:<n>", val)
+				}
+				f, err := n(t)
+				if err != nil {
+					return err
+				}
+				*dst = f
+			}
+			return nil
+		}},
+
 	stringKey("command", "the shell of new panes: empty for your login shell", func(s *Settings) *string { return &s.Shell }),
 	{name: "env", doc: "added to every pane's environment, as NAME=value; repeat it", list: true,
 		get: func(s *Settings) []string { return slices.Clone(s.Env) },
