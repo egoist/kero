@@ -337,6 +337,24 @@ func (d *Daemon) call(c *controlConn, method string, raw json.RawMessage) (any, 
 		pn.mu.Unlock()
 		return true, nil
 
+	case "pane.report":
+		var p proto.ReportParams
+		if err := decode(&p); err != nil {
+			return nil, err
+		}
+		pn, err := findPane(p.ID)
+		if err != nil {
+			return nil, err
+		}
+		rep, ok := parseStatus(p.Report)
+		if !ok || rep.query {
+			return nil, fmt.Errorf("not a status report: %q", p.Report)
+		}
+		pn.mu.Lock()
+		pn.applyReport(rep.rec)
+		pn.mu.Unlock()
+		return true, nil
+
 	case "wait":
 		var p proto.WaitParams
 		if err := decode(&p); err != nil {

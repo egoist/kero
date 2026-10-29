@@ -866,6 +866,13 @@ type (
 		Exit    bool  `json:"exit,omitempty"`
 		Timeout int64 `json:"timeout,omitempty"` // ms; 0 waits as long as it takes
 	}
+	// ReportParams carry a program's status report to pane ID, as the
+	// body of an OSC 7501 after "7501;": kero report sends it so when it
+	// has no terminal to write it to, as under an agent's shell tool.
+	ReportParams struct {
+		ID     string `json:"id"`
+		Report string `json:"report"`
+	}
 	// AgentSessionParams tell a pane's agent's session (kero hook).
 	// The pane is the one whose shell runs PID, the hook's process, else
 	// the one that can only be the agent's: an agent's service that panes

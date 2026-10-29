@@ -18,6 +18,8 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"golang.org/x/term"
+
 	"kero/internal/actions"
 	"kero/internal/build"
 	"kero/internal/client"
@@ -1381,12 +1383,23 @@ func report(args []string) error {
 	if msg := strings.Join(append(f.pos[1:], f.rest...), " "); msg != "" {
 		pairs = append(pairs, "msg="+base64.StdEncoding.EncodeToString([]byte(msg)))
 	}
-	seq := "\x1b]7501;" + strings.Join(pairs, ":") + "\x1b\\"
+	body := strings.Join(pairs, ":")
+	seq := "\x1b]7501;" + body + "\x1b\\"
 	// To the terminal, even when the output goes elsewhere.
 	if tty, err := os.OpenFile("/dev/tty", os.O_WRONLY, 0); err == nil {
 		defer tty.Close()
 		_, err = tty.WriteString(seq)
 		return err
+	}
+	// No terminal, as under an agent's shell tool, which captures the
+	// output: in Kero, kerod takes the report for the pane instead.
+	if pane := current(); pane != "" && !term.IsTerminal(int(os.Stdout.Fd())) {
+		c, err := client.Connect(true)
+		if err != nil {
+			return fmt.Errorf("no terminal to report to, and kerod: %w", err)
+		}
+		defer c.Close()
+		return c.Call("pane.report", proto.ReportParams{ID: pane, Report: body}, nil)
 	}
 	_, err = os.Stdout.WriteString(seq)
 	return err

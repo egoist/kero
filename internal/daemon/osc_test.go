@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"encoding/base64"
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -117,5 +118,30 @@ func TestProgressOnlyForAgents(t *testing.T) {
 	s.output([]byte("\x1b]9;4;3\x07\x1bc"))
 	if s.progress != "" {
 		t.Fatalf("after RIS: progress %q", s.progress)
+	}
+}
+
+// A report kerod takes for a pane, as kero report sends it with no
+// terminal to write to, as under an agent's shell tool, is the pane's as
+// one it wrote.
+func TestReportCall(t *testing.T) {
+	s := testPane(t)
+	s.d.panes = map[string]*pane{"p": s}
+	call := func(report string) error {
+		raw, _ := json.Marshal(proto.ReportParams{ID: "p", Report: report})
+		_, err := s.d.call(nil, "pane.report", raw)
+		return err
+	}
+	if err := call("state=working:progress=40:app=test:msg=" + base64.StdEncoding.EncodeToString([]byte("Migrating"))); err != nil {
+		t.Fatal(err)
+	}
+	if s.info.Status != proto.Working || s.info.Message != "Migrating" || s.info.Progress != 40 {
+		t.Fatalf("status %s, message %q, progress %d", s.info.Status, s.info.Message, s.info.Progress)
+	}
+	if err := call("state=clear"); err != nil || len(s.info.Records) != 0 {
+		t.Fatalf("clear: %v, records %v", err, s.info.Records)
+	}
+	if call("state=bogus") == nil || call("?") == nil {
+		t.Error("took what is no report")
 	}
 }
