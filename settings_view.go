@@ -375,7 +375,8 @@ func (a *App) settingsNav(c *ui.Context, pal *palette, p settingsPage) {
 		bg = pal.rowHover
 	}
 	item.Background(item.AnimateColor("bg", bg, ui.Animation{Duration: 110 * time.Millisecond}))
-	if item.Pressed() && !sel {
+	// A quick tap can press and release between frames; keep its click too.
+	if (item.Pressed() || item.Clicked()) && !sel {
 		a.ss.page = p.id
 		a.setRecording("")
 	}
