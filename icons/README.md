@@ -1,6 +1,7 @@
 # Icons
 
 - `f7-*.svg`: [Framework7 Icons](https://framework7.io/icons/) (MIT, © Vladimir Kharlampidi), drawn after Apple's SF Symbols.
+  `f7-doc-badge-plus.svg` is two of them, as Framework7 has no `doc.badge.plus`: `doc`, masked around the badge of `folder-badge-plus`, moved to its lower corner, as SF Symbols draw it.
 - `meteor-*.svg`: [Meteor Icons](https://github.com/zkreations/icons) (MIT, © zkreations).
 - `si-*.svg`: [Simple Icons](https://simpleicons.org) (CC0), programs' logos; the brands are their owners' trademarks.
 - `octicon-*.svg`: [Octicons](https://primer.style/octicons) (MIT, © GitHub), for what Framework7 has no icon of, as a file's diff.

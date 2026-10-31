@@ -32,6 +32,8 @@ var (
 	sidebarIcon      = glyph("f7-sidebar-left")
 	sidebarRightIcon = glyph("f7-sidebar-right")
 	fileIcon         = glyph("f7-doc")
+	newFileIcon      = glyph("f7-doc-badge-plus")
+	newFolderIcon    = glyph("f7-folder-badge-plus")
 	plusIcon         = glyph("f7-plus")
 	chevronIcon      = glyph("f7-chevron-right")
 	chevronUpIcon    = glyph("f7-chevron-up")

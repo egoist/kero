@@ -177,7 +177,7 @@ func treeRow(c *ui.Context, pal *palette, depth int, current bool) ui.Element {
 
 // treeFolder is a folder of a tree, which a click folds or unfolds;
 // faded, it is one git ignores.
-func (a *App) treeFolder(c *ui.Context, pal *palette, name, tip string, depth int, open, faded bool, toggle func()) {
+func (a *App) treeFolder(c *ui.Context, pal *palette, name, tip string, depth int, open, faded bool, toggle func()) ui.Element {
 	row := treeRow(c, pal, depth, false).Tooltip(tip)
 	if faded {
 		row.Opacity(0.55)
@@ -191,6 +191,7 @@ func (a *App) treeFolder(c *ui.Context, pal *palette, name, tip string, depth in
 		ui.Icon(c, folderIcon).Size(13, 13).TextColor(pal.textFaint).Shrink(0)
 		ui.Text(c, name).FontSize(12.5).TextColor(pal.textMuted).SingleLine().Ellipsis("…").MinWidth(0)
 	})
+	return row
 }
 
 // treeFile is a changed file of the tree, its change as a letter in its

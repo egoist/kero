@@ -34,6 +34,8 @@ type filesState struct {
 	// did the frame before.
 	gen           int
 	shown, showed bool
+	// edit is the name the user types in the tree (files_ops.go).
+	edit *nameEdit
 }
 
 // dirList is a folder as kerod listed it.
@@ -47,14 +49,18 @@ type dirList struct {
 }
 
 // fileItem is a row of the tree: a file or a folder, depth folders in, or
-// why a folder shows nothing, err.
+// why a folder shows nothing, err, or the field the user types a name in,
+// edit.
 type fileItem struct {
 	proto.FSEntry
-	path  string // on the host
-	rel   string // in the root, with slashes
-	depth int
-	open  bool
-	err   string
+	path      string // on the host
+	rel       string // in the root, with slashes
+	parent    string // the folder it is in, on the host
+	parentRel string
+	depth     int
+	open      bool
+	err       string
+	edit      bool
 }
 
 // fileView is a file the viewer shows, as its text.
@@ -149,12 +155,17 @@ func (a *App) filesSide(c *ui.Context, pal *palette, s *proto.Session) {
 			items = append(items, fileItem{path: dir, rel: rel + "/!", depth: depth, err: l.err})
 			return
 		}
+		// A new entry's name, at the top of its folder.
+		if e := fs.edit; e != nil && e.op != editRename && e.host == h.name && e.dir == dir {
+			items = append(items, fileItem{FSEntry: proto.FSEntry{Dir: e.op == editNewFolder}, rel: rel + "/+", parent: dir, parentRel: rel, depth: depth, edit: true})
+		}
 		for _, e := range l.entries {
 			if e.Dir && e.Name == ".git" {
 				continue
 			}
-			it := fileItem{FSEntry: e, path: h.joinPath(dir, e.Name), rel: path.Join(rel, e.Name), depth: depth}
+			it := fileItem{FSEntry: e, path: h.joinPath(dir, e.Name), rel: path.Join(rel, e.Name), parent: dir, parentRel: rel, depth: depth}
 			it.open = e.Dir && fs.open[filesKey(h, it.path)]
+			it.edit = fs.edit != nil && fs.edit.op == editRename && fs.edit.host == h.name && fs.edit.path == it.path
 			items = append(items, it)
 			if it.open {
 				walk(it.path, it.rel, depth+1)
@@ -163,8 +174,10 @@ func (a *App) filesSide(c *ui.Context, pal *palette, s *proto.Session) {
 	}
 	walk(root, "", 0)
 
-	ui.Row(c.Key("root")).Height(28).Shrink(0).Padding(0, 10, 6, 16).Gap(6).AlignItems(ui.Center).Children(func() {
+	ui.Row(c.Key("root")).Height(28).Shrink(0).Padding(0, 10, 6, 16).Gap(0).AlignItems(ui.Center).Children(func() {
 		ui.Text(c, h.shortDir(root)).FontSize(12.5).TextColor(pal.textFaint).SingleLine().Ellipsis("…").MinWidth(0).Grow(1).Tooltip(root)
+		iconButton(c, "new-file", newFileIcon, locales.FilesNewFile(), pal, func() { a.startCreate(s, p.ID, root, "", false) })
+		iconButton(c, "new-folder", newFolderIcon, locales.FilesNewFolder(), pal, func() { a.startCreate(s, p.ID, root, "", true) })
 		iconButton(c, "fold-folders", collapseIcon, locales.FilesCollapseFolders(), pal, func() {
 			prefix := filesKey(h, root)
 			for k := range fs.open {
@@ -201,19 +214,22 @@ func (a *App) filesSide(c *ui.Context, pal *palette, s *proto.Session) {
 	ui.List(c.Key("files"), ls, len(items), func(i int) {
 		it := items[i]
 		switch {
+		case it.edit:
+			a.nameRow(c, pal, it)
 		case it.err != "":
 			ui.Text(c, it.err).FontSize(12).TextColor(pal.textFaint).SingleLine().Ellipsis("…").Padding(4, 8, 4, 6+12*float32(it.depth)+28).Tooltip(it.err)
 		case it.Dir:
 			key := filesKey(h, it.path)
-			a.treeFolder(c, pal, it.Name, it.rel, it.depth, it.open, it.Ignored, func() {
+			row := a.treeFolder(c, pal, it.Name, it.rel, it.depth, it.open, it.Ignored, func() {
 				if it.open {
 					delete(fs.open, key)
 				} else {
 					fs.open[key] = true
 				}
 			})
+			row.ContextMenu(func(m *ui.Menu) { a.entryMenu(m, s, pid, it) })
 		default:
-			a.treeEntry(c, pal, it, it.path == shown, func() {
+			row := a.treeEntry(c, pal, it, it.path == shown, func() {
 				s := a.session(sid)
 				if s == nil {
 					return
@@ -236,13 +252,14 @@ func (a *App) filesSide(c *ui.Context, pal *palette, s *proto.Session) {
 					}
 				})
 			})
+			row.ContextMenu(func(m *ui.Menu) { a.entryMenu(m, s, pid, it) })
 		}
 	}).Grow(1).MinHeight(0).Padding(0, 10, 16, 10)
 }
 
 // treeEntry is a file of the Files tab's tree, which a click opens in the
 // viewer; faded, it is one git ignores.
-func (a *App) treeEntry(c *ui.Context, pal *palette, it fileItem, current bool, open func()) {
+func (a *App) treeEntry(c *ui.Context, pal *palette, it fileItem, current bool, open func()) ui.Element {
 	row := treeRow(c, pal, it.depth, current).Tooltip(it.rel)
 	if it.Ignored {
 		row.Opacity(0.55)
@@ -255,6 +272,7 @@ func (a *App) treeEntry(c *ui.Context, pal *palette, it fileItem, current bool, 
 		ui.Icon(c, fileIcon).Size(13, 13).TextColor(pal.textFaint).Shrink(0)
 		ui.Text(c, it.Name).FontSize(12.5).TextColor(pal.text).SingleLine().Ellipsis("…").MinWidth(0)
 	})
+	return row
 }
 
 // fetchDir asks kerod for a folder's entries, dotfiles too, marking what

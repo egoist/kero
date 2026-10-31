@@ -208,3 +208,58 @@ func TestFSWrite(t *testing.T) {
 	}
 	_ = h
 }
+
+// fs.create makes a file or a folder, with the folders it is in, but none
+// there already; fs.rename moves one where nothing is, or to another case
+// of its name; fs.delete deletes one and what is in it; none of the three
+// touches a volume's root or the home.
+func TestFSCreateRenameDelete(t *testing.T) {
+	d := testPane(t).d
+	dir := t.TempDir()
+	file := filepath.Join(dir, "src", "a.go")
+	if err := d.fsCreate(proto.FSCreateParams{Path: file}); err != nil {
+		t.Fatal(err)
+	}
+	if st, err := os.Stat(file); err != nil || st.Size() != 0 || st.IsDir() {
+		t.Fatalf("made %v, %v", st, err)
+	}
+	if err := d.fsCreate(proto.FSCreateParams{Path: file}); err == nil {
+		t.Error("made a file over one there")
+	}
+	if err := d.fsCreate(proto.FSCreateParams{Path: filepath.Join(dir, "docs"), Dir: true}); err != nil {
+		t.Fatal(err)
+	}
+	if st, err := os.Stat(filepath.Join(dir, "docs")); err != nil || !st.IsDir() {
+		t.Errorf("made %v, %v", st, err)
+	}
+
+	os.WriteFile(filepath.Join(dir, "b.go"), []byte("b"), 0o644)
+	if err := d.fsRename(proto.FSRenameParams{From: file, To: filepath.Join(dir, "b.go")}); err == nil {
+		t.Error("renamed over a file there")
+	}
+	if b, _ := os.ReadFile(filepath.Join(dir, "b.go")); string(b) != "b" {
+		t.Error("renaming over b.go changed it")
+	}
+	moved := filepath.Join(dir, "docs", "c.go")
+	if err := d.fsRename(proto.FSRenameParams{From: file, To: moved}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(moved); err != nil {
+		t.Error(err)
+	}
+	if err := d.fsRename(proto.FSRenameParams{From: moved, To: filepath.Join(dir, "docs", "C.go")}); err != nil {
+		t.Errorf("renaming to another case: %v", err)
+	}
+
+	if err := d.fsDelete(proto.FSDeleteParams{Path: filepath.Join(dir, "docs")}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "docs")); !os.IsNotExist(err) {
+		t.Error("the folder stayed")
+	}
+	for _, p := range []string{"/", proto.Home(), "relative/x"} {
+		if err := d.fsDelete(proto.FSDeleteParams{Path: p}); err == nil {
+			t.Errorf("deleted %q", p)
+		}
+	}
+}

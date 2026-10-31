@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"slices"
 	"testing"
 	"time"
 
@@ -382,4 +383,133 @@ func TestUnsavedOutlastQuit(t *testing.T) {
 	if got := sf.d.New.String(); got != u.Text || !sf.d.New.Modified() || sf.hash != "h0" {
 		t.Errorf("the diff's edit came back as %q, hash %q", got, sf.hash)
 	}
+}
+
+// The Files tab makes files and folders, renames and deletes them: New
+// File in its header puts a field for the name at the top of the root,
+// which Return makes, through kerod; a row's menu offers the same in its
+// folder, Rename and Delete; a file renamed keeps its viewer, and its
+// edits, at its new path; Delete asks first.
+func TestFilesTabChanges(t *testing.T) {
+	a := testApp(t)
+	s := &a.st.Sessions[0]
+	g := &proto.GitInfo{Root: "/tmp/demo", Branch: "main", Default: "main"}
+	s.Panes[0].Git, s.Panes[1].Git = g, g
+	a.prefs.Side = sideFiles
+	h := a.hostOf(s.ID)
+	fs := &a.side.files
+	fs.dirs = map[string]*dirList{
+		filesKey(h, "/tmp/demo"):          {entries: []proto.FSEntry{{Name: "internal", Dir: true}, {Name: "main.go"}}},
+		filesKey(h, "/tmp/demo/internal"): {entries: []proto.FSEntry{{Name: "auth.go"}}},
+	}
+	calls := make(chan [2]string, 4)
+	cl, stop := projectClient(t, func(method string, raw json.RawMessage) (any, error) {
+		if method == "fs.list" {
+			return nil, errors.New("the tree keeps what it listed")
+		}
+		calls <- [2]string{method, string(raw)}
+		return true, nil
+	})
+	defer stop()
+	call := func() [2]string {
+		select {
+		case c := <-calls:
+			return c
+		case <-time.After(time.Second):
+			return [2]string{}
+		}
+	}
+	tt := ui.NewTester(a.view, 1280, 720)
+	tt.Frame()
+	tt.Advance(time.Second)
+	tt.Frame()
+	a.local().cl = cl
+
+	if err := tt.Click("New File…"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if fs.edit == nil || fs.edit.op != editNewFile || fs.edit.dir != "/tmp/demo" {
+		t.Fatalf("New File put %+v", fs.edit)
+	}
+	tt.Type("docs/notes.md")
+	tt.Key(0, ui.KeyEnter)
+	tt.Frame()
+	if c := call(); c[0] != "fs.create" || c[1] != `{"path":"/tmp/demo/docs/notes.md"}` {
+		t.Errorf("New File called %q", c)
+	}
+	shot(t, tt, "files-new")
+
+	// A row's menu.
+	if err := tt.RightClick("internal"); err != nil {
+		t.Fatal(err)
+	}
+	if got := tt.Menu(); !slices.Contains(got, "New File…") || !slices.Contains(got, "New Folder…") || !slices.Contains(got, "Rename…") || !slices.Contains(got, "Delete…") {
+		t.Fatalf("the folder's menu is %q", got)
+	}
+	if err := tt.ChooseMenuItem("New Folder…"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if fs.edit == nil || fs.edit.op != editNewFolder || fs.edit.dir != "/tmp/demo/internal" {
+		t.Fatalf("New Folder in internal put %+v", fs.edit)
+	}
+	tt.Type("handlers")
+	tt.Frame()
+	shot(t, tt, "files-name")
+	tt.Key(0, ui.KeyEscape)
+	tt.Frame()
+	if fs.edit != nil {
+		t.Error("Escape left the field")
+	}
+
+	// Rename, in the entry's place.
+	if err := tt.RightClick("main.go"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.ChooseMenuItem("Rename…"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if fs.edit == nil || fs.edit.op != editRename || fs.edit.name != "main.go" {
+		t.Fatalf("Rename put %+v", fs.edit)
+	}
+	fs.edit.name = "app.go"
+	a.commitName()
+	if c := call(); c[0] != "fs.rename" || c[1] != `{"from":"/tmp/demo/main.go","to":"/tmp/demo/app.go"}` {
+		t.Errorf("Rename called %q", c)
+	}
+	fs.edit = &nameEdit{op: editRename, pane: "a", dir: "/tmp/demo", path: "/tmp/demo/main.go", oldRel: "main.go", name: "a/b.go"}
+	a.commitName()
+	if c := call(); c[0] != "" {
+		t.Errorf("a name with a slash renamed: %q", c)
+	}
+
+	// The viewer follows its file, and the folders theirs.
+	fv := &fileView{pane: "a", path: "/tmp/demo/internal/auth.go", rel: "internal/auth.go"}
+	showFileText(fv, "package internal\n")
+	fv.st.Buffer.Edit(editor.Edit{Start: 0, End: 0, Text: "// x\n"})
+	a.openView(s, sideFiles, fv)
+	fs.open[filesKey(h, "/tmp/demo/internal")] = true
+	a.renamed(h, "/tmp/demo/internal", "/tmp/demo/pkg", "internal", "pkg")
+	if fv.path != "/tmp/demo/pkg/auth.go" || fv.rel != "pkg/auth.go" || !fv.st.Buffer.Modified() {
+		t.Errorf("the viewer's file went to %q (%q), modified %v", fv.path, fv.rel, fv.st.Buffer.Modified())
+	}
+	if !fs.open[filesKey(h, "/tmp/demo/pkg")] || fs.open[filesKey(h, "/tmp/demo/internal")] {
+		t.Error("the folder renamed didn't stay unfolded")
+	}
+
+	// Delete asks first.
+	tt.Frame()
+	if err := tt.RightClick("main.go"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.ChooseMenuItem("Delete…"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if !tt.HasText("Delete “main.go”?") || !tt.HasText("Move to Trash") {
+		t.Fatalf("Delete didn't ask; texts %q", tt.Texts())
+	}
+	shot(t, tt, "files-delete")
 }
