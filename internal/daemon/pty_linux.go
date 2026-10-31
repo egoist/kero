@@ -8,8 +8,12 @@ import (
 	"unsafe"
 )
 
+func openPTYFile(name string, flags int) (*os.File, error) {
+	return os.OpenFile(name, flags, 0)
+}
+
 func openMaster() (*os.File, string, error) {
-	master, err := os.OpenFile("/dev/ptmx", os.O_RDWR|syscall.O_NOCTTY|syscall.O_CLOEXEC, 0)
+	master, err := openPTYFile("/dev/ptmx", os.O_RDWR|syscall.O_NOCTTY|syscall.O_CLOEXEC)
 	if err != nil {
 		return nil, "", fmt.Errorf("pty: %w", err)
 	}
