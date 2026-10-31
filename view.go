@@ -109,8 +109,19 @@ func (a *App) view(c *ui.Context) {
 	// a moment, and goes at once with the panes.
 	work := a.workSession()
 	rightW := a.rightWidth()
+	// In a window too narrow for it beside the cards, it gets out of their
+	// way, coming back as the window widens, unless shown anyway.
+	winW, _ := c.Size()
+	leftW := float32(0)
+	if !a.prefs.SidebarHidden {
+		leftW = a.prefs.SidebarWidth
+	}
+	a.side.crowded = winW > 0 && winW-leftW-rightW < minCards
+	if !a.side.crowded {
+		a.side.forced = false
+	}
 	right := float32(0)
-	if p := row.AnimateTo("right", b2f(a.prefs.Side != ""), sidebarMotion); work != nil {
+	if p := row.AnimateTo("right", b2f(a.rightShown()), sidebarMotion); work != nil {
 		right = float32(math.Round(float64(rightW * min(max(p, 0), 1))))
 	}
 	a.side.barW = right
@@ -118,6 +129,9 @@ func (a *App) view(c *ui.Context) {
 	// as the sidebar comes beside the cards.
 	rightPad := float32(math.Round(float64(cardGap * (1 - right/rightW))))
 	a.side.edge = rightPad
+	// The cards' row's width in this frame, which the viewer's comes of:
+	// the last frame's would lag a frame as the window resizes, and shake.
+	a.side.rowW = winW - a.chrome.sideW - right - a.chrome.mainPad - rightPad
 	a.side.cf = nil
 	a.side.files.showed, a.side.files.shown = a.side.files.shown, false
 	row.Children(func() {
@@ -868,7 +882,7 @@ func (a *App) card(c *ui.Context, pal *palette, bar ui.TitleBar, shown float32) 
 		}
 		// The panes, then the viewer.
 		row := ui.Row(c.Key("with-side")).Grow(1).MinHeight(0).AlignItems(ui.Stretch).Bind(a.paneRef("with-side"))
-		w := a.paneRef("with-side").Bounds(c).W
+		w := a.side.rowW
 		row.Children(func() {
 			ui.Column(c.Key("panes")).Grow(1).Basis(0).MinWidth(0).AlignItems(ui.Stretch).Children(func() {
 				a.panes(c, pal, bar, shown, s, false)

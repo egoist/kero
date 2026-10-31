@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"math"
 	"os"
 	"slices"
 	"testing"
@@ -569,5 +570,116 @@ func TestRightSidebarEdge(t *testing.T) {
 	tt.Frame()
 	if got := a.rightWidth(); got != w+40 {
 		t.Errorf("dragging the edge 40 left made the sidebar %v wide, want %v", got, w+40)
+	}
+}
+
+// In a window too narrow for the panes', the viewer's and the right
+// sidebar's widths, the viewer shares the room left with the panes rather
+// than running under the sidebar.
+func TestNarrowWindowKeepsViewerBesideSidebar(t *testing.T) {
+	a := testApp(t)
+	s := &a.st.Sessions[0]
+	a.prefs.SidebarHidden = true
+	a.prefs.Side = sideFiles
+	fv := &fileView{pane: "a", path: "/tmp/main.go", rel: "main.go", fetched: time.Now()}
+	a.showFile(fv, []byte("package main\n"))
+	a.openView(s, sideFiles, fv)
+	var card, row ui.Rect
+	tt := ui.NewTester(func(c *ui.Context) {
+		a.view(c)
+		card, row = a.paneRef("side-card").Bounds(c), a.paneRef("with-side").Bounds(c)
+	}, 560, 600)
+	tt.Frame()
+	a.toggleRight() // shown anyway, as the window crowds it
+	for range 3 {
+		tt.Frame()
+		tt.Advance(time.Second)
+	}
+	tt.Frame()
+	if a.side.barW == 0 {
+		t.Fatal("the sidebar didn't show")
+	}
+	if edge := float32(560) - a.side.barW; card.X+card.W > edge+0.5 {
+		t.Errorf("the viewer runs to %v, under the sidebar from %v", card.X+card.W, edge)
+	}
+	if card.W <= 0 || card.W > row.W/2+1 {
+		t.Errorf("the viewer is %v wide in a row of %v", card.W, row.W)
+	}
+	shot(t, tt, "narrow")
+}
+
+// A window too narrow for the right sidebar beside the cards hides it,
+// shown as it is, with the button that shows it, which shows it anyway;
+// the window widening shows it again, and narrowing hides it again.
+func TestRightSidebarMakesRoom(t *testing.T) {
+	a := testApp(t)
+	a.prefs.Side = sideFiles
+	tt := ui.NewTester(a.view, 1280, 720)
+	settle := func() {
+		tt.Frame()
+		tt.Advance(time.Second)
+		tt.Frame()
+	}
+	settle()
+	if a.side.barW == 0 {
+		t.Fatal("the sidebar didn't show in a wide window")
+	}
+	show := a.tip("Show Right Sidebar", "rightSidebar.toggle")
+
+	tt.SetSize(640, 720)
+	settle()
+	if a.side.barW != 0 || a.prefs.Side != sideFiles {
+		t.Fatalf("a narrow window left the sidebar %v wide, shown %q", a.side.barW, a.prefs.Side)
+	}
+	if err := tt.Click(show); err != nil {
+		t.Fatal(err)
+	}
+	settle()
+	if a.side.barW == 0 {
+		t.Fatal("Show Right Sidebar didn't show it in a narrow window")
+	}
+	if tt.HasText("Show Right Sidebar") {
+		t.Error("the button stayed with the sidebar shown")
+	}
+
+	tt.SetSize(1280, 720)
+	settle()
+	tt.SetSize(640, 720)
+	settle()
+	if a.side.barW != 0 {
+		t.Error("narrowing the window again didn't hide the sidebar")
+	}
+	tt.SetSize(1280, 720)
+	settle()
+	if a.side.barW != a.rightWidth() {
+		t.Error("widening the window didn't show the sidebar again")
+	}
+}
+
+// As the window resizes, the viewer takes its width in the same frame,
+// never the last one's, which would shake its edge and its text.
+func TestViewerFollowsResize(t *testing.T) {
+	a := testApp(t)
+	s := &a.st.Sessions[0]
+	a.prefs.Side = sideFiles
+	a.prefs.SideWidth = 600 // wider than the room: the panes' least decides
+	fv := &fileView{pane: "a", path: "/tmp/main.go", rel: "main.go", fetched: time.Now()}
+	a.showFile(fv, []byte("package main\n"))
+	a.openView(s, sideFiles, fv)
+	var card, row ui.Rect
+	tt := ui.NewTester(func(c *ui.Context) {
+		a.view(c)
+		card, row = a.paneRef("side-card").Bounds(c), a.paneRef("with-side").Bounds(c)
+	}, 1300, 720)
+	for range 3 {
+		tt.Frame()
+		tt.Advance(time.Second)
+	}
+	for _, w := range []int{1320, 1340, 1310, 1290, 1330} {
+		tt.SetSize(w, 720)
+		tt.Frame()
+		if want := row.W - minPanes; math.Abs(float64(card.W-want)) > 0.5 {
+			t.Errorf("at %d wide the viewer is %v wide, want %v as the row is %v", w, card.W, want, row.W)
+		}
 	}
 }

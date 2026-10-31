@@ -15,7 +15,7 @@ In the sidebar, a session on a branch other than the repository's default one, s
 
 ## The right sidebar
 
-The sidebar at the right of the window has two tabs, **Changes** and **Files**. Show or hide it with the button at the top right of the window, or press <kbd>⌥</kbd> <kbd>⌘</kbd> <kbd>B</kbd>. Drag its edge to resize it. A file you click in either tab opens in a card beside the panes, which you close with its <kbd>×</kbd> or leave with <kbd>Esc</kbd>.
+The sidebar at the right of the window has two tabs, **Changes** and **Files**. Show or hide it with the button at the top right of the window, or press <kbd>⌥</kbd> <kbd>⌘</kbd> <kbd>B</kbd>. Drag its edge to resize it. In a window too narrow for it beside your panes, it gets out of their way, and comes back as you widen the window; the button still shows it when you need it. A file you click in either tab opens in a card beside the panes, which you close with its <kbd>×</kbd> or leave with <kbd>Esc</kbd>.
 
 ## Changes
 

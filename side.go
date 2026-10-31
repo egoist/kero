@@ -44,6 +44,13 @@ type sideState struct {
 	drag    float32 // the viewer's width as a drag of its edge began, 0 while none
 	barDrag float32 // the sidebar's, as a drag of its edge began
 	barW    float32 // the sidebar's width as it shows this frame, 0 while hidden
+	// crowded tells that the window is too narrow for the sidebar beside
+	// the cards (minCards), which it then leaves to them, shown as it is,
+	// unless the user shows it anyway, forced, until the window widens.
+	crowded, forced bool
+	// rowW is the width of the row of the cards, the panes and the viewer,
+	// this frame.
+	rowW    float32
 	edge    float32 // the cards' column's right padding this frame, none beside the sidebar
 	focused bool    // the viewer has the keyboard: its Escape, its find
 	changes changesState
@@ -150,13 +157,15 @@ func (a *App) showTab(tab string) {
 // what the tab opened in it.
 func (a *App) toggleSide(tab string) {
 	s := a.session(a.selected)
-	if a.prefs.Side == tab {
+	if a.prefs.Side == tab && a.rightShown() {
 		a.prefs.Side, a.prefs.SideTab = "", tab
+		a.side.forced = false
 		if v := a.viewOf(s); v != nil && v.kind == tab {
 			a.closeView(s)
 		}
 	} else {
 		a.prefs.Side, a.prefs.SideTab = tab, tab
+		a.side.forced = a.side.crowded
 		if tab == sideChanges && s != nil {
 			a.openView(s, sideChanges, nil)
 		}
@@ -166,12 +175,26 @@ func (a *App) toggleSide(tab string) {
 
 // toggleRight shows the sidebar, on the tab it showed last, or hides it.
 func (a *App) toggleRight() {
-	if a.prefs.Side != "" {
+	if a.rightShown() {
 		a.prefs.Side, a.prefs.SideTab = "", a.prefs.Side
+		a.side.forced = false
 	} else {
-		a.prefs.Side = a.sideTab()
+		if a.prefs.Side == "" {
+			a.prefs.Side = a.sideTab()
+		}
+		a.side.forced = a.side.crowded
 	}
 	a.savePrefs()
+}
+
+// minCards is the room the right sidebar leaves the cards: in a window
+// narrower, it gets out of their way (sideState.crowded).
+const minCards = 420
+
+// rightShown tells that the right sidebar shows, or comes: shown, and the
+// window wide enough for it, or shown anyway.
+func (a *App) rightShown() bool {
+	return a.prefs.Side != "" && (!a.side.crowded || a.side.forced)
 }
 
 // viewOf is what a session's viewer shows, nil while it is closed.
@@ -305,13 +328,19 @@ func (a *App) tabButton(c *ui.Context, pal *palette, id, label, tab string) {
 }
 
 // sideWidth is the viewer's width in a row of width w, leaving the panes
-// their room.
+// their room, or half of a row too narrow for both.
 func (a *App) sideWidth(w float32) float32 {
 	sw := a.prefs.SideWidth
 	if sw == 0 {
 		sw = defaultSide
 	}
-	if w > 0 {
+	switch {
+	case w <= 0:
+	case w < minPanes+minSide+paneGap:
+		// Too narrow for either's least: they share it, the viewer never
+		// running past the row, under the right sidebar.
+		return (w - paneGap) / 2
+	default:
 		sw = min(sw, w-minPanes)
 	}
 	return max(sw, minSide)
@@ -389,7 +418,7 @@ func (a *App) viewerHeader(c *ui.Context, pal *palette, s *proto.Session, svg *u
 // the window's top right while the sidebar hides, as the left sidebar's
 // shows it.
 func (a *App) showRightButton(c *ui.Context, pal *palette) {
-	if a.prefs.Side == "" {
+	if !a.rightShown() {
 		iconButton(c, "show-right", sidebarRightIcon, a.tip(locales.RightSidebarShow(), "rightSidebar.toggle"), pal, a.toggleRight)
 	}
 }
