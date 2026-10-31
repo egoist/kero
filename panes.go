@@ -488,9 +488,15 @@ func (a *App) paneHeader(c *ui.Context, pal *palette, bar ui.TitleBar, shown flo
 			gap.DragWindow()
 		}
 		a.paneChips(c, pal, p, !multi)
-		a.paneControls(c, pal, s, p, (hovered || focused && multi) && !dragging, multi)
+		// The button that shows the right sidebar sits by the pane's own,
+		// as one row of buttons.
+		ui.Row(c.Key("buttons")).AlignItems(ui.Center).Children(func() {
+			a.paneControls(c, pal, s, p, (hovered || focused && multi) && !dragging, multi)
+			if top && right {
+				a.showRightButton(c, pal)
+			}
+		})
 		if top && right {
-			a.showRightButton(c, pal)
 			a.controlsRoom(c, 8)
 		}
 	})
