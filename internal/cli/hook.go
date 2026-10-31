@@ -395,6 +395,17 @@ func (p agentPlugin) state() string {
 	return "outdated"
 }
 
+// ours tells a plugin written to run this Kero's kero command, of this
+// kero or an older one: not another Kero's, as a development build's.
+func (p agentPlugin) ours() bool {
+	for name := range p.files {
+		if b, err := os.ReadFile(filepath.Join(p.dir, name)); err == nil && bytes.Contains(b, marshal(kero())) {
+			return true
+		}
+	}
+	return false
+}
+
 func (p agentPlugin) install() error {
 	linkCLI()
 	if err := os.MkdirAll(p.dir, 0o755); err != nil {

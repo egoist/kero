@@ -103,12 +103,15 @@ func hostAddr(host string) (string, remote.Addr, error) {
 }
 
 // dialHost connects to a host.
-func dialHost(host string) (*remote.Conn, error) {
+func dialHost(host string) (*remote.Conn, error) { return dialHostWithin(host, 30*time.Second) }
+
+// dialHostWithin connects to a host, giving up after a while.
+func dialHostWithin(host string, d time.Duration) (*remote.Conn, error) {
 	_, a, err := hostAddr(host)
 	if err != nil {
 		return nil, err
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), d)
 	defer cancel()
 	c, err := remote.Dial(ctx, a, remote.Options{App: build.Version(), Client: clientName("kero CLI")})
 	if err != nil {
@@ -132,7 +135,10 @@ func clientName(what string) string {
 
 // connect opens a control connection to kerod: this machine's, started
 // as needed, or a host's.
-func connect(host string) (*client.Client, func(), error) {
+func connect(host string) (*client.Client, func(), error) { return connectWithin(host, 30*time.Second) }
+
+// connectWithin is connect, giving up on reaching a host after a while.
+func connectWithin(host string, d time.Duration) (*client.Client, func(), error) {
 	if host == "" {
 		c, err := client.Connect(false)
 		if err != nil {
@@ -140,7 +146,7 @@ func connect(host string) (*client.Client, func(), error) {
 		}
 		return c, func() { c.Close() }, nil
 	}
-	rc, err := dialHost(host)
+	rc, err := dialHostWithin(host, d)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -153,6 +159,74 @@ func connect(host string) (*client.Client, func(), error) {
 		return nil, nil, fmt.Errorf("%w: %s: %v", errUnreachable, host, err)
 	}
 	return c, func() { c.Close(); rc.Close() }, nil
+}
+
+// hostSessions are the sessions of a machine, for kero ls --all: Host is
+// what -H takes to act on them, "local" for this machine.
+type hostSessions struct {
+	Host     string          `json:"host"`
+	Addr     string          `json:"addr,omitempty"`
+	Error    string          `json:"error,omitempty"`
+	Sessions []proto.Session `json:"sessions"`
+	state    proto.State
+}
+
+// listAll lists the sessions of this machine and of every host of kero
+// hosts, asking them all at once; a host out of reach says why in place
+// of its sessions, and fails nothing.
+func listAll(asJSON bool) error {
+	hosts := settings.Load().Hosts
+	all := make([]hostSessions, len(hosts)+1)
+	all[0].Host = "local"
+	for i, h := range hosts {
+		all[i+1].Host, all[i+1].Addr = h.Name, h.Addr
+	}
+	var wg sync.WaitGroup
+	for i := range all {
+		hs := &all[i]
+		wg.Go(func() {
+			host := hs.Host
+			if i == 0 {
+				host = ""
+			}
+			const within = 10 * time.Second
+			c, done, err := connectWithin(host, within)
+			if err == nil {
+				err = c.Call("state", nil, &hs.state)
+				done()
+			}
+			if err != nil {
+				hs.Error = strings.TrimPrefix(strings.TrimPrefix(err.Error(), errUnreachable.Error()+": "), hs.Host+": ")
+				if strings.HasSuffix(hs.Error, context.DeadlineExceeded.Error()) {
+					hs.Error = fmt.Sprintf("no answer in %s", within)
+				}
+			}
+			hs.Sessions = hs.state.Sessions
+			if hs.Sessions == nil {
+				hs.Sessions = []proto.Session{}
+			}
+		})
+	}
+	wg.Wait()
+	if asJSON {
+		return printJSON(all)
+	}
+	for i, hs := range all {
+		if i > 0 {
+			fmt.Println()
+		}
+		head := hs.Host
+		if hs.Addr != "" {
+			head += " (" + hs.Addr + ")"
+		}
+		if hs.Error != "" {
+			fmt.Printf("%s: %s\n", head, hs.Error)
+			continue
+		}
+		fmt.Println(head)
+		listSessions(hs.state)
+	}
+	return nil
 }
 
 // hostsCmd manages the hosts the app shows and -H reaches, which the

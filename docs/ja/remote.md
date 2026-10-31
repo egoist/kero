@@ -185,6 +185,7 @@ kero hosts add build ci@build.lab --remote-control
 kero hosts check build           # 接続して結果を表示。名前かアドレス
 kero hosts install build         # SSH か WSL でそこに Kero をインストール
 kero hosts remove build
+kero ls --all                    # このマシンとすべてのホストのセッション
 kero -H build ls
 kero -H build prompt review "run the tests and fix them"
 kero clients                     # このマシンの kerod に接続しているもの

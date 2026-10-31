@@ -219,12 +219,15 @@ kero hosts                       # the hosts you added
 kero hosts add devbox me@devbox  # add one, which the app shows too
 kero hosts check devbox          # connect, and say how it went
 kero hosts install devbox        # install Kero there, over SSH
+kero ls --all                    # the sessions here and on every host
 kero -H devbox ls
 kero -H devbox new -n review -- claude
 kero -H devbox daemon update     # update Kero there to this one's version
 ```
 
 Inside a pane, `kero` talks to the kerod of the machine the pane runs on, wherever the app is.
+
+`kero ls --all` asks every host at once and lists each one's sessions under the name `-H` takes, `local` for this machine. A host out of reach says why in place of its sessions. With `--json`, it prints a list of `{host, addr, error, sessions}`.
 
 ## Running app actions
 

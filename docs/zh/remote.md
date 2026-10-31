@@ -187,6 +187,7 @@ kero hosts add build ci@build.lab --remote-control
 kero hosts check build           # 连接并报告结果；可用名称或地址
 kero hosts install build         # 通过 SSH 或 WSL 在那里安装 Kero
 kero hosts remove build
+kero ls --all                    # 本机和每台主机上的会话
 kero -H build ls
 kero -H build prompt review "run the tests and fix them"
 kero clients                     # 当前连接到本机 kerod 的客户端

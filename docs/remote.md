@@ -185,6 +185,7 @@ kero hosts add build ci@build.lab --remote-control
 kero hosts check build           # connect, and say how it went; a name or an address
 kero hosts install build         # install Kero there, over SSH or WSL
 kero hosts remove build
+kero ls --all                    # the sessions here and on every host
 kero -H build ls
 kero -H build prompt review "run the tests and fix them"
 kero clients                     # who is connected to this machine's kerod

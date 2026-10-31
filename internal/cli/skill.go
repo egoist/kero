@@ -14,7 +14,7 @@ import (
 // installs, from this binary, so that it follows kero's updates.
 const skillGuide = `---
 name: kero
-description: Drive terminal sessions in Kero — start agents and commands in their own sessions or panes, type into them, wait for them, read their screens, and report your own status. Use when running inside Kero ($KERO_PANE is set) and the task needs another terminal, a long-running process, a parallel agent, or the user's attention.
+description: Drive terminal sessions in Kero — start agents and commands in their own sessions or panes, here or on another machine, type into them, wait for them, read their screens, and report your own status. Use when running inside Kero ($KERO_PANE is set) and the task needs another terminal, a long-running process, a parallel agent, or the user's attention.
 ---
 
 # Kero
@@ -45,7 +45,7 @@ prefix works), or a session's name; a session stands for its focused pane.
     kero resume <conversation>                # a session resuming one
     kero read <target> [-n 40] [-a]           # the screen, or with scrollback
     kero status <target> --json               # status, program, directory
-    kero ls                                   # every session and pane
+    kero ls                                   # every session and pane here
 
 A pane's status is working, waiting (it needs the user), idle, error or
 exited. ` + "`kero wait`" + ` with no --for waits until it stops working. A
@@ -55,6 +55,30 @@ or start it with --wait, which exits with the command's status:
     pane=$(kero split --down -- go test ./...)
     kero wait "$pane" --exit || kero read "$pane" -n 80
     kero split --down --wait -- make build    # the same, in one step
+
+## Hand work to another machine
+
+The user may have added other machines to Kero, each with a kerod of its
+own: ` + "`kero ls --all`" + ` lists the sessions here and on every one of them,
+under the name that ` + "`-H`" + ` takes, before the command:
+
+    kero ls --all [--json]                    # every machine's sessions; a host out of reach says why
+    kero hosts                                # the machines, and their addresses
+    kero -H build new -n tests -d ~/code/app -- go test ./...
+    kero -H build new -n review -- claude     # an agent there
+    kero -H build prompt review "run the tests and fix them"
+    kero -H build wait review
+    kero -H build read review -n 80
+    kero -H build close review
+
+Every command acting on sessions takes -H. An id or a name is of its own
+machine's sessions: give the same -H each time you act on one. With -H,
+your own session is no default target, so name one each time, even for
+split or notify. Paths there are that machine's, and without -d a session
+starts in its project's directory, or in the home. kero focus, kero do
+and kero browser drive the user's app, which a host may do only with its
+Remote Control on, in Settings › Hosts: if it is off, say so rather than
+work around it.
 
 ## Use a web page
 
@@ -193,12 +217,73 @@ func skillState(dir string) string {
 	return "current"
 }
 
+// skillFile is Kero's own copy of the skill, in Kero's directory, which
+// each kero rewrites as it runs (SyncSkill): the agents' SKILL.md links to
+// it, so they read the skill of the Kero installed, as it updates.
+func skillFile() string { return filepath.Join(proto.Dir(), "skills", "kero", "SKILL.md") }
+
+// syncSkillFile writes Kero's own copy of the skill, unless it is current.
+func syncSkillFile() error {
+	if b, err := os.ReadFile(skillFile()); err == nil && string(b) == skillGuide {
+		return nil
+	}
+	return writeFileAtomic(skillFile(), []byte(skillGuide))
+}
+
+// writeSkill installs the skill in an agent's directory: its SKILL.md a
+// link to Kero's own copy. The directory is a real one, as agents list
+// theirs and may pass over links to directories.
 func writeSkill(dir string) error {
+	if err := syncSkillFile(); err != nil {
+		return err
+	}
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(dir, "SKILL.md"), []byte(skillGuide), 0o644)
+	p := filepath.Join(dir, "SKILL.md")
+	if t, err := os.Readlink(p); err == nil && t == skillFile() {
+		return nil
+	}
+	os.Remove(p) // a copy, as older keros wrote, or a link to another's
+	if os.Symlink(skillFile(), p) == nil {
+		return nil
+	}
+	// Where links need a right the user lacks (Windows, out of Developer
+	// Mode): a copy, which SyncSkill keeps current.
+	return writeFileAtomic(p, []byte(skillGuide))
 }
+
+// SyncSkill keeps what agents load of Kero current with this kero, which
+// every kero, the app and the CLI, does as it starts. It updates what is
+// this Kero's alone, so that a development build, with a directory of its
+// own, takes nothing from the installed Kero: its own copy of the skill,
+// where its installs link to, and the plugins of Pi and OpenCode written
+// to run its kero command. The installs older keros wrote, copies of the
+// skill, go to the installed Kero, which makes them links. It installs
+// nothing that isn't.
+func SyncSkill() {
+	for _, dir := range skillDirs("") {
+		p := filepath.Join(dir, "SKILL.md")
+		if t, err := os.Readlink(p); err == nil {
+			if t == skillFile() {
+				syncSkillFile()
+			}
+			continue // or another Kero's
+		}
+		if b, err := os.ReadFile(p); err == nil && string(b) != skillGuide && adoptCopies() {
+			writeSkill(dir)
+		}
+	}
+	for _, it := range agentHooks("agents") {
+		if p, ok := it.(agentPlugin); ok && p.ours() && p.state() == "outdated" {
+			p.install()
+		}
+	}
+}
+
+// adoptCopies tells the installed Kero, which takes the skill's copies,
+// from a development build or one of another $KERO_HOME.
+var adoptCopies = func() bool { return proto.Name() == "kero" && os.Getenv("KERO_HOME") == "" }
 
 // hooksFor returns the hooks that go with an --agent: Codex's, Pi's and
 // OpenCode's with the skill they share.

@@ -214,12 +214,15 @@ kero hosts                       # 追加したホスト
 kero hosts add devbox me@devbox  # 追加する（アプリにも表示される）
 kero hosts check devbox          # 接続して、結果を表示
 kero hosts install devbox        # SSH でそこに Kero をインストール
+kero ls --all                    # このマシンとすべてのホストのセッション
 kero -H devbox ls
 kero -H devbox new -n review -- claude
 kero -H devbox daemon update     # そこの Kero をこちらのバージョンにアップデート
 ```
 
 ペインの中では、`kero` はアプリがどこにあっても、ペインが動いているマシンの kerod と通信します。
+
+`kero ls --all` はすべてのホストに同時に問い合わせ、それぞれのセッションを `-H` に渡す名前（このマシンは `local`）の下に一覧表示します。届かないホストは、セッションの代わりにその理由を表示します。`--json` を付けると `{host, addr, error, sessions}` のリストを出力します。
 
 ## アプリのアクションを実行する
 

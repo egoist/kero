@@ -30,7 +30,7 @@ kero skill setup
 
 如果 `CLAUDE_CONFIG_DIR`、`CODEX_HOME`、`PI_CODING_AGENT_DIR` 或 `XDG_CONFIG_HOME` 改变了智能体文件的位置，Kero 会跟着走，并且不会改动各设置文件里的其他内容。
 
-传入 `--agent` 并指定 `claude`、`codex`、`pi` 或 `opencode`，可以只为一个智能体安装。技能来自你的 Kero 程序本身，所以更新 Kero 后请再运行一次 `kero skill setup`。`kero skill status` 会告诉你各部分是否为最新。
+传入 `--agent` 并指定 `claude`、`codex`、`pi` 或 `opencode`，可以只为一个智能体安装。只需安装一次：技能是指向 Kero 自己那份副本的链接，会随 Kero 更新而更新；Pi 和 OpenCode 的插件，Kero 也会保持为最新。`kero skill status` 会告诉你各部分是否为最新。
 
 ```sh
 kero skill status    # 已安装什么，是否为最新

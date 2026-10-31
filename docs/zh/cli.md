@@ -213,12 +213,15 @@ kero hosts                       # 你添加过的主机
 kero hosts add devbox me@devbox  # 添加一台，app 中也会显示
 kero hosts check devbox          # 尝试连接，并报告结果
 kero hosts install devbox        # 通过 SSH 在那里安装 Kero
+kero ls --all                    # 本机和每台主机上的会话
 kero -H devbox ls
 kero -H devbox new -n review -- claude
 kero -H devbox daemon update     # 将那里的 Kero 更新到本机的版本
 ```
 
 在窗格中，`kero` 总是与窗格所在机器的 kerod 通信，无论 app 在哪里。
+
+`kero ls --all` 同时询问每台主机，把各自的会话列在 `-H` 所用的名称下（本机为 `local`）。连不上的主机会在会话的位置说明原因。加上 `--json` 时，输出 `{host, addr, error, sessions}` 的列表。
 
 ## 执行 app 操作
 

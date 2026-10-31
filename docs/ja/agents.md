@@ -31,7 +31,7 @@ kero skill setup
 
 `CLAUDE_CONFIG_DIR`、`CODEX_HOME`、`PI_CODING_AGENT_DIR`、`XDG_CONFIG_HOME` でエージェントのファイルの場所が変わっている場合、Kero はそれに従い、各設定ファイルのほかの部分はそのままにします。
 
-1 つのエージェントだけをセットアップするには、`--agent` に `claude`、`codex`、`pi`、`opencode` のいずれかを渡します。スキルは Kero のバイナリから来るので、Kero をアップデートしたら `kero skill setup` をもう一度実行してください。`kero skill status` で、各部分が最新かどうかがわかります。
+1 つのエージェントだけをセットアップするには、`--agent` に `claude`、`codex`、`pi`、`opencode` のいずれかを渡します。セットアップは一度だけです: スキルは Kero 自身のコピーへのリンクで、Kero のアップデートに合わせて更新されます。Pi と OpenCode のプラグインも Kero が最新に保ちます。`kero skill status` で、各部分が最新かどうかがわかります。
 
 ```sh
 kero skill status    # インストール済みのものと、それが最新かどうか
