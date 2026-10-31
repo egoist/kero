@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.1.30
+
+- In a window too narrow for the right sidebar beside the cards, the
+  sidebar gets out of their way and comes back as you widen the window,
+  and its button at the top right stays to show it when you want it. A
+  viewer in a window that narrow shares the room with the panes instead
+  of running under the sidebar.
+- The viewer kept the last frame's width as the window resized, shaking
+  its edge and its text: it takes this frame's now.
+
 ## 2.1.29
 
 - The right sidebar has a **Files** tab beside Changes: the pane's
