@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.1.31
+
+- The terminal's scroll bar looks as the lists' and the viewer's do: as
+  wide, as faint, showing while the pointer is over the terminal rather
+  than as it scrolls. The viewer's and the diffs' scroll bars take the
+  lists' color too.
+- Lines of a diff wider than the viewer come with a scroll bar at the
+  bottom of the part of the diff in view, on each side of a split diff.
+
 ## 2.1.30
 
 - In a window too narrow for the right sidebar beside the cards, the
