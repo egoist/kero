@@ -270,7 +270,7 @@ func (a *App) fetchDir(h *host, dir string, ignored bool, stamp string) *dirList
 // fileViewer is the viewer of a file of Files: its text, read only, which
 // it reads again as the worktree changes, and every few seconds while an
 // agent works.
-func (a *App) fileViewer(c *ui.Context, pal *palette, s *proto.Session, fv *fileView, right bool) {
+func (a *App) fileViewer(c *ui.Context, pal *palette, s *proto.Session, fv *fileView) {
 	h := a.hostOf(fv.pane)
 	stamp := ""
 	if p := withGit(s, s.PaneByID(fv.pane)); p != nil {
@@ -285,7 +285,7 @@ func (a *App) fileViewer(c *ui.Context, pal *palette, s *proto.Session, fv *file
 	}
 
 	dir, name := path.Split(fv.rel)
-	a.viewerHeader(c, pal, s, fileIcon, name, right, func() {
+	a.viewerHeader(c, pal, s, fileIcon, name, func() {
 		if dir = strings.TrimSuffix(dir, "/"); dir != "" {
 			ui.Text(c, dir).FontSize(13).TextColor(pal.textFaint).SingleLine().Ellipsis("…").Shrink(2).MinWidth(0).Tooltip(fv.path)
 		}

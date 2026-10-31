@@ -192,8 +192,8 @@ func (a *App) divider(c *ui.Context, pal *palette, s *proto.Session, l *proto.La
 
 // paneCard is a pane: a card with a header and the terminal. top, left and
 // right tell that it touches the window's edges, where the header drags
-// the window, keeps clear of the traffic lights on macOS, and holds the
-// window controls elsewhere (windowControls).
+// the window, keeps clear of the traffic lights on macOS, and keeps room
+// for the window controls elsewhere (controlsRoom).
 func (a *App) paneCard(c *ui.Context, pal *palette, bar ui.TitleBar, shown float32, s *proto.Session, p *proto.Pane, top, left, right, multi bool) {
 	focused := p.ID == a.focusOf(s)
 	bg := pal.card
@@ -207,6 +207,10 @@ func (a *App) paneCard(c *ui.Context, pal *palette, bar ui.TitleBar, shown float
 	hovered := card.Hovered()
 	if a.set.FocusFollowsMouse && multi {
 		a.followMouse(c, s, p, card, hovered, focused)
+	}
+	// As the window controls over its header were its own (underControls).
+	if !hovered && top && right {
+		hovered = underControls(card, a.paneRef("card-"+p.ID).Bounds(c).W)
 	}
 	// The card takes presses: one on its padding, beside the terminal,
 	// focuses the pane, rather than going on to what drags the window.
@@ -487,7 +491,7 @@ func (a *App) paneHeader(c *ui.Context, pal *palette, bar ui.TitleBar, shown flo
 		a.paneControls(c, pal, s, p, (hovered || focused && multi) && !dragging, multi)
 		if top && right {
 			a.showRightButton(c, pal)
-			windowControls(c, pal, a.win)
+			a.controlsRoom(c, 8)
 		}
 	})
 	return dragging

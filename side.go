@@ -44,6 +44,7 @@ type sideState struct {
 	drag    float32 // the viewer's width as a drag of its edge began, 0 while none
 	barDrag float32 // the sidebar's, as a drag of its edge began
 	barW    float32 // the sidebar's width as it shows this frame, 0 while hidden
+	edge    float32 // the cards' column's right padding this frame, none beside the sidebar
 	focused bool    // the viewer has the keyboard: its Escape, its find
 	changes changesState
 	files   filesState
@@ -240,12 +241,24 @@ func (a *App) rightHandle(c *ui.Context) {
 // title bar as the left sidebar's, then the tab's view.
 func (a *App) rightSidebar(c *ui.Context, pal *palette, s *proto.Session) {
 	tab := a.sideTab()
-	ui.Row(c.Key("right-bar")).Height(topBar).Shrink(0).AlignItems(ui.Center).Padding(0, 10, 0, 10).Gap(2).DragWindow().Children(func() {
-		a.tabButton(c, pal, sideChanges, locales.SideChanges(), tab)
-		a.tabButton(c, pal, sideFiles, locales.SideFiles(), tab)
-		ui.Spacer(c)
-		iconButton(c, "hide-right", sidebarRightIcon, a.tip(locales.RightSidebarHide(), "rightSidebar.toggle"), pal, a.toggleRight)
-		windowControls(c, pal, a.win)
+	// The bar's tabs and button slide in from the window's edge with the
+	// sidebar, under the window controls, which stay in the window's
+	// corner (mainControls): they show up to the controls, not under them.
+	w := a.rightWidth() - 10
+	shown := w
+	if ownControls && a.win != nil {
+		w -= controlsW + 8
+		shown = min(max(a.side.barW-a.side.edge-10-(controlsW+8), 0), w)
+	}
+	ui.Row(c.Key("right-bar")).Height(topBar).Shrink(0).AlignItems(ui.Stretch).DragWindow().Children(func() {
+		ui.Row(c.Key("shown")).Width(shown).Shrink(0).AlignItems(ui.Stretch).ClipX().Children(func() {
+			ui.Row(c.Key("tabs")).Width(w).Shrink(0).AlignItems(ui.Center).Padding(0, 0, 0, 10).Gap(2).Children(func() {
+				a.tabButton(c, pal, sideChanges, locales.SideChanges(), tab)
+				a.tabButton(c, pal, sideFiles, locales.SideFiles(), tab)
+				ui.Spacer(c)
+				iconButton(c, "hide-right", sidebarRightIcon, a.tip(locales.RightSidebarHide(), "rightSidebar.toggle"), pal, a.toggleRight)
+			})
+		})
 	})
 	ui.Column(c.Key("tab-" + tab)).Grow(1).MinHeight(0).AlignItems(ui.Stretch).Children(func() {
 		if tab == sideFiles {
@@ -320,18 +333,18 @@ func (a *App) sideEdge(c *ui.Context, pal *palette, row float32) {
 }
 
 // viewerCard is the viewer, a card beside the panes as theirs: a header
-// saying what it shows, then the diffs or the file. right tells that it
-// touches the window's right edge, where its header holds the window's
-// controls (windowControls).
-func (a *App) viewerCard(c *ui.Context, pal *palette, s *proto.Session, v *sideView, width float32, right bool) {
+// saying what it shows, then the diffs or the file. It is the card at
+// the window's right edge, whose header keeps room for the window's
+// controls (controlsRoom).
+func (a *App) viewerCard(c *ui.Context, pal *palette, s *proto.Session, v *sideView, width float32) {
 	card := paned(ui.Column(c.Key("side")).Width(width).Shrink(0).MinHeight(0).Radius(14).Clip().Background(pal.card), pal).
 		Focusable().Bind(a.paneRef("side-card"))
 	a.side.focused = card.FocusWithin()
 	card.Children(func() {
 		if v.kind == sideFiles && v.file != nil {
-			a.fileViewer(c, pal, s, v.file, right)
+			a.fileViewer(c, pal, s, v.file)
 		} else {
-			a.changesViewer(c, pal, s, width, right)
+			a.changesViewer(c, pal, s, width)
 		}
 	})
 	if card.Shortcut(0, ui.KeyEscape) {
@@ -341,7 +354,7 @@ func (a *App) viewerCard(c *ui.Context, pal *palette, s *proto.Session, v *sideV
 
 // viewerHeader is the viewer's header: an icon and a title, as a pane's
 // header shows its program, what follows it, then the viewer's buttons.
-func (a *App) viewerHeader(c *ui.Context, pal *palette, s *proto.Session, svg *ui.SVG, title string, right bool, after, buttons func()) {
+func (a *App) viewerHeader(c *ui.Context, pal *palette, s *proto.Session, svg *ui.SVG, title string, after, buttons func()) {
 	ui.Row(c.Key("hdr")).Height(headerH).Shrink(0).AlignItems(ui.Center).Padding(0, 10, 0, 16).Gap(8).Children(func() {
 		ui.Icon(c, svg).Size(14, 14).TextColor(pal.textFaint).Shrink(0)
 		ui.Text(c, title).FontSize(14).FontWeight(600).TextColor(pal.text).SingleLine().Ellipsis("…").Shrink(1).MinWidth(0)
@@ -354,10 +367,8 @@ func (a *App) viewerHeader(c *ui.Context, pal *palette, s *proto.Session, svg *u
 		}
 		sid := s.ID
 		iconButton(c, "close-side", closeIcon, locales.SideClose(), pal, func() { a.defer_(func() { a.closeView(a.session(sid)) }) })
-		if right {
-			a.showRightButton(c, pal)
-			windowControls(c, pal, a.win)
-		}
+		a.showRightButton(c, pal)
+		a.controlsRoom(c, 8)
 	})
 }
 
@@ -639,11 +650,11 @@ func (a *App) changesSide(c *ui.Context, pal *palette, s *proto.Session) {
 
 // changesViewer is the viewer of Changes: the diffs of the files the tab
 // lists, one after the other, scrolled to the one chosen in the tree.
-func (a *App) changesViewer(c *ui.Context, pal *palette, s *proto.Session, width float32, right bool) {
+func (a *App) changesViewer(c *ui.Context, pal *palette, s *proto.Session, width float32) {
 	cf := a.changesFrameOf(c, s)
 	ch := &a.side.changes
 	files := cf.list != nil && len(cf.list.Files) > 0
-	a.viewerHeader(c, pal, s, diffIcon, locales.SideChanges(), right, func() {
+	a.viewerHeader(c, pal, s, diffIcon, locales.SideChanges(), func() {
 		if dir := a.changesDir(s); dir != "" {
 			ui.Text(c, a.hostOf(s.ID).shortDir(dir)).FontSize(13).TextColor(pal.textFaint).SingleLine().Ellipsis("…").Shrink(2).MinWidth(0).Tooltip(dir)
 		}

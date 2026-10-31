@@ -109,6 +109,10 @@ func (a *App) view(c *ui.Context) {
 	rightW := a.rightWidth()
 	right := float32(math.Round(float64(rightW * min(max(row.AnimateTo("right", b2f(work != nil && a.prefs.Side != ""), sidebarMotion), 0), 1))))
 	a.side.barW = right
+	// The gaps around the cards move the window too; the right one closes
+	// as the sidebar comes beside the cards.
+	rightPad := float32(math.Round(float64(cardGap * (1 - right/rightW))))
+	a.side.edge = rightPad
 	a.side.cf = nil
 	a.side.files.showed, a.side.files.shown = a.side.files.shown, false
 	row.Children(func() {
@@ -128,8 +132,6 @@ func (a *App) view(c *ui.Context) {
 			ui.Column(c).Width(a.prefs.SidebarWidth).Shrink(0).Margin(0, 0, 0, w-a.prefs.SidebarWidth).
 				Opacity(0.4 + 0.6*shown).Children(func() { a.sidebar(c, pal, bar) })
 		})
-		// The gaps around the cards move the window too.
-		rightPad := float32(math.Round(float64(cardGap * (1 - right/rightW))))
 		main := ui.Column(c).Grow(1).MinWidth(0).Padding(cardGap, rightPad, cardGap, a.chrome.mainPad).DragWindow()
 		main.Children(func() {
 			if shown > 0.01 {
@@ -149,6 +151,7 @@ func (a *App) view(c *ui.Context) {
 			})
 		}
 	})
+	a.mainControls(c, pal, rightPad)
 	// A page staged for a screenshot takes the window's size, under its
 	// content, which hides it: at no opacity, it paints no hole there.
 	for id, e := range a.webs {
@@ -852,12 +855,9 @@ func (a *App) card(c *ui.Context, pal *palette, bar ui.TitleBar, shown float32) 
 		h = a.hostOf(s.ID)
 	}
 	if s := a.workSession(); s != nil {
-		// The cards that reach the window's right edge hold its controls,
-		// unless the right sidebar is there.
-		right := a.side.barW == 0
 		v := a.viewOf(s)
 		if v == nil {
-			a.panes(c, pal, bar, shown, s, right)
+			a.panes(c, pal, bar, shown, s, true)
 			return
 		}
 		// The panes, then the viewer.
@@ -868,7 +868,7 @@ func (a *App) card(c *ui.Context, pal *palette, bar ui.TitleBar, shown float32) 
 				a.panes(c, pal, bar, shown, s, false)
 			})
 			a.sideEdge(c, pal, w)
-			a.viewerCard(c, pal, s, v, a.sideWidth(w), right)
+			a.viewerCard(c, pal, s, v, a.sideWidth(w))
 		})
 		return
 	}
@@ -885,7 +885,7 @@ func (a *App) card(c *ui.Context, pal *palette, bar ui.TitleBar, shown float32) 
 			}
 			ui.Text(c, "Kero").FontSize(14).FontWeight(600).TextColor(pal.text)
 			ui.Spacer(c)
-			windowControls(c, pal, a.win)
+			a.controlsRoom(c, 0)
 		})
 		ui.Column(c).Grow(1).MinHeight(0).Children(func() {
 			switch {

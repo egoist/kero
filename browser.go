@@ -335,7 +335,7 @@ func (a *App) browserBar(c *ui.Context, pal *palette, bar ui.TitleBar, shown flo
 		a.paneControls(c, pal, s, p, (hovered || focused && multi) && !dragging, multi)
 		if top && right {
 			a.showRightButton(c, pal)
-			windowControls(c, pal, a.win)
+			a.controlsRoom(c, 2)
 		}
 	})
 	return h, dragging
