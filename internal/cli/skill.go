@@ -162,6 +162,7 @@ func skillCmd(args []string) error {
 				if note := map[string]string{
 					"claude":   "Claude Code runs hooks only in folders you trust.",
 					"codex":    "Codex asks you to approve a new hook: run /hooks in it.",
+					"vibe":     "Vibe records a resume checkpoint before a tool call or after a completed reply. After /new or /resume, reach a tool call or complete a reply before restarting kerod.",
 					"opencode": "OpenCode's background service loads plugins as it starts: run `opencode service restart` when no session is busy.",
 				}[h.name()]; note != "" {
 					fmt.Println(note)
@@ -170,7 +171,7 @@ func skillCmd(args []string) error {
 		}
 		return nil
 	}
-	return usageErr("kero skill setup|show|status|remove [--agent claude|codex|pi|opencode|agents] [--dry-run]")
+	return usageErr("kero skill setup|show|status|remove [--agent claude|codex|pi|opencode|vibe|agents] [--dry-run]")
 }
 
 func sortedKeys(m map[string]string) []string {
@@ -200,11 +201,11 @@ func writeSkill(dir string) error {
 	return os.WriteFile(filepath.Join(dir, "SKILL.md"), []byte(skillGuide), 0o644)
 }
 
-// hooksFor returns the hooks that go with an --agent: Codex's, Pi's and
-// OpenCode's with the skill they share.
+// hooksFor returns the hooks that go with an --agent: Codex's, Pi's,
+// OpenCode's and Vibe's with the skill they share.
 func hooksFor(agent string) []integration {
 	switch agent {
-	case "", "claude", "codex", "pi", "opencode", "agents":
+	case "", "claude", "codex", "pi", "opencode", "vibe", "agents":
 		return agentHooks(agent)
 	}
 	return nil
@@ -226,7 +227,7 @@ func skillDirs(agent string) map[string]string {
 		if d, ok := all[agent]; ok {
 			return map[string]string{agent: d}
 		}
-		if agent == "codex" || agent == "opencode" || agent == "pi" {
+		if agent == "codex" || agent == "opencode" || agent == "pi" || agent == "vibe" {
 			return map[string]string{"agents": all["agents"]}
 		}
 	}

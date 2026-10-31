@@ -26,10 +26,11 @@ The hook goes where each agent looks for one, for the agents you have installed:
 | Codex       | A `SessionStart` hook in `~/.codex/hooks.json`         |
 | Pi          | An extension, `~/.pi/agent/extensions/kero.ts`         |
 | OpenCode    | A plugin, `~/.config/opencode/plugins/kero`            |
+| Mistral Vibe | `pre_tool` and `post_agent` hooks in `~/.vibe/hooks.toml` |
 
 Kero follows `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `PI_CODING_AGENT_DIR` and `XDG_CONFIG_HOME` when they move an agent's files, and leaves the rest of each settings file as it was.
 
-Pass `--agent` with `claude`, `codex`, `pi` or `opencode` to set up one agent only. The skill comes from your Kero binary, so run `kero skill setup` again after updating Kero. `kero skill status` tells you whether each part is current.
+Pass `--agent` with `claude`, `codex`, `pi`, `opencode` or `vibe` to set up one agent only. The skill comes from your Kero binary, so run `kero skill setup` again after updating Kero. `kero skill status` tells you whether each part is current.
 
 ```sh
 kero skill status    # what's installed, and whether it's current

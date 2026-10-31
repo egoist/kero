@@ -218,8 +218,8 @@ func resumeCommand(a *proto.AgentSession) []string {
 		return nil
 	}
 	switch a.Agent {
-	case "claude":
-		return []string{"claude", "--resume", a.ID}
+	case "claude", "vibe":
+		return []string{a.Agent, "--resume", a.ID}
 	case "codex":
 		return []string{"codex", "resume", a.ID}
 	case "pi", "opencode":
@@ -228,4 +228,4 @@ func resumeCommand(a *proto.AgentSession) []string {
 	return nil
 }
 
-var agentSessionRe = regexp.MustCompile(`^[A-Za-z0-9_-]{1,128}$`)
+var agentSessionRe = regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9_-]{0,127}$`)

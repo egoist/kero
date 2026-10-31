@@ -2,10 +2,14 @@ package cli
 
 import (
 	"encoding/json"
+	"io"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"kero/internal/proto"
 )
 
 func testHook(t *testing.T, settings string) agentHook {
@@ -27,6 +31,110 @@ func read(t *testing.T, path string) string {
 		t.Fatal(err)
 	}
 	return string(b)
+}
+
+// Native Vibe hooks register only root conversations, silently: their stdout
+// must not contain Claude's hookSpecificOutput or reset the session's name.
+func TestVibeHook(t *testing.T) {
+	for _, c := range []struct {
+		name, input string
+		outside     bool
+		register    bool
+	}{
+		{"before tool", `{"hook_event_name":"pre_tool","session_id":"root-id","parent_session_id":null,"cwd":"/repo"}`, false, true},
+		{"after turn", `{"hook_event_name":"post_agent","session_id":"root-id","cwd":"/repo"}`, false, true},
+		{"child before tool", `{"hook_event_name":"pre_tool","session_id":"child-id","parent_session_id":"root-id"}`, false, false},
+		{"child after turn", `{"hook_event_name":"post_agent","session_id":"child-id","parent_session_id":"root-id"}`, false, false},
+		{"agent id", `{"hook_event_name":"post_agent","session_id":"child-id","agent_id":"child"}`, false, false},
+		{"no session", `{"hook_event_name":"post_agent"}`, false, false},
+		{"wrong event", `{"hook_event_name":"SessionStart","session_id":"root-id"}`, false, false},
+		{"malformed", `{"hook_event_name":"post_agent","session_id":"root-id","cwd":`, false, false},
+		{"outside Kero", `{"hook_event_name":"post_agent","session_id":"root-id"}`, true, false},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			t.Setenv("KERO_HOME", t.TempDir())
+			t.Setenv("KERO_SOCKET", "")
+			t.Setenv("KERO_PANE", "stale-pane")
+			t.Setenv("KERO_SESSION", "stale-session")
+			t.Setenv("CODEX_THREAD_ID", "unrelated-parent")
+			if c.outside {
+				t.Setenv("KERO_PANE", "")
+			}
+			listener, err := net.Listen("unix", proto.SocketPath())
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer listener.Close()
+			calls := make(chan proto.Request, 16)
+			go func() {
+				defer close(calls)
+				conn, err := listener.Accept()
+				if err != nil {
+					return
+				}
+				defer conn.Close()
+				dec, enc := json.NewDecoder(conn), json.NewEncoder(conn)
+				var hello proto.Hello
+				if err := dec.Decode(&hello); err != nil {
+					t.Error(err)
+					return
+				}
+				enc.Encode(proto.Welcome{Version: proto.Version})
+				for {
+					var req proto.Request
+					if err := dec.Decode(&req); err != nil {
+						if err != io.EOF {
+							t.Error(err)
+						}
+						return
+					}
+					calls <- req
+					enc.Encode(proto.Message{ID: req.ID, Result: proto.AgentSessionResult{Pane: "actual-pane", Session: "actual-session"}})
+				}
+			}()
+			input := filepath.Join(t.TempDir(), "input.json")
+			if err := os.WriteFile(input, []byte(c.input), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			in, err := os.Open(input)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer in.Close()
+			out, err := os.CreateTemp(t.TempDir(), "output")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer out.Close()
+			stdin, stdout := os.Stdin, os.Stdout
+			os.Stdin, os.Stdout = in, out
+			defer func() { os.Stdin, os.Stdout = stdin, stdout }()
+			if err := hookCmd([]string{"vibe"}); err != nil {
+				t.Error(err)
+			}
+			listener.Close()
+			var got []proto.Request
+			for req := range calls {
+				got = append(got, req)
+			}
+			if b := read(t, out.Name()); strings.TrimSpace(b) != "" {
+				t.Errorf("native hook output: %s", b)
+			}
+			if !c.register {
+				if len(got) != 0 {
+					t.Errorf("registered a non-root event: %+v", got)
+				}
+				return
+			}
+			if len(got) != 1 || got[0].Method != "pane.agentSession" {
+				t.Fatalf("calls: %+v", got)
+			}
+			params := got[0].Params.(map[string]any)
+			if params["agent"] != "vibe" || params["session"] != "root-id" || params["dir"] != "/repo" || params["pid"] != float64(os.Getpid()) {
+				t.Errorf("registration: %+v", params)
+			}
+		})
+	}
 }
 
 // Installing keeps the rest of the settings, in their order, and the
@@ -124,13 +232,13 @@ func TestHookRefusesBadSettings(t *testing.T) {
 	}
 }
 
-// Pi's and OpenCode's plugins go in when the agent is installed, run
-// Kero's own kero command, and come out whole.
+// Agent integrations go in when installed, run Kero's own kero command,
+// and remove only their own files or handlers.
 func TestAgentPlugins(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("KERO_HOME", filepath.Join(home, "kero"))
-	for _, env := range []string{"CLAUDE_CONFIG_DIR", "CODEX_HOME", "PI_CODING_AGENT_DIR", "XDG_CONFIG_HOME"} {
+	for _, env := range []string{"CLAUDE_CONFIG_DIR", "CODEX_HOME", "PI_CODING_AGENT_DIR", "XDG_CONFIG_HOME", "VIBE_HOME"} {
 		t.Setenv(env, "")
 	}
 	names := func() (out []string) {
@@ -144,8 +252,9 @@ func TestAgentPlugins(t *testing.T) {
 	}
 	os.MkdirAll(filepath.Join(home, ".pi", "agent"), 0o755)
 	os.MkdirAll(filepath.Join(home, ".config", "opencode"), 0o755)
-	if got := strings.Join(names(), ","); got != "claude,pi,opencode" {
-		t.Fatalf("with Pi and OpenCode: %s", got)
+	os.MkdirAll(filepath.Join(home, ".vibe"), 0o755)
+	if got := strings.Join(names(), ","); got != "claude,pi,opencode,vibe" {
+		t.Fatalf("with Pi, OpenCode and Vibe: %s", got)
 	}
 	for _, it := range agentHooks("agents") {
 		if it.state() != "missing" {
@@ -157,11 +266,12 @@ func TestAgentPlugins(t *testing.T) {
 		if it.state() != "current" {
 			t.Fatalf("%s: %s after install", it.name(), it.state())
 		}
-		p := it.(agentPlugin)
-		for name := range p.files {
-			b := read(t, filepath.Join(p.dir, name))
-			if strings.Contains(b, "__KERO__") || name != "package.json" && !strings.Contains(b, filepath.Join(home, "kero", "bin", "kero")) {
-				t.Fatalf("%s/%s runs no kero:\n%s", it.name(), name, b)
+		if p, ok := it.(agentPlugin); ok {
+			for name := range p.files {
+				b := read(t, filepath.Join(p.dir, name))
+				if strings.Contains(b, "__KERO__") || name != "package.json" && !strings.Contains(b, filepath.Join(home, "kero", "bin", "kero")) {
+					t.Fatalf("%s/%s runs no kero:\n%s", it.name(), name, b)
+				}
 			}
 		}
 		if err := it.remove(); err != nil {
@@ -173,6 +283,9 @@ func TestAgentPlugins(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(home, ".config", "opencode", "plugins", "kero")); !os.IsNotExist(err) {
 		t.Fatal("OpenCode's plugin directory stayed")
+	}
+	if _, err := os.Stat(filepath.Join(home, ".vibe", "plugins", "kero")); !os.IsNotExist(err) {
+		t.Fatal("Vibe unexpectedly installed a plugin")
 	}
 	if _, err := os.Stat(filepath.Join(home, ".pi", "agent", "extensions")); err != nil {
 		t.Fatal("Pi's extensions directory went with Kero's extension")
