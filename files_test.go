@@ -513,3 +513,34 @@ func TestFilesTabChanges(t *testing.T) {
 	}
 	shot(t, tt, "files-delete")
 }
+
+// The app opening with the right sidebar shown shows it at once, not
+// sliding in as kerod's state comes; showing it later slides it in.
+func TestRightSidebarOpensShown(t *testing.T) {
+	a := testApp(t)
+	a.prefs.Side = sideChanges
+	a.loaded = false // kerod's state not come yet
+	tt := ui.NewTester(a.view, 1280, 720)
+	tt.Frame()
+	tt.Advance(50 * time.Millisecond)
+	tt.Frame()
+	if a.side.barW != 0 {
+		t.Fatalf("the sidebar shows with no session, %v wide", a.side.barW)
+	}
+	a.loaded = true
+	tt.Frame()
+	if a.side.barW != a.rightWidth() {
+		t.Errorf("as the state came, the sidebar was %v wide, not at once %v", a.side.barW, a.rightWidth())
+	}
+
+	a.toggleRight()
+	tt.Advance(time.Second)
+	tt.Frame()
+	a.toggleRight()
+	tt.Frame()
+	tt.Advance(50 * time.Millisecond)
+	tt.Frame()
+	if w := a.side.barW; w <= 0 || w >= a.rightWidth() {
+		t.Errorf("showing the sidebar didn't slide it in: %v wide a moment after", w)
+	}
+}

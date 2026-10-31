@@ -104,10 +104,15 @@ func (a *App) view(c *ui.Context) {
 	a.chrome = chromeFor(progress, a.prefs.SidebarWidth, bar)
 	shown := a.chrome.shown
 	// The right sidebar, beside a session's panes, comes and goes as the
-	// left one does, in whole pixels.
+	// left one does, in whole pixels, as the user shows or hides it: it
+	// shows at once as the app opens with it shown, without a session for
+	// a moment, and goes at once with the panes.
 	work := a.workSession()
 	rightW := a.rightWidth()
-	right := float32(math.Round(float64(rightW * min(max(row.AnimateTo("right", b2f(work != nil && a.prefs.Side != ""), sidebarMotion), 0), 1))))
+	right := float32(0)
+	if p := row.AnimateTo("right", b2f(a.prefs.Side != ""), sidebarMotion); work != nil {
+		right = float32(math.Round(float64(rightW * min(max(p, 0), 1))))
+	}
 	a.side.barW = right
 	// The gaps around the cards move the window too; the right one closes
 	// as the sidebar comes beside the cards.
