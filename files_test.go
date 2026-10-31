@@ -544,3 +544,30 @@ func TestRightSidebarOpensShown(t *testing.T) {
 		t.Errorf("showing the sidebar didn't slide it in: %v wide a moment after", w)
 	}
 }
+
+// The right sidebar's edge takes the pointer a few pixels to either side
+// of it, over the cards and over the sidebar, and a drag there resizes it.
+func TestRightSidebarEdge(t *testing.T) {
+	a := testApp(t)
+	a.prefs.Side = sideFiles
+	tt := ui.NewTester(a.view, 1280, 720)
+	tt.Frame()
+	tt.Advance(time.Second)
+	tt.Frame()
+	edge := 1280 - a.side.barW
+	for dx := float32(-4); dx <= 4; dx++ {
+		tt.Move(edge+dx, 400)
+		tt.Frame()
+		if c := tt.Cursor(); c != ui.CursorResizeColumn {
+			t.Errorf("%v from the edge, the cursor is %v", dx, c)
+		}
+	}
+	w := a.rightWidth()
+	tt.Press(edge, 400)
+	tt.Move(edge-40, 400)
+	tt.Release(edge-40, 400)
+	tt.Frame()
+	if got := a.rightWidth(); got != w+40 {
+		t.Errorf("dragging the edge 40 left made the sidebar %v wide, want %v", got, w+40)
+	}
+}

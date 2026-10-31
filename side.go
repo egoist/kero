@@ -227,10 +227,10 @@ func (a *App) rightWidth() float32 {
 	return defaultSidebar
 }
 
-// rightHandle is the sidebar's edge, which a drag moves, on the right
-// edge of the cards' column.
-func (a *App) rightHandle(c *ui.Context) {
-	h := ui.Box(c.Key("resize-right")).Absolute().Right(-4).Top(0).Bottom(0).Width(9).Cursor(ui.CursorResizeColumn).KeepFocus()
+// rightHandle is the sidebar's edge, which a drag moves: in the window,
+// over the edge between the cards and the sidebar, right wide.
+func (a *App) rightHandle(c *ui.Context, right float32) {
+	h := ui.Box(c.Key("resize-right")).Absolute().Right(right - 5).Top(0).Bottom(0).Width(9).Cursor(ui.CursorResizeColumn).KeepFocus()
 	if dx, _, ok := h.Dragged(); ok {
 		if a.side.barDrag == 0 {
 			a.side.barDrag = a.rightWidth()

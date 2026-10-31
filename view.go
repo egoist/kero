@@ -142,9 +142,6 @@ func (a *App) view(c *ui.Context) {
 			if shown > 0.01 {
 				a.resizeHandle(c, pal)
 			}
-			if right > 0 {
-				a.rightHandle(c)
-			}
 			a.card(c, pal, bar, shown)
 		})
 		if right > 0 && work != nil {
@@ -154,6 +151,9 @@ func (a *App) view(c *ui.Context) {
 				ui.Column(c).Width(rightW).Shrink(0).AlignItems(ui.Stretch).Opacity(0.4 + 0.6*right/rightW).
 					Children(func() { a.rightSidebar(c, pal, work) })
 			})
+			// Over the cards and the sidebar both, which would take the
+			// pointer from it on either side of their edge.
+			a.rightHandle(c, right)
 		}
 	})
 	a.mainControls(c, pal, rightPad)
