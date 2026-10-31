@@ -163,25 +163,17 @@ func TestPasteImageBracketed(t *testing.T) {
 	}
 }
 
-// A clipboard with text, or with files, pastes as it always did: the image
-// a copy of text from a page or of files in the Finder brings along is not
-// what is pasted.
-func TestPasteImageLeavesTextAndFiles(t *testing.T) {
+// A clipboard with text pastes as it always did: the image a copy of text
+// from a page brings along is not what is pasted.
+func TestPasteImageLeavesText(t *testing.T) {
 	a, sink, dir := pasteApp(t)
 	text := transfer.New(transfer.NewItem(
 		transfer.Bytes(transfer.Text, []byte("hello")),
 		transfer.Bytes(transfer.PNG, fakePNG)))
-	files, err := transfer.FileData(filepath.Join(t.TempDir(), "a.png"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	withImage := transfer.New(append(files.Items(), transfer.NewItem(transfer.Bytes(transfer.PNG, fakePNG)))...)
 	for name, d := range map[string]transfer.Data{
-		"text and an image":  text,
-		"files and an image": withImage,
-		"only files":         files,
-		"only text":          transfer.TextData("hello"),
-		"only html":          transfer.New(transfer.NewItem(transfer.Bytes(transfer.HTML, []byte("<b>x</b>")))),
+		"text and an image": text,
+		"only text":         transfer.TextData("hello"),
+		"only html":         transfer.New(transfer.NewItem(transfer.Bytes(transfer.HTML, []byte("<b>x</b>")))),
 	} {
 		if a.pasteImage("a", d) {
 			t.Errorf("%s: the paste was taken", name)
@@ -192,6 +184,58 @@ func TestPasteImageLeavesTextAndFiles(t *testing.T) {
 	}
 	if got := sink.quiet(); got != "" {
 		t.Errorf("the program got %q", got)
+	}
+}
+
+// Files on the clipboard, which offer no text, paste as their paths, as a
+// drop of them would, and not as the image some bring along (#293): the
+// terminal's own paste would send nothing.
+func TestPasteFilesAsPaths(t *testing.T) {
+	tmp := t.TempDir()
+	one, two := filepath.Join(tmp, "a.png"), filepath.Join(tmp, "b c.txt")
+	for _, f := range []string{one, two} {
+		if err := os.WriteFile(f, fakePNG, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	files, err := transfer.FileData(one)
+	if err != nil {
+		t.Fatal(err)
+	}
+	uri, err := files.Items()[0].Read(transfer.URIList)
+	if err != nil {
+		t.Fatal(err)
+	}
+	both, err := transfer.FileData(one, two)
+	if err != nil {
+		t.Fatal(err)
+	}
+	withImage := transfer.New(append(files.Items(), transfer.NewItem(transfer.Bytes(transfer.PNG, fakePNG)))...)
+	// As the Mac clipboard of an image copied with its file reads: a
+	// file URL and the image, and no text.
+	uriImage := transfer.New(transfer.NewItem(transfer.Bytes(transfer.URIList, uri), transfer.Bytes(transfer.PNG, fakePNG)))
+	for _, c := range []struct {
+		name string
+		d    transfer.Data
+		want string
+	}{
+		{"a file", files, quotePath(runtime.GOOS, "", one)},
+		{"files and an image", withImage, quotePath(runtime.GOOS, "", one)},
+		{"a file url and an image", uriImage, quotePath(runtime.GOOS, "", one)},
+		{"two files", both, quotePath(runtime.GOOS, "", one) + " " + quotePath(runtime.GOOS, "", two)},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			a, sink, dir := pasteApp(t)
+			if !a.pasteImage("a", c.d) {
+				t.Fatal("the paste of files was left to the terminal")
+			}
+			if got := sink.written(t); got != c.want {
+				t.Errorf("the program got %q, want %q", got, c.want)
+			}
+			if got := pastedFiles(t, dir); len(got) != 0 {
+				t.Errorf("files %q written for a paste of files", got)
+			}
+		})
 	}
 }
 

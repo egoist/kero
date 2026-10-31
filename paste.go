@@ -185,7 +185,8 @@ var pasteImageTypes = map[transfer.Format]string{
 //
 // It runs on the main thread, as Options.OnPaste does, with what the
 // clipboard holds, and reports whether it took the paste: it takes none
-// that has text or files, which paste as they are, or no image.
+// that has text, which pastes as it is, or neither files nor an image.
+// Files with no text paste as their paths.
 func (a *App) pasteImage(id string, d transfer.Data) bool {
 	t := a.termFor(id)
 	if t == nil {
@@ -202,7 +203,15 @@ func (a *App) pasteImage(id string, d transfer.Data) bool {
 		return false
 	}
 	if files, _ := d.Files(); len(files) > 0 {
-		return false
+		// Files copied in Finder, or an image copied with its file, as
+		// some apps do, offer no text: the terminal's paste would send
+		// nothing, so their paths go, as a drop of them sends.
+		quoted := make([]string, len(files))
+		for i, f := range files {
+			quoted[i] = quotePath(runtime.GOOS, a.paneShell(id), f)
+		}
+		t.Paste(strings.Join(quoted, " "))
+		return true
 	}
 	f, ok := imageToPaste(d)
 	if !ok {
