@@ -1,5 +1,36 @@
 # Changelog
 
+## 2.1.29
+
+- The right sidebar has a **Files** tab beside Changes: the pane's
+  worktree, or its folder outside a git repository, with what git
+  ignores faded and `.git` hidden, and a click opens the file beside
+  the panes. **Toggle Files** (⌥⌘E) shows it.
+- Files open in the viewer to edit, and <kbd>⌘</kbd> <kbd>S</kbd> saves
+  them. A dot in place of the close button marks edits not saved yet,
+  which closing the viewer or opening another file asks about first, as
+  does saving a file that changed on disk since it was read. Unsaved
+  edits and the files open in the viewer come back after a quit.
+- **New File…** and **New Folder…** above the tree, and **Rename…** and
+  **Delete…** in a file's or a folder's menu. A name with slashes makes
+  the folders in it. Deleting asks first, and moves this machine's files
+  to the Trash; a host has no trash, so its files go for good.
+- Files and folders in the Files and Changes trees show their icons,
+  and a changed file its letter at the right of its row.
+- The file viewer's scroll bar shows only while the pointer is over the
+  text or dragging it.
+- A file copied in Finder, or an image copied with its file, pastes as
+  its path, as a drop of it sends, instead of nothing.
+- On Windows and Linux, the minimize, maximize and close buttons stay in
+  the window's corner as the right sidebar comes and goes, instead of
+  sliding off the window's edge with it.
+- The right sidebar's edge takes the pointer on either side of it, so it
+  drags as it did not. A window opened with the sidebar shown shows it
+  at once, rather than sliding it in from nothing.
+- Editing, making, renaming and deleting files needs the newer host,
+  which comes with the app on this machine: hosts get it with their next
+  update.
+
 ## 2.1.28
 
 - The changes panel shows the changed files' tree beside their diffs, a
