@@ -1,6 +1,7 @@
 package daemon
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -12,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"kero/internal/git"
 	"kero/internal/proto"
 )
 
@@ -72,6 +74,18 @@ func fsList(p proto.FSListParams) (proto.FSList, error) {
 		out.Entries = append(out.Entries, fe)
 		if len(out.Entries) >= maxEntries {
 			break
+		}
+	}
+	if p.Ignored {
+		names := make([]string, len(out.Entries))
+		for i, e := range out.Entries {
+			names[i] = e.Name
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		ignored := git.Ignored(ctx, dir, names)
+		cancel()
+		for i := range out.Entries {
+			out.Entries[i].Ignored = ignored[out.Entries[i].Name]
 		}
 	}
 	slices.SortFunc(out.Entries, func(a, b proto.FSEntry) int {

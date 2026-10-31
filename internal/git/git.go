@@ -48,6 +48,11 @@ func command() string {
 
 // run runs git in dir, with env added, and returns its output.
 func run(ctx context.Context, dir string, env []string, args ...string) ([]byte, error) {
+	return runInput(ctx, dir, env, nil, args...)
+}
+
+// runInput runs git as run does, with stdin as its input.
+func runInput(ctx context.Context, dir string, env []string, stdin []byte, args ...string) ([]byte, error) {
 	git := command()
 	if git == "" {
 		return nil, ErrNoGit
@@ -56,6 +61,9 @@ func run(ctx context.Context, dir string, env []string, args ...string) ([]byte,
 	cmd.Dir = dir
 	cmd.Env = append(os.Environ(), "GIT_OPTIONAL_LOCKS=0", "GIT_TERMINAL_PROMPT=0")
 	cmd.Env = append(cmd.Env, env...)
+	if stdin != nil {
+		cmd.Stdin = bytes.NewReader(stdin)
+	}
 	hide(cmd)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
@@ -99,6 +107,27 @@ func Open(ctx context.Context, dir string) (Repo, error) {
 		return filepath.Clean(p)
 	}
 	return Repo{Root: path(lines[0]), GitDir: path(lines[1]), Common: path(lines[2])}, nil
+}
+
+// Ignored returns which of names, entries of dir, git ignores there: none
+// outside a worktree, or when git can't tell.
+func Ignored(ctx context.Context, dir string, names []string) map[string]bool {
+	if len(names) == 0 {
+		return nil
+	}
+	in := []byte(strings.Join(names, "\x00") + "\x00")
+	// It exits 1 when it ignores none of them.
+	out, err := runInput(ctx, dir, nil, in, "check-ignore", "--stdin", "-z")
+	if err != nil && len(out) == 0 {
+		return nil
+	}
+	ignored := map[string]bool{}
+	for _, n := range strings.Split(strings.TrimRight(string(out), "\x00"), "\x00") {
+		if n != "" {
+			ignored[n] = true
+		}
+	}
+	return ignored
 }
 
 // Status is a worktree's branch and how its working tree differs from its

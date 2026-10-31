@@ -11,7 +11,7 @@ import (
 )
 
 // gitChip is a pane's branch and its changes since HEAD, after its title:
-// a click shows the changes panel. In a narrow pane, whose header the
+// a click shows the Changes tab and the diffs. In a narrow pane, whose header the
 // title and its controls fill, it shows its counts alone, or nothing.
 func (a *App) gitChip(c *ui.Context, pal *palette, s *proto.Session, p *proto.Pane) {
 	g := p.Git

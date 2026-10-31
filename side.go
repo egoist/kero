@@ -18,35 +18,54 @@ import (
 	"kero/locales"
 )
 
-// The side panel stands at the right of a session's panes, a card of its
-// own, with what the session's worktree is about. It has views, each a
-// list whose item opens in the panel as a file: Changes, the files the
-// session's agent or the user changed, each opening as its diff; a Files
-// view, the worktree's tree, each file opening as its text, is to join it
-// with the same header, list and file.
+// The right sidebar stands at the window's right edge, on its wash as the
+// left sidebar does, with what the session's worktree is about, in tabs:
+// Changes, the files the session's agent or the user changed, in their
+// folders; Files, the worktree's tree (files.go). A file chosen in either
+// opens in the viewer, a card beside the panes: Changes' as the diffs of
+// them all, one after the other, scrolled to it; Files' as its text.
 
-// sideChanges is the Changes view's id, as prefs.Side holds it.
-const sideChanges = "changes"
+// The sidebar's tabs, as prefs.Side holds them, and the viewer's kinds.
+const (
+	sideChanges = "changes"
+	sideFiles   = "files"
+)
 
 const (
-	defaultSide = 420 // the panel's width, as it first opens
+	defaultSide = 420 // the viewer's width, as it first opens
 	minSide     = 300
-	minPanes    = 360 // the room the panel leaves the panes
+	minPanes    = 360 // the room the viewer leaves the panes
 	splitWidth  = 760 // past which diff-layout auto shows diffs side by side
 )
 
-// sideState is the panel's, beside the prefs that open it and size it.
+// sideState is the right sidebar's and the viewer's, beside the prefs
+// that show them and size them.
 type sideState struct {
-	drag    float32 // the width as a drag of the edge began, 0 while none
-	focused bool    // the panel has the keyboard: its Escape, its diff's find
+	drag    float32 // the viewer's width as a drag of its edge began, 0 while none
+	barDrag float32 // the sidebar's, as a drag of its edge began
+	barW    float32 // the sidebar's width as it shows this frame, 0 while hidden
+	focused bool    // the viewer has the keyboard: its Escape, its find
 	changes changesState
+	files   filesState
+	// views are what the viewer shows, by session.
+	views map[string]*sideView
+	// cf is the Changes tab's for this frame, which the sidebar's tree
+	// and the viewer's diffs share (changesFrameOf).
+	cf *changesFrame
 	// theme is the diffs' colors, made again only as the window's
 	// appearance or the terminals' themes change.
 	theme    *editor.Theme
 	themeKey string
 }
 
-// changesState is the Changes view's: the files changed since a base,
+// sideView is what a session's viewer shows: the diffs of Changes, or a
+// file of Files; kind is "" while it is closed.
+type sideView struct {
+	kind string
+	file *fileView // the file of Files it shows last
+}
+
+// changesState is the Changes tab's: the files changed since a base,
 // each with its diff, one after the other in one scroll.
 type changesState struct {
 	base string // the base chosen: git.BaseTurn, BaseHead or BaseBranch
@@ -71,19 +90,21 @@ type changesState struct {
 	files     map[string]*sideFile
 	collapsed map[string]bool
 	focus     *sideFile
-	// places are the lists' places, by scope.
+	// places are the diffs' places, by scope.
 	places map[string]*ui.ListState
 	// tree is the tree of the files of treeOf, the list it was made of
 	// (changes_tree.go); treeClosed the folders the user folded in it, by
 	// scope and path; treePlaces its places, by scope. picked is the file
 	// last chosen in it, and current the one it showed as there, which it
-	// scrolls to as that changes.
+	// scrolls to as that changes; reveal the one the diffs are to scroll
+	// to, as they come.
 	tree       []*treeNode
 	treeOf     *proto.GitChanges
 	treeClosed map[string]bool
 	treePlaces map[string]*ui.ListState
 	picked     string
 	current    string
+	reveal     string
 }
 
 // sideFile is a changed file's diff since a base.
@@ -100,20 +121,167 @@ type sideFile struct {
 	err        string
 }
 
-// toggleSide shows a view of the panel, or hides the panel when it shows
-// it.
-func (a *App) toggleSide(view string) {
-	if a.prefs.Side == view {
-		a.prefs.Side = ""
-		a.side.focused = false
-		a.focusTerminal()
+// sideTab is the tab the sidebar shows, or showed last while it hides.
+func (a *App) sideTab() string {
+	tab := a.prefs.Side
+	if tab == "" {
+		tab = a.prefs.SideTab
+	}
+	if tab != sideFiles {
+		tab = sideChanges
+	}
+	return tab
+}
+
+// showTab shows a tab of the sidebar.
+func (a *App) showTab(tab string) {
+	a.prefs.Side, a.prefs.SideTab = tab, tab
+	a.savePrefs()
+}
+
+// toggleSide shows a tab of the sidebar, and for Changes their diffs; or,
+// when the sidebar shows it, hides the sidebar, closing the viewer with
+// what the tab opened in it.
+func (a *App) toggleSide(tab string) {
+	s := a.session(a.selected)
+	if a.prefs.Side == tab {
+		a.prefs.Side, a.prefs.SideTab = "", tab
+		if v := a.viewOf(s); v != nil && v.kind == tab {
+			a.closeView(s)
+		}
 	} else {
-		a.prefs.Side = view
+		a.prefs.Side, a.prefs.SideTab = tab, tab
+		if tab == sideChanges && s != nil {
+			a.openView(s, sideChanges, nil)
+		}
 	}
 	a.savePrefs()
 }
 
-// sideWidth is the panel's width in a row of width w, leaving the panes
+// toggleRight shows the sidebar, on the tab it showed last, or hides it.
+func (a *App) toggleRight() {
+	if a.prefs.Side != "" {
+		a.prefs.Side, a.prefs.SideTab = "", a.prefs.Side
+	} else {
+		a.prefs.Side = a.sideTab()
+	}
+	a.savePrefs()
+}
+
+// viewOf is what a session's viewer shows, nil while it is closed.
+func (a *App) viewOf(s *proto.Session) *sideView {
+	if s == nil {
+		return nil
+	}
+	if v := a.side.views[s.ID]; v != nil && v.kind != "" {
+		return v
+	}
+	return nil
+}
+
+// openView opens a session's viewer on the diffs of Changes, or on a file
+// of Files, f, or the one it showed last when nil.
+func (a *App) openView(s *proto.Session, kind string, f *fileView) {
+	if a.side.views == nil {
+		a.side.views = map[string]*sideView{}
+	}
+	v := a.side.views[s.ID]
+	if v == nil {
+		v = &sideView{}
+		a.side.views[s.ID] = v
+	}
+	v.kind = kind
+	if f != nil {
+		v.file = f
+	}
+}
+
+// closeView closes a session's viewer, giving the keyboard back to its
+// pane when the viewer had it.
+func (a *App) closeView(s *proto.Session) {
+	if v := a.viewOf(s); v != nil {
+		v.kind = ""
+	}
+	if a.side.focused {
+		a.side.focused = false
+		a.focusTerminal()
+	}
+}
+
+// rightWidth is the sidebar's width, shown.
+func (a *App) rightWidth() float32 {
+	if w := a.prefs.RightWidth; w != 0 {
+		return w
+	}
+	return defaultSidebar
+}
+
+// rightHandle is the sidebar's edge, which a drag moves, on the right
+// edge of the cards' column.
+func (a *App) rightHandle(c *ui.Context) {
+	h := ui.Box(c.Key("resize-right")).Absolute().Right(-4).Top(0).Bottom(0).Width(9).Cursor(ui.CursorResizeColumn).KeepFocus()
+	if dx, _, ok := h.Dragged(); ok {
+		if a.side.barDrag == 0 {
+			a.side.barDrag = a.rightWidth()
+		}
+		a.side.barDrag -= dx
+		a.prefs.RightWidth = min(max(a.side.barDrag, minSidebar), maxSidebar)
+	} else if a.side.barDrag != 0 && !h.Pressed() {
+		a.side.barDrag = 0
+		a.savePrefs()
+	}
+	if h.DoubleClicked() {
+		a.prefs.RightWidth = 0
+		a.savePrefs()
+	}
+}
+
+// rightSidebar is the sidebar at the window's right: its tabs, in a
+// title bar as the left sidebar's, then the tab's view.
+func (a *App) rightSidebar(c *ui.Context, pal *palette, s *proto.Session) {
+	tab := a.sideTab()
+	ui.Row(c.Key("right-bar")).Height(topBar).Shrink(0).AlignItems(ui.Center).Padding(0, 10, 0, 10).Gap(2).DragWindow().Children(func() {
+		a.tabButton(c, pal, sideChanges, locales.SideChanges(), tab)
+		a.tabButton(c, pal, sideFiles, locales.SideFiles(), tab)
+		ui.Spacer(c)
+		iconButton(c, "hide-right", sidebarRightIcon, a.tip(locales.RightSidebarHide(), "rightSidebar.toggle"), pal, a.toggleRight)
+		windowControls(c, pal, a.win)
+	})
+	ui.Column(c.Key("tab-" + tab)).Grow(1).MinHeight(0).AlignItems(ui.Stretch).Children(func() {
+		if tab == sideFiles {
+			a.filesSide(c, pal, s)
+		} else {
+			a.changesSide(c, pal, s)
+		}
+	})
+}
+
+// tabButton is a tab of the sidebar, its own chosen as a session's row is,
+// in the same weight as the others.
+func (a *App) tabButton(c *ui.Context, pal *palette, id, label, tab string) {
+	b := ui.ButtonBase(c.Key("tab-"+id)).Height(26).Padding(0, 10).Radius(7).Center().Label(label)
+	if pal.dark {
+		// Room for the chosen tab's edge in every tab.
+		b.Border(1, ui.Transparent)
+	}
+	bg, fg := ui.Transparent, pal.textMuted
+	switch {
+	case id == tab:
+		bg, fg = pal.rowSelected, pal.text
+		chosen(b, pal)
+	case b.Hovered():
+		bg, fg = pal.rowHover, pal.text
+	}
+	b.Background(b.AnimateColor("bg", bg, ui.Animation{Duration: 110 * time.Millisecond}))
+	b.Children(func() {
+		ui.Text(c, label).FontSize(13).FontWeight(500).TextColor(fg).SingleLine()
+	})
+	if b.Clicked() {
+		a.showTab(id)
+	}
+}
+
+// sideWidth is the viewer's width in a row of width w, leaving the panes
 // their room.
 func (a *App) sideWidth(w float32) float32 {
 	sw := a.prefs.SideWidth
@@ -126,7 +294,8 @@ func (a *App) sideWidth(w float32) float32 {
 	return max(sw, minSide)
 }
 
-// sideEdge is the gap between the panes and the panel, which a drag moves.
+// sideEdge is the gap between the panes and the viewer, which a drag
+// moves.
 func (a *App) sideEdge(c *ui.Context, pal *palette, row float32) {
 	d := ui.Box(c.Key("side-edge")).Width(paneGap).Shrink(0).Cursor(ui.CursorResizeColumn)
 	if d.Hovered() || d.Pressed() {
@@ -150,44 +319,64 @@ func (a *App) sideEdge(c *ui.Context, pal *palette, row float32) {
 	}
 }
 
-// sidePanel is the panel's card: its header, then its view. top and right
-// tell that it touches the window's top and right edges, where its header
-// drags the window and holds the window's controls (windowControls).
-func (a *App) sidePanel(c *ui.Context, pal *palette, s *proto.Session, width float32, right bool) {
-	card := ui.Column(c.Key("side")).Width(width).Shrink(0).MinHeight(0).Radius(14).Clip().Background(pal.card).
+// viewerCard is the viewer, a card beside the panes as theirs: a header
+// saying what it shows, then the diffs or the file. right tells that it
+// touches the window's right edge, where its header holds the window's
+// controls (windowControls).
+func (a *App) viewerCard(c *ui.Context, pal *palette, s *proto.Session, v *sideView, width float32, right bool) {
+	card := paned(ui.Column(c.Key("side")).Width(width).Shrink(0).MinHeight(0).Radius(14).Clip().Background(pal.card), pal).
 		Focusable().Bind(a.paneRef("side-card"))
-	raised(card, pal)
 	a.side.focused = card.FocusWithin()
 	card.Children(func() {
-		ui.Row(c.Key("hdr")).Height(headerH).Shrink(0).AlignItems(ui.Center).Padding(0, 10, 0, 16).Gap(8).Children(func() {
-			// What the view shows, as a pane's header shows its program.
-			ui.Icon(c, diffIcon).Size(14, 14).TextColor(pal.textFaint)
-			ui.Text(c, locales.SideChanges()).FontSize(14).FontWeight(600).TextColor(pal.text).SingleLine().Shrink(0)
-			if dir := a.changesDir(s); dir != "" {
-				ui.Text(c, a.hostOf(s.ID).shortDir(dir)).FontSize(13).TextColor(pal.textFaint).SingleLine().Ellipsis("…").Shrink(2).MinWidth(0).Tooltip(dir)
-			}
-			ui.Box(c.Key("drag")).Grow(1).AlignSelf(ui.Stretch).DragWindow()
-			iconButton(c, "close-side", closeIcon, a.tip(locales.SideClose(), "changes.toggle"), pal, func() { a.defer_(func() { a.toggleSide(a.prefs.Side) }) })
-			if right {
-				windowControls(c, pal, a.win)
-			}
-		})
-		ui.Column(c.Key("body")).Grow(1).MinHeight(0).AlignItems(ui.Stretch).Children(func() {
-			a.changesView(c, pal, s, width)
-		})
+		if v.kind == sideFiles && v.file != nil {
+			a.fileViewer(c, pal, s, v.file, right)
+		} else {
+			a.changesViewer(c, pal, s, width, right)
+		}
 	})
 	if card.Shortcut(0, ui.KeyEscape) {
 		a.focusTerminal()
 	}
 }
 
-// --- the Changes view ---
+// viewerHeader is the viewer's header: an icon and a title, as a pane's
+// header shows its program, what follows it, then the viewer's buttons.
+func (a *App) viewerHeader(c *ui.Context, pal *palette, s *proto.Session, svg *ui.SVG, title string, right bool, after, buttons func()) {
+	ui.Row(c.Key("hdr")).Height(headerH).Shrink(0).AlignItems(ui.Center).Padding(0, 10, 0, 16).Gap(8).Children(func() {
+		ui.Icon(c, svg).Size(14, 14).TextColor(pal.textFaint).Shrink(0)
+		ui.Text(c, title).FontSize(14).FontWeight(600).TextColor(pal.text).SingleLine().Ellipsis("…").Shrink(1).MinWidth(0)
+		if after != nil {
+			after()
+		}
+		ui.Box(c.Key("drag")).Grow(1).AlignSelf(ui.Stretch).DragWindow()
+		if buttons != nil {
+			buttons()
+		}
+		sid := s.ID
+		iconButton(c, "close-side", closeIcon, locales.SideClose(), pal, func() { a.defer_(func() { a.closeView(a.session(sid)) }) })
+		if right {
+			a.showRightButton(c, pal)
+			windowControls(c, pal, a.win)
+		}
+	})
+}
 
-// changesPanes returns the panes the Changes view is of: the one the user
+// showRightButton shows the right sidebar, at the right of the header at
+// the window's top right while the sidebar hides, as the left sidebar's
+// shows it.
+func (a *App) showRightButton(c *ui.Context, pal *palette) {
+	if a.prefs.Side == "" {
+		iconButton(c, "show-right", sidebarRightIcon, a.tip(locales.RightSidebarShow(), "rightSidebar.toggle"), pal, a.toggleRight)
+	}
+}
+
+// --- the Changes tab ---
+
+// changesPanes returns the panes the Changes tab is of: the one the user
 // is in, whose worktree it shows, and the one of the session whose agent
 // last started a turn, the user's first, nil for none.
 func (a *App) changesPanes(s *proto.Session) (here, turn *proto.Pane) {
-	here = s.PaneByID(a.focusOf(s))
+	here = withGit(s, s.PaneByID(a.focusOf(s)))
 	if here == nil {
 		return nil, nil
 	}
@@ -203,8 +392,40 @@ func (a *App) changesPanes(s *proto.Session) (here, turn *proto.Pane) {
 	return here, turn
 }
 
-// changesDir is the worktree the Changes view lists: the agent's where
-// it shows its turn, else the one of the pane the user is in; "" for none.
+// withGit is a pane with its worktree, as kerod last told it; for one it
+// has yet to look at, as a pane just split from another, the worktree of
+// another pane of the session that holds its directory, so that the
+// sidebar keeps showing it rather than no repository for that moment.
+func withGit(s *proto.Session, p *proto.Pane) *proto.Pane {
+	if p == nil || p.Git != nil {
+		return p
+	}
+	dir := p.WorkDir()
+	if dir == "" {
+		return p
+	}
+	for i := range s.Panes {
+		if g := s.Panes[i].Git; g != nil && withinDir(dir, g.Root) {
+			cp := *p
+			cp.Git = g
+			return &cp
+		}
+	}
+	return p
+}
+
+// withinDir tells that dir is root or a directory in it, with the paths
+// of any host.
+func withinDir(dir, root string) bool {
+	root = strings.TrimRight(root, `/\`)
+	if dir == root {
+		return true
+	}
+	return strings.HasPrefix(dir, root+"/") || strings.HasPrefix(dir, root+`\`)
+}
+
+// changesDir is the worktree the Changes tab lists: the agent's where it
+// shows its turn, else the one of the pane the user is in; "" for none.
 func (a *App) changesDir(s *proto.Session) string {
 	here, turn := a.changesPanes(s)
 	switch {
@@ -216,8 +437,8 @@ func (a *App) changesDir(s *proto.Session) string {
 	return ""
 }
 
-// changesScope names what the Changes view lists for a pane since a
-// base: its worktree's changes, or its turn's, which the list, its files'
+// changesScope names what the Changes tab lists for a pane since a base:
+// its worktree's changes, or its turn's, which the list, its files'
 // diffs, folds and scroll position are kept by.
 func changesScope(p *proto.Pane, base string) string {
 	if base == git.BaseTurn && p.Turn != nil {
@@ -237,32 +458,65 @@ func gitStamp(g *proto.GitInfo) string {
 	return fmt.Sprint(g.Root, g.Head, g.Branch, g.Files, g.Added, g.Removed)
 }
 
-func (a *App) changesView(c *ui.Context, pal *palette, s *proto.Session, width float32) {
+// sessionWorking tells that an agent of the session works.
+func sessionWorking(s *proto.Session) bool {
+	for _, p := range s.Panes {
+		if p.Status == proto.Working {
+			return true
+		}
+	}
+	return false
+}
+
+// changesFrame is the Changes tab for a frame: what it lists, made once
+// for the sidebar's tree and the viewer's diffs both.
+type changesFrame struct {
+	title, detail       string // why it lists nothing: git is off, no repository
+	bases, labels, tips []string
+	pane                *proto.Pane // whose worktree, or turn, it lists
+	scope               string
+	list                *proto.GitChanges // nil until one comes
+	held                bool              // list is another base's, faded for a moment
+	// rows are the viewer's rows this frame, heads the row of each file's
+	// header, and ls their list: nil while the viewer shows no diffs.
+	rows  []changeRow
+	heads []int
+	ls    *ui.ListState
+}
+
+// changesFrameOf makes the Changes tab's frame, once a frame: the bases
+// the worktree offers and the list of the one chosen, fetched as the
+// worktree changes.
+func (a *App) changesFrameOf(c *ui.Context, s *proto.Session) *changesFrame {
+	if a.side.cf != nil {
+		return a.side.cf
+	}
+	cf := &changesFrame{}
+	a.side.cf = cf
 	ch := &a.side.changes
 	here, turn := a.changesPanes(s)
 	if !a.set.GitStatus {
-		a.sideMessage(c, pal, locales.ChangesGitOff(), locales.ChangesGitOffDetail())
-		return
+		cf.title, cf.detail = locales.ChangesGitOff(), locales.ChangesGitOffDetail()
+		return cf
 	}
 	if here == nil || here.Git == nil && turn == nil {
-		a.sideMessage(c, pal, locales.ChangesNoRepo(), locales.ChangesNoRepoDetail())
-		return
+		cf.title, cf.detail = locales.ChangesNoRepo(), locales.ChangesNoRepoDetail()
+		return cf
 	}
 
 	// The bases this worktree offers, and the one shown: the agent's turn
-	// first, as the panel opens.
-	var bases, labels, tips []string
+	// first, as the tab opens.
 	if turn != nil {
-		bases, labels, tips = append(bases, git.BaseTurn), append(labels, locales.ChangesTurn()), append(tips, locales.ChangesTurnTip())
+		cf.bases, cf.labels, cf.tips = append(cf.bases, git.BaseTurn), append(cf.labels, locales.ChangesTurn()), append(cf.tips, locales.ChangesTurnTip())
 	}
 	if here.Git != nil {
-		bases, labels, tips = append(bases, git.BaseHead), append(labels, locales.ChangesUncommitted()), append(tips, locales.ChangesUncommittedTip())
+		cf.bases, cf.labels, cf.tips = append(cf.bases, git.BaseHead), append(cf.labels, locales.ChangesUncommitted()), append(cf.tips, locales.ChangesUncommittedTip())
 		if d := here.Git.Default; d != "" {
-			bases, labels, tips = append(bases, git.BaseBranch), append(labels, locales.ChangesBranch()), append(tips, locales.ChangesBranchTip(d))
+			cf.bases, cf.labels, cf.tips = append(cf.bases, git.BaseBranch), append(cf.labels, locales.ChangesBranch()), append(cf.tips, locales.ChangesBranchTip(d))
 		}
 	}
-	if !slices.Contains(bases, ch.base) {
-		ch.base = bases[0]
+	if !slices.Contains(cf.bases, ch.base) {
+		ch.base = cf.bases[0]
 	}
 	pane := here
 	if ch.base == git.BaseTurn {
@@ -276,10 +530,7 @@ func (a *App) changesView(c *ui.Context, pal *palette, s *proto.Session, width f
 	if pane.Turn != nil && ch.base == git.BaseTurn {
 		stamp += "|" + pane.Turn.Tree
 	}
-	working := false
-	for _, p := range s.Panes {
-		working = working || p.Status == proto.Working
-	}
+	working := sessionWorking(s)
 	// The list follows the worktree: as its status changes, and every few
 	// seconds while an agent works in the session, as a file can change
 	// without its count of lines.
@@ -305,131 +556,179 @@ func (a *App) changesView(c *ui.Context, pal *palette, s *proto.Session, width f
 	if !current && !held {
 		list = nil
 	}
-
-	// The tree of the files, beside their diffs, takes of their room.
-	diffW := width
-	if a.prefs.SideTree && list != nil && len(list.Files) > 0 {
-		diffW -= treeWidth(width)
-	}
-
-	ui.Column(c.Key("bases")).Shrink(0).Padding(2, 12, 6, 12).Gap(6).AlignItems(ui.Stretch).Children(func() {
-		if len(bases) > 1 {
-			ui.Row(c).Children(func() { segmented(c, "base", &ch.base, bases, labels) })
-		}
-		i := slices.Index(bases, ch.base)
-		ui.Row(c).Height(28).Gap(8).AlignItems(ui.Center).Children(func() {
-			if res := list; res != nil && len(res.Files) > 0 {
-				added, removed := 0, 0
-				for _, f := range res.Files {
-					added, removed = added+f.Added, removed+f.Removed
-				}
-				ui.Text(c, locales.ChangesFiles(len(res.Files))).FontSize(12.5).TextColor(pal.textMuted).SingleLine().Shrink(0)
-				a.lineCounts(c, pal, added, removed, 12.5)
-				if ch.base == git.BaseBranch && res.BaseName != "" {
-					ui.Text(c, locales.ChangesSince(res.BaseName)).FontSize(12.5).TextColor(pal.textFaint).SingleLine().Ellipsis("…").MinWidth(0)
-				}
-			} else {
-				ui.Text(c, tips[i]).FontSize(12.5).TextColor(pal.textFaint).SingleLine().Ellipsis("…").MinWidth(0)
-			}
-			ui.Spacer(c)
-			if list != nil && len(list.Files) > 0 {
-				a.foldAllButton(c, pal, scope, list.Files)
-			}
-			a.treeToggle(c, pal)
-			split := a.diffSplit(diffW)
-			layoutIcon, layoutTip := splitRightIcon, locales.ChangesSplit()
-			if split {
-				layoutIcon, layoutTip = splitDownIcon, locales.ChangesUnified()
-			}
-			iconButton(c, "layout", layoutIcon, layoutTip, pal, func() {
-				set := a.set
-				set.DiffLayout = "split"
-				if split {
-					set.DiffLayout = "unified"
-				}
-				a.applySettings(set)
-			})
-		})
-	})
-
-	res := list
 	if held {
 		c.After(400 * time.Millisecond)
 	}
+	cf.pane, cf.scope, cf.list, cf.held = pane, scope, list, held
+	return cf
+}
+
+// changesNone shows why the Changes tab lists no files, a spinner while
+// they come, and tells whether it showed one.
+func (a *App) changesNone(c *ui.Context, pal *palette, cf *changesFrame) bool {
+	ch := &a.side.changes
+	res := cf.list
 	switch {
+	case cf.title != "":
+		a.sideMessage(c, pal, cf.title, cf.detail)
 	case res == nil:
-		if ch.err != "" && !ch.busy && ch.scope == scope {
+		if ch.err != "" && !ch.busy && ch.scope == cf.scope {
 			a.sideMessage(c, pal, locales.ChangesCantRead(), ch.err)
 		} else if c.Now().Sub(ch.switched) > 250*time.Millisecond {
 			ui.Column(c).Grow(1).Center().Children(func() { ui.Spinner(c) })
 		} else {
 			c.After(260 * time.Millisecond)
 		}
-	case len(res.Files) == 0 && held:
+	case len(res.Files) == 0 && cf.held:
 		// Another base's "no changes" would say the wrong thing.
 	case len(res.Files) == 0:
-		detail := map[string]string{git.BaseTurn: locales.ChangesNoneTurn(), git.BaseHead: locales.ChangesNoneUncommitted()}[ch.base]
-		if ch.base == git.BaseBranch {
+		detail := map[string]string{git.BaseTurn: locales.ChangesNoneTurn(), git.BaseHead: locales.ChangesNoneUncommitted()}[a.side.changes.base]
+		if a.side.changes.base == git.BaseBranch {
 			detail = locales.ChangesNoneBranch(res.BaseName)
 		}
 		a.sideMessage(c, pal, locales.ChangesNone(), detail)
 	default:
-		if !held {
-			a.syncFiles(c, scope, pane, res.Files)
-		}
-		if ch.places == nil {
-			ch.places = map[string]*ui.ListState{}
-		}
-		ls := ch.places[scope]
-		if ls == nil {
-			ls = &ui.ListState{}
-			ch.places[scope] = ls
-		}
-		// A file is two rows: its header, then its diff while unfolded,
-		// which scrolls under the header as the list pins it at the top,
-		// until the next file's header pushes it out, as the files of a
-		// pull request do.
-		var rows []changeRow
-		heads := make([]int, len(res.Files)) // the row of each file's header
-		for i, f := range res.Files {
-			heads[i] = len(rows)
-			rows = append(rows, changeRow{f: f})
-			if ch.files[scope+"|"+f.Path] != nil && !a.fileCollapsed(scope, f) {
-				rows = append(rows, changeRow{f: f, diff: true})
-			}
-		}
-		ls.Header = func(i int) bool { return !rows[i].diff }
-		ls.Key = func(i int) any { return changeKey{rows[i].f.Path, rows[i].diff} }
-		box := ui.Row(c.Key("files-" + scope)).Grow(1).MinHeight(0).AlignItems(ui.Stretch)
-		box.Opacity(box.Animate("held", 1-0.45*b2f(held), 120*time.Millisecond))
-		box.Children(func() {
-			if diffW < width {
-				a.changesTree(c, pal, scope, res, width-diffW, ls, rows, heads)
-			}
-			// The scroll bar runs below the header pinned at the top, not
-			// under it.
-			ui.List(c.Key("rows"), ls, len(rows), func(i int) {
-				r := rows[i]
-				if r.diff {
-					a.fileDiff(c, pal, s, scope, r.f, diffW)
-					return
-				}
-				// Opaque, over the diff scrolling under it; a folded file's
-				// with the room below its section.
-				gap := float32(sectionGap)
-				if i+1 < len(rows) && rows[i+1].diff {
-					gap = 0
-				}
-				ui.Column(c).FillWidth().AlignItems(ui.Stretch).Padding(0, 0, gap, 0).Background(pal.card).Children(func() {
-					a.fileHeader(c, pal, scope, res.Root, r.f, diffW < width, func() {
-						// Folding it as the list pins it brings it back where
-						// it stays: at the top.
-						ls.ScrollIntoView(i)
-					})
-				})
-			}).Grow(1).MinWidth(0).MinHeight(0).Padding(0, 0, 16, 0).ScrollbarInsets(stickyH, 0, 0, 0)
-		})
+		return false
 	}
+	return true
+}
+
+// changesSide is the Changes tab: the bases to choose from, what changed
+// since the one chosen, and the tree of the files, a click on one of
+// which opens the diffs in the viewer, scrolled to it.
+func (a *App) changesSide(c *ui.Context, pal *palette, s *proto.Session) {
+	cf := a.changesFrameOf(c, s)
+	ch := &a.side.changes
+	if cf.title != "" {
+		a.sideMessage(c, pal, cf.title, cf.detail)
+		return
+	}
+	list := cf.list
+	ui.Column(c.Key("bases")).Shrink(0).Padding(0, 12, 6, 12).Gap(6).AlignItems(ui.Stretch).Children(func() {
+		if len(cf.bases) > 1 {
+			segmentedIn(c, "base", &ch.base, cf.bases, cf.labels, true)
+		}
+		i := slices.Index(cf.bases, ch.base)
+		ui.Row(c).Height(28).Gap(8).AlignItems(ui.Center).Children(func() {
+			if list == nil || len(list.Files) == 0 {
+				ui.Text(c, cf.tips[i]).FontSize(12.5).TextColor(pal.textFaint).SingleLine().Ellipsis("…").MinWidth(0).Tooltip(cf.tips[i])
+				return
+			}
+			added, removed := 0, 0
+			for _, f := range list.Files {
+				added, removed = added+f.Added, removed+f.Removed
+			}
+			ui.Text(c, locales.ChangesFiles(len(list.Files))).FontSize(12.5).TextColor(pal.textMuted).SingleLine().Shrink(0)
+			a.lineCounts(c, pal, added, removed, 12.5)
+			if ch.base == git.BaseBranch && list.BaseName != "" {
+				ui.Text(c, locales.ChangesSince(list.BaseName)).FontSize(12.5).TextColor(pal.textFaint).SingleLine().Ellipsis("…").MinWidth(0)
+			}
+			ui.Spacer(c)
+			if v := a.viewOf(s); v == nil || v.kind != sideChanges {
+				iconButton(c, "show-diffs", diffIcon, locales.ChangesShowDiffs(), pal, func() { a.openView(s, sideChanges, nil) })
+			}
+		})
+	})
+	if a.changesNone(c, pal, cf) {
+		return
+	}
+	box := ui.Column(c.Key("tree-" + cf.scope)).Grow(1).MinHeight(0).AlignItems(ui.Stretch)
+	box.Opacity(box.Animate("held", 1-0.45*b2f(cf.held), 120*time.Millisecond))
+	box.Children(func() { a.changesTree(c, pal, s, cf) })
+}
+
+// changesViewer is the viewer of Changes: the diffs of the files the tab
+// lists, one after the other, scrolled to the one chosen in the tree.
+func (a *App) changesViewer(c *ui.Context, pal *palette, s *proto.Session, width float32, right bool) {
+	cf := a.changesFrameOf(c, s)
+	ch := &a.side.changes
+	files := cf.list != nil && len(cf.list.Files) > 0
+	a.viewerHeader(c, pal, s, diffIcon, locales.SideChanges(), right, func() {
+		if dir := a.changesDir(s); dir != "" {
+			ui.Text(c, a.hostOf(s.ID).shortDir(dir)).FontSize(13).TextColor(pal.textFaint).SingleLine().Ellipsis("…").Shrink(2).MinWidth(0).Tooltip(dir)
+		}
+	}, func() {
+		if files {
+			a.foldAllButton(c, pal, cf.scope, cf.list.Files)
+		}
+		split := a.diffSplit(width)
+		layoutIcon, layoutTip := splitRightIcon, locales.ChangesSplit()
+		if split {
+			layoutIcon, layoutTip = splitDownIcon, locales.ChangesUnified()
+		}
+		iconButton(c, "layout", layoutIcon, layoutTip, pal, func() {
+			set := a.set
+			set.DiffLayout = "split"
+			if split {
+				set.DiffLayout = "unified"
+			}
+			a.applySettings(set)
+		})
+	})
+	if a.changesNone(c, pal, cf) {
+		return
+	}
+	res, scope := cf.list, cf.scope
+	if !cf.held {
+		a.syncFiles(c, scope, cf.pane, res.Files)
+	}
+	if ch.places == nil {
+		ch.places = map[string]*ui.ListState{}
+	}
+	ls := ch.places[scope]
+	if ls == nil {
+		ls = &ui.ListState{}
+		ch.places[scope] = ls
+	}
+	// A file is two rows: its header, then its diff while unfolded,
+	// which scrolls under the header as the list pins it at the top,
+	// until the next file's header pushes it out, as the files of a
+	// pull request do.
+	var rows []changeRow
+	heads := make([]int, len(res.Files)) // the row of each file's header
+	for i, f := range res.Files {
+		heads[i] = len(rows)
+		rows = append(rows, changeRow{f: f})
+		if ch.files[scope+"|"+f.Path] != nil && !a.fileCollapsed(scope, f) {
+			rows = append(rows, changeRow{f: f, diff: true})
+		}
+	}
+	cf.rows, cf.heads, cf.ls = rows, heads, ls
+	// The file chosen in the tree, as the viewer opens on it.
+	if ch.reveal != "" {
+		if i := slices.IndexFunc(res.Files, func(f proto.GitFile) bool { return f.Path == ch.reveal }); i >= 0 {
+			ls.ScrollTo(heads[i], ui.Start)
+		}
+		ch.reveal = ""
+	}
+	ls.Header = func(i int) bool { return !rows[i].diff }
+	ls.Key = func(i int) any { return changeKey{rows[i].f.Path, rows[i].diff} }
+	box := ui.Row(c.Key("files-" + scope)).Grow(1).MinHeight(0).AlignItems(ui.Stretch)
+	box.Opacity(box.Animate("held", 1-0.45*b2f(cf.held), 120*time.Millisecond))
+	box.Children(func() {
+		// The scroll bar runs below the header pinned at the top, not
+		// under it.
+		ui.List(c.Key("rows"), ls, len(rows), func(i int) {
+			r := rows[i]
+			if r.diff {
+				a.fileDiff(c, pal, s, scope, r.f, width)
+				return
+			}
+			// Opaque, over the diff scrolling under it; a folded file's
+			// with the room below its section.
+			gap := float32(sectionGap)
+			if i+1 < len(rows) && rows[i+1].diff {
+				gap = 0
+			}
+			ui.Column(c).FillWidth().AlignItems(ui.Stretch).Padding(0, 0, gap, 0).Background(pal.card).Children(func() {
+				a.fileHeader(c, pal, scope, res.Root, r.f, func() {
+					// Folding it as the list pins it brings it back where
+					// it stays: at the top.
+					ls.ScrollIntoView(i)
+				})
+			})
+		}).Grow(1).MinWidth(0).MinHeight(0).Padding(0, 0, 16, 0).ScrollbarInsets(stickyH, 0, 0, 0)
+	})
 }
 
 // changeRow is a row of the list of changes: a file's header, or its
@@ -569,17 +868,13 @@ func (a *App) fileDiff(c *ui.Context, pal *palette, s *proto.Session, scope stri
 
 // fileHeader is a changed file's header: its change, its name and folder
 // and the lines it adds and removes, which a click folds or unfolds,
-// running folding first when set. Beside the tree, its left corners are
-// rounded, so that it stands apart from it.
-func (a *App) fileHeader(c *ui.Context, pal *palette, scope, root string, f proto.GitFile, besideTree bool, folding func()) {
+// running folding first when set.
+func (a *App) fileHeader(c *ui.Context, pal *palette, scope, root string, f proto.GitFile, folding func()) {
 	ch := &a.side.changes
 	key := scope + "|" + f.Path
 	collapsed := a.fileCollapsed(scope, f)
-	// Across the panel, edge to edge, its content in line with the bases'.
+	// Across the viewer, edge to edge.
 	hdr := ui.Row(c.Key("hdr")).Height(stickyH).Padding(0, 10, 0, 12).Gap(8).AlignItems(ui.Center).Background(pal.chip)
-	if besideTree {
-		hdr.Radius(8, 0, 0, 8)
-	}
 	if hdr.Hovered() {
 		hdr.Background(pal.rowHover.Mix(pal.chip, 0.5))
 	}
@@ -811,7 +1106,7 @@ func replaceText(b *editor.Buffer, text string) {
 	b.Edit(editor.Edit{Start: p, End: len(cur) - q, Text: text[p : len(text)-q]})
 }
 
-// diffSplit tells whether diffs show side by side in a panel this wide.
+// diffSplit tells whether diffs show side by side in a viewer this wide.
 func (a *App) diffSplit(width float32) bool {
 	switch a.set.DiffLayout {
 	case "split":
@@ -834,10 +1129,7 @@ func (a *App) diffOptions(c *ui.Context, pal *palette, s *proto.Session, sf *sid
 	if a.diffSplit(width) {
 		d.Layout = editor.DiffSplit
 	}
-	working := false
-	for _, p := range s.Panes {
-		working = working || p.Status == proto.Working
-	}
+	working := sessionWorking(s)
 	d.RenderSeparator = func(c *ui.Context, sep ui.Element, s *editor.DiffSeparator) { a.separator(c, pal, sep, s) }
 	d.HunkActions = sf.base == git.BaseTurn && !sf.patch && !working && !sf.writing
 	d.RenderHunkActions = func(c *ui.Context, bar ui.Element, h *editor.DiffHunkActions) {

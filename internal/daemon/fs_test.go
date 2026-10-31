@@ -3,6 +3,7 @@ package daemon
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -137,5 +138,38 @@ func TestPasteDirPrivate(t *testing.T) {
 	os.Symlink(t.TempDir(), base)
 	if _, err := pasteDir(); err == nil {
 		t.Error("pasted through a link")
+	}
+}
+
+// Asked, fs.list marks what git ignores in a worktree, and nothing
+// outside one.
+func TestFSListIgnored(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("no git")
+	}
+	dir := t.TempDir()
+	if out, err := exec.Command("git", "init", "-q", dir).CombinedOutput(); err != nil {
+		t.Fatalf("git init: %v: %s", err, out)
+	}
+	os.WriteFile(filepath.Join(dir, ".gitignore"), []byte("node_modules/\n*.log\n"), 0o644)
+	os.MkdirAll(filepath.Join(dir, "node_modules", "x"), 0o755)
+	os.MkdirAll(filepath.Join(dir, "src"), 0o755)
+	os.WriteFile(filepath.Join(dir, "debug.log"), nil, 0o644)
+	os.WriteFile(filepath.Join(dir, "main.go"), nil, 0o644)
+	l, err := fsList(proto.FSListParams{Dir: dir, Hidden: true, Ignored: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ignored []string
+	for _, e := range l.Entries {
+		if e.Ignored {
+			ignored = append(ignored, e.Name)
+		}
+	}
+	if got := strings.Join(ignored, ","); got != "node_modules,debug.log" {
+		t.Errorf("ignored %q, want node_modules,debug.log", got)
+	}
+	if l, err := fsList(proto.FSListParams{Dir: t.TempDir(), Ignored: true}); err != nil || len(l.Entries) != 0 {
+		t.Errorf("outside a worktree: %v, %v", l.Entries, err)
 	}
 }

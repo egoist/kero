@@ -103,6 +103,14 @@ func (a *App) view(c *ui.Context) {
 	progress := row.AnimateTo("sidebar", b2f(!a.prefs.SidebarHidden), sidebarMotion)
 	a.chrome = chromeFor(progress, a.prefs.SidebarWidth, bar)
 	shown := a.chrome.shown
+	// The right sidebar, beside a session's panes, comes and goes as the
+	// left one does, in whole pixels.
+	work := a.workSession()
+	rightW := a.rightWidth()
+	right := float32(math.Round(float64(rightW * min(max(row.AnimateTo("right", b2f(work != nil && a.prefs.Side != ""), sidebarMotion), 0), 1))))
+	a.side.barW = right
+	a.side.cf = nil
+	a.side.files.showed, a.side.files.shown = a.side.files.shown, false
 	row.Children(func() {
 		w := a.chrome.sideW
 		side := ui.Row(c).Width(w).Shrink(0).AlignItems(ui.Stretch).ClipX()
@@ -121,19 +129,31 @@ func (a *App) view(c *ui.Context) {
 				Opacity(0.4 + 0.6*shown).Children(func() { a.sidebar(c, pal, bar) })
 		})
 		// The gaps around the cards move the window too.
-		main := ui.Column(c).Grow(1).MinWidth(0).Padding(cardGap, cardGap, cardGap, a.chrome.mainPad).DragWindow()
+		rightPad := float32(math.Round(float64(cardGap * (1 - right/rightW))))
+		main := ui.Column(c).Grow(1).MinWidth(0).Padding(cardGap, rightPad, cardGap, a.chrome.mainPad).DragWindow()
 		main.Children(func() {
 			if shown > 0.01 {
 				a.resizeHandle(c, pal)
 			}
+			if right > 0 {
+				a.rightHandle(c)
+			}
 			a.card(c, pal, bar, shown)
 		})
+		if right > 0 && work != nil {
+			// Its content stays at its width as it slides in from the
+			// window's edge.
+			ui.Row(c.Key("right")).Width(right).Shrink(0).AlignItems(ui.Stretch).ClipX().Children(func() {
+				ui.Column(c).Width(rightW).Shrink(0).AlignItems(ui.Stretch).Opacity(0.4 + 0.6*right/rightW).
+					Children(func() { a.rightSidebar(c, pal, work) })
+			})
+		}
 	})
 	// A page staged for a screenshot takes the window's size, under its
 	// content, which hides it: at no opacity, it paints no hole there.
 	for id, e := range a.webs {
 		if e.staged && e.view != nil {
-			ui.Box(c.Key("staged-"+id)).Absolute().Left(0).Top(0).Right(0).Bottom(0).AlignItems(ui.Stretch).Opacity(0).Children(func() {
+			ui.Box(c.Key("staged-" + id)).Absolute().Left(0).Top(0).Right(0).Bottom(0).AlignItems(ui.Stretch).Opacity(0).Children(func() {
 				ui.WebView(c.Key("web"), e.view).Grow(1)
 			})
 		}
@@ -815,19 +835,32 @@ func statusIconP(c *ui.Context, pal *palette, st proto.Status, unread bool, prog
 
 // --- the card ---
 
+// workSession is the session whose panes the window shows, nil for none:
+// a message shows in their place.
+func (a *App) workSession() *proto.Session {
+	s := a.session(a.selected)
+	if s == nil || a.hostOf(s.ID).conn == connVersion || !a.loaded {
+		return nil
+	}
+	return s
+}
+
 func (a *App) card(c *ui.Context, pal *palette, bar ui.TitleBar, shown float32) {
 	s := a.session(a.selected)
 	h := a.local()
 	if s != nil {
 		h = a.hostOf(s.ID)
 	}
-	if s != nil && h.conn != connVersion && a.loaded {
-		if a.prefs.Side == "" {
-			a.panes(c, pal, bar, shown, s, true)
+	if s := a.workSession(); s != nil {
+		// The cards that reach the window's right edge hold its controls,
+		// unless the right sidebar is there.
+		right := a.side.barW == 0
+		v := a.viewOf(s)
+		if v == nil {
+			a.panes(c, pal, bar, shown, s, right)
 			return
 		}
-		// The panes, then the side panel, which takes the window's
-		// right edge.
+		// The panes, then the viewer.
 		row := ui.Row(c.Key("with-side")).Grow(1).MinHeight(0).AlignItems(ui.Stretch).Bind(a.paneRef("with-side"))
 		w := a.paneRef("with-side").Bounds(c).W
 		row.Children(func() {
@@ -835,7 +868,7 @@ func (a *App) card(c *ui.Context, pal *palette, bar ui.TitleBar, shown float32) 
 				a.panes(c, pal, bar, shown, s, false)
 			})
 			a.sideEdge(c, pal, w)
-			a.sidePanel(c, pal, s, a.sideWidth(w), true)
+			a.viewerCard(c, pal, s, v, a.sideWidth(w), right)
 		})
 		return
 	}

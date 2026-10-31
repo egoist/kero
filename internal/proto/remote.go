@@ -110,6 +110,8 @@ type (
 	FSListParams struct {
 		Dir    string `json:"dir"`
 		Hidden bool   `json:"hidden,omitempty"` // dotfiles too
+		// Ignored marks the entries git ignores (FSEntry.Ignored).
+		Ignored bool `json:"ignored,omitempty"`
 	}
 	FSList struct {
 		Dir     string    `json:"dir"` // absolute, cleaned
@@ -122,6 +124,9 @@ type (
 		Dir  bool   `json:"dir,omitempty"`
 		// Repo tells a directory that holds a git repository.
 		Repo bool `json:"repo,omitempty"`
+		// Ignored tells an entry git ignores, as FSListParams.Ignored
+		// asks.
+		Ignored bool `json:"ignored,omitempty"`
 	}
 	// FSStatParams ask about a path printed in a pane: relative to Base,
 	// the pane's directory, unless absolute; ~ and ~/… are the home's.

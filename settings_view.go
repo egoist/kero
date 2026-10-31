@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/i18n"
@@ -441,6 +442,12 @@ func settingRow(c *ui.Context, pal *palette, label, detail string, control func(
 // shows it: a soft track, the choice a lighter fill raised a hair, thin
 // separators between the others, and labels of one weight.
 func segmented(c *ui.Context, key string, value *string, ids, labels []string) {
+	segmentedIn(c, key, value, ids, labels, false)
+}
+
+// segmentedIn is segmented, across the width it has when fill is set,
+// its segments sharing it.
+func segmentedIn(c *ui.Context, key string, value *string, ids, labels []string, fill bool) {
 	pal := paletteFor(c)
 	i := max(slices.Index(ids, *value), 0)
 	track, thumb := ui.RGBA(0, 0, 0, 0.06), ui.Hex("#ffffff")
@@ -448,6 +455,9 @@ func segmented(c *ui.Context, key string, value *string, ids, labels []string) {
 		track, thumb = ui.RGBA(255, 255, 255, 0.07), ui.RGBA(255, 255, 255, 0.2)
 	}
 	seg := ui.SegmentedBase(c.Key(key), &i, len(labels))
+	if fill {
+		seg.Track.FillWidth()
+	}
 	seg.Track.Height(24).Padding(2).Radius(7).Background(track).AlignItems(ui.Center).Children(func() {
 		for n, label := range labels {
 			if n > 0 {
@@ -458,6 +468,10 @@ func segmented(c *ui.Context, key string, value *string, ids, labels []string) {
 				}
 			}
 			s := seg.Segment(n).FillHeight().Padding(0, 12).Radius(5).Center()
+			if fill {
+				// Each its share of the width as its label's.
+				s.Grow(float32(utf8.RuneCountInString(label))).Basis(0).MinWidth(0).Padding(0, 6)
+			}
 			if n == i {
 				s.Background(thumb)
 				if pal.dark {
@@ -467,7 +481,7 @@ func segmented(c *ui.Context, key string, value *string, ids, labels []string) {
 				}
 			}
 			s.Children(func() {
-				ui.Text(c, label).FontSize(12.5).SingleLine().TextColor(pal.text)
+				ui.Text(c, label).FontSize(12.5).SingleLine().Ellipsis("…").MinWidth(0).TextColor(pal.text)
 			})
 		}
 	})

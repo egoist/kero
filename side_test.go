@@ -17,8 +17,9 @@ import (
 )
 
 // A session in a worktree of its own shows its branch by its name, and
-// by its pane's title with its changes; the changes panel lists what its
-// agent changed in its turn, and opens a file as its diff.
+// by its pane's title with its changes; Toggle Changes lists what its
+// agent changed in its turn in the right sidebar, and their diffs in the
+// viewer.
 func TestSidePanel(t *testing.T) {
 	a := testApp(t)
 	s := &a.st.Sessions[0]
@@ -28,7 +29,7 @@ func TestSidePanel(t *testing.T) {
 	s.Panes[0].Turn = &proto.Turn{Tree: "abc", Root: "/tmp/demo", At: time.Now().UnixMilli()}
 	s.Panes[1].Git = g
 	s.Pane = s.Panes[0]
-	a.prefs.Side = sideChanges
+	a.toggleSide(sideChanges)
 
 	// What kerod would answer.
 	ch := &a.side.changes
@@ -165,7 +166,7 @@ func TestReplaceText(t *testing.T) {
 	}
 }
 
-// Settings' search finds the changes panel's shortcut by git and diff, as
+// Settings' search finds Toggle Changes' shortcut by git and diff, as
 // well as by its title.
 func TestChangesShortcutSearch(t *testing.T) {
 	testApp(t)
@@ -176,7 +177,7 @@ func TestChangesShortcutSearch(t *testing.T) {
 	}
 }
 
-// The command palette offers the changes panel, by its title and by git.
+// The command palette offers Toggle Changes, by its title and by git.
 func TestChangesInPalette(t *testing.T) {
 	for _, q := range []string{"", "toggle changes", "git", "diff"} {
 		a := testApp(t)
@@ -195,8 +196,8 @@ func TestChangesInPalette(t *testing.T) {
 	tt.Frame()
 	tt.Key(0, ui.KeyEnter)
 	tt.Frame()
-	if a.prefs.Side != sideChanges {
-		t.Error("choosing it in the palette didn't open the changes panel")
+	if v := a.viewOf(&a.st.Sessions[0]); a.prefs.Side != sideChanges || v == nil || v.kind != sideChanges {
+		t.Error("choosing it in the palette didn't show the changes and their diffs")
 	}
 }
 
@@ -207,7 +208,7 @@ func TestChangesFollowWorktree(t *testing.T) {
 	s := &a.st.Sessions[0]
 	g := &proto.GitInfo{Root: "/tmp/demo", Branch: "main", Default: "main", Files: 40, Added: 400}
 	s.Panes[0].Git, s.Panes[1].Git = g, g
-	a.prefs.Side = sideChanges
+	a.toggleSide(sideChanges)
 	ch := &a.side.changes
 	scope := changesScope(&s.Panes[0], git.BaseHead)
 	if scope != changesScope(&s.Panes[1], git.BaseHead) {
@@ -251,13 +252,13 @@ func pinned(tt *ui.Tester, ls *ui.ListState, name string, top float32) bool {
 }
 
 // The header the next file's pushes up from the top goes under the list's
-// top edge, never over the summary above the list.
+// top edge, never over the viewer's header above the list.
 func TestStickyHeaderStaysInList(t *testing.T) {
 	a := testApp(t)
 	s := &a.st.Sessions[0]
 	g := &proto.GitInfo{Root: "/tmp/demo", Branch: "main", Default: "main", Files: 3, Added: 60}
 	s.Panes[0].Git, s.Panes[1].Git = g, g
-	a.prefs.Side = sideChanges
+	a.toggleSide(sideChanges)
 	ch := &a.side.changes
 	scope := changesScope(&s.Panes[0], git.BaseHead)
 	ch.base, ch.scope, ch.stamp = git.BaseHead, scope, gitStamp(g)
@@ -278,7 +279,7 @@ func TestStickyHeaderStaysInList(t *testing.T) {
 	for range 4 {
 		tt.Frame()
 	}
-	sum, _ := tt.Find("3 files")
+	sum, _ := tt.Find("Changes")
 	r := image.Rect(int(sum.X), int(sum.Y), int(sum.X+300), int(sum.Y+sum.H))
 	base := tt.Image().SubImage(r).(*image.RGBA)
 	snap := func() []uint8 { return append([]uint8(nil), base.Pix...) }
@@ -308,7 +309,7 @@ func TestStickyHeaderStaysInList(t *testing.T) {
 		}
 	}
 	if bad > 0 {
-		t.Errorf("the sticky header covered the summary at %d scroll positions", bad)
+		t.Errorf("the sticky header covered the viewer's header at %d scroll positions", bad)
 	}
 }
 
@@ -320,7 +321,7 @@ func TestStickyHeaderAsFoldShortensList(t *testing.T) {
 	s := &a.st.Sessions[0]
 	g := &proto.GitInfo{Root: "/tmp/demo", Branch: "main", Default: "main", Files: 3, Added: 180}
 	s.Panes[0].Git, s.Panes[1].Git = g, g
-	a.prefs.Side = sideChanges
+	a.toggleSide(sideChanges)
 	ch := &a.side.changes
 	scope := changesScope(&s.Panes[0], git.BaseHead)
 	ch.base, ch.scope, ch.stamp = git.BaseHead, scope, gitStamp(g)
@@ -412,9 +413,10 @@ func TestFileTree(t *testing.T) {
 	}
 }
 
-// The tree button shows the files' tree beside their diffs: a click on a
-// file scrolls the diffs to it, which the tree shows as the one there,
-// and one on a folder folds it.
+// The Changes tab lists the files in their folders, without opening the
+// viewer: a click on a file opens it on the diffs, scrolled to the file,
+// which the tree then shows as the one there, and one on a folder folds
+// it.
 func TestChangesTree(t *testing.T) {
 	a := testApp(t)
 	s := &a.st.Sessions[0]
@@ -429,33 +431,33 @@ func TestChangesTree(t *testing.T) {
 		ch.res.Files = append(ch.res.Files, proto.GitFile{Path: fmt.Sprintf("pkg/d%d/f%02d.go", i/10, i), Status: "modified", Added: 10})
 	}
 	ch.fetched = time.Now()
-	tt := ui.NewTester(a.view, 1280, 720)
-	tt.Frame()
-	if err := tt.Click("Show File Tree"); err != nil {
-		t.Fatal(err)
-	}
+	tt := ui.NewTester(a.view, 1280, 1200)
 	tt.Frame()
 	tt.Frame()
-	if _, ok := tt.Find("d0"); !a.prefs.SideTree || !ok {
+	if _, ok := tt.Find("d0"); !ok {
 		t.Fatalf("the tree didn't show; texts %q", tt.Texts())
+	}
+	if a.viewOf(s) != nil {
+		t.Fatal("the viewer opened with the tab")
 	}
 	shot(t, tt, "side-tree")
 
-	if ch.current != "pkg/d0/f00.go" {
-		t.Errorf("the tree shows %q as the file there, not the first", ch.current)
-	}
 	if err := tt.Click("f12.go"); err != nil {
 		t.Fatal(err)
 	}
 	for range 3 {
 		tt.Frame()
 	}
+	if v := a.viewOf(s); v == nil || v.kind != sideChanges {
+		t.Fatal("a click on a file didn't open the diffs")
+	}
 	if first, _ := ch.places[scope].Visible(); first == 0 {
-		t.Error("a click on a file in the tree didn't scroll the diffs")
+		t.Error("the diffs didn't open scrolled to the file")
 	}
 	if ch.current != "pkg/d1/f12.go" {
 		t.Errorf("after a click on f12.go the tree shows %q as the file there", ch.current)
 	}
+	shot(t, tt, "side-tree-diffs")
 
 	if err := tt.Click("d2"); err != nil {
 		t.Fatal(err)
@@ -463,13 +465,6 @@ func TestChangesTree(t *testing.T) {
 	tt.Frame()
 	if !ch.treeClosed[scope+"|pkg/d2"] {
 		t.Error("a click on a folder didn't fold it")
-	}
-	if err := tt.Click("Hide File Tree"); err != nil {
-		t.Fatal(err)
-	}
-	tt.Frame()
-	if _, ok := tt.Find("d0"); a.prefs.SideTree || ok {
-		t.Error("the tree stayed after hiding it")
 	}
 }
 
@@ -480,7 +475,7 @@ func TestFoldAllFiles(t *testing.T) {
 	s := &a.st.Sessions[0]
 	g := &proto.GitInfo{Root: "/tmp/demo", Branch: "main", Default: "main", Files: 40, Added: 400}
 	s.Panes[0].Git, s.Panes[1].Git = g, g
-	a.prefs.Side = sideChanges
+	a.toggleSide(sideChanges)
 	ch := &a.side.changes
 	scope := changesScope(&s.Panes[0], git.BaseHead)
 	ch.base, ch.scope, ch.stamp = git.BaseHead, scope, gitStamp(g)
@@ -527,5 +522,59 @@ func TestFoldAllFiles(t *testing.T) {
 	}
 	if _, ok := tt.Find("Collapse All"); !ok {
 		t.Error("Collapse All didn't come back with the diffs unfolded")
+	}
+}
+
+// A pane just split from another has no worktree until kerod looks at
+// it: meanwhile the sidebar keeps the worktree its directory is in, its
+// changes listed and its base chosen, and its files.
+func TestSplitKeepsSidebar(t *testing.T) {
+	a := testApp(t)
+	s := &a.st.Sessions[0]
+	g := &proto.GitInfo{Root: "/tmp", Branch: "main", Default: "main", Files: 1, Added: 3}
+	s.Panes[0].Git, s.Panes[1].Git = g, g
+	a.toggleSide(sideChanges)
+	ch := &a.side.changes
+	scope := changesScope(&s.Panes[0], git.BaseHead)
+	ch.base, ch.scope, ch.stamp = git.BaseHead, scope, gitStamp(g)
+	ch.res = &proto.GitChanges{Root: "/tmp", Files: []proto.GitFile{{Path: "main.go", Status: "modified", Added: 3}}}
+	ch.fetched = time.Now()
+	tt := ui.NewTester(a.view, 1280, 720)
+	tt.Frame()
+
+	s.Panes = append(s.Panes, proto.Pane{ID: "c", Shell: "zsh", Dir: "/tmp/sub", Status: proto.Idle, Progress: -1})
+	s.Layout = s.Layout.Split("b", "c", "down", 0)
+	s.Focus = "c"
+	for range 3 {
+		tt.Frame()
+		if tt.HasText("Not a git repository") || !tt.HasText("main.go") {
+			t.Fatalf("the split pane emptied the changes; texts %q", tt.Texts())
+		}
+	}
+	if ch.base != git.BaseHead {
+		t.Errorf("the split pane changed the base to %q", ch.base)
+	}
+	if p, root := a.filesRoot(s); p == nil || p.ID != "c" || root != "/tmp" {
+		t.Errorf("the split pane's files are of %q", root)
+	}
+
+	// Outside every pane's worktree, it is none.
+	s.Panes[2].Dir = "/elsewhere"
+	if p := withGit(s, &s.Panes[2]); p.Git != nil {
+		t.Error("a pane outside the worktrees took one")
+	}
+}
+
+func TestWithinDir(t *testing.T) {
+	for _, c := range []struct {
+		dir, root string
+		want      bool
+	}{
+		{"/a/b", "/a/b", true}, {"/a/b/c", "/a/b", true}, {"/a/bc", "/a/b", false}, {"/a", "/a/b", false},
+		{`C:\code\kero\x`, `C:\code\kero`, true}, {`C:\code\kerox`, `C:\code\kero`, false}, {"/a/b", "/a/b/", true},
+	} {
+		if got := withinDir(c.dir, c.root); got != c.want {
+			t.Errorf("withinDir(%q, %q) = %v", c.dir, c.root, got)
+		}
 	}
 }

@@ -3798,14 +3798,124 @@ func (msgs Messages) SideChanges() string {
 	return Catalog.Format(msgs.locale, "sideChanges", nil)
 }
 
-// SideClose says "Close Panel"
+// SideClose says "Close"
 // in the language the app shows.
 func SideClose() string { return In(i18n.Locale()).SideClose() }
 
-// SideClose says "Close Panel"
+// SideClose says "Close"
 // in the language of msgs.
 func (msgs Messages) SideClose() string {
 	return Catalog.Format(msgs.locale, "sideClose", nil)
+}
+
+// SideFiles says "Files"
+// in the language the app shows.
+func SideFiles() string { return In(i18n.Locale()).SideFiles() }
+
+// SideFiles says "Files"
+// in the language of msgs.
+func (msgs Messages) SideFiles() string {
+	return Catalog.Format(msgs.locale, "sideFiles", nil)
+}
+
+// ActionToggleFiles says "Toggle Files"
+// in the language the app shows.
+func ActionToggleFiles() string { return In(i18n.Locale()).ActionToggleFiles() }
+
+// ActionToggleFiles says "Toggle Files"
+// in the language of msgs.
+func (msgs Messages) ActionToggleFiles() string {
+	return Catalog.Format(msgs.locale, "actionToggleFiles", nil)
+}
+
+// ActionToggleRightSidebar says "Toggle Right Sidebar"
+// in the language the app shows.
+func ActionToggleRightSidebar() string { return In(i18n.Locale()).ActionToggleRightSidebar() }
+
+// ActionToggleRightSidebar says "Toggle Right Sidebar"
+// in the language of msgs.
+func (msgs Messages) ActionToggleRightSidebar() string {
+	return Catalog.Format(msgs.locale, "actionToggleRightSidebar", nil)
+}
+
+// RightSidebarHide says "Hide Right Sidebar"
+// in the language the app shows.
+func RightSidebarHide() string { return In(i18n.Locale()).RightSidebarHide() }
+
+// RightSidebarHide says "Hide Right Sidebar"
+// in the language of msgs.
+func (msgs Messages) RightSidebarHide() string {
+	return Catalog.Format(msgs.locale, "rightSidebarHide", nil)
+}
+
+// RightSidebarShow says "Show Right Sidebar"
+// in the language the app shows.
+func RightSidebarShow() string { return In(i18n.Locale()).RightSidebarShow() }
+
+// RightSidebarShow says "Show Right Sidebar"
+// in the language of msgs.
+func (msgs Messages) RightSidebarShow() string {
+	return Catalog.Format(msgs.locale, "rightSidebarShow", nil)
+}
+
+// ChangesShowDiffs says "Show Diffs"
+// in the language the app shows.
+func ChangesShowDiffs() string { return In(i18n.Locale()).ChangesShowDiffs() }
+
+// ChangesShowDiffs says "Show Diffs"
+// in the language of msgs.
+func (msgs Messages) ChangesShowDiffs() string {
+	return Catalog.Format(msgs.locale, "changesShowDiffs", nil)
+}
+
+// FilesNoFolder says "No folder to show"
+// in the language the app shows.
+func FilesNoFolder() string { return In(i18n.Locale()).FilesNoFolder() }
+
+// FilesNoFolder says "No folder to show"
+// in the language of msgs.
+func (msgs Messages) FilesNoFolder() string {
+	return Catalog.Format(msgs.locale, "filesNoFolder", nil)
+}
+
+// FilesCollapseFolders says "Collapse Folders"
+// in the language the app shows.
+func FilesCollapseFolders() string { return In(i18n.Locale()).FilesCollapseFolders() }
+
+// FilesCollapseFolders says "Collapse Folders"
+// in the language of msgs.
+func (msgs Messages) FilesCollapseFolders() string {
+	return Catalog.Format(msgs.locale, "filesCollapseFolders", nil)
+}
+
+// FilesCantReadFolder says "Can't read the folder"
+// in the language the app shows.
+func FilesCantReadFolder() string { return In(i18n.Locale()).FilesCantReadFolder() }
+
+// FilesCantReadFolder says "Can't read the folder"
+// in the language of msgs.
+func (msgs Messages) FilesCantReadFolder() string {
+	return Catalog.Format(msgs.locale, "filesCantReadFolder", nil)
+}
+
+// FilesCantReadFile says "Can't read the file"
+// in the language the app shows.
+func FilesCantReadFile() string { return In(i18n.Locale()).FilesCantReadFile() }
+
+// FilesCantReadFile says "Can't read the file"
+// in the language of msgs.
+func (msgs Messages) FilesCantReadFile() string {
+	return Catalog.Format(msgs.locale, "filesCantReadFile", nil)
+}
+
+// FilesGone says "The file is gone"
+// in the language the app shows.
+func FilesGone() string { return In(i18n.Locale()).FilesGone() }
+
+// FilesGone says "The file is gone"
+// in the language of msgs.
+func (msgs Messages) FilesGone() string {
+	return Catalog.Format(msgs.locale, "filesGone", nil)
 }
 
 // ChangesTurn says "Last Turn"
@@ -4008,26 +4118,6 @@ func (msgs Messages) ChangesSplit() string {
 	return Catalog.Format(msgs.locale, "changesSplit", nil)
 }
 
-// ChangesShowTree says "Show File Tree"
-// in the language the app shows.
-func ChangesShowTree() string { return In(i18n.Locale()).ChangesShowTree() }
-
-// ChangesShowTree says "Show File Tree"
-// in the language of msgs.
-func (msgs Messages) ChangesShowTree() string {
-	return Catalog.Format(msgs.locale, "changesShowTree", nil)
-}
-
-// ChangesHideTree says "Hide File Tree"
-// in the language the app shows.
-func ChangesHideTree() string { return In(i18n.Locale()).ChangesHideTree() }
-
-// ChangesHideTree says "Hide File Tree"
-// in the language of msgs.
-func (msgs Messages) ChangesHideTree() string {
-	return Catalog.Format(msgs.locale, "changesHideTree", nil)
-}
-
 // ChangesCollapseFiles says "Collapse All"
 // in the language the app shows.
 func ChangesCollapseFiles() string { return In(i18n.Locale()).ChangesCollapseFiles() }
@@ -4218,11 +4308,11 @@ func (msgs Messages) SetDiffLayout() string {
 	return Catalog.Format(msgs.locale, "setDiffLayout", nil)
 }
 
-// SetDiffLayoutDetail says "Auto shows diffs unified while the changes panel is narrow, and side by side once it's wide."
+// SetDiffLayoutDetail says "Auto shows diffs unified while their card is narrow, and side by side once it's wide."
 // in the language the app shows.
 func SetDiffLayoutDetail() string { return In(i18n.Locale()).SetDiffLayoutDetail() }
 
-// SetDiffLayoutDetail says "Auto shows diffs unified while the changes panel is narrow, and side by side once it's wide."
+// SetDiffLayoutDetail says "Auto shows diffs unified while their card is narrow, and side by side once it's wide."
 // in the language of msgs.
 func (msgs Messages) SetDiffLayoutDetail() string {
 	return Catalog.Format(msgs.locale, "setDiffLayoutDetail", nil)

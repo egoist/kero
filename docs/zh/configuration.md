@@ -121,7 +121,7 @@ kero config check             # 报告未知的配置项和无效的值
 | 配置项        | 默认值  | 说明                                                                                              |
 | ------------- | ------- | ------------------------------------------------------------------------------------------------- |
 | `git-status`  | `true`  | 显示每个会话的分支和[改动](./changes.md)                                                          |
-| `diff-layout` | `auto`  | 改动面板中的 diff 布局：`unified`、`split`（左右对照）或 `auto`（面板够宽时左右对照）             |
+| `diff-layout` | `auto`  | 改动标签页中的 diff 布局：`unified`、`split`（左右对照）或 `auto`（够宽时左右对照）               |
 | `worktree-base` | `default` | [会话专属工作树](./changes.md#sessions-in-their-own-worktree)的起点：`default` 为仓库的默认分支，`current` 为你所在会话的分支 |
 | `worktree-dir` |        | 会话专属工作树的存放位置，各自放在仓库名之下；留空则放在仓库内的 `.kero/worktrees` |
 

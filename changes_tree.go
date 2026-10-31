@@ -6,15 +6,14 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"kero/internal/proto"
-
-	"kero/locales"
 )
 
-// The Changes view's tree is the files changed, in their folders, beside
-// their diffs: a click on a file scrolls the diffs to it, one on a folder
-// folds it, and the file whose diff is at the top shows as the one there,
-// the tree scrolling along to it. It lists them in the diffs' order, the
-// worktree's paths', so that it reads down as they do.
+// The Changes tab's tree is the files changed, in their folders: a click
+// on a file opens the viewer on their diffs, scrolled to it, one on a
+// folder folds it, and while the viewer shows them the file whose diff is
+// at the top shows as the one there, the tree scrolling along to it. It
+// lists them in the diffs' order, the worktree's paths', so that it reads
+// down as they do.
 
 // treeNode is a folder of the tree, or a file: a folder with a folder
 // alone in it is one, named "internal/auth", as GitHub shows them.
@@ -83,33 +82,29 @@ func treeItems(nodes []*treeNode, closed func(dir string) bool) []treeItem {
 	return items
 }
 
-// treeWidth is the tree's width in a panel this wide.
-func treeWidth(panel float32) float32 {
-	return min(max(panel*0.3, 140), 240)
-}
-
-// changesTree is the tree of a list's files, beside list, the list of
-// their diffs, whose rows are rows, and heads the row of each file's
-// header.
-func (a *App) changesTree(c *ui.Context, pal *palette, scope string, res *proto.GitChanges, width float32, list *ui.ListState, rows []changeRow, heads []int) {
+// changesTree is the tree of the files the Changes tab lists.
+func (a *App) changesTree(c *ui.Context, pal *palette, s *proto.Session, cf *changesFrame) {
 	ch := &a.side.changes
+	res, scope := cf.list, cf.scope
 	if ch.treeOf != res {
 		ch.tree, ch.treeOf = fileTree(res.Files), res
 	}
 	items := treeItems(ch.tree, func(dir string) bool { return ch.treeClosed[scope+"|"+dir] })
 
-	// The file there: the one whose diff is at the top; at the end of the
-	// list, where the file chosen last may not come to the top, that one
-	// while it shows.
+	// The file there, while the viewer shows the diffs: the one whose diff
+	// is at the top; at the end of the list, where the file chosen last
+	// may not come to the top, that one while it shows.
 	cur := ""
-	first, last := list.Visible()
-	if first >= 0 && first < len(rows) {
-		cur = rows[first].f.Path
-	}
-	if ch.picked != "" && list.AtEnd() {
-		for i, f := range res.Files {
-			if f.Path == ch.picked && heads[i] >= first && heads[i] <= last {
-				cur = f.Path
+	if ls := cf.ls; ls != nil {
+		first, last := ls.Visible()
+		if first >= 0 && first < len(cf.rows) {
+			cur = cf.rows[first].f.Path
+		}
+		if ch.picked != "" && ls.AtEnd() {
+			for i, f := range res.Files {
+				if f.Path == ch.picked && cf.heads[i] >= first && cf.heads[i] <= last {
+					cur = f.Path
+				}
 			}
 		}
 	}
@@ -134,7 +129,7 @@ func (a *App) changesTree(c *ui.Context, pal *palette, scope string, res *proto.
 	ui.List(c.Key("tree"), tl, len(items), func(i int) {
 		it := items[i]
 		if it.file < 0 {
-			a.treeFolder(c, pal, it, func() {
+			a.treeFolder(c, pal, it.name, it.path, it.depth, it.open, false, func() {
 				if ch.treeClosed == nil {
 					ch.treeClosed = map[string]bool{}
 				}
@@ -145,46 +140,61 @@ func (a *App) changesTree(c *ui.Context, pal *palette, scope string, res *proto.
 		f := res.Files[it.file]
 		a.treeFile(c, pal, it, f, f.Path == cur, func() {
 			ch.picked = f.Path
-			list.ScrollTo(heads[it.file], ui.Start)
+			if cf.ls != nil {
+				cf.ls.ScrollTo(cf.heads[it.file], ui.Start)
+				return
+			}
+			ch.reveal = f.Path
+			a.openView(s, sideChanges, nil)
 		})
-	}).Width(width).Shrink(0).MinHeight(0).Padding(0, 4, 16, 8)
+	}).Grow(1).MinHeight(0).Padding(0, 10, 16, 10)
 }
 
-// treeKey is what a row of the tree is, as its list keeps its state by:
-// a file and a folder may have the same path, as one became the other.
+// treeKey is what a row of a tree is, as its list keeps its state by: a
+// file and a folder may have the same path, as one became the other.
 type treeKey struct {
 	path string
 	dir  bool
 }
 
-// treeRow is a row of the tree, depth folders in.
+// treeRow is a row of a tree, depth folders in, the one there chosen as
+// a session's row is.
 func treeRow(c *ui.Context, pal *palette, depth int, current bool) ui.Element {
-	row := ui.Row(c.Key("row")).Height(24).Padding(0, 8, 0, 6+12*float32(depth)).Gap(5).AlignItems(ui.Center).Radius(6)
+	row := ui.Row(c.Key("row")).Height(26).Padding(0, 8, 0, 6+12*float32(depth)).Gap(5).AlignItems(ui.Center).Radius(7)
+	if pal.dark {
+		// Room for the chosen row's edge in every row.
+		row.Border(1, ui.Transparent)
+	}
 	switch {
 	case current:
-		row.Background(pal.chip)
+		row.Background(pal.rowSelected)
+		chosen(row, pal)
 	case row.Hovered():
 		row.Background(pal.rowHover)
 	}
 	return row
 }
 
-// treeFolder is a folder of the tree, which a click folds or unfolds.
-func (a *App) treeFolder(c *ui.Context, pal *palette, it treeItem, toggle func()) {
-	row := treeRow(c, pal, it.depth, false).Tooltip(it.path)
+// treeFolder is a folder of a tree, which a click folds or unfolds;
+// faded, it is one git ignores.
+func (a *App) treeFolder(c *ui.Context, pal *palette, name, tip string, depth int, open, faded bool, toggle func()) {
+	row := treeRow(c, pal, depth, false).Tooltip(tip)
+	if faded {
+		row.Opacity(0.55)
+	}
 	if row.Clicked() {
 		toggle()
 	}
 	row.Children(func() {
 		chev := ui.Icon(c, chevronIcon).Size(9, 9).TextColor(pal.textFaint).Shrink(0)
-		chev.Rotate(chev.AnimateTo("turn", 90*b2f(it.open), ui.Snappy))
+		chev.Rotate(chev.AnimateTo("turn", 90*b2f(open), ui.Snappy))
 		ui.Icon(c, folderIcon).Size(13, 13).TextColor(pal.textFaint).Shrink(0)
-		ui.Text(c, it.name).FontSize(12.5).TextColor(pal.textMuted).SingleLine().Ellipsis("…").MinWidth(0)
+		ui.Text(c, name).FontSize(12.5).TextColor(pal.textMuted).SingleLine().Ellipsis("…").MinWidth(0)
 	})
 }
 
-// treeFile is a file of the tree, its change as a letter in its color
-// where a folder shows its icon; a click scrolls the diffs to it.
+// treeFile is a changed file of the tree, its change as a letter in its
+// color where a folder shows its icon.
 func (a *App) treeFile(c *ui.Context, pal *palette, it treeItem, f proto.GitFile, current bool, pick func()) {
 	tip := f.Path
 	if f.OldPath != "" {
@@ -206,28 +216,4 @@ func (a *App) treeFile(c *ui.Context, pal *palette, it treeItem, f proto.GitFile
 		}
 		ui.Text(c, it.name).FontSize(12.5).TextColor(fg).SingleLine().Ellipsis("…").MinWidth(0)
 	})
-}
-
-// treeToggle is the button that shows the tree beside the diffs, or hides
-// it, which shows it is shown as a pressed button does.
-func (a *App) treeToggle(c *ui.Context, pal *palette) {
-	on := a.prefs.SideTree
-	label := locales.ChangesShowTree()
-	if on {
-		label = locales.ChangesHideTree()
-	}
-	b := ui.ButtonBase(c.Key("tree")).Size(28, 26).Radius(6).Center().TextColor(pal.textMuted).Label(label).Tooltip(label)
-	switch {
-	case b.Pressed():
-		b.Background(pal.rowHover.Alpha(0.12))
-	case on:
-		b.Background(pal.chip).TextColor(pal.text)
-	case b.Hovered():
-		b.Background(pal.rowHover).TextColor(pal.text)
-	}
-	b.Children(func() { ui.Icon(c, treeIcon).Size(15, 15) })
-	if b.Clicked() {
-		a.prefs.SideTree = !on
-		a.savePrefs()
-	}
 }

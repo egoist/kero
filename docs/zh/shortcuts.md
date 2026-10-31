@@ -58,7 +58,9 @@ description: Kero 的默认键盘快捷键，以及用于重新绑定的操作 i
 | 操作           | macOS                     | Windows 和 Linux                              | 操作 id          |
 | -------------- | ------------------------- | --------------------------------------------- | ---------------- |
 | 切换边栏       | <kbd>⌘</kbd> <kbd>B</kbd> | <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>B</kbd> | `sidebar.toggle` |
+| 切换右侧边栏   | <kbd>⌥</kbd> <kbd>⌘</kbd> <kbd>B</kbd> | –                                             | `rightSidebar.toggle` |
 | 显示或隐藏改动 | <kbd>⌥</kbd> <kbd>⌘</kbd> <kbd>G</kbd> | <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>G</kbd> | `changes.toggle` |
+| 显示或隐藏文件 | <kbd>⌥</kbd> <kbd>⌘</kbd> <kbd>E</kbd> | <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>E</kbd> | `files.toggle`   |
 | 放大           | <kbd>⌘</kbd> <kbd>=</kbd> | <kbd>Ctrl</kbd> <kbd>=</kbd>                  | `text.bigger`    |
 | 缩小           | <kbd>⌘</kbd> <kbd>-</kbd> | <kbd>Ctrl</kbd> <kbd>-</kbd>                  | `text.smaller`   |
 | 实际大小       | <kbd>⌘</kbd> <kbd>0</kbd> | <kbd>Ctrl</kbd> <kbd>0</kbd>                  | `text.reset`     |
