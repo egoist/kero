@@ -148,6 +148,16 @@ type (
 	FSRead struct {
 		Data []byte `json:"data"` // base64 in JSON
 	}
+	// FSWriteParams write Text to a file of the host, as the user edited
+	// it, when its content still hashes to Hash (git.Hash), as it was
+	// read, or whatever it is with Force: the result is the hash of what
+	// was written.
+	FSWriteParams struct {
+		Path  string `json:"path"`
+		Hash  string `json:"hash"`
+		Text  string `json:"text"`
+		Force bool   `json:"force,omitempty"`
+	}
 	// PasteFileParams put a file the user pasted or dropped into a pane on
 	// the host, in a directory of kero's, for the program to read by its
 	// path.

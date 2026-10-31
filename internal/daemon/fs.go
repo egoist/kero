@@ -131,6 +131,46 @@ func fsRead(p proto.FSReadParams) (proto.FSRead, error) {
 	return proto.FSRead{Data: b}, err
 }
 
+// fsWrite writes a file the user edited in the app, as it was read, or
+// over whatever it is now, forced, as the user chose to.
+func (d *Daemon) fsWrite(p proto.FSWriteParams) (string, error) {
+	path := hostPath(p.Path, "")
+	hash := p.Hash
+	if p.Force {
+		b, err := os.ReadFile(path)
+		if err != nil {
+			return "", err
+		}
+		hash = git.Hash(b)
+	}
+	if err := git.WriteFile(path, hash, p.Text); err != nil {
+		return "", err
+	}
+	// The panes where the file is, its worktree else its directory, show
+	// their changes anew.
+	root := filepath.Dir(path)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	if r, err := git.Open(ctx, root); err == nil {
+		root = r.Root
+	}
+	cancel()
+	var dirs []string
+	d.mu.Lock()
+	for _, o := range d.panes {
+		o.mu.Lock()
+		if dir := o.info.WorkDir(); dir != "" && (proto.Within(dir, root) || proto.Within(path, dir)) {
+			dirs = append(dirs, dir)
+		}
+		o.mu.Unlock()
+	}
+	d.mu.Unlock()
+	// The panes there show their changes anew.
+	for _, dir := range dirs {
+		d.git.poke(dir)
+	}
+	return git.Hash([]byte(p.Text)), nil
+}
+
 // maxPaste bounds a pasted file, which comes in a request of a control
 // connection, base64 (proto.MaxLine).
 const maxPaste = 32 << 20

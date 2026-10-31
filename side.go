@@ -48,8 +48,10 @@ type sideState struct {
 	focused bool    // the viewer has the keyboard: its Escape, its find
 	changes changesState
 	files   filesState
-	// views are what the viewer shows, by session.
-	views map[string]*sideView
+	// views are what the viewer shows, by session; backup what the app
+	// keeps of them and of their edits not saved as it quits (backup.go).
+	views  map[string]*sideView
+	backup backupState
 	// cf is the Changes tab's for this frame, which the sidebar's tree
 	// and the viewer's diffs share (changesFrameOf).
 	cf *changesFrame
@@ -108,9 +110,12 @@ type changesState struct {
 	reveal     string
 }
 
-// sideFile is a changed file's diff since a base.
+// sideFile is a changed file's diff since a base, whose new side the
+// user edits.
 type sideFile struct {
 	pane, base string
+	root       string // the worktree's, on the host
+	edits      edited
 	f          proto.GitFile     // the file as listed when its text was asked for
 	d          *editor.DiffState // nil until its text comes, or for a binary file
 	patch      bool              // d shows a patch: a file too large to show whole
@@ -200,13 +205,18 @@ func (a *App) openView(s *proto.Session, kind string, f *fileView) {
 // closeView closes a session's viewer, giving the keyboard back to its
 // pane when the viewer had it.
 func (a *App) closeView(s *proto.Session) {
-	if v := a.viewOf(s); v != nil {
+	v := a.viewOf(s)
+	if v == nil {
+		return
+	}
+	// Asking first to save what the user edited in it.
+	a.askToSave(a.viewTargets(v), func() {
 		v.kind = ""
-	}
-	if a.side.focused {
-		a.side.focused = false
-		a.focusTerminal()
-	}
+		if a.side.focused {
+			a.side.focused = false
+			a.focusTerminal()
+		}
+	})
 }
 
 // rightWidth is the sidebar's width, shown.
@@ -350,11 +360,14 @@ func (a *App) viewerCard(c *ui.Context, pal *palette, s *proto.Session, v *sideV
 	if card.Shortcut(0, ui.KeyEscape) {
 		a.focusTerminal()
 	}
+	if card.Shortcut(ui.Cmd, ui.KeyS) {
+		a.saveFocused(v)
+	}
 }
 
 // viewerHeader is the viewer's header: an icon and a title, as a pane's
 // header shows its program, what follows it, then the viewer's buttons.
-func (a *App) viewerHeader(c *ui.Context, pal *palette, s *proto.Session, svg *ui.SVG, title string, after, buttons func()) {
+func (a *App) viewerHeader(c *ui.Context, pal *palette, s *proto.Session, svg *ui.SVG, title string, dirty bool, after, buttons func()) {
 	ui.Row(c.Key("hdr")).Height(headerH).Shrink(0).AlignItems(ui.Center).Padding(0, 10, 0, 16).Gap(8).Children(func() {
 		ui.Icon(c, svg).Size(14, 14).TextColor(pal.textFaint).Shrink(0)
 		ui.Text(c, title).FontSize(14).FontWeight(600).TextColor(pal.text).SingleLine().Ellipsis("…").Shrink(1).MinWidth(0)
@@ -366,7 +379,7 @@ func (a *App) viewerHeader(c *ui.Context, pal *palette, s *proto.Session, svg *u
 			buttons()
 		}
 		sid := s.ID
-		iconButton(c, "close-side", closeIcon, locales.SideClose(), pal, func() { a.defer_(func() { a.closeView(a.session(sid)) }) })
+		closeButton(c, pal, locales.SideClose(), dirty, func() { a.defer_(func() { a.closeView(a.session(sid)) }) })
 		a.showRightButton(c, pal)
 		a.controlsRoom(c, 8)
 	})
@@ -654,7 +667,11 @@ func (a *App) changesViewer(c *ui.Context, pal *palette, s *proto.Session, width
 	cf := a.changesFrameOf(c, s)
 	ch := &a.side.changes
 	files := cf.list != nil && len(cf.list.Files) > 0
-	a.viewerHeader(c, pal, s, diffIcon, locales.SideChanges(), func() {
+	dirty := false
+	for _, sf := range ch.files {
+		dirty = dirty || a.diffTarget(sf).dirty()
+	}
+	a.viewerHeader(c, pal, s, diffIcon, locales.SideChanges(), dirty, func() {
 		if dir := a.changesDir(s); dir != "" {
 			ui.Text(c, a.hostOf(s.ID).shortDir(dir)).FontSize(13).TextColor(pal.textFaint).SingleLine().Ellipsis("…").Shrink(2).MinWidth(0).Tooltip(dir)
 		}
@@ -681,7 +698,7 @@ func (a *App) changesViewer(c *ui.Context, pal *palette, s *proto.Session, width
 	}
 	res, scope := cf.list, cf.scope
 	if !cf.held {
-		a.syncFiles(c, scope, cf.pane, res.Files)
+		a.syncFiles(c, scope, cf.pane, res.Root, res.Files)
 	}
 	if ch.places == nil {
 		ch.places = map[string]*ui.ListState{}
@@ -764,11 +781,19 @@ const (
 // syncFiles keeps the diffs of a list's files: it asks for the text of
 // each file shown that has none yet, a few at a time, and again of one
 // whose change the list counts anew (Known, so that kerod sends only what
-// changed), or of every one as the worktree's HEAD moves.
-func (a *App) syncFiles(c *ui.Context, scope string, pane *proto.Pane, files []proto.GitFile) {
+// changed), or of every one as the worktree's HEAD moves; the new side
+// not of one the user edited (showText).
+func (a *App) syncFiles(c *ui.Context, scope string, pane *proto.Pane, root string, files []proto.GitFile) {
 	ch := &a.side.changes
 	if ch.files == nil || len(ch.files) > 400 {
-		ch.files = map[string]*sideFile{}
+		// Keeping those with edits to save.
+		kept := map[string]*sideFile{}
+		for k, sf := range ch.files {
+			if a.diffTarget(sf).dirty() {
+				kept[k] = sf
+			}
+		}
+		ch.files = kept
 	}
 	stamp := gitStamp(pane.Git)
 	asking := 0
@@ -784,6 +809,7 @@ func (a *App) syncFiles(c *ui.Context, scope string, pane *proto.Pane, files []p
 			sf = &sideFile{pane: pane.ID, base: ch.base, f: f}
 			ch.files[key] = sf
 		}
+		sf.root = root
 		if a.fileCollapsed(scope, f) || sf.busy || sf.writing || a.hostOf(pane.ID).cl == nil {
 			continue
 		}
@@ -913,6 +939,9 @@ func (a *App) fileHeader(c *ui.Context, pal *palette, scope, root string, f prot
 			fg = pal.textMuted
 		}
 		ui.Text(c, name).FontSize(13).FontWeight(600).TextColor(fg).SingleLine().Ellipsis("…").Shrink(0).MaxWidth(260)
+		if sf := ch.files[key]; sf != nil && a.diffTarget(sf).dirty() {
+			ui.Box(c).Size(7, 7).Radius(3.5).Shrink(0).Background(pal.textMuted).Description(locales.ViewerUnsaved())
+		}
 		ui.Text(c, strings.TrimSuffix(dir, "/")).FontSize(12).TextColor(pal.textFaint).SingleLine().Ellipsis("…").Grow(1).MinWidth(0)
 		if f.Binary {
 			ui.Text(c, locales.ChangesBinary()).FontSize(11.5).TextColor(pal.textFaint).SingleLine()
@@ -1069,10 +1098,15 @@ func (a *App) fetchFile(sf *sideFile, known string) {
 }
 
 // showText puts a file's text in its diff: anew for its first, else as
-// edits, so that the diff keeps where it was scrolled.
+// edits, so that the diff keeps where it was scrolled; the new side not
+// while the user has edits of it to write.
 func (a *App) showText(sf *sideFile, t proto.GitText) {
-	sf.hash = t.Hash
 	sf.text = proto.GitText{Binary: t.Binary, Large: t.Large}
+	if sf.d != nil && !sf.patch && !t.Binary && !t.Large && (sf.d.New.Modified() || sf.edits.saving) {
+		replaceText(sf.d.Old, t.Old)
+		return
+	}
+	sf.hash = t.Hash
 	switch {
 	case t.Binary || t.Large && t.Patch == "":
 		sf.d, sf.patch = nil, false
@@ -1087,15 +1121,20 @@ func (a *App) showText(sf *sideFile, t proto.GitText) {
 		old.SetLanguage(lang)
 		now.SetLanguage(lang)
 		sf.d, sf.patch = &editor.DiffState{Old: old, New: now}, false
+		h := a.hostOf(sf.pane)
+		a.restoreEdit(sideChanges, h, h.joinPath(sf.root, sf.f.Path), now, &sf.hash)
 	default:
 		replaceText(sf.d.Old, t.Old)
 		replaceText(sf.d.New, t.New)
+		sf.d.New.MarkSaved()
 	}
 }
 
 // replaceText makes a buffer's text text by one edit of what differs
 // between them, on whole characters.
 func replaceText(b *editor.Buffer, text string) {
+	// A buffer keeps its lines' \r\n as \n.
+	text = strings.ReplaceAll(text, "\r\n", "\n")
 	cur := b.String()
 	if cur == text {
 		return
@@ -1128,9 +1167,10 @@ func (a *App) diffSplit(width float32) bool {
 	return width >= splitWidth
 }
 
-// diffOptions sets a file's diff's looks and actions for this frame: in a
-// turn, Revert and Keep on each change while no agent of the session
-// works, as the user reviews what the agent did.
+// diffOptions sets a file's diff's looks and actions for this frame: its
+// new side edits (edits.go), and in a turn, while no agent of the session
+// works, Revert and Keep show on each change, as the user reviews what
+// the agent did.
 func (a *App) diffOptions(c *ui.Context, pal *palette, s *proto.Session, sf *sideFile, width float32) {
 	d := sf.d
 	d.FitContent = true
@@ -1141,6 +1181,8 @@ func (a *App) diffOptions(c *ui.Context, pal *palette, s *proto.Session, sf *sid
 		d.Layout = editor.DiffSplit
 	}
 	working := sessionWorking(s)
+	// The new side, the file now, edits.
+	d.Editable = !sf.patch && !sf.writing && sf.f.Status != "deleted"
 	d.RenderSeparator = func(c *ui.Context, sep ui.Element, s *editor.DiffSeparator) { a.separator(c, pal, sep, s) }
 	d.HunkActions = sf.base == git.BaseTurn && !sf.patch && !working && !sf.writing
 	d.RenderHunkActions = func(c *ui.Context, bar ui.Element, h *editor.DiffHunkActions) {
@@ -1238,19 +1280,23 @@ func (a *App) writeBack(sf *sideFile) {
 	if cl == nil {
 		return
 	}
-	text := sf.d.New.String()
-	sf.writing = true
+	text, v := bufferText(sf.d.New), sf.d.New.Version()
+	sf.writing, sf.edits.saving = true, true
 	go func() {
 		var hash string
 		err := cl.Call("git.revert", proto.GitWriteParams{Pane: sf.pane, Base: sf.base, Path: sf.f.Path, Hash: sf.hash, Text: text}, &hash)
 		a.update(func() {
-			sf.writing = false
+			sf.writing, sf.edits.saving = false, false
 			if err != nil {
 				a.toast(locales.ChangesRevertFailed(err.Error()))
+				sf.d.New.MarkSaved()
 				a.fetchFile(sf, "")
 				return
 			}
 			sf.hash = hash
+			if sf.d.New.Version() == v {
+				sf.d.New.MarkSaved()
+			}
 		})
 	}()
 }

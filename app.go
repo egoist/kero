@@ -187,6 +187,7 @@ func newApp() *App {
 	a := &App{terms: map[string]*termEntry{}, webs: map[string]*webEntry{}, statuses: map[string]proto.Status{}, active: true, focused: true,
 		refs: map[string]*ui.Handle{}, focus: map[string]string{}, arrived: map[string]bool{}}
 	a.loadPrefs()
+	a.loadBackup()
 	a.set = settings.Load()
 	a.ss.problems = settings.Problems()
 	a.applied = a.set.Clone()

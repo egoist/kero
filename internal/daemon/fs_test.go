@@ -1,6 +1,7 @@
 package daemon
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -9,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"kero/internal/git"
 	"kero/internal/proto"
 )
 
@@ -172,4 +174,37 @@ func TestFSListIgnored(t *testing.T) {
 	if l, err := fsList(proto.FSListParams{Dir: t.TempDir(), Ignored: true}); err != nil || len(l.Entries) != 0 {
 		t.Errorf("outside a worktree: %v, %v", l.Entries, err)
 	}
+}
+
+// fs.write writes a file as it was read, keeping its mode, but not one
+// changed meanwhile, unless forced.
+func TestFSWrite(t *testing.T) {
+	p := testPane(t)
+	d := p.d
+	dir := t.TempDir()
+	file := filepath.Join(dir, "a.sh")
+	os.WriteFile(file, []byte("echo a\n"), 0o755)
+	d.panes = map[string]*pane{"p": p}
+	p.info.Dir = dir
+
+	h, err := d.fsWrite(proto.FSWriteParams{Path: file, Hash: git.Hash([]byte("echo a\n")), Text: "echo b\n"})
+	if b, _ := os.ReadFile(file); err != nil || string(b) != "echo b\n" || h != git.Hash(b) {
+		t.Fatalf("wrote %q, %q, %v", b, h, err)
+	}
+	if st, _ := os.Stat(file); st.Mode().Perm() != 0o755 {
+		t.Errorf("the mode is %v", st.Mode().Perm())
+	}
+	if _, err := d.fsWrite(proto.FSWriteParams{Path: file, Hash: git.Hash([]byte("echo a\n")), Text: "echo c\n"}); !errors.Is(err, git.ErrChanged) {
+		t.Errorf("wrote over a file changed meanwhile: %v", err)
+	}
+	if b, _ := os.ReadFile(file); string(b) != "echo b\n" {
+		t.Errorf("the file is %q", b)
+	}
+	if _, err := d.fsWrite(proto.FSWriteParams{Path: file, Hash: "stale", Text: "echo c\n", Force: true}); err != nil {
+		t.Fatal(err)
+	}
+	if b, _ := os.ReadFile(file); string(b) != "echo c\n" {
+		t.Errorf("forced, the file is %q", b)
+	}
+	_ = h
 }

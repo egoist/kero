@@ -589,6 +589,13 @@ func (d *Daemon) call(c *controlConn, method string, raw json.RawMessage) (any, 
 		}
 		return fsRead(p)
 
+	case "fs.write":
+		var p proto.FSWriteParams
+		if err := decode(&p); err != nil {
+			return nil, err
+		}
+		return d.fsWrite(p)
+
 	case "paste.file":
 		var p proto.PasteFileParams
 		if err := decode(&p); err != nil {

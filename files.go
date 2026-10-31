@@ -10,6 +10,7 @@ import (
 	"github.com/egoist/mygo/ui/editor"
 
 	"kero/internal/client"
+	"kero/internal/git"
 	"kero/internal/proto"
 
 	"kero/locales"
@@ -18,8 +19,8 @@ import (
 // The Files tab is the tree of the worktree of the pane the user is in,
 // else of its directory, as kerod lists it (fs.list), a folder at a time
 // as the user unfolds it: what git ignores shows faded, and .git not at
-// all. A click on a file opens it in the viewer, as text the user reads
-// and copies from, which follows the file as it changes.
+// all. A click on a file opens it in the viewer, as text the user edits
+// (edits.go), which follows the file as it changes.
 
 // filesState is the Files tab's.
 type filesState struct {
@@ -58,11 +59,13 @@ type fileItem struct {
 
 // fileView is a file the viewer shows, as its text.
 type fileView struct {
-	pane string // a pane of the host it is on
-	path string // on the host
-	rel  string // in the Files' root, which its header shows
-	st   *editor.State
-	err  string
+	pane  string // a pane of the host it is on
+	path  string // on the host
+	rel   string // in the Files' root, which its header shows
+	st    *editor.State
+	hash  string // of the file as its text shows it (git.Hash)
+	edits edited
+	err   string
 	// gone, large and binary say why it shows no text: there is no file
 	// there any more, or one too large, or one that isn't text.
 	gone, large, binary bool
@@ -211,13 +214,27 @@ func (a *App) filesSide(c *ui.Context, pal *palette, s *proto.Session) {
 			})
 		default:
 			a.treeEntry(c, pal, it, it.path == shown, func() {
-				if s := a.session(sid); s != nil {
-					f := &fileView{pane: pid, path: it.path, rel: it.rel}
-					if v := a.side.views[sid]; v != nil && v.file != nil && v.file.path == it.path {
-						f = nil // the one it shows
-					}
-					a.openView(s, sideFiles, f)
+				s := a.session(sid)
+				if s == nil {
+					return
 				}
+				v := a.side.views[sid]
+				if v != nil && v.file != nil && v.file.path == it.path {
+					a.openView(s, sideFiles, nil) // the one it shows
+					return
+				}
+				// In the place of the one it shows, saved first.
+				var ts []editTarget
+				if v != nil && v.file != nil {
+					if t := a.fileTarget(v.file); t.dirty() {
+						ts = append(ts, t)
+					}
+				}
+				a.askToSave(ts, func() {
+					if s := a.session(sid); s != nil {
+						a.openView(s, sideFiles, &fileView{pane: pid, path: it.path, rel: it.rel})
+					}
+				})
 			})
 		}
 	}).Grow(1).MinHeight(0).Padding(0, 10, 16, 10)
@@ -267,9 +284,9 @@ func (a *App) fetchDir(h *host, dir string, ignored bool, stamp string) *dirList
 	return l
 }
 
-// fileViewer is the viewer of a file of Files: its text, read only, which
-// it reads again as the worktree changes, and every few seconds while an
-// agent works.
+// fileViewer is the viewer of a file of Files: its text, which it reads
+// again as the worktree changes, and every few seconds while an agent
+// works, while the user has no edits of it to save.
 func (a *App) fileViewer(c *ui.Context, pal *palette, s *proto.Session, fv *fileView) {
 	h := a.hostOf(fv.pane)
 	stamp := ""
@@ -280,12 +297,13 @@ func (a *App) fileViewer(c *ui.Context, pal *palette, s *proto.Session, fv *file
 	if working {
 		c.After(3 * time.Second)
 	}
-	if !fv.busy && h.cl != nil && (fv.fetched.IsZero() || fv.stamp != stamp || working && time.Since(fv.fetched) > 3*time.Second) {
+	editing := fv.st != nil && (fv.st.Buffer.Modified() || fv.edits.saving)
+	if !fv.busy && !editing && h.cl != nil && (fv.fetched.IsZero() || fv.stamp != stamp || working && time.Since(fv.fetched) > 3*time.Second) {
 		a.loadFile(h.cl, fv, stamp)
 	}
 
 	dir, name := path.Split(fv.rel)
-	a.viewerHeader(c, pal, s, fileIcon, name, func() {
+	a.viewerHeader(c, pal, s, fileIcon, name, editing, func() {
 		if dir = strings.TrimSuffix(dir, "/"); dir != "" {
 			ui.Text(c, dir).FontSize(13).TextColor(pal.textFaint).SingleLine().Ellipsis("…").Shrink(2).MinWidth(0).Tooltip(fv.path)
 		}
@@ -309,8 +327,6 @@ func (a *App) fileViewer(c *ui.Context, pal *palette, s *proto.Session, fv *file
 	default:
 		fv.st.Font = ui.Font{Family: a.termFamily(), Size: max(a.set.FontSize-1, 10)}
 		fv.st.Theme = a.codeTheme(c, pal)
-		fv.st.ReadOnly = true
-		fv.st.NoActiveLine = true
 		fv.st.NoScrollPastEnd = true
 		editor.View(c.Key("text-"+fv.path), fv.st).Grow(1).FillWidth().MinHeight(0)
 	}
@@ -342,21 +358,36 @@ func (a *App) loadFile(cl *client.Client, fv *fileView, stamp string) {
 			if fv.gone || fv.large || fv.binary {
 				return
 			}
-			showFileText(fv, string(data))
+			// Not over what the user typed as it came.
+			if fv.st != nil && (fv.st.Buffer.Modified() || fv.edits.saving) {
+				return
+			}
+			a.showFile(fv, data)
 		})
 	}()
 }
 
-// showFileText puts a file's text in its viewer's editor.
+// showFile puts a file as read in its viewer, and with its first text the
+// user's edit of it backed up as the app last quit, if any.
+func (a *App) showFile(fv *fileView, data []byte) {
+	first := fv.st == nil
+	fv.hash = git.Hash(data)
+	showFileText(fv, string(data))
+	if first {
+		a.restoreEdit(sideFiles, a.hostOf(fv.pane), fv.path, fv.st.Buffer, &fv.hash)
+	}
+}
+
+// showFileText puts a file's text in its viewer's editor, as saved.
 func showFileText(fv *fileView, text string) {
-	text = strings.ReplaceAll(text, "\r\n", "\n")
 	if fv.st == nil {
 		buf := editor.NewBuffer(text)
 		buf.SetLanguage(editor.LanguageFor(path.Base(fv.rel)))
-		fv.st = &editor.State{Buffer: buf, ReadOnly: true}
+		fv.st = &editor.State{Buffer: buf}
 		return
 	}
 	replaceText(fv.st.Buffer, text)
+	fv.st.Buffer.MarkSaved()
 }
 
 // isBinary tells a file that isn't text, as git does: a NUL in its first

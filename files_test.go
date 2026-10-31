@@ -1,11 +1,16 @@
 package main
 
 import (
+	"encoding/json"
+	"errors"
+	"os"
 	"testing"
 	"time"
 
 	"github.com/egoist/mygo/ui"
+	"github.com/egoist/mygo/ui/editor"
 
+	"kero/internal/git"
 	"kero/internal/proto"
 )
 
@@ -71,7 +76,7 @@ func TestRightSidebar(t *testing.T) {
 
 // The Files tab is the worktree's tree, a folder listed as it unfolds,
 // without .git, what git ignores faded; a click on a file opens it in the
-// viewer, as its text, which follows the file.
+// viewer, as its text, which edits and follows the file.
 func TestFilesTab(t *testing.T) {
 	a := testApp(t)
 	s := &a.st.Sessions[0]
@@ -124,8 +129,8 @@ func TestFilesTab(t *testing.T) {
 	if got := fv.st.Buffer.String(); got != "package internal\n\nfunc Auth() {}\n" {
 		t.Errorf("the viewer shows %q", got)
 	}
-	if !fv.st.ReadOnly {
-		t.Error("the file's text is editable")
+	if fv.st.ReadOnly {
+		t.Error("the file's text doesn't edit with no agent working")
 	}
 	tt.Advance(time.Second)
 	tt.Frame()
@@ -151,5 +156,230 @@ func TestFilesTab(t *testing.T) {
 func TestIsBinary(t *testing.T) {
 	if isBinary([]byte("hello\nworld")) || !isBinary([]byte("PNG\x00\x01")) || isBinary(nil) {
 		t.Error("isBinary is wrong")
+	}
+}
+
+// The viewer's texts edit as VS Code's and Zed's do: a file of Files and
+// the new side of a diff of Changes keep their edits, a dot on the
+// viewer's close button saying so, until Save writes them through kerod,
+// as the file was read and with its line endings, agent working or not.
+// Closing the viewer with edits asks to save them, and a file changed on
+// disk meanwhile asks to overwrite it or discard them.
+func TestViewerEdits(t *testing.T) {
+	a := testApp(t)
+	s := &a.st.Sessions[0]
+	g := &proto.GitInfo{Root: "/tmp/demo", Branch: "main", Default: "main", Files: 1, Added: 1}
+	s.Panes[0].Git, s.Panes[1].Git = g, g
+	writes := make(chan proto.FSWriteParams, 4)
+	cl, stop := projectClient(t, func(method string, raw json.RawMessage) (any, error) {
+		if method != "fs.write" {
+			return nil, errors.New("unexpected method " + method)
+		}
+		var p proto.FSWriteParams
+		if err := json.Unmarshal(raw, &p); err != nil {
+			return nil, err
+		}
+		writes <- p
+		return git.Hash([]byte(p.Text)), nil
+	})
+	defer stop()
+	written := func() (proto.FSWriteParams, bool) {
+		select {
+		case p := <-writes:
+			return p, true
+		case <-time.After(time.Second):
+			return proto.FSWriteParams{}, false
+		}
+	}
+
+	// A file of Files, with \r\n line endings, an agent working.
+	a.prefs.Side = sideFiles
+	s.Panes[1].Status = proto.Working
+	fv := &fileView{pane: "a", path: "/tmp/demo/main.go", rel: "main.go", fetched: time.Now(), stamp: gitStamp(g)}
+	fv.hash = git.Hash([]byte("package main\r\n"))
+	showFileText(fv, "package main\r\n")
+	a.openView(s, sideFiles, fv)
+	tt := ui.NewTester(a.view, 1280, 720)
+	tt.Frame()
+	a.local().cl = cl
+	if fv.st.ReadOnly {
+		t.Fatal("the file is read only")
+	}
+	if tt.HasText("Unsaved changes") {
+		t.Error("the viewer says it has unsaved changes before any edit")
+	}
+	fv.st.Buffer.Edit(editor.Edit{Start: 12, End: 12, Text: "\n\nfunc main() {}"})
+	tt.Frame()
+	tt.Advance(5 * time.Second)
+	tt.Frame()
+	select {
+	case p := <-writes:
+		t.Fatalf("wrote %q unsaved", p.Text)
+	default:
+	}
+	if !tt.HasText("Unsaved changes") {
+		t.Error("the viewer doesn't say it has unsaved changes")
+	}
+	shot(t, tt, "viewer-unsaved")
+	a.paneRef("side-card").Focus() // as the user typing there has it
+	tt.Frame()
+	tt.Key(ui.Cmd, ui.KeyS)
+	p, ok := written()
+	if !ok {
+		t.Fatal("Save didn't write the file")
+	}
+	if want := (proto.FSWriteParams{Path: "/tmp/demo/main.go", Hash: fv.hash, Text: "package main\r\n\r\nfunc main() {}\r\n"}); p != want {
+		t.Errorf("wrote %+v, want %+v", p, want)
+	}
+	s.Panes[1].Status = proto.Idle
+
+	// Closing the viewer with edits asks to save them; Don't Save drops
+	// them, for the file as it is.
+	fv.edits.saving = false // as the write answered, which no window runs here
+	fv.st.Buffer.Edit(editor.Edit{Start: 0, End: 0, Text: "// Main.\n"})
+	a.closeView(s)
+	tt.Frame()
+	if a.viewOf(s) == nil || !tt.HasText("Do you want to save the changes you made to “main.go”?") {
+		t.Fatalf("closing with edits didn't ask to save them; texts %q", tt.Texts())
+	}
+	shot(t, tt, "viewer-ask-save")
+	if err := tt.Click("Don't Save"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if a.viewOf(s) != nil || fv.st.Buffer.Modified() || !fv.fetched.IsZero() {
+		t.Error("Don't Save didn't close the viewer, dropping the edits for the file read anew")
+	}
+
+	// The new side of a diff edits, and Save writes the one focused.
+	a.local().cl = nil
+	a.toggleSide(sideChanges)
+	ch := &a.side.changes
+	scope := changesScope(&s.Panes[0], git.BaseHead)
+	ch.base, ch.scope, ch.stamp = git.BaseHead, scope, gitStamp(g)
+	ch.res = &proto.GitChanges{Root: "/tmp/demo", Files: []proto.GitFile{{Path: "pkg/a.go", Status: "modified", Added: 1}}}
+	ch.fetched = time.Now()
+	tt.Frame()
+	sf := ch.files[scope+"|pkg/a.go"]
+	if sf == nil {
+		t.Fatal("no diff of pkg/a.go")
+	}
+	a.showText(sf, proto.GitText{Old: "package a\n", New: "package a\n\nvar x = 1\n", Hash: "h1"})
+	tt.Frame()
+	if !sf.d.Editable {
+		t.Fatal("the diff's new side doesn't edit")
+	}
+	a.local().cl = cl
+	sf.d.New.Edit(editor.Edit{Start: 0, End: 0, Text: "// A.\n"})
+	ch.focus = sf
+	a.paneRef("side-card").Focus()
+	tt.Frame()
+	tt.Key(ui.Cmd, ui.KeyS)
+	p, ok = written()
+	if !ok {
+		t.Fatal("Save didn't write the diff's edit")
+	}
+	if want := (proto.FSWriteParams{Path: "/tmp/demo/pkg/a.go", Hash: "h1", Text: "// A.\npackage a\n\nvar x = 1\n"}); p != want {
+		t.Errorf("wrote %+v, want %+v", p, want)
+	}
+
+	// Text read anew doesn't go over edits not saved.
+	sf.edits.saving = false
+	sf.d.New.Edit(editor.Edit{Start: 0, End: 0, Text: "x"})
+	a.showText(sf, proto.GitText{Old: "package a\n", New: "package b\n", Hash: "h2"})
+	if got := sf.d.New.String(); got[:1] != "x" || sf.hash != "h1" {
+		t.Errorf("reading the file anew went over the user's edit: %q, hash %q", got, sf.hash)
+	}
+	if n := len(a.allTargets()); n != 1 {
+		t.Errorf("%d texts to save as the app quits, want 1", n)
+	}
+
+	// Its file changed meanwhile: Discard Changes drops the edits.
+	a.local().cl = nil
+	a.askOverwrite(a.diffTarget(sf), func(bool) {})
+	tt.Frame()
+	if !tt.HasText("“a.go” changed on disk") {
+		t.Fatalf("no question of the file changed; texts %q", tt.Texts())
+	}
+	shot(t, tt, "viewer-conflict")
+	if err := tt.Click("Discard Changes"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if sf.d.New.Modified() {
+		t.Error("Discard Changes kept the edits")
+	}
+}
+
+// Edits not saved outlast the app, as VS Code's hot exit keeps them: they
+// are backed up as the user pauses typing and as the app quits, which
+// asks nothing, and come back, not saved still, as their files' texts
+// load again, with the viewers that showed them.
+func TestUnsavedOutlastQuit(t *testing.T) {
+	a := testApp(t)
+	s := &a.st.Sessions[0]
+	g := &proto.GitInfo{Root: "/tmp/demo", Branch: "main", Default: "main", Files: 1, Added: 1}
+	s.Panes[0].Git, s.Panes[1].Git = g, g
+	a.prefs.Side = sideFiles
+	disk := []byte("package main\r\n")
+	fv := &fileView{pane: "a", path: "/tmp/demo/main.go", rel: "main.go", fetched: time.Now(), stamp: gitStamp(g)}
+	a.showFile(fv, disk)
+	a.openView(s, sideFiles, fv)
+	tt := ui.NewTester(a.view, 1280, 720)
+	tt.Frame()
+	fv.st.Buffer.Edit(editor.Edit{Start: 12, End: 12, Text: "\n\nfunc main() {}"})
+	tt.Frame()
+
+	// Backed up a moment after the user pauses.
+	if _, err := os.Stat(backupPath()); err == nil {
+		t.Fatal("backed up as the user typed")
+	}
+	tt.Advance(2 * time.Second)
+	tt.Frame()
+	var vb viewerBackup
+	if b, err := os.ReadFile(backupPath()); err == nil {
+		json.Unmarshal(b, &vb)
+	}
+	want := unsavedText{Kind: sideFiles, Pane: "a", Path: "/tmp/demo/main.go", Hash: git.Hash(disk), Text: "package main\r\n\r\nfunc main() {}\r\n"}
+	if len(vb.Unsaved) != 1 || vb.Unsaved[0] != want {
+		t.Fatalf("backed up %+v, want %+v", vb.Unsaved, want)
+	}
+	if st, _ := os.Stat(backupPath()); st.Mode().Perm() != 0o600 {
+		t.Errorf("the backup is %v, readable by others", st.Mode().Perm())
+	}
+
+	// Quitting asks nothing.
+	a.backupOnQuit()
+	if a.confirm != nil {
+		t.Fatalf("quitting asked %q", a.confirm.title)
+	}
+
+	// The next launch shows the viewer as it was, and the edit as the
+	// file loads, not saved, with the hash of the file it was made on.
+	b := newApp()
+	v := b.side.views[s.ID]
+	if v == nil || v.kind != sideFiles || v.file == nil || v.file.path != "/tmp/demo/main.go" || v.file.rel != "main.go" {
+		t.Fatalf("the viewer came back as %+v", v)
+	}
+	now := []byte("package main\r\n\r\n// Changed meanwhile.\r\n")
+	b.showFile(v.file, now)
+	if got := bufferText(v.file.st.Buffer); got != want.Text || !v.file.st.Buffer.Modified() {
+		t.Errorf("the edit came back as %q, modified %v", got, v.file.st.Buffer.Modified())
+	}
+	if v.file.hash != git.Hash(disk) {
+		t.Error("the edit came back without the hash of the file it was made on, saving over the change made meanwhile")
+	}
+	if len(b.side.backup.unsaved) != 0 {
+		t.Error("the edit stayed in the backup as it came back")
+	}
+
+	// A diff's too, as its text loads.
+	b.side.backup.unsaved = map[string]unsavedText{}
+	u := unsavedText{Kind: sideChanges, Pane: "a", Path: "/tmp/demo/pkg/a.go", Hash: "h0", Text: "package a // edited\n"}
+	b.side.backup.unsaved[u.key()] = u
+	sf := &sideFile{pane: "a", root: "/tmp/demo", f: proto.GitFile{Path: "pkg/a.go"}}
+	b.showText(sf, proto.GitText{Old: "package a\n", New: "package a\n\nvar x = 1\n", Hash: "h1"})
+	if got := sf.d.New.String(); got != u.Text || !sf.d.New.Modified() || sf.hash != "h0" {
+		t.Errorf("the diff's edit came back as %q, hash %q", got, sf.hash)
 	}
 }

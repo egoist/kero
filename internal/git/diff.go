@@ -281,6 +281,13 @@ func (r Repo) Write(path, hash, text string) error {
 	if err != nil {
 		return err
 	}
+	return WriteFile(full, hash, text)
+}
+
+// WriteFile writes text to a regular file, keeping its mode, when its
+// content still hashes to hash: one written meanwhile is left as it is
+// (ErrChanged).
+func WriteFile(full, hash, text string) error {
 	fi, err := os.Lstat(full)
 	if err != nil {
 		return err

@@ -40,7 +40,13 @@ Revert works only while no agent in the session is working, so it never races an
 
 ## Files
 
-Press <kbd>⌥</kbd> <kbd>⌘</kbd> <kbd>E</kbd> for the Files tab: the folder of the pane you're in, its whole worktree in a git repository. Click a folder to unfold it, and a file to read it beside the panes, where you can select, copy and find (<kbd>⌘</kbd> <kbd>F</kbd>) in it. The file follows its changes while you read it. What git ignores shows faded, and `.git` doesn't show.
+Press <kbd>⌥</kbd> <kbd>⌘</kbd> <kbd>E</kbd> for the Files tab: the folder of the pane you're in, its whole worktree in a git repository. Click a folder to unfold it, and a file to open it beside the panes, where you can find (<kbd>⌘</kbd> <kbd>F</kbd>) in it and edit it. The file follows its changes while you read it. What git ignores shows faded, and `.git` doesn't show.
+
+## Editing
+
+A file you open from Files, and the new side of a diff in Changes, edit as in VS Code or Zed. Press <kbd>⌘</kbd> <kbd>S</kbd> to save the file you're in. Until you do, a dot takes the place of the card's <kbd>×</kbd>, and of a diff's file name. Closing the card, or opening another file in its place, asks whether to save your changes first. Quitting Kero doesn't: your unsaved changes are still there, unsaved, when you open it again, with the files they're in.
+
+While you haven't changed a file, it follows its changes on disk. Once you have, your version stays, and if an agent or another program changed the file meanwhile, saving asks whether to overwrite it or to discard your changes for the file as it is now.
 
 <a id="sessions-in-their-own-worktree"></a>
 

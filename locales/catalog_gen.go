@@ -4208,6 +4208,118 @@ func (msgs Messages) ChangesRevertFailed(error string) string {
 	return Catalog.Format(msgs.locale, "changesRevertFailed", map[string]any{"error": error})
 }
 
+// ViewerSaveFailed says "Couldn't save “{name}”: {error}"
+// in the language the app shows.
+func ViewerSaveFailed(name string, error string) string {
+	return In(i18n.Locale()).ViewerSaveFailed(name, error)
+}
+
+// ViewerSaveFailed says "Couldn't save “{name}”: {error}"
+// in the language of msgs.
+func (msgs Messages) ViewerSaveFailed(name string, error string) string {
+	return Catalog.Format(msgs.locale, "viewerSaveFailed", map[string]any{"name": name, "error": error})
+}
+
+// ViewerUnsaved says "Unsaved changes"
+// in the language the app shows.
+func ViewerUnsaved() string { return In(i18n.Locale()).ViewerUnsaved() }
+
+// ViewerUnsaved says "Unsaved changes"
+// in the language of msgs.
+func (msgs Messages) ViewerUnsaved() string {
+	return Catalog.Format(msgs.locale, "viewerUnsaved", nil)
+}
+
+// ViewerSaveOne says "Do you want to save the changes you made to “{name}”?"
+// in the language the app shows.
+func ViewerSaveOne(name string) string { return In(i18n.Locale()).ViewerSaveOne(name) }
+
+// ViewerSaveOne says "Do you want to save the changes you made to “{name}”?"
+// in the language of msgs.
+func (msgs Messages) ViewerSaveOne(name string) string {
+	return Catalog.Format(msgs.locale, "viewerSaveOne", map[string]any{"name": name})
+}
+
+// ViewerSaveMany says "{count, plural, one {Do you want to save the changes you made to # file?} other {Do you want to save the changes you …"
+// in the language the app shows.
+func ViewerSaveMany(count int) string { return In(i18n.Locale()).ViewerSaveMany(count) }
+
+// ViewerSaveMany says "{count, plural, one {Do you want to save the changes you made to # file?} other {Do you want to save the changes you …"
+// in the language of msgs.
+func (msgs Messages) ViewerSaveMany(count int) string {
+	return Catalog.Format(msgs.locale, "viewerSaveMany", map[string]any{"count": count})
+}
+
+// ViewerSaveDetail says "Your changes will be lost if you don't save them."
+// in the language the app shows.
+func ViewerSaveDetail() string { return In(i18n.Locale()).ViewerSaveDetail() }
+
+// ViewerSaveDetail says "Your changes will be lost if you don't save them."
+// in the language of msgs.
+func (msgs Messages) ViewerSaveDetail() string {
+	return Catalog.Format(msgs.locale, "viewerSaveDetail", nil)
+}
+
+// ViewerSave says "Save"
+// in the language the app shows.
+func ViewerSave() string { return In(i18n.Locale()).ViewerSave() }
+
+// ViewerSave says "Save"
+// in the language of msgs.
+func (msgs Messages) ViewerSave() string {
+	return Catalog.Format(msgs.locale, "viewerSave", nil)
+}
+
+// ViewerDontSave says "Don't Save"
+// in the language the app shows.
+func ViewerDontSave() string { return In(i18n.Locale()).ViewerDontSave() }
+
+// ViewerDontSave says "Don't Save"
+// in the language of msgs.
+func (msgs Messages) ViewerDontSave() string {
+	return Catalog.Format(msgs.locale, "viewerDontSave", nil)
+}
+
+// ViewerConflictTitle says "“{name}” changed on disk"
+// in the language the app shows.
+func ViewerConflictTitle(name string) string { return In(i18n.Locale()).ViewerConflictTitle(name) }
+
+// ViewerConflictTitle says "“{name}” changed on disk"
+// in the language of msgs.
+func (msgs Messages) ViewerConflictTitle(name string) string {
+	return Catalog.Format(msgs.locale, "viewerConflictTitle", map[string]any{"name": name})
+}
+
+// ViewerConflictDetail says "It changed since you opened it. Overwrite it with your version, or discard your changes for the file as it is now."
+// in the language the app shows.
+func ViewerConflictDetail() string { return In(i18n.Locale()).ViewerConflictDetail() }
+
+// ViewerConflictDetail says "It changed since you opened it. Overwrite it with your version, or discard your changes for the file as it is now."
+// in the language of msgs.
+func (msgs Messages) ViewerConflictDetail() string {
+	return Catalog.Format(msgs.locale, "viewerConflictDetail", nil)
+}
+
+// ViewerOverwrite says "Overwrite"
+// in the language the app shows.
+func ViewerOverwrite() string { return In(i18n.Locale()).ViewerOverwrite() }
+
+// ViewerOverwrite says "Overwrite"
+// in the language of msgs.
+func (msgs Messages) ViewerOverwrite() string {
+	return Catalog.Format(msgs.locale, "viewerOverwrite", nil)
+}
+
+// ViewerDiscard says "Discard Changes"
+// in the language the app shows.
+func ViewerDiscard() string { return In(i18n.Locale()).ViewerDiscard() }
+
+// ViewerDiscard says "Discard Changes"
+// in the language of msgs.
+func (msgs Messages) ViewerDiscard() string {
+	return Catalog.Format(msgs.locale, "viewerDiscard", nil)
+}
+
 // GitShowChanges says "Show Changes"
 // in the language the app shows.
 func GitShowChanges() string { return In(i18n.Locale()).GitShowChanges() }

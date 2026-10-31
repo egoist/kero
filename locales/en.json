@@ -576,6 +576,24 @@
   "changesRevertTip": "Put the old lines back in the file",
   "changesKeepTip": "Mark this change as reviewed",
   "changesRevertFailed": "Couldn't revert: {error}",
+  "viewerSaveFailed": "Couldn't save “{name}”: {error}",
+  "viewerUnsaved": "Unsaved changes",
+  "viewerSaveOne": "Do you want to save the changes you made to “{name}”?",
+  "viewerSaveMany": "{count, plural, one {Do you want to save the changes you made to # file?} other {Do you want to save the changes you made to # files?}}",
+  "@viewerSaveMany": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "viewerSaveDetail": "Your changes will be lost if you don't save them.",
+  "viewerSave": "Save",
+  "viewerDontSave": "Don't Save",
+  "viewerConflictTitle": "“{name}” changed on disk",
+  "viewerConflictDetail": "It changed since you opened it. Overwrite it with your version, or discard your changes for the file as it is now.",
+  "viewerOverwrite": "Overwrite",
+  "viewerDiscard": "Discard Changes",
   "gitShowChanges": "Show Changes",
   "gitMerging": "merging",
   "gitRebasing": "rebasing",
