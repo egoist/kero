@@ -269,7 +269,7 @@ func (a *App) treeEntry(c *ui.Context, pal *palette, it fileItem, current bool, 
 	}
 	row.Children(func() {
 		ui.Box(c).Size(9, 9).Shrink(0)
-		ui.Icon(c, fileIcon).Size(13, 13).TextColor(pal.textFaint).Shrink(0)
+		fileIconImage(c, pal, it.Name, false, false)
 		ui.Text(c, it.Name).FontSize(12.5).TextColor(pal.text).SingleLine().Ellipsis("…").MinWidth(0)
 	})
 	return row

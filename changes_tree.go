@@ -188,14 +188,14 @@ func (a *App) treeFolder(c *ui.Context, pal *palette, name, tip string, depth in
 	row.Children(func() {
 		chev := ui.Icon(c, chevronIcon).Size(9, 9).TextColor(pal.textFaint).Shrink(0)
 		chev.Rotate(chev.AnimateTo("turn", 90*b2f(open), ui.Snappy))
-		ui.Icon(c, folderIcon).Size(13, 13).TextColor(pal.textFaint).Shrink(0)
+		fileIconImage(c, pal, name, true, open)
 		ui.Text(c, name).FontSize(12.5).TextColor(pal.textMuted).SingleLine().Ellipsis("…").MinWidth(0)
 	})
 	return row
 }
 
-// treeFile is a changed file of the tree, its change as a letter in its
-// color where a folder shows its icon.
+// treeFile is a changed file of the tree: its icon, its name, and its
+// change as a letter in its color at the right, as VS Code shows them.
 func (a *App) treeFile(c *ui.Context, pal *palette, it treeItem, f proto.GitFile, current bool, pick func()) {
 	tip := f.Path
 	if f.OldPath != "" {
@@ -207,14 +207,13 @@ func (a *App) treeFile(c *ui.Context, pal *palette, it treeItem, f proto.GitFile
 	}
 	row.Children(func() {
 		ui.Box(c).Size(9, 9).Shrink(0)
-		letter, col := a.statusLetter(pal, f.Status)
-		ui.Box(c).Width(13).Shrink(0).Center().Children(func() {
-			ui.Text(c, letter).FontSize(10.5).FontWeight(650).TextColor(col).SingleLine()
-		})
+		fileIconImage(c, pal, it.name, false, false)
 		fg := pal.text
 		if f.Status == "deleted" {
 			fg = pal.textMuted
 		}
-		ui.Text(c, it.name).FontSize(12.5).TextColor(fg).SingleLine().Ellipsis("…").MinWidth(0)
+		ui.Text(c, it.name).FontSize(12.5).TextColor(fg).SingleLine().Ellipsis("…").MinWidth(0).Grow(1)
+		letter, col := a.statusLetter(pal, f.Status)
+		ui.Text(c, letter).FontSize(10.5).FontWeight(650).TextColor(col).SingleLine().Shrink(0)
 	})
 }
