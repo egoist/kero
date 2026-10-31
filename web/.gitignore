@@ -1,0 +1,20 @@
+# dependencies
+node_modules
+
+# build output
+.output
+.nitro
+.tanstack
+.vinxi
+dist
+
+# generated route tree
+src/routeTree.gen.ts
+
+# cloudflare / wrangler
+.wrangler
+worker-configuration.d.ts
+
+# logs / os
+*.log
+.DS_Store

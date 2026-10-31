@@ -1,0 +1,235 @@
+//  Created by Marcin Krzyzanowski
+//  https://github.com/krzyzanowskim/STTextView/blob/main/LICENSE.md
+
+import AppKit
+import STTextKitPlus
+
+
+/// NSAccessibility
+extension STTextView {
+    override open func accessibilitySharedCharacterRange() -> NSRange {
+        NSRange(textContentManager.documentRange, in: textContentManager)
+    }
+}
+
+
+/// NSAccessibilityProtocol
+extension STTextView {
+
+    override open func isAccessibilityElement() -> Bool {
+        true
+    }
+
+    override open func isAccessibilityEnabled() -> Bool {
+        isEditable || isSelectable
+    }
+
+    override open func accessibilityRole() -> NSAccessibility.Role? {
+        .textArea
+    }
+
+    override open func accessibilityRoleDescription() -> String? {
+        NSAccessibility.Role.description(for: self)
+    }
+
+    override open func accessibilityLabel() -> String? {
+        NSLocalizedString("Text Editor", comment: "")
+    }
+
+    override open func accessibilityNumberOfCharacters() -> Int {
+        text?.utf16.count ?? 0
+    }
+
+    override open func accessibilitySelectedText() -> String? {
+        textLayoutManager.textSelectionsString()
+    }
+
+    override open func setAccessibilitySelectedText(_ accessibilitySelectedText: String?) {
+        self.replaceCharacters(in: selectedRange(), with: accessibilitySelectedText ?? "")
+    }
+
+    override open func accessibilitySelectedTextRange() -> NSRange {
+        selectedRange()
+    }
+
+    override open func accessibilitySelectedTextRanges() -> [NSValue]? {
+        let ranges = textLayoutManager.textSelections
+            .flatMap(\.textRanges)
+            .map { NSRange($0, in: textContentManager) }
+            .map { NSValue(range: $0) }
+
+        return ranges.isEmpty ? nil : ranges
+    }
+
+    override open func setAccessibilitySelectedTextRanges(_ accessibilitySelectedTextRanges: [NSValue]?) {
+        for range in accessibilitySelectedTextRanges?.map(\.rangeValue) ?? [] {
+            self.setSelectedRange(range)
+        }
+    }
+
+    override open func isAccessibilityFocused() -> Bool {
+        isFirstResponder && isSelectable
+    }
+
+    override open func setAccessibilityFocused(_ accessibilityFocused: Bool) {
+        if !accessibilityFocused, isFirstResponder {
+            window?.makeFirstResponder(nil)
+        } else if accessibilityFocused {
+            window?.makeFirstResponder(self)
+        }
+    }
+
+    override open func isAccessibilityEdited() -> Bool {
+        undoManager?.canUndo ?? false
+    }
+
+    override open func accessibilityInsertionPointLineNumber() -> Int {
+        let insertionPoint = selectedRange().location
+        return accessibilityLine(for: insertionPoint)
+    }
+
+    override open func setAccessibilityInsertionPointLineNumber(_ accessibilityInsertionPointLineNumber: Int) {
+        let lineRange = accessibilityRange(forLine: accessibilityInsertionPointLineNumber)
+        guard lineRange.location != NSNotFound else {
+            return
+        }
+        // Place insertion point at the beginning of the line
+        setAccessibilitySelectedTextRange(NSRange(location: lineRange.location, length: 0))
+    }
+
+    override open func accessibilityHelp() -> String? {
+        if isEditable {
+            return NSLocalizedString("Type to enter text.", comment: "Accessibility help for editable text view")
+        } else if isSelectable {
+            return NSLocalizedString("Text is selectable but not editable.", comment: "Accessibility help for selectable text view")
+        } else {
+            return NSLocalizedString("Read-only text content.", comment: "Accessibility help for read-only text view")
+        }
+    }
+}
+
+extension STTextView {
+
+    // NSAccessibilityStaticText
+
+    override open func accessibilityVisibleCharacterRange() -> NSRange {
+        if let visibleTextRange = textLayoutManager.textRange(in: contentView.visibleRect) {
+            return NSRange(visibleTextRange, in: textContentManager)
+        }
+
+        return NSRange()
+    }
+
+    override open func setAccessibilitySelectedTextRange(_ accessibilitySelectedTextRange: NSRange) {
+        guard let textRange = NSTextRange(accessibilitySelectedTextRange, in: textContentManager) else {
+            assertionFailure()
+            return
+        }
+        setSelectedTextRange(textRange, updateLayout: true)
+    }
+
+    override open func accessibilityAttributedString(for range: NSRange) -> NSAttributedString? {
+        attributedSubstring(forProposedRange: range, actualRange: nil)
+    }
+
+    override open func accessibilityValue() -> Any? {
+        text
+    }
+
+    override open func setAccessibilityValue(_ accessibilityValue: Any?) {
+        guard let string = accessibilityValue as? String else {
+            return
+        }
+
+        self.text = string
+    }
+
+    // NSAccessibilityNavigableStaticText
+
+    override open func accessibilityFrame(for range: NSRange) -> NSRect {
+        guard let textRange = NSTextRange(range, in: textContentManager),
+              let segmentFrame = textLayoutManager.textSegmentFrame(in: textRange, type: .standard)
+        else {
+            return .zero
+        }
+        return window?.convertToScreen(contentView.convert(segmentFrame, to: nil)) ?? .zero
+    }
+
+    override open func accessibilityLine(for index: Int) -> Int {
+        guard let location = textContentManager.location(at: index),
+              let position = textContentManager.position(location)
+        else {
+            return 0
+        }
+        return position.row
+    }
+
+    override open func accessibilityRange(forLine line: Int) -> NSRange {
+        var currentLine = 0
+        var result: NSRange = .notFound
+        let nsString = (text ?? "") as NSString
+
+        textLayoutManager.enumerateTextLayoutFragments(
+            from: textContentManager.documentRange.location,
+            options: [.ensuresLayout]
+        ) { layoutFragment in
+            for textLineFragment in layoutFragment.textLineFragments {
+                if currentLine == line {
+                    if let lineRange = textLineFragment.textRange(in: layoutFragment) {
+                        result = NSRange(lineRange, in: textContentManager)
+
+                        // Include trailing newline if present (per Apple docs)
+                        let endIndex = result.upperBound
+                        if endIndex < nsString.length,
+                           nsString.character(at: endIndex) == unichar(0x0A) {
+                            result.length += 1
+                        }
+                    }
+                    return false
+                }
+                currentLine += 1
+            }
+            return true
+        }
+
+        return result
+    }
+
+    override open func accessibilityString(for range: NSRange) -> String? {
+        attributedSubstring(forProposedRange: range, actualRange: nil)?.string
+    }
+
+    override open func accessibilityRange(for point: NSPoint) -> NSRange {
+        guard let window else {
+            return .notFound
+        }
+
+        // Convert from screen coordinates to content view coordinates
+        let windowPoint = window.convertPoint(fromScreen: point)
+        let viewPoint = contentView.convert(windowPoint, from: nil)
+
+        // Find the text location at this point
+        guard let location = textLayoutManager.caretLocation(
+            interactingAt: viewPoint,
+            inContainerAt: textLayoutManager.documentRange.location
+        ) else {
+            return .notFound
+        }
+
+        // Get the character range at this location (single character)
+        let characterIndex = textContentManager.offset(
+            from: textContentManager.documentRange.location,
+            to: location
+        )
+
+        guard characterIndex != NSNotFound else {
+            return .notFound
+        }
+
+        // Return range for a single character at this position
+        // If at end of document, return empty range at that position
+        let documentLength = text?.utf16.count ?? 0
+        let length = (characterIndex < documentLength) ? 1 : 0
+        return NSRange(location: characterIndex, length: length)
+    }
+}
