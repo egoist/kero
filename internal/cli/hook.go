@@ -190,6 +190,12 @@ func kero() string {
 // directory (package clilink), which stays where it is as Kero updates.
 func (h agentHook) command() string {
 	if runtime.GOOS == "windows" {
+		if h.agent == "codex" {
+			// Codex runs a hook's command with PowerShell, which takes a
+			// quoted path for a string, and fails on the words after it:
+			// the call operator runs it.
+			return `& '` + strings.ReplaceAll(kero(), "'", "''") + `' hook ` + h.agent
+		}
 		return `"` + kero() + `" hook ` + h.agent
 	}
 	return "'" + strings.ReplaceAll(kero(), "'", `'\''`) + "' hook " + h.agent

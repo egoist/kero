@@ -3,7 +3,9 @@ package cli
 import (
 	"encoding/json"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -176,5 +178,36 @@ func TestAgentPlugins(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(home, ".pi", "agent", "extensions")); err != nil {
 		t.Fatal("Pi's extensions directory went with Kero's extension")
+	}
+}
+
+// Codex runs its hooks with PowerShell on Windows: the command line calls
+// the quoted path, rather than giving it as a string.
+func TestCodexHookCommandRunsInPowerShell(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("Windows only")
+	}
+	t.Setenv("KERO_HOME", filepath.Join(t.TempDir(), "it's kero"))
+	got := agentHook{agent: "codex"}.command()
+	want := `& '` + strings.ReplaceAll(kero(), "'", "''") + `' hook codex`
+	if got != want {
+		t.Fatalf("command() = %q, want %q", got, want)
+	}
+	if !(agentHook{agent: "codex"}).ours(got) {
+		t.Fatalf("ours(%q) = false", got)
+	}
+	pwsh, err := exec.LookPath("pwsh")
+	if err != nil {
+		if pwsh, err = exec.LookPath("powershell"); err != nil {
+			t.Skip("no PowerShell")
+		}
+	}
+	// Parse it as PowerShell does, without running it.
+	script := `$e=$null; [void][System.Management.Automation.Language.Parser]::ParseInput($env:KERO_TEST_CMD,[ref]$null,[ref]$e); $e.Count`
+	cmd := exec.Command(pwsh, "-NoProfile", "-Command", script)
+	cmd.Env = append(os.Environ(), "KERO_TEST_CMD="+got)
+	out, err := cmd.Output()
+	if err != nil || strings.TrimSpace(string(out)) != "0" {
+		t.Fatalf("PowerShell parsing %q: %s %v", got, out, err)
 	}
 }
