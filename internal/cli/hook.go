@@ -13,6 +13,7 @@ import (
 	"slices"
 	"strings"
 	"time"
+	"unicode"
 
 	"kero/internal/client"
 	"kero/internal/clilink"
@@ -190,9 +191,29 @@ func kero() string {
 // directory (package clilink), which stays where it is as Kero updates.
 func (h agentHook) command() string {
 	if runtime.GOOS == "windows" {
+		if h.agent == "codex" {
+			return anyShell(kero()) + " hook " + h.agent
+		}
 		return `"` + kero() + `" hook ` + h.agent
 	}
 	return "'" + strings.ReplaceAll(kero(), "'", `'\''`) + "' hook " + h.agent
+}
+
+// anyShell is a program's path on Windows as a command that each shell
+// Codex may run a hook in takes alike: Codex runs it in the shell of the
+// user's session, cmd, Windows PowerShell, PowerShell or Git Bash, and
+// in cmd without one. PowerShell takes a quoted path for a string, and
+// cmd no quote but a double one, so a plain path goes bare, with forward
+// slashes, which Git Bash leaves alone and the others run as well. A
+// path with a space, or another character a shell reads, goes to cmd in
+// double quotes: all but Git Bash take that.
+func anyShell(path string) string {
+	for _, r := range path {
+		if !unicode.IsLetter(r) && !unicode.IsDigit(r) && !strings.ContainsRune(`_-.:\/`, r) {
+			return `cmd /d /c "` + path + `"`
+		}
+	}
+	return filepath.ToSlash(path)
 }
 
 // ours tells kero's hook commands, of this kero or another's.
