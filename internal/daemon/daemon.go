@@ -337,6 +337,10 @@ func (d *Daemon) tickLoop() {
 				changed = true
 			}
 		}
+		if settings.Load().SessionsFollowDir && d.follow() {
+			changed = true
+			d.save()
+		}
 		if changed {
 			d.changed()
 		}
@@ -379,16 +383,15 @@ func (d *Daemon) projectFor(ref, dir string) string {
 		}
 		dir = proto.Home()
 	}
-	best, bestLen := "", -1
-	for _, p := range d.projects {
-		if p.Dir != "" && proto.Within(dir, p.Dir) && len(p.Dir) > bestLen {
-			best, bestLen = p.ID, len(p.Dir)
-		}
-	}
-	if best != "" {
+	if best := d.projectHolding(dir); best != "" {
 		return best
 	}
 	root := repoRoot(dir)
+	// A linked worktree outside its repository goes in the project of
+	// the main checkout, rather than in one of its own.
+	if best := d.projectHolding(root); best != "" {
+		return best
+	}
 	name := filepath.Base(root)
 	if root == proto.Home() {
 		name = "Home"
@@ -396,6 +399,41 @@ func (d *Daemon) projectFor(ref, dir string) string {
 	p := proto.Project{ID: newID(), Name: name, Dir: root}
 	d.projects = append(d.projects, p)
 	return p.ID
+}
+
+// projectHolding returns the project whose directory holds dir, the
+// deepest when several do, or "". d.mu is held.
+func (d *Daemon) projectHolding(dir string) string {
+	best, bestLen := "", -1
+	for _, p := range d.projects {
+		if p.Dir != "" && proto.Within(dir, p.Dir) && len(p.Dir) > bestLen {
+			best, bestLen = p.ID, len(p.Dir)
+		}
+	}
+	return best
+}
+
+// follow puts each session in the project of its folder, as
+// sessions-follow-directory asks: the folder of the terminal pane it
+// shows, when that is another than the one it last followed. A session
+// moved by hand stays where it was put until its pane goes elsewhere.
+// It reports whether one moved.
+func (d *Daemon) follow() bool {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	moved := false
+	for _, s := range d.sessions {
+		dir := s.shownDir()
+		if dir == "" || dir == s.followed {
+			continue
+		}
+		s.followed = dir
+		if pr := d.projectFor("", dir); pr != s.project {
+			s.project = pr
+			moved = true
+		}
+	}
+	return moved
 }
 
 // repoRoot returns the root of the git repository holding dir, or dir. A

@@ -196,6 +196,8 @@
   "setDirCurrent": "当前文件夹",
   "setDirProject": "项目",
   "setDirHome": "主目录",
+  "setSessionsFollowDir": "自动将会话归入项目",
+  "setSessionsFollowDirDetail": "会话所在的文件夹改变时（例如 cd），把它移到包含该文件夹的项目中；没有这样的项目时，为它新建一个。",
   "setSessionName": "会话名称取自",
   "setSessionNameDetail": "在你或智能体为会话命名之前。选择“当前窗格”时，只运行着 Shell 的窗格会沿用最需要你的窗格的名称。",
   "setNameFocused": "当前窗格",

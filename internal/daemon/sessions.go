@@ -23,6 +23,32 @@ type session struct {
 	layout            *proto.Layout
 	focus, zoomed     string
 	worktree          *proto.Worktree // made for it (proto.Session.Worktree)
+	// followed is the folder whose project the session was last put in
+	// by sessions-follow-directory (Daemon.follow).
+	followed string
+}
+
+// shownDir is the folder of the terminal pane the session shows, its
+// focused one, else its first terminal's; d.mu is held.
+func (s *session) shownDir() string {
+	var shown *pane
+	for _, p := range s.panes {
+		p.mu.Lock()
+		term := !p.info.Browser()
+		p.mu.Unlock()
+		if !term {
+			continue
+		}
+		if shown == nil || p.info.ID == s.focus {
+			shown = p
+		}
+	}
+	if shown == nil {
+		return ""
+	}
+	shown.mu.Lock()
+	defer shown.mu.Unlock()
+	return shown.info.Dir
 }
 
 // state returns what the subscribers see.
