@@ -237,6 +237,7 @@ func (a *App) filesSide(c *ui.Context, pal *palette, s *proto.Session) {
 				v := a.side.views[sid]
 				if v != nil && v.file != nil && v.file.path == it.path {
 					a.openView(s, sideFiles, nil) // the one it shows
+					a.focusViewer()
 					return
 				}
 				// In the place of the one it shows, saved first.
@@ -249,6 +250,7 @@ func (a *App) filesSide(c *ui.Context, pal *palette, s *proto.Session) {
 				a.askToSave(ts, func() {
 					if s := a.session(sid); s != nil {
 						a.openView(s, sideFiles, &fileView{pane: pid, path: it.path, rel: it.rel})
+						a.focusViewer()
 					}
 				})
 			})

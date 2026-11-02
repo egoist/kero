@@ -150,6 +150,7 @@ func (a *App) commitName() {
 					a.askToSave(a.fileTargets(a.side.views[s.ID]), func() {
 						if s := a.session(e.session); s != nil {
 							a.openView(s, sideFiles, &fileView{pane: e.pane, path: to, rel: rel})
+							a.focusViewer()
 						}
 					})
 				}

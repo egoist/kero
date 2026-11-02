@@ -168,6 +168,10 @@ func (a *App) toggleSide(tab string) {
 		a.side.forced = a.side.crowded
 		if tab == sideChanges && s != nil {
 			a.openView(s, sideChanges, nil)
+			// A program asking through kero do leaves the user's keyboard be.
+			if a.from == nil {
+				a.focusViewer()
+			}
 		}
 	}
 	a.savePrefs()
@@ -241,6 +245,11 @@ func (a *App) closeView(s *proto.Session) {
 		}
 	})
 }
+
+// focusViewer gives the viewer the keyboard, as it comes if it has yet to:
+// a click that opens it leaves the keyboard with no one, where Close would
+// take the pane beside it.
+func (a *App) focusViewer() { a.paneRef("side-card").Focus() }
 
 // rightWidth is the sidebar's width, shown.
 func (a *App) rightWidth() float32 {
@@ -678,7 +687,10 @@ func (a *App) changesSide(c *ui.Context, pal *palette, s *proto.Session) {
 			}
 			ui.Spacer(c)
 			if v := a.viewOf(s); v == nil || v.kind != sideChanges {
-				iconButton(c, "show-diffs", diffIcon, locales.ChangesShowDiffs(), pal, func() { a.openView(s, sideChanges, nil) })
+				iconButton(c, "show-diffs", diffIcon, locales.ChangesShowDiffs(), pal, func() {
+					a.openView(s, sideChanges, nil)
+					a.focusViewer()
+				})
 			}
 		})
 	})

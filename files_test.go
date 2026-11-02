@@ -14,6 +14,7 @@ import (
 
 	"kero/internal/git"
 	"kero/internal/proto"
+	"kero/locales"
 )
 
 // The right sidebar shows on the tab it showed last, from the button in
@@ -152,6 +153,280 @@ func TestFilesTab(t *testing.T) {
 	tt.Frame()
 	if _, ok := tt.Find("auth.go"); ok && len(fs.open) != 0 {
 		t.Error("Collapse Folders left internal unfolded")
+	}
+}
+
+// Close takes the viewer while it has the keyboard, as a click in the tree
+// gives it, not the pane beside it; else the pane, viewer or not.
+func TestCloseInViewer(t *testing.T) {
+	a := testApp(t)
+	s := &a.st.Sessions[0]
+	g := &proto.GitInfo{Root: "/tmp/demo", Branch: "main", Default: "main"}
+	s.Panes[0].Git, s.Panes[1].Git = g, g
+	s.Panes[0].Process, s.Panes[1].Process = "", ""
+	a.prefs.Side = sideFiles
+	a.side.files.dirs = map[string]*dirList{
+		filesKey(a.hostOf(s.ID), "/tmp/demo"): {entries: []proto.FSEntry{{Name: "main.go"}}},
+	}
+	panes := len(s.Panes)
+	tt := ui.NewTester(a.view, 1280, 720)
+	tt.Frame()
+	tt.Advance(time.Second)
+	tt.Frame()
+	open := func() *sideView {
+		t.Helper()
+		if err := tt.Click("main.go"); err != nil {
+			t.Fatal(err)
+		}
+		tt.Frame()
+		tt.Frame()
+		v := a.viewOf(s)
+		if v == nil || !a.side.focused {
+			t.Fatalf("a click on main.go left viewer %+v, focused %v", v, a.side.focused)
+		}
+		return v
+	}
+
+	// With edits it asks first, and pressing it again doesn't reach the pane.
+	fv := open().file
+	fv.fetched = time.Now()
+	showFileText(fv, "package main\n")
+	tt.Frame()
+	fv.st.Buffer.Edit(editor.Edit{Start: 0, End: 0, Text: "// Main.\n"})
+	tt.Frame()
+	a.run("pane.close", nil)
+	tt.Frame()
+	if a.viewOf(s) == nil || a.confirm == nil {
+		t.Fatal("Close with edits didn't ask to save them")
+	}
+	a.run("pane.close", nil)
+	tt.Frame()
+	if len(s.Panes) != panes {
+		t.Fatalf("Close behind the question closed a pane: %d of %d", len(s.Panes), panes)
+	}
+	if err := tt.Click("Don't Save"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	tt.Frame()
+	if a.viewOf(s) != nil || len(s.Panes) != panes {
+		t.Fatalf("Don't Save left viewer %+v, %d panes of %d", a.viewOf(s), len(s.Panes), panes)
+	}
+
+	// Without edits it closes at once, the keyboard back with the pane.
+	open()
+	a.run("pane.close", nil)
+	tt.Frame()
+	tt.Frame()
+	if a.viewOf(s) != nil || a.side.focused || len(s.Panes) != panes {
+		t.Fatalf("Close left viewer %+v, focused %v, %d panes of %d", a.viewOf(s), a.side.focused, len(s.Panes), panes)
+	}
+
+	// kero do means the pane, wherever the keyboard is.
+	v := open()
+	a.from = a.local()
+	a.run("pane.close", nil)
+	a.from = nil
+	tt.Frame()
+	if a.viewOf(s) != v || len(s.Panes) != panes-1 {
+		t.Fatalf("kero do left viewer %+v, %d panes of %d", a.viewOf(s), len(s.Panes), panes)
+	}
+
+	// With the keyboard out of the viewer, the pane closes and it stays.
+	s.Panes = append(s.Panes, proto.Pane{ID: "extra"})
+	s.Layout = s.Layout.Split(s.Panes[0].ID, "extra", "right", 0.5)
+	tt.Frame()
+	if err := tt.Click("Files"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	tt.Frame()
+	if a.side.focused {
+		t.Fatal("the viewer kept the keyboard")
+	}
+	a.run("pane.close", nil)
+	tt.Frame()
+	if a.viewOf(s) != v || len(s.Panes) != panes-1 {
+		t.Fatalf("Close in the pane left viewer %+v, %d panes of %d", a.viewOf(s), len(s.Panes), panes)
+	}
+}
+
+// Close in the diffs takes the viewer, as in a file, asking first to save
+// their edits.
+func TestCloseInChanges(t *testing.T) {
+	a := testApp(t)
+	s := &a.st.Sessions[0]
+	g := &proto.GitInfo{Root: "/tmp/demo", Branch: "main", Default: "main"}
+	s.Panes[0].Git, s.Panes[1].Git = g, g
+	s.Panes[0].Process, s.Panes[1].Process = "", ""
+	a.prefs.Side = sideChanges
+	ch := &a.side.changes
+	scope := changesScope(&s.Panes[0], git.BaseHead)
+	list := func() {
+		ch.base, ch.scope, ch.stamp = git.BaseHead, scope, gitStamp(g)
+		ch.res = &proto.GitChanges{Root: "/tmp/demo", Files: []proto.GitFile{{Path: "pkg/a.go", Status: "modified", Added: 1}}}
+		ch.fetched = time.Now()
+	}
+	list()
+	panes := len(s.Panes)
+	tt := ui.NewTester(a.view, 1280, 720)
+	tt.Frame()
+	tt.Advance(time.Second)
+	tt.Frame()
+
+	// A click on a changed file opens the diffs with the keyboard there.
+	list()
+	tt.Frame()
+	if err := tt.Click("a.go"); err != nil {
+		t.Fatalf("%v; texts %q", err, tt.Texts())
+	}
+	list()
+	tt.Frame()
+	tt.Frame()
+	if v := a.viewOf(s); v == nil || v.kind != sideChanges || !a.side.focused {
+		t.Fatalf("a click on a.go left viewer %+v, focused %v", v, a.side.focused)
+	}
+	sf := ch.files[scope+"|pkg/a.go"]
+	if sf == nil {
+		t.Fatal("no diff of pkg/a.go")
+	}
+	a.showText(sf, proto.GitText{Old: "package a\n", New: "package a\n\nvar x = 1\n", Hash: "h1"})
+	tt.Frame()
+
+	sf.d.New.Edit(editor.Edit{Start: 0, End: 0, Text: "// A.\n"})
+	tt.Frame()
+	a.run("pane.close", nil)
+	tt.Frame()
+	if a.viewOf(s) == nil || a.confirm == nil || len(s.Panes) != panes {
+		t.Fatalf("Close with edits left viewer %+v, confirm %+v, %d panes of %d", a.viewOf(s), a.confirm, len(s.Panes), panes)
+	}
+	if err := tt.Click("Don't Save"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	tt.Frame()
+	if a.viewOf(s) != nil || a.side.focused || len(s.Panes) != panes {
+		t.Fatalf("Don't Save left viewer %+v, focused %v, %d panes of %d", a.viewOf(s), a.side.focused, len(s.Panes), panes)
+	}
+}
+
+// The branch's chip in a pane's header opens the diffs with the keyboard
+// there too, for Close to take them rather than the pane.
+func TestCloseAfterBranchChip(t *testing.T) {
+	a := testApp(t)
+	s := &a.st.Sessions[0]
+	g := &proto.GitInfo{Root: "/tmp/demo", Branch: "main", Default: "main", Files: 1, Added: 2}
+	s.Panes[0].Git, s.Panes[1].Git = g, g
+	s.Panes[0].Process, s.Panes[1].Process = "", ""
+	a.prefs.Side = sideFiles
+	panes := len(s.Panes)
+	tt := ui.NewTester(a.view, 1280, 720)
+	tt.Frame()
+	tt.Advance(time.Second)
+	tt.Frame()
+	if err := tt.Click("+2"); err != nil {
+		t.Fatalf("%v; texts %q", err, tt.Texts())
+	}
+	tt.Frame()
+	tt.Frame()
+	if v := a.viewOf(s); v == nil || v.kind != sideChanges || !a.side.focused {
+		t.Fatalf("the chip left viewer %+v, focused %v", v, a.side.focused)
+	}
+	a.run("pane.close", nil)
+	tt.Frame()
+	if a.viewOf(s) != nil || len(s.Panes) != panes {
+		t.Fatalf("Close left viewer %+v, %d panes of %d", a.viewOf(s), len(s.Panes), panes)
+	}
+}
+
+// Toggle Changes gives the diffs the keyboard, for Close to take them, and
+// gives it back as it hides them; kero do leaves the keyboard where it is.
+func TestToggleChangesFocus(t *testing.T) {
+	a := testApp(t)
+	s := &a.st.Sessions[0]
+	g := &proto.GitInfo{Root: "/tmp/demo", Branch: "main", Default: "main"}
+	s.Panes[0].Git, s.Panes[1].Git = g, g
+	s.Panes[0].Process, s.Panes[1].Process = "", ""
+	a.prefs.Side = sideFiles
+	panes := len(s.Panes)
+	tt := ui.NewTester(a.view, 1280, 720)
+	tt.Frame()
+	tt.Advance(time.Second)
+	tt.Frame()
+
+	a.run("changes.toggle", nil)
+	tt.Frame()
+	tt.Frame()
+	if v := a.viewOf(s); v == nil || !a.side.focused {
+		t.Fatalf("Toggle Changes left viewer %+v, focused %v", v, a.side.focused)
+	}
+	a.run("pane.close", nil)
+	tt.Frame()
+	if a.viewOf(s) != nil || len(s.Panes) != panes {
+		t.Fatalf("Close left viewer %+v, %d panes of %d", a.viewOf(s), len(s.Panes), panes)
+	}
+
+	// Toggling it away gives the keyboard back.
+	a.prefs.Side = sideFiles
+	a.run("changes.toggle", nil)
+	tt.Frame()
+	tt.Frame()
+	a.run("changes.toggle", nil)
+	tt.Frame()
+	tt.Frame()
+	if a.viewOf(s) != nil || a.side.focused {
+		t.Fatalf("Toggle Changes again left viewer %+v, focused %v", a.viewOf(s), a.side.focused)
+	}
+
+	// In an app of its own: no terminal here takes the keyboard back above.
+	a = testApp(t)
+	s = &a.st.Sessions[0]
+	s.Panes[0].Git, s.Panes[1].Git = g, g
+	a.prefs.Side = sideFiles
+	tt = ui.NewTester(a.view, 1280, 720)
+	tt.Frame()
+	a.from = a.local()
+	a.run("changes.toggle", nil)
+	a.from = nil
+	tt.Frame()
+	tt.Frame()
+	if a.viewOf(s) == nil || a.side.focused {
+		t.Fatalf("kero do left viewer %+v, focused %v", a.viewOf(s), a.side.focused)
+	}
+}
+
+// With the viewer beside it, Close takes a browser pane once the user is in
+// its address bar, not the viewer they left. (A click in its page needs a
+// real web view, which no test's window has.)
+func TestCloseInBrowserBesideViewer(t *testing.T) {
+	a := testApp(t)
+	s := &a.st.Sessions[0]
+	s.Panes[1] = proto.Pane{ID: "b", Dir: "/tmp", URL: "http://localhost:5173", Status: proto.Idle, Progress: -1}
+	tt := ui.NewTester(a.view, 1280, 720)
+	tt.Frame()
+	tt.Frame()
+	fv := &fileView{pane: s.Panes[0].ID, path: "/tmp/a.go", rel: "a.go", fetched: time.Now()}
+	a.showFile(fv, []byte("package a\n"))
+	a.openView(s, sideFiles, fv)
+	a.focusViewer()
+	tt.Frame()
+	tt.Frame()
+	if !a.side.focused {
+		t.Fatal("the viewer didn't take the keyboard")
+	}
+	v := a.viewOf(s)
+	if err := tt.Click(locales.BrowserAddress()); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	tt.Frame()
+	if a.side.focused || a.focusOf(s) != "b" {
+		t.Fatalf("after the click: viewer focused %v, pane %q", a.side.focused, a.focusOf(s))
+	}
+	a.run("pane.close", nil)
+	tt.Frame()
+	if s.PaneByID("b") != nil || a.viewOf(s) != v {
+		t.Fatalf("Close left pane b %v, viewer %+v", s.PaneByID("b") != nil, a.viewOf(s))
 	}
 }
 

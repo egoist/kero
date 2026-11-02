@@ -140,6 +140,7 @@ func (a *App) changesTree(c *ui.Context, pal *palette, s *proto.Session, cf *cha
 		f := res.Files[it.file]
 		a.treeFile(c, pal, it, f, f.Path == cur, func() {
 			ch.picked = f.Path
+			a.focusViewer()
 			if cf.ls != nil {
 				cf.ls.ScrollTo(cf.heads[it.file], ui.Start)
 				return
