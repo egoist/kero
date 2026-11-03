@@ -48,6 +48,8 @@ func address(text string) (string, bool) {
 	switch {
 	case localHost(host):
 		return "http://" + text, true
+	case strings.HasPrefix(text, "[") && net.ParseIP(strings.Trim(host, "[]")) != nil:
+		return "https://" + text, true
 	case strings.Contains(host, ".") && !strings.HasPrefix(host, ".") && !strings.HasSuffix(host, "."):
 		return "https://" + text, true
 	}
