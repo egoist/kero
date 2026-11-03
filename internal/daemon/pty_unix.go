@@ -98,7 +98,10 @@ func (p *ptyProc) PID() int { return p.cmd.Process.Pid }
 func (p *ptyProc) ClearScreen() {}
 
 // Close hangs up the terminal: its processes get SIGHUP.
-func (p *ptyProc) Close() error { return p.master.Close() }
+func (p *ptyProc) Close() error {
+	p.hangup()
+	return p.master.Close()
+}
 
 // Kill kills the program's process group.
 func (p *ptyProc) Kill() {

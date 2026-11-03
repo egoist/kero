@@ -30,3 +30,7 @@ func openMaster() (*os.File, string, error) {
 func openSlave(name string) (*os.File, error) {
 	return os.OpenFile(name, os.O_RDWR|syscall.O_NOCTTY, 0)
 }
+
+// hangup does nothing: closing the master hangs the terminal up, which
+// sends its processes SIGHUP.
+func (p *ptyProc) hangup() {}

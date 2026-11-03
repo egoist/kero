@@ -58,3 +58,15 @@ func openBlocking(path string, flag int) (*os.File, error) {
 func openSlave(name string) (*os.File, error) {
 	return openBlocking(name, os.O_RDWR|syscall.O_NOCTTY)
 }
+
+// hangup sends the terminal's processes the SIGHUP that closing the
+// master sends them on Linux. Here the master is blocking, and it is only
+// really closed once pump's Read on it returns, which waits for them to
+// end: without the signal, closing a pane would SIGKILL them two seconds
+// later instead of hanging them up.
+func (p *ptyProc) hangup() {
+	if pg := p.Foreground(); pg > 0 {
+		syscall.Kill(-pg, syscall.SIGHUP)
+	}
+	syscall.Kill(-p.cmd.Process.Pid, syscall.SIGHUP)
+}
