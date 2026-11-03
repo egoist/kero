@@ -248,16 +248,14 @@ func (d *Daemon) stop() { d.quitOnce.Do(func() { close(d.quit) }) }
 // which sessions have on their PATH: the kero CLI, for agents to drive
 // other sessions.
 func (d *Daemon) linkCLI() {
+	if err := writeShellFiles(d.dir, d.binFirst()); err != nil {
+		d.log.Printf("writing the shells' startup files: %v", err)
+	}
 	if d.exe == "" {
 		return
 	}
 	if err := clilink.Link(d.exe, filepath.Join(d.dir, "bin")); err != nil {
 		d.log.Printf("linking the CLI: %v", err)
-	}
-	if bin := d.binFirst(); bin != "" {
-		if err := writeZshenv(bin); err != nil {
-			d.log.Printf("writing zsh's startup file: %v", err)
-		}
 	}
 }
 

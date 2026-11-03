@@ -72,6 +72,7 @@ func settingsIndex() []searchEntry {
 		{"notifications", locales.SetNotifyWaiting(), "notify-on-waiting attention blocked permission"},
 		{"notifications", locales.SetNotifyDone(), "notify-on-done done complete"},
 		{"notifications", locales.SetNotifyFailed(), "notify-on-error error"},
+		{"notifications", locales.SetNotifyLongCommand(), "notify-on-long-command notify-long-command-seconds command shell finished slow"},
 		{"notifications", locales.SetPlaySound(), "notify-sound audio"},
 		{"notifications", locales.SetDockBadge(), "dock-badge count"},
 		{"notifications", locales.SetDockBounce(), "dock-bounce attention"},
@@ -152,6 +153,10 @@ var actionWords = map[string]string{
 	"text.bigger":         "zoom in font size larger increase text",
 	"text.smaller":        "zoom out font size decrease text",
 	"text.reset":          "zoom reset font size default text",
+
+	"pane.prompt.previous": "jump command block scroll mark shell",
+	"pane.prompt.next":     "jump command block scroll mark shell",
+	"pane.copyOutput":      "command block result clipboard shell",
 }
 
 // pageWords find Settings' pages in the palette besides their titles.

@@ -35,6 +35,7 @@ var (
 	newFileIcon      = glyph("f7-doc-badge-plus")
 	newFolderIcon    = glyph("f7-folder-badge-plus")
 	plusIcon         = glyph("f7-plus")
+	failedIcon       = glyph("f7-xmark-circle-fill")
 	chevronIcon      = glyph("f7-chevron-right")
 	chevronUpIcon    = glyph("f7-chevron-up")
 	chevronDownIcon  = glyph("f7-chevron-down")

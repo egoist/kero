@@ -1072,6 +1072,16 @@ func (a *App) notificationsPage(c *ui.Context, pal *palette) {
 		settingRow(c, pal, locales.SetNotifyFailed(), locales.SetNotifyFailedDetail(), func() {
 			toggle(c.Key("nf"), &s.NotifyFailed, pal)
 		})
+		settingRow(c, pal, locales.SetNotifyLongCommand(), locales.SetNotifyLongCommandDetail(), func() {
+			seconds := []int{10, 30, 60, 300, 600}
+			if !slices.Contains(seconds, s.LongCommandSeconds) {
+				seconds = append(seconds, s.LongCommandSeconds)
+			}
+			popup(c, "nlcs", &s.LongCommandSeconds, seconds, func(n int) string {
+				return formatDuration(int64(n) * 1000)
+			}, 90, pal)
+			toggle(c.Key("nlc"), &s.NotifyLongCommand, pal)
+		})
 	})
 	settingsGroup(c, pal, locales.SetHow(), "", func() {
 		settingRow(c, pal, locales.SetPlaySound(), "", func() { toggle(c.Key("ns"), &s.NotifySound, pal) })

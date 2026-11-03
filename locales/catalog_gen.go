@@ -336,6 +336,36 @@ func (msgs Messages) ActionPaneBelow() string {
 	return Catalog.Format(msgs.locale, "actionPaneBelow", nil)
 }
 
+// ActionPreviousPrompt says "Previous Prompt"
+// in the language the app shows.
+func ActionPreviousPrompt() string { return In(i18n.Locale()).ActionPreviousPrompt() }
+
+// ActionPreviousPrompt says "Previous Prompt"
+// in the language of msgs.
+func (msgs Messages) ActionPreviousPrompt() string {
+	return Catalog.Format(msgs.locale, "actionPreviousPrompt", nil)
+}
+
+// ActionNextPrompt says "Next Prompt"
+// in the language the app shows.
+func ActionNextPrompt() string { return In(i18n.Locale()).ActionNextPrompt() }
+
+// ActionNextPrompt says "Next Prompt"
+// in the language of msgs.
+func (msgs Messages) ActionNextPrompt() string {
+	return Catalog.Format(msgs.locale, "actionNextPrompt", nil)
+}
+
+// ActionCopyOutput says "Copy Command Output"
+// in the language the app shows.
+func ActionCopyOutput() string { return In(i18n.Locale()).ActionCopyOutput() }
+
+// ActionCopyOutput says "Copy Command Output"
+// in the language of msgs.
+func (msgs Messages) ActionCopyOutput() string {
+	return Catalog.Format(msgs.locale, "actionCopyOutput", nil)
+}
+
 // ActionToggleSidebar says "Toggle Sidebar"
 // in the language the app shows.
 func ActionToggleSidebar() string { return In(i18n.Locale()).ActionToggleSidebar() }
@@ -716,6 +746,46 @@ func (msgs Messages) ToastCopiedToClipboard() string {
 	return Catalog.Format(msgs.locale, "toastCopiedToClipboard", nil)
 }
 
+// ToastOutputCopied says "Copied the output of the command"
+// in the language the app shows.
+func ToastOutputCopied() string { return In(i18n.Locale()).ToastOutputCopied() }
+
+// ToastOutputCopied says "Copied the output of the command"
+// in the language of msgs.
+func (msgs Messages) ToastOutputCopied() string {
+	return Catalog.Format(msgs.locale, "toastOutputCopied", nil)
+}
+
+// ToastOutputEmpty says "That command wrote no output"
+// in the language the app shows.
+func ToastOutputEmpty() string { return In(i18n.Locale()).ToastOutputEmpty() }
+
+// ToastOutputEmpty says "That command wrote no output"
+// in the language of msgs.
+func (msgs Messages) ToastOutputEmpty() string {
+	return Catalog.Format(msgs.locale, "toastOutputEmpty", nil)
+}
+
+// ToastNoCommands says "No commands to go by in this pane: its shell marks none"
+// in the language the app shows.
+func ToastNoCommands() string { return In(i18n.Locale()).ToastNoCommands() }
+
+// ToastNoCommands says "No commands to go by in this pane: its shell marks none"
+// in the language of msgs.
+func (msgs Messages) ToastNoCommands() string {
+	return Catalog.Format(msgs.locale, "toastNoCommands", nil)
+}
+
+// ToastCommandGone says "That command’s output is no longer in the scrollback"
+// in the language the app shows.
+func ToastCommandGone() string { return In(i18n.Locale()).ToastCommandGone() }
+
+// ToastCommandGone says "That command’s output is no longer in the scrollback"
+// in the language of msgs.
+func (msgs Messages) ToastCommandGone() string {
+	return Catalog.Format(msgs.locale, "toastCommandGone", nil)
+}
+
 // ToastSaveSettingsFailed says "Couldn’t save the settings: {error}"
 // in the language the app shows.
 func ToastSaveSettingsFailed(error string) string {
@@ -892,6 +962,50 @@ func NotifyDoneBody(agent string, dir string) string {
 // in the language of msgs.
 func (msgs Messages) NotifyDoneBody(agent string, dir string) string {
 	return Catalog.Format(msgs.locale, "notifyDoneBody", map[string]any{"agent": agent, "dir": dir})
+}
+
+// NotifyCommandDoneBody says "{command} finished after {duration}"
+// in the language the app shows.
+func NotifyCommandDoneBody(command string, duration string) string {
+	return In(i18n.Locale()).NotifyCommandDoneBody(command, duration)
+}
+
+// NotifyCommandDoneBody says "{command} finished after {duration}"
+// in the language of msgs.
+func (msgs Messages) NotifyCommandDoneBody(command string, duration string) string {
+	return Catalog.Format(msgs.locale, "notifyCommandDoneBody", map[string]any{"command": command, "duration": duration})
+}
+
+// NotifyCommandFailedBody says "{command} failed with exit code {code} after {duration}"
+// in the language the app shows.
+func NotifyCommandFailedBody(command string, code string, duration string) string {
+	return In(i18n.Locale()).NotifyCommandFailedBody(command, code, duration)
+}
+
+// NotifyCommandFailedBody says "{command} failed with exit code {code} after {duration}"
+// in the language of msgs.
+func (msgs Messages) NotifyCommandFailedBody(command string, code string, duration string) string {
+	return Catalog.Format(msgs.locale, "notifyCommandFailedBody", map[string]any{"command": command, "code": code, "duration": duration})
+}
+
+// NotifyCommandUnnamed says "A command"
+// in the language the app shows.
+func NotifyCommandUnnamed() string { return In(i18n.Locale()).NotifyCommandUnnamed() }
+
+// NotifyCommandUnnamed says "A command"
+// in the language of msgs.
+func (msgs Messages) NotifyCommandUnnamed() string {
+	return Catalog.Format(msgs.locale, "notifyCommandUnnamed", nil)
+}
+
+// BlockExit says "exit {code}"
+// in the language the app shows.
+func BlockExit(code string) string { return In(i18n.Locale()).BlockExit(code) }
+
+// BlockExit says "exit {code}"
+// in the language of msgs.
+func (msgs Messages) BlockExit(code string) string {
+	return Catalog.Format(msgs.locale, "blockExit", map[string]any{"code": code})
 }
 
 // OpenProjectTitle says "Open Project"
@@ -3332,6 +3446,26 @@ func SetNotifyFailedDetail() string { return In(i18n.Locale()).SetNotifyFailedDe
 // in the language of msgs.
 func (msgs Messages) SetNotifyFailedDetail() string {
 	return Catalog.Format(msgs.locale, "setNotifyFailedDetail", nil)
+}
+
+// SetNotifyLongCommand says "A long command finishes"
+// in the language the app shows.
+func SetNotifyLongCommand() string { return In(i18n.Locale()).SetNotifyLongCommand() }
+
+// SetNotifyLongCommand says "A long command finishes"
+// in the language of msgs.
+func (msgs Messages) SetNotifyLongCommand() string {
+	return Catalog.Format(msgs.locale, "setNotifyLongCommand", nil)
+}
+
+// SetNotifyLongCommandDetail says "A shell command that ran at least this long, while you look elsewhere."
+// in the language the app shows.
+func SetNotifyLongCommandDetail() string { return In(i18n.Locale()).SetNotifyLongCommandDetail() }
+
+// SetNotifyLongCommandDetail says "A shell command that ran at least this long, while you look elsewhere."
+// in the language of msgs.
+func (msgs Messages) SetNotifyLongCommandDetail() string {
+	return Catalog.Format(msgs.locale, "setNotifyLongCommandDetail", nil)
 }
 
 // SetHow says "How"

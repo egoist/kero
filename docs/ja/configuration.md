@@ -88,6 +88,7 @@ kero config check             # 不明なキーと不正な値を報告
 | `command`          |            | 新しいペインのシェル。空欄ならログインシェル                   |
 | `env`              |            | `NAME=value` として、すべてのペインの環境変数に追加する。繰り返して指定する |
 | `scrollback-limit` | `4`        | 各ペインが保持する出力（メガバイト単位）。`0` で保持しない     |
+| `shell-integration` | `true` | 新しいペインのシェルにプロンプトとコマンドをマークさせる。[コマンド](./panes.md#コマンド)で使う |
 
 ## 通知
 
@@ -96,6 +97,8 @@ kero config check             # 不明なキーと不正な値を報告
 | `notify-on-waiting` | `true`     | セッションが対応を求めたとき                   |
 | `notify-on-done`    | `true`     | エージェントが完了したとき                     |
 | `notify-on-error`   | `true`     | プログラムが失敗を報告したとき                 |
+| `notify-on-long-command` | `true` | 時間のかかったシェルのコマンドが、別の場所を見ている間に終わったとき |
+| `notify-long-command-seconds` | `30` | コマンドを長いとみなす時間（秒） |
 | `notify-sound`      | `false`    | 通知とともにサウンドを再生する                 |
 | `dock-badge`        | `true`     | 対応が必要なセッションの数を Dock アイコンに表示する |
 | `dock-bounce`       | `false`    | セッションが対応を求めたときに Dock アイコンを 1 回弾ませる |

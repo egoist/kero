@@ -255,6 +255,17 @@ func (d *Daemon) call(c *controlConn, method string, raw json.RawMessage) (any, 
 		}
 		return proto.ReadResult{Text: pn.readText(p.Scrollback, p.Lines)}, nil
 
+	case "pane.blocks":
+		var p proto.BlocksParams
+		if err := decode(&p); err != nil {
+			return nil, err
+		}
+		pn, err := findPane(p.ID)
+		if err != nil {
+			return nil, err
+		}
+		return pn.blocksFrom(p.Since), nil
+
 	case "view":
 		var p proto.ViewParams
 		if err := decode(&p); err != nil {
