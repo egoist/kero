@@ -35,6 +35,13 @@ func ConfigPath() string {
 	return filepath.Join(base, proto.Name(), "config")
 }
 
+// AgentsDir returns the directory of the user's agent manifests, *.toml,
+// beside the configuration file: the rules that tell what an agent is
+// doing from its screen (package detect).
+func AgentsDir() string {
+	return filepath.Join(filepath.Dir(ConfigPath()), "agents")
+}
+
 // key is a key of the configuration: how it reads and writes a setting.
 type key struct {
 	name string

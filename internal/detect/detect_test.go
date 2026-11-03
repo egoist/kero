@@ -1,8 +1,12 @@
 package detect
 
 import (
+	"maps"
 	"os"
+	"path/filepath"
+	"slices"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -77,5 +81,101 @@ func TestProgress(t *testing.T) {
 	}
 	if got := Detect("kiro-cli", Input{Progress: "4;0"}); got.State != Idle {
 		t.Errorf("progress 4;0: %s (rule %q), want idle", got.State, got.Rule)
+	}
+}
+
+// kero's manifests hold to what the user's must.
+func TestManifestsStrict(t *testing.T) {
+	entries, _ := manifestFS.ReadDir("manifests")
+	for _, e := range entries {
+		data, _ := manifestFS.ReadFile("manifests/" + e.Name())
+		if _, err := parse(data, true); err != nil {
+			t.Errorf("%s: %v", e.Name(), err)
+		}
+	}
+}
+
+func TestUserManifests(t *testing.T) {
+	dir := t.TempDir()
+	write := func(name, s string) {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(s), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// A new agent, its program of its name and another.
+	write("frog.toml", `
+id = "frog"
+executables = ["frog", "frog-cli"]
+
+[[rules]]
+id = "working"
+state = "working"
+priority = 100
+region = "bottom_non_empty_lines(3)"
+visible_working = true
+contains = ["hopping…"]
+
+[[rules]]
+id = "asking"
+state = "blocked"
+priority = 200
+visible_blocker = true
+line_regex = ['^Allow .+\? \[y/n\]$']
+`)
+	// kero's Copilot, by its daemon's name, replaced.
+	write("my-copilot.toml", `
+id = "copilot"
+executables = ["ghc"]
+
+[[rules]]
+id = "busy"
+state = "working"
+contains = ["thinking hard"]
+`)
+	write("bad-state.toml", "[[rules]]\nid = \"x\"\nstate = \"sleeping\"\n")
+	write("bad-region.toml", "[[rules]]\nid = \"x\"\nstate = \"idle\"\nregion = \"middle\"\n")
+	write("bad-key.toml", "[[rules]]\nid = \"x\"\nstate = \"idle\"\ncontain = [\"a\"]\n")
+	write("bad-regex.toml", "[[rules]]\nid = \"x\"\nstate = \"idle\"\nregex = [\"(\"]\n")
+	write("no-rules.toml", "id = \"empty\"\n")
+	write("twice.toml", "id = \"frog\"\n[[rules]]\nid = \"x\"\nstate = \"idle\"\n")
+	write("newer.toml", "min_engine_version = 9\n[[rules]]\nid = \"x\"\nstate = \"idle\"\n")
+
+	agents, problems := Check(dir)
+	if !slices.Equal(agents, []string{"copilot", "frog"}) {
+		t.Errorf("agents %v", agents)
+	}
+	if len(problems) != 7 {
+		t.Errorf("%d problems, want 7:\n%s", len(problems), strings.Join(problems, "\n"))
+	}
+	for _, p := range problems {
+		if !strings.HasPrefix(p, dir) {
+			t.Errorf("problem names no file: %s", p)
+		}
+	}
+
+	ms, exes, _ := readUser(dir)
+	if exes["frog-cli"] != "frog" || exes["ghc"] != "copilot" {
+		t.Errorf("executables %v", exes)
+	}
+	if ms["github-copilot"] == nil {
+		t.Error("copilot's manifest not replaced")
+	}
+	// What the engine reads of them.
+	loaded = map[string]*manifest{}
+	maps.Copy(loaded, ms)
+	defer func() { loadOnce = sync.Once{}; loaded = nil }()
+	loadOnce.Do(func() {})
+	for _, c := range []struct {
+		agent, screen string
+		want          State
+	}{
+		{"frog", "> fix it\nhopping…\n", Working},
+		{"frog", "Allow rm -rf build? [y/n]\n", Blocked},
+		{"frog", "> \n", Idle},
+		{"copilot", "thinking hard\n", Working},
+	} {
+		if got := Detect(c.agent, Input{Screen: c.screen}); got.State != c.want {
+			t.Errorf("%s %q: %s, want %s", c.agent, c.screen, got.State, c.want)
+		}
 	}
 }

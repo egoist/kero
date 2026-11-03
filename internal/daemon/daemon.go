@@ -30,6 +30,7 @@ import (
 	"kero/internal/build"
 	"kero/internal/clilink"
 	"kero/internal/detach"
+	"kero/internal/detect"
 	"kero/internal/proto"
 	"kero/internal/settings"
 	"kero/internal/shell"
@@ -110,6 +111,11 @@ func Run(opts Options) error {
 		logw = io.MultiWriter(logf, os.Stderr)
 	}
 	lg := log.New(logw, "", log.LstdFlags|log.Lmicroseconds)
+	// The user's agents, which a restart reads anew.
+	detect.UserDir = settings.AgentsDir()
+	for _, p := range detect.Problems() {
+		lg.Printf("agents: %s", p)
+	}
 	// What an update of the server build on Windows moved aside, which
 	// it could not remove as it ran (update.Replace).
 	if build.Server && runtime.GOOS == "windows" {
@@ -550,7 +556,8 @@ func expandHome(p string) string {
 }
 
 // agents are the coding agents the sidebar recognizes, by the name of
-// their executable or script.
+// their executable or script, besides those of the user's manifests
+// (detect.UserDir).
 var agents = []string{
 	"claude", "codex", "gemini", "opencode", "amp", "aider", "cursor-agent", "droid",
 	"qwen", "goose", "crush", "copilot", "kiro-cli", "cline", "auggie", "kimi", "pi",
@@ -566,6 +573,10 @@ func detectAgent(name string, args []string) string {
 	}
 	for _, c := range cands {
 		c = strings.ToLower(strings.TrimSuffix(c, filepath.Ext(c)))
+		// The user's, which may name a program as one of kero's.
+		if a := detect.Executable(c); a != "" {
+			return a
+		}
 		for _, a := range agents {
 			if c == a || strings.HasPrefix(c, a+"-") && a != "pi" {
 				return a
