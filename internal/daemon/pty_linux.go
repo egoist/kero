@@ -25,3 +25,12 @@ func openMaster() (*os.File, string, error) {
 	}
 	return master, "/dev/pts/" + strconv.Itoa(int(n)), nil
 }
+
+// openSlave opens the slave side the child's terminal runs on.
+func openSlave(name string) (*os.File, error) {
+	return os.OpenFile(name, os.O_RDWR|syscall.O_NOCTTY, 0)
+}
+
+// hangup does nothing: closing the master hangs the terminal up, which
+// sends its processes SIGHUP.
+func (p *ptyProc) hangup() {}
