@@ -194,6 +194,25 @@ kero diff review --branch                 # since the default branch
 
 See [Changes](./changes.md).
 
+## Ports
+
+`kero ports` lists the TCP ports listening on a machine, with the process and the pane behind each. The target's session's come first, by default the session it runs in. With `-H`, they are the host's, and `kero ports forward` brings one to this machine's loopback:
+
+```sh
+kero ports                                # the ports of this machine
+kero ports --all                          # with those of the system and apps
+kero ports review --json                  # the review session's first, every port, as JSON
+kero -H devbox ports                      # the ports of a host
+kero -H devbox ports forward 3000         # forward it here, and print its URL
+kero -H devbox ports forward 3000 --local 8000
+kero split --url "$(kero -H devbox ports forward 3000)"
+kero -H devbox ports stop 3000            # stop forwarding it
+```
+
+`forward` keeps the port's number when it's free here, and otherwise takes another and says so on stderr. A port you name with `--local` is never swapped: the command fails if it's taken. Without `-H`, there's nothing to forward: the command prints the port's URL. `kero ports stop` without `-H` stops the forward of that port from any host, when only one has it.
+
+A target after `forward` names a session the host must have. See [Forwarding ports](./remote.md#forwarding-ports).
+
 ## Configuration and setup
 
 ```sh

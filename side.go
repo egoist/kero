@@ -21,14 +21,16 @@ import (
 // The right sidebar stands at the window's right edge, on its wash as the
 // left sidebar does, with what the session's worktree is about, in tabs:
 // Changes, the files the session's agent or the user changed, in their
-// folders; Files, the worktree's tree (files.go). A file chosen in either
-// opens in the viewer, a card beside the panes: Changes' as the diffs of
-// them all, one after the other, scrolled to it; Files' as its text.
+// folders; Files, the worktree's tree (files.go); Ports, what listens on the
+// session's machine (ports.go). A file chosen in the first two opens in the
+// viewer, a card beside the panes: Changes' as the diffs of them all, one
+// after the other, scrolled to it; Files' as its text.
 
 // The sidebar's tabs, as prefs.Side holds them, and the viewer's kinds.
 const (
 	sideChanges = "changes"
 	sideFiles   = "files"
+	sidePorts   = "ports"
 )
 
 const (
@@ -55,6 +57,7 @@ type sideState struct {
 	focused bool    // the viewer has the keyboard: its Escape, its find
 	changes changesState
 	files   filesState
+	ports   portsState
 	// views are what the viewer shows, by session; backup what the app
 	// keeps of them and of their edits not saved as it quits (backup.go).
 	views  map[string]*sideView
@@ -140,7 +143,7 @@ func (a *App) sideTab() string {
 	if tab == "" {
 		tab = a.prefs.SideTab
 	}
-	if tab != sideFiles {
+	if tab != sideFiles && tab != sidePorts {
 		tab = sideChanges
 	}
 	return tab
@@ -256,6 +259,16 @@ func (a *App) rightWidth() float32 {
 	if w := a.prefs.RightWidth; w != 0 {
 		return w
 	}
+	return defaultRight(ownControls)
+}
+
+// defaultRight is the sidebar's width until it is dragged. Where the window
+// controls take the top of it, it is wider by them, which leaves its tabs the
+// room they have elsewhere and keeps their labels.
+func defaultRight(controls bool) float32 {
+	if controls {
+		return defaultSidebar + controlsW + 8
+	}
 	return defaultSidebar
 }
 
@@ -295,26 +308,76 @@ func (a *App) rightSidebar(c *ui.Context, pal *palette, s *proto.Session) {
 	ui.Row(c.Key("right-bar")).Height(topBar).Shrink(0).AlignItems(ui.Stretch).DragWindow().Children(func() {
 		ui.Row(c.Key("shown")).Width(shown).Shrink(0).AlignItems(ui.Stretch).ClipX().Children(func() {
 			ui.Row(c.Key("tabs")).Width(w).Shrink(0).AlignItems(ui.Center).Padding(0, 0, 0, 10).Gap(2).Children(func() {
-				a.tabButton(c, pal, sideChanges, locales.SideChanges(), tab)
-				a.tabButton(c, pal, sideFiles, locales.SideFiles(), tab)
+				tabs := []sideTabInfo{
+					{sideChanges, locales.SideChanges(), diffIcon},
+					{sideFiles, locales.SideFiles(), folderIcon},
+					{sidePorts, locales.SidePorts(), portsIcon},
+				}
+				var widths []float32
+				for _, t := range tabs {
+					lw, _ := c.MeasureText(0, ui.Span{Text: t.label, Size: tabFont, Weight: tabWeight})
+					widths = append(widths, lw)
+				}
+				// Icons alone where the labels leave no room for the button.
+				compact := !tabsFit(widths, w)
+				for _, t := range tabs {
+					a.tabButton(c, pal, t, tab, compact)
+				}
 				ui.Spacer(c)
 				iconButton(c, "hide-right", sidebarRightIcon, a.tip(locales.RightSidebarHide(), "rightSidebar.toggle"), pal, a.toggleRight)
 			})
 		})
 	})
 	ui.Column(c.Key("tab-" + tab)).Grow(1).MinHeight(0).AlignItems(ui.Stretch).Children(func() {
-		if tab == sideFiles {
+		switch tab {
+		case sideFiles:
 			a.filesSide(c, pal, s)
-		} else {
+		case sidePorts:
+			a.portsSide(c, pal, s)
+		default:
 			a.changesSide(c, pal, s)
 		}
 	})
 }
 
+// sideTabInfo is a tab of the sidebar, as its button shows it.
+type sideTabInfo struct {
+	id, label string
+	icon      *ui.SVG
+}
+
+// The tabs' looks, and what a row of them takes besides their labels.
+const (
+	tabFont     = 13
+	tabWeight   = 500
+	tabPad      = 10 // on each side of a label
+	tabGap      = 2
+	tabBarLeft  = 10
+	tabBarRight = 28 // the button that hides the sidebar
+)
+
+// tabsFit tells that tabs with labels this wide fit a bar this wide, beside
+// its button: in a sidebar dragged narrow, or a window with more tabs than
+// room, they show as icons.
+func tabsFit(widths []float32, bar float32) bool {
+	total := float32(tabBarLeft + tabBarRight)
+	for i, w := range widths {
+		total += w + 2*tabPad
+		if i > 0 {
+			total += tabGap
+		}
+	}
+	return total <= bar
+}
+
 // tabButton is a tab of the sidebar, its own chosen as a session's row is,
-// in the same weight as the others.
-func (a *App) tabButton(c *ui.Context, pal *palette, id, label, tab string) {
-	b := ui.ButtonBase(c.Key("tab-"+id)).Height(26).Padding(0, 10).Radius(7).Center().Label(label)
+// in the same weight as the others; compact, its icon, its label a tooltip.
+func (a *App) tabButton(c *ui.Context, pal *palette, t sideTabInfo, tab string, compact bool) {
+	id, label := t.id, t.label
+	b := ui.ButtonBase(c.Key("tab-"+id)).Height(26).Padding(0, tabPad).Radius(7).Center().Label(label)
+	if compact {
+		b.Padding(0, 7).Tooltip(label)
+	}
 	if pal.dark {
 		// Room for the chosen tab's edge in every tab.
 		b.Border(1, ui.Transparent)
@@ -329,7 +392,11 @@ func (a *App) tabButton(c *ui.Context, pal *palette, id, label, tab string) {
 	}
 	b.Background(b.AnimateColor("bg", bg, ui.Animation{Duration: 110 * time.Millisecond}))
 	b.Children(func() {
-		ui.Text(c, label).FontSize(13).FontWeight(500).TextColor(fg).SingleLine()
+		if compact {
+			ui.Icon(c, t.icon).Size(15, 15).TextColor(fg)
+			return
+		}
+		ui.Text(c, label).FontSize(tabFont).FontWeight(tabWeight).TextColor(fg).SingleLine()
 	})
 	if b.Clicked() {
 		a.showTab(id)

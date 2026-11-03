@@ -395,7 +395,12 @@ func clientsCmd(c *client.Client, args []string) error {
 	w := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
 	fmt.Fprintln(w, "KIND\tPEER\tVIA\tSINCE\tCLIENT\tSESSION")
 	for _, ci := range list {
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n", ci.Kind, ci.Peer, ci.Via, proto.Ago(ci.Since, now), orDash(ci.Client), orDash(ci.Session))
+		// What a connection is of: an attach's session, a tunnel's port.
+		of := ci.Session
+		if ci.Port != 0 {
+			of = fmt.Sprintf("port %d", ci.Port)
+		}
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n", ci.Kind, ci.Peer, ci.Via, proto.Ago(ci.Since, now), orDash(ci.Client), orDash(of))
 	}
 	return w.Flush()
 }

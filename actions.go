@@ -111,6 +111,8 @@ func (a *App) run(id string, args map[string]string) {
 		a.toggleSide(sideChanges)
 	case "files.toggle":
 		a.toggleSide(sideFiles)
+	case "ports.toggle":
+		a.toggleSide(sidePorts)
 	case "rightSidebar.toggle":
 		a.toggleRight()
 	case "text.bigger":
@@ -180,6 +182,7 @@ var actionTitles = map[string]func() string{
 	"sidebar.toggle":      locales.ActionToggleSidebar,
 	"changes.toggle":      locales.ActionToggleChanges,
 	"files.toggle":        locales.ActionToggleFiles,
+	"ports.toggle":        locales.ActionTogglePorts,
 	"rightSidebar.toggle": locales.ActionToggleRightSidebar,
 	"text.bigger":         locales.ActionBigger,
 	"text.smaller":        locales.ActionSmaller,
@@ -235,7 +238,7 @@ func (a *App) menu() *mygo.Menu {
 			{Label: locales.MenuQuit(), Accelerator: quitKeys, ToolTip: locales.MenuQuitTip(), Click: func(*mygo.MenuItem, *mygo.Window) { mygo.App.Quit() }},
 			a.item("app.quitAll")}}
 	}
-	view := append(a.items("View", []string{"sidebar.toggle", "rightSidebar.toggle", "changes.toggle", "files.toggle"}, []string{"text.bigger", "text.smaller", "text.reset"}, []string{quickAction}),
+	view := append(a.items("View", []string{"sidebar.toggle", "rightSidebar.toggle", "changes.toggle", "files.toggle", "ports.toggle"}, []string{"text.bigger", "text.smaller", "text.reset"}, []string{quickAction}),
 		mygo.Separator(), &mygo.MenuItem{Role: mygo.RoleToggleFullScreen}, &mygo.MenuItem{Role: mygo.RoleToggleDevTools})
 	return mygo.NewMenu([]*mygo.MenuItem{
 		kero,
@@ -320,7 +323,7 @@ func (a *App) fromMay(id string, args map[string]string) bool {
 	case id == "session.new" || id == "session.newHome":
 		p := args["project"]
 		return p == "" || a.hostOf(p) == h
-	case strings.HasPrefix(id, "pane.") || id == "changes.toggle" || id == "files.toggle" || id == "rightSidebar.toggle":
+	case strings.HasPrefix(id, "pane.") || id == "changes.toggle" || id == "files.toggle" || id == "ports.toggle" || id == "rightSidebar.toggle":
 		return a.session(a.selected) != nil && a.selectedHost() == h
 	case id == quickAction:
 		return false // this machine's screen is no other's to drop on

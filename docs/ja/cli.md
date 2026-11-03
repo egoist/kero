@@ -189,6 +189,25 @@ kero diff review --branch                 # デフォルトブランチ以降
 
 [変更](./changes.md)を参照してください。
 
+## ポート
+
+`kero ports` は、マシンで待ち受けている TCP ポートを、それぞれのプロセスとペインとともに一覧します。対象のセッションのものが先頭に並びます。デフォルトはコマンドを実行したセッションです。`-H` を付けるとそのホストのポートを一覧し、`kero ports forward` でそのひとつをこのマシンのループバックに転送できます:
+
+```sh
+kero ports                                # このマシンのポート
+kero ports --all                          # システムとアプリのものも含める
+kero ports review --json                  # review セッションのものを先頭に、すべてのポートを JSON で
+kero -H devbox ports                      # ホストのポート
+kero -H devbox ports forward 3000         # ここへ転送して URL を表示
+kero -H devbox ports forward 3000 --local 8000
+kero split --url "$(kero -H devbox ports forward 3000)"
+kero -H devbox ports stop 3000            # 転送を停止
+```
+
+`forward` は、ここで空いていれば同じポート番号を使い、空いていなければ別の番号を選んで stderr で知らせます。`--local` で指定したポートが置き換えられることはなく、使用中ならコマンドは失敗します。`-H` なしでは転送するものがないので、ポートの URL を表示するだけです。`-H` なしの `kero ports stop` は、そのポートを転送しているホストがひとつだけなら、その転送を停止します。
+
+`forward` の後の対象は、ホストにあるはずのセッションを指定します。[ポートの転送](./remote.md#ポートの転送)を参照してください。
+
 ## 構成とセットアップ
 
 ```sh

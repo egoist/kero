@@ -624,6 +624,29 @@ func (d *Daemon) call(c *controlConn, method string, raw json.RawMessage) (any, 
 		}
 		return pasteFile(p)
 
+	case "ports.list":
+		return d.portList()
+
+	case "ports.forward":
+		var p proto.PortForwardParams
+		if err := decode(&p); err != nil {
+			return nil, err
+		}
+		if !c.here {
+			return nil, errForwardsHere
+		}
+		return d.fwd.start(c, p)
+
+	case "ports.stop":
+		var p proto.PortStopParams
+		if err := decode(&p); err != nil {
+			return nil, err
+		}
+		if !c.here {
+			return nil, errForwardsHere
+		}
+		return d.fwd.stop(p)
+
 	case "host.info":
 		return remote.LocalInfo(""), nil
 

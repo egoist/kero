@@ -92,7 +92,7 @@ type HostReply struct {
 
 // ClientInfo is a client connected to kerod, as `kero clients` lists it.
 type ClientInfo struct {
-	Kind  string `json:"kind"` // control, attach
+	Kind  string `json:"kind"` // control, attach, port
 	Peer  string `json:"peer"` // who: "uid 501", "alice@example.com"
 	Via   string `json:"via"`  // unix, ssh, wsl, tailnet, tailscale-serve
 	Since int64  `json:"since"`
@@ -100,6 +100,8 @@ type ClientInfo struct {
 	Client string `json:"client,omitempty"`
 	// Session is the session an attach connection shows.
 	Session string `json:"session,omitempty"`
+	// Port is the port of this machine a port connection reaches.
+	Port int `json:"port,omitempty"`
 }
 
 // Params and results of the methods for remote clients, which see the

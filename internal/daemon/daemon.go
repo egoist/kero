@@ -72,6 +72,7 @@ type Daemon struct {
 	git      *gitFollow
 	convs    convStore
 	net      *listeners
+	fwd      *forwards
 	changeCh chan struct{}
 	saveCh   chan struct{}
 	quit     chan struct{}
@@ -156,6 +157,7 @@ func Run(opts Options) error {
 		idleAt:   time.Now(),
 	}
 	d.git = newGitFollow(d)
+	d.fwd = newForwards(d)
 	empty := ""
 	d.viewed.Store(&empty)
 	lg.Printf("kerod %d started (Kero %s, pid %d, %s)", proto.Version, build.Version(), os.Getpid(), exe)
@@ -203,6 +205,7 @@ func Run(opts Options) error {
 	<-d.quit
 	ln.Close()
 	d.net.close()
+	d.fwd.close()
 	if d.restarting {
 		d.successor()
 	}
@@ -324,8 +327,9 @@ func (d *Daemon) tickLoop() {
 		for _, p := range d.panes {
 			panes = append(panes, p)
 		}
-		// A server, or a kerod others reach over the network, stays.
-		idle := len(d.sessions) == 0 && d.conns == 0 && !d.opts.Serve && !d.net.active()
+		// A server, a kerod others reach over the network, or one that
+		// forwards ports, stays.
+		idle := len(d.sessions) == 0 && d.conns == 0 && !d.opts.Serve && !d.net.active() && !d.fwd.active()
 		if !idle {
 			d.idleAt = now
 		}
@@ -596,6 +600,9 @@ type controlConn struct {
 	enc  *json.Encoder
 	out  chan proto.Message
 	done chan struct{}
+	// here tells a client of this machine, through the socket and not
+	// through a bridge or a listener: its forwards listen beside it.
+	here bool
 }
 
 func (c *controlConn) write(m proto.Message) {
@@ -684,10 +691,13 @@ func (d *Daemon) serveHello(conn net.Conn, r *bufio.Reader, line []byte, id iden
 		return
 	}
 	info := &proto.ClientInfo{Kind: hello.Kind, Peer: id.peer, Via: id.via, Client: id.client, Since: time.Now().UnixMilli()}
-	if info.Kind != "attach" {
-		info.Kind = "control"
-	} else {
+	switch info.Kind {
+	case "attach":
 		info.Session = hello.Session
+	case proto.KindPort:
+		info.Port = hello.Port
+	default:
+		info.Kind = "control"
 	}
 	d.mu.Lock()
 	d.clients[info] = struct{}{}
@@ -700,9 +710,11 @@ func (d *Daemon) serveHello(conn net.Conn, r *bufio.Reader, line []byte, id iden
 	switch hello.Kind {
 	case "attach":
 		d.serveAttach(conn, r, hello, welcome)
+	case proto.KindPort:
+		d.servePort(conn, r, hello, welcome)
 	default:
 		json.NewEncoder(conn).Encode(welcome)
-		d.serveControl(conn, r)
+		d.serveControl(conn, r, id.via == "unix")
 	}
 }
 
@@ -780,8 +792,11 @@ func typed(input []byte) bool {
 	return s != "\x1b[I" && s != "\x1b[O"
 }
 
-func (d *Daemon) serveControl(conn net.Conn, r *bufio.Reader) {
-	c := &controlConn{conn: conn, enc: json.NewEncoder(conn), out: make(chan proto.Message, 64), done: make(chan struct{})}
+func (d *Daemon) serveControl(conn net.Conn, r *bufio.Reader, here bool) {
+	c := &controlConn{conn: conn, enc: json.NewEncoder(conn), out: make(chan proto.Message, 64), done: make(chan struct{}), here: here}
+	// After done closes: a forward starting as this connection ends sees
+	// that it did (forwards.start), or is there for this to end.
+	defer d.fwd.ownerGone(c)
 	defer close(c.done)
 	defer func() {
 		d.mu.Lock()

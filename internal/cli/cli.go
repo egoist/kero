@@ -111,6 +111,16 @@ Usage:
                                   selector
       --domain <domain>           cookies of a site and its subdomains
       -t, --timeout <dur>         how long to wait (default 10s)
+  kero ports [target] [--json]  list the TCP ports listening on the machine,
+                                the target's session's first (default: this
+                                session's); what the system and apps listen
+                                on only with -a, --all
+  kero ports forward <port> [--local <port>] [target]
+                                forward a port of the host -H names to this
+                                machine's loopback, printing its URL: on the
+                                same port if it's free, else another; it ends
+                                with kero ports stop, or with the connection
+  kero ports stop <port>        stop forwarding a port
   kero history [query] [-p project] [-n count] [--json]
                                 the agents' conversations panes ran, the
                                 last to run first, to resume
@@ -172,7 +182,7 @@ ambiguous one), 4 kerod unreachable.
 // Commands lists the subcommands, which main sends here.
 var Commands = []string{"ls", "list", "new", "split", "send", "key", "prompt", "read", "capture", "wait", "events", "status", "diff",
 	"history", "resume", "rename", "focus", "close", "kill", "restart", "notify", "report", "projects", "skill", "hook", "daemon", "do", "actions", "config",
-	"browser", "hosts", "clients", "__bridge", "-H", "--host", "help", "--help", "-h", "version", "--version"}
+	"browser", "ports", "hosts", "clients", "__bridge", "-H", "--host", "help", "--help", "-h", "version", "--version"}
 
 // IsCommand reports whether an argument starts a command of the CLI, as
 // main tells them from the app's.
@@ -311,6 +321,8 @@ func run(args []string, host string) error {
 		return hookCmd(args)
 	case "config":
 		return configCmd(args)
+	case "ports":
+		return portsCmd(args, host)
 	}
 	if cmd == "ls" || cmd == "list" {
 		f, err := parse(args, nil, map[string]string{"json": "json", "j": "json", "all": "all", "a": "all"})

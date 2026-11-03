@@ -57,6 +57,7 @@ var (
 	revertIcon       = glyph("f7-arrow-uturn-left")
 	openFileIcon     = glyph("f7-arrow-up-right-square")
 	globeIcon        = glyph("f7-globe")
+	portsIcon        = glyph("f7-antenna-radiowaves-left-right")
 	chevronLeftIcon  = glyph("f7-chevron-left")
 	reloadIcon       = glyph("f7-arrow-clockwise")
 	copyIcon         = glyph("f7-doc-on-doc")
