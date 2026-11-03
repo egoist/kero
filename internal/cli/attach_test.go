@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"fmt"
 	"slices"
 	"strings"
 	"sync/atomic"
@@ -344,5 +345,26 @@ func TestFrameFilterRefusesClipboardReads(t *testing.T) {
 	f.feed([]byte("\x1b]52;c"))
 	if out, _ := f.feed([]byte(";?\x1b\\")); len(out) != 0 || len(f.takeRefused()) != 1 {
 		t.Errorf("in pieces: wrote %q", out)
+	}
+}
+
+// The marks of a shell's prompt a mirror draws rows with don't end its dump of
+// the scrollback, nor reach the outer terminal.
+func TestPromptMarksStayInADump(t *testing.T) {
+	var raw bytes.Buffer
+	raw.WriteString("\x1b[?1049l\x1b[0m\x1b[H\x1b[2J\x1b[3J\x1b]133;C\a")
+	for i := range 1000 {
+		fmt.Fprintf(&raw, "\x1b]133;A\a\x1b[0m\x1b[2Khistory %d\x1b[K\x1b]133;D\a\r\n", i)
+	}
+	f := frameFilter{rows: 10}
+	out, _ := f.feed(raw.Bytes())
+	if len(out) > raw.Len()/20 {
+		t.Errorf("sent %d bytes of a frame of %d", len(out), raw.Len())
+	}
+	if bytes.Contains(out, []byte("133;")) {
+		t.Errorf("a prompt's mark went on: %q", out)
+	}
+	if bytes.Contains(out, []byte("history 5\x1b")) {
+		t.Errorf("the scrollback went on: %q", out)
 	}
 }

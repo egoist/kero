@@ -294,6 +294,10 @@ func (f *frameFilter) osc(tok []byte) {
 			f.out.Write(tok)
 		}
 		return
+	case "133":
+		// A shell's prompts, by the row: for a terminal of Kero's, to click
+		// in them. They go, and a start's rows go on past them.
+		return
 	case "52":
 		f.endDump()
 		if sel, read := clipboardRead(body); read {
