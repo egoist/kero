@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -209,7 +210,12 @@ func TestPortListOfThisMachine(t *testing.T) {
 func TestDialRefusesOtherThanLoopback(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	for _, addr := range []string{"192.0.2.1:80", "10.0.0.1:22", "8.8.8.8:53", "[2001:db8::1]:80", "169.254.169.254:80", "0.0.0.0:80"} {
+	addrs := []string{"192.0.2.1:80", "10.0.0.1:22", "8.8.8.8:53", "[2001:db8::1]:80", "169.254.169.254:80"}
+	if runtime.GOOS != "windows" {
+		// On Windows, Go dials the unspecified address as the loopback.
+		addrs = append(addrs, "0.0.0.0:80")
+	}
+	for _, addr := range addrs {
 		_, err := loopbackDialer.DialContext(ctx, "tcp", addr)
 		if err == nil || !strings.Contains(err.Error(), "refused: ") {
 			t.Errorf("%s: %v", addr, err)
