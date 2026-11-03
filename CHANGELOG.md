@@ -1,5 +1,20 @@
 # Changelog
 
+## 2.1.32
+
+- <kbd>⌘</kbd> <kbd>W</kbd> with the keyboard in the viewer closes the
+  viewer, asking first to save its edits, instead of the pane beside it.
+  Opening a file, a diff or the branch's changes gives the viewer the
+  keyboard.
+- `kero ls --all` lists this machine's sessions and each host's, under
+  the names `-H` takes, and says why a host is out of reach.
+- Kero keeps its agent skill and the Pi and OpenCode plugins current as
+  it starts.
+- On Windows, Codex's hook runs from every shell, including a Kero
+  installed under a path with spaces. Thanks @f1sherb0y
+- Filter list rules with `$~document` block every other kind of request
+  instead of none. Thanks @kevin9327
+
 ## 2.1.31
 
 - The terminal's scroll bar looks as the lists' and the viewer's do: as
