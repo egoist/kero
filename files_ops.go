@@ -256,9 +256,16 @@ func (a *App) deleteEntry(h *host, it fileItem) {
 	}()
 }
 
-// entryMenu is a row's menu: a new file or folder in its folder, the
+// entryMenu is a row's menu: opening it in the app the system opens it
+// with, for one of this machine, a new file or folder in its folder, the
 // folder's own for a folder, and the row's rename and delete.
 func (a *App) entryMenu(m *ui.Menu, s *proto.Session, pane string, it fileItem) {
+	if !a.hostOf(pane).remote() {
+		if m.Item(locales.FilesOpenDefault()).Chosen() {
+			openPath(it.path)
+		}
+		m.Separator()
+	}
 	dir, rel := it.parent, it.parentRel
 	if it.Dir {
 		dir, rel = it.path, it.rel

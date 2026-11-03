@@ -3918,6 +3918,16 @@ func (msgs Messages) FilesGone() string {
 	return Catalog.Format(msgs.locale, "filesGone", nil)
 }
 
+// FilesOpenDefault says "Open in Default App"
+// in the language the app shows.
+func FilesOpenDefault() string { return In(i18n.Locale()).FilesOpenDefault() }
+
+// FilesOpenDefault says "Open in Default App"
+// in the language of msgs.
+func (msgs Messages) FilesOpenDefault() string {
+	return Catalog.Format(msgs.locale, "filesOpenDefault", nil)
+}
+
 // FilesNewFile says "New File…"
 // in the language the app shows.
 func FilesNewFile() string { return In(i18n.Locale()).FilesNewFile() }
