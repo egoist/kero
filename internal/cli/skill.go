@@ -194,7 +194,7 @@ func skillCmd(args []string) error {
 		}
 		return nil
 	}
-	return usageErr("kero skill setup|show|status|remove [--agent claude|codex|pi|opencode|agents] [--dry-run]")
+	return usageErr("kero skill setup|show|status|remove [--agent claude|codex|pi|omp|opencode|agents] [--dry-run]")
 }
 
 func sortedKeys(m map[string]string) []string {
@@ -285,11 +285,11 @@ func SyncSkill() {
 // from a development build or one of another $KERO_HOME.
 var adoptCopies = func() bool { return proto.Name() == "kero" && os.Getenv("KERO_HOME") == "" }
 
-// hooksFor returns the hooks that go with an --agent: Codex's, Pi's and
-// OpenCode's with the skill they share.
+// hooksFor returns the hooks that go with an --agent: Codex's, Pi's, OMP's
+// and OpenCode's with the skill they share.
 func hooksFor(agent string) []integration {
 	switch agent {
-	case "", "claude", "codex", "pi", "opencode", "agents":
+	case "", "claude", "codex", "pi", "omp", "opencode", "agents":
 		return agentHooks(agent)
 	}
 	return nil
@@ -311,7 +311,7 @@ func skillDirs(agent string) map[string]string {
 		if d, ok := all[agent]; ok {
 			return map[string]string{agent: d}
 		}
-		if agent == "codex" || agent == "opencode" || agent == "pi" {
+		if agent == "codex" || agent == "opencode" || agent == "pi" || agent == "omp" {
 			return map[string]string{"agents": all["agents"]}
 		}
 	}

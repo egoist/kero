@@ -224,6 +224,8 @@ func resumeCommand(a *proto.AgentSession) []string {
 		return []string{"codex", "resume", a.ID}
 	case "pi", "opencode":
 		return []string{a.Agent, "--session", a.ID}
+	case "omp":
+		return []string{"omp", "--session", a.ID}
 	}
 	return nil
 }

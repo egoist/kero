@@ -56,7 +56,7 @@ Sessions run in **kerod**, a daemon that the app starts on demand. Kero is a win
 - Quitting Kero leaves every session running.
 - Opening Kero again shows every session as it was, scrollback included.
 - After kerod itself restarts, such as after a reboot, Kero starts your sessions again in their directories. Turn this off with `restore-sessions = false`.
-- A pane that was running Claude Code, Codex, Pi or OpenCode resumes its conversation, as the agent's own resume option would, once [Kero's skill](./agents.md#install-the-skill) is set up for that agent. Other programs don't start again unasked: their pane comes back at a shell. Turn this off with `resume-agents = false`.
+- A pane that was running Claude Code, Codex, Pi, OMP or OpenCode resumes its conversation, as the agent's own resume option would, once [Kero's skill](./agents.md#install-the-skill) is set up for that agent. Other programs don't start again unasked: their pane comes back at a shell. Turn this off with `resume-agents = false`.
 
 ```sh
 kero daemon status       # is kerod running?
@@ -66,7 +66,7 @@ kero daemon stop         # stop it and end every session
 
 ## Past conversations
 
-Kero remembers the conversations of Claude Code, Codex, Pi and OpenCode that ran in its panes, once [Kero's skill](./agents.md#install-the-skill) is set up for the agent, so you can pick one up after its session is closed.
+Kero remembers the conversations of Claude Code, Codex, Pi, OMP and OpenCode that ran in its panes, once [Kero's skill](./agents.md#install-the-skill) is set up for the agent, so you can pick one up after its session is closed.
 
 - <kbd>⌘</kbd> <kbd>P</kbd> lists the last few under **Recent Conversations**, and finds older ones as you type.
 - **Session › Resume Conversation…** (<kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>O</kbd>) lists them all.

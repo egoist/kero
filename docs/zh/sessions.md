@@ -57,7 +57,7 @@ kero new -p my-app       # 按名称在某个项目中新建会话
 - 退出 Kero 后，所有会话仍在运行。
 - 再次打开 Kero，所有会话都保持原样，回滚缓冲也在。
 - kerod 自身重启之后（比如重启电脑后），Kero 会在原来的目录中重新启动你的会话。设置 `restore-sessions = false` 可以关闭这一行为。
-- 为某个智能体设置好 [Kero 的技能](./agents.md#install-the-skill)后，原先运行 Claude Code、Codex、Pi 或 OpenCode 的窗格会接着之前的对话继续，效果与智能体自带的恢复选项相同。其他程序不会擅自重新启动：它们的窗格会回到 shell。设置 `resume-agents = false` 可以关闭这一行为。
+- 为某个智能体设置好 [Kero 的技能](./agents.md#install-the-skill)后，原先运行 Claude Code、Codex、Pi、OMP 或 OpenCode 的窗格会接着之前的对话继续，效果与智能体自带的恢复选项相同。其他程序不会擅自重新启动：它们的窗格会回到 shell。设置 `resume-agents = false` 可以关闭这一行为。
 
 ```sh
 kero daemon status       # kerod 是否在运行？
@@ -69,7 +69,7 @@ kero daemon stop         # 停止它，并结束所有会话
 
 ## 过去的对话
 
-为智能体设置好 [Kero 的技能](./agents.md#install-the-skill)后，Kero 会记住在它的窗格中运行过的 Claude Code、Codex、Pi 和 OpenCode 对话，这样即使会话已经关闭，你也能接着继续。
+为智能体设置好 [Kero 的技能](./agents.md#install-the-skill)后，Kero 会记住在它的窗格中运行过的 Claude Code、Codex、Pi、OMP 和 OpenCode 对话，这样即使会话已经关闭，你也能接着继续。
 
 - <kbd>⌘</kbd> <kbd>P</kbd> 在**最近的对话**下列出最近几个，输入时也能找到更早的。
 - **会话 › 恢复对话…**（<kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>O</kbd>）列出全部。

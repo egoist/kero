@@ -392,7 +392,8 @@ func (p agentPlugin) path() string {
 // it runs.
 func (p agentPlugin) content(asset string) []byte {
 	b, _ := agentAssets.ReadFile(asset)
-	return bytes.ReplaceAll(b, []byte("__KERO__"), marshal(kero()))
+	b = bytes.ReplaceAll(b, []byte("__KERO__"), marshal(kero()))
+	return bytes.ReplaceAll(b, []byte("__AGENT__"), marshal(p.agent))
 }
 
 func (p agentPlugin) state() string {
@@ -453,8 +454,8 @@ func (p agentPlugin) remove() error {
 }
 
 // agentHooks returns what kero installs to hook agents into Kero: for
-// Claude Code, and for Codex, Pi and OpenCode when they are installed (or
-// named).
+// Claude Code, and for Codex, Pi, OMP and OpenCode when they are installed
+// (or named).
 func agentHooks(agent string) []integration {
 	home := proto.Home()
 	dirOf := func(env string, def ...string) string {
@@ -466,6 +467,15 @@ func agentHooks(agent string) []integration {
 	claude := dirOf("CLAUDE_CONFIG_DIR", ".claude")
 	codex := dirOf("CODEX_HOME", ".codex")
 	pi := dirOf("PI_CODING_AGENT_DIR", ".pi", "agent")
+	// OMP keeps its config under PI_CONFIG_DIR (default ~/.omp), with the
+	// agent directory in agent/ there. It honors PI_CODING_AGENT_DIR at
+	// runtime too, but that names Pi's directory as well, so install next
+	// to the config root rather than risk both extensions in one file.
+	ompRoot := os.Getenv("PI_CONFIG_DIR")
+	if ompRoot == "" {
+		ompRoot = filepath.Join(home, ".omp")
+	}
+	omp := filepath.Join(ompRoot, "agent")
 	opencode := filepath.Join(dirOf("XDG_CONFIG_HOME", ".config"), "opencode")
 	installed := func(dir string) bool {
 		st, err := os.Stat(dir)
@@ -478,6 +488,7 @@ func agentHooks(agent string) []integration {
 		{"claude", claude, agentHook{"claude", filepath.Join(claude, "settings.json")}},
 		{"codex", codex, agentHook{"codex", filepath.Join(codex, "hooks.json")}},
 		{"pi", pi, agentPlugin{agent: "pi", dir: filepath.Join(pi, "extensions"), files: map[string]string{"kero.ts": "agents/pi.ts"}}},
+		{"omp", omp, agentPlugin{agent: "omp", dir: filepath.Join(omp, "extensions"), files: map[string]string{"kero.ts": "agents/pi.ts"}}},
 		{"opencode", opencode, agentPlugin{agent: "opencode", dir: filepath.Join(opencode, "plugins", "kero"), own: true, files: map[string]string{
 			"package.json": "agents/opencode/package.json", "index.js": "agents/opencode/index.js", "tui.js": "agents/opencode/tui.js",
 		}}},

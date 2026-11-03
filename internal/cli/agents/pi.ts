@@ -1,16 +1,18 @@
 // Installed by Kero (`kero skill setup`), which replaces it as Kero
-// updates; `kero skill remove` removes it. Inside Kero, it tells Pi which
-// session and pane it runs in, and tells Kero Pi's session, to resume it
-// after Kero's background service restarts. Outside Kero it does nothing.
+// updates; `kero skill remove` removes it. Inside Kero, it tells Pi or
+// OMP which session and pane it runs in, and tells Kero their session,
+// to resume it after Kero's background service restarts. Outside Kero it
+// does nothing.
 import { execFile } from "node:child_process";
 
 const KERO = __KERO__;
+const AGENT = __AGENT__;
 
-// hook runs `kero hook pi` as Claude Code runs its hooks, returning what
-// Kero tells the agent.
+// hook runs `kero hook <agent>` as Claude Code runs its hooks, returning
+// what Kero tells the agent.
 function hook(sessionID: string | undefined): Promise<string> {
   return new Promise((resolve) => {
-    const child = execFile(KERO, ["hook", "pi"], { timeout: 5000 }, (err, stdout) => {
+    const child = execFile(KERO, ["hook", AGENT], { timeout: 5000 }, (err, stdout) => {
       try {
         resolve(JSON.parse(stdout).hookSpecificOutput.additionalContext ?? "");
       } catch {
@@ -37,6 +39,15 @@ export default function (pi: any) {
     context = await hook(sessionID);
   });
   pi.on("before_agent_start", (event: any) => {
-    if (context) event.systemPromptOptions.sections.kero = context;
+    if (!context) return;
+    // Pi keeps prompt sections; OMP has none and replaces the prompt array.
+    const sections = event?.systemPromptOptions?.sections;
+    if (sections) {
+      sections.kero = context;
+      return;
+    }
+    if (Array.isArray(event?.systemPrompt)) {
+      return { systemPrompt: [...event.systemPrompt, context] };
+    }
   });
 }
