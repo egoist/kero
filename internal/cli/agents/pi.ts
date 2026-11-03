@@ -27,7 +27,8 @@ function hook(sessionID: string | undefined): Promise<string> {
 export default function (pi: any) {
   if (!process.env.KERO_PANE) return;
   let context = "";
-  pi.on("session_start", async (_event: any, ctx: any) => {
+  let reported: string | undefined;
+  const sync = async (ctx: any) => {
     // A terminal session, or a one-off prompt; not one a program drives.
     if (ctx?.mode !== "tui" && ctx?.mode !== "print") return;
     let sessionID: string | undefined;
@@ -36,8 +37,16 @@ export default function (pi: any) {
         sessionID = ctx.sessionManager.getSessionId();
       }
     } catch {}
+    // An in-app /resume switches the conversation under the same pane:
+    // tell Kero the new id, or it would resume the one it saw last.
+    if (sessionID !== undefined) {
+      if (sessionID === reported) return;
+      reported = sessionID;
+    }
     context = await hook(sessionID);
-  });
+  };
+  pi.on("session_start", (_event: any, ctx: any) => sync(ctx));
+  pi.on("session_switch", (_event: any, ctx: any) => sync(ctx));
   pi.on("before_agent_start", (event: any) => {
     if (!context) return;
     // Pi keeps prompt sections; OMP has none and replaces the prompt array.
