@@ -509,3 +509,30 @@ func TestFindShell(t *testing.T) {
 		}
 	}
 }
+
+// Closing a compressed connection as its other end goes leaves the Read that
+// ends with it alone: the decompressor's error is the Read's, which go test
+// -race fails on if Close looks at it.
+func TestFlateCloseDuringRead(t *testing.T) {
+	for range 50 {
+		a, b := net.Pipe()
+		f := newFlateConn(a)
+		read := make(chan error, 1)
+		go func() {
+			_, err := f.Read(make([]byte, 16))
+			read <- err
+		}()
+		go b.Close()
+		if err := f.Close(); err != nil {
+			t.Fatal(err)
+		}
+		select {
+		case err := <-read:
+			if err == nil {
+				t.Error("Read succeeded on a closed connection")
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatal("Read didn't end")
+		}
+	}
+}
