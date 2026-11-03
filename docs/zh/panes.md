@@ -58,7 +58,7 @@ Kero 知道你在 shell 中运行的每条命令从哪里开始、到哪里结�
 
 耗时较长的命令结束时，如果你正在看其他会话或其他应用，Kero 会发送通知。可以在**设置 › 通知**中关闭，或更改多久算耗时较长。编程智能体已经通过[状态](./status.md)通知你，因此不会再收到第二条通知。
 
-这一功能支持 zsh、bash、fish 和 PowerShell：在你自己的启动文件运行之后，Kero 让新窗格的 shell 标记提示符。如果希望 shell 的启动方式与在其他地方完全相同，请在[配置](./configuration.md#shell)中设置 `shell-integration = false`。在窗格内启动的 shell，或 `ssh` 另一端的 shell，只有自己发送标记时才有标记。[远程主机](./remote.md)上的窗格，需要该主机上的 Kero 更新后才有这些功能。kerod 重启之前的命令的标记不会恢复。
+这一功能支持 zsh、bash、fish 和 PowerShell（在 Windows 上仅支持 PowerShell）：在你自己的启动文件运行之后，Kero 让新窗格的 shell 标记提示符。如果希望 shell 的启动方式与在其他地方完全相同，请在[配置](./configuration.md#shell)中设置 `shell-integration = false`。在窗格内启动的 shell，或 `ssh` 另一端的 shell，只有自己发送标记时才有标记。[远程主机](./remote.md)上的窗格，需要该主机上的 Kero 更新后才有这些功能。kerod 重启之前的命令的标记不会恢复。
 
 ## 浏览器窗格
 

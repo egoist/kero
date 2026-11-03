@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -403,16 +404,33 @@ func marksOf(got []string) string {
 	return strings.Join(out, " ")
 }
 
+// markingShells are the shells Kero has mark their prompts on this system:
+// PowerShell alone on Windows.
+func markingShells() []string {
+	if runtime.GOOS == "windows" {
+		return []string{"pwsh", "powershell"}
+	}
+	return []string{"zsh", "bash", "fish", "pwsh"}
+}
+
+// exitCommand is a command line of a program that exits with status n.
+func exitCommand(n int) string {
+	if runtime.GOOS == "windows" {
+		return fmt.Sprintf("cmd /c exit %d", n)
+	}
+	return fmt.Sprintf("sh -c 'exit %d'", n)
+}
+
 // The shells this machine has mark each prompt and command, with its status.
 func TestShellIntegration(t *testing.T) {
 	want := regexp.MustCompile(`(^|.* )A( B)? C D;0 (D;0 )?A( B)? C D;3 (D;3 )?A( B)?( .*)?$`)
-	for _, name := range []string{"zsh", "bash", "fish", "pwsh"} {
+	for _, name := range markingShells() {
 		t.Run(name, func(t *testing.T) {
 			shell, err := exec.LookPath(name)
 			if err != nil {
 				t.Skip(name, "not installed")
 			}
-			got := marksOf(oscSeen(t, shell, nil, nil, "echo hi", "sh -c 'exit 3'", ""))
+			got := marksOf(oscSeen(t, shell, nil, nil, "echo hi", exitCommand(3), ""))
 			if !want.MatchString(got) {
 				t.Errorf("marks: %s", got)
 			}
@@ -431,13 +449,17 @@ func TestShellIntegration(t *testing.T) {
 
 // A session's command, then the shell it goes on with, marks its prompts too.
 func TestShellIntegrationAfterCommand(t *testing.T) {
-	for _, name := range []string{"zsh", "bash", "fish", "pwsh"} {
+	for _, name := range markingShells() {
 		t.Run(name, func(t *testing.T) {
 			shell, err := exec.LookPath(name)
 			if err != nil {
 				t.Skip(name, "not installed")
 			}
-			got := marksOf(oscSeen(t, shell, nil, []string{"sh", "-c", "exit 4"}, "sh -c 'exit 5'"))
+			command := []string{"sh", "-c", "exit 4"}
+			if runtime.GOOS == "windows" {
+				command = []string{"cmd", "/c", "exit 4"}
+			}
+			got := marksOf(oscSeen(t, shell, nil, command, exitCommand(5)))
 			if !strings.Contains(got, "D;4") || !regexp.MustCompile(`A( B)? C D;5`).MatchString(got) {
 				t.Errorf("marks: %s", got)
 			}
@@ -525,6 +547,9 @@ func TestShellIntegrationKeepsConfig(t *testing.T) {
 
 // shell-integration = false starts every shell as it was.
 func TestShellIntegrationOff(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("what it looks at are the shells of Unix")
+	}
 	t.Setenv("KERO_CONFIG", filepath.Join(t.TempDir(), "config"))
 	if err := os.WriteFile(os.Getenv("KERO_CONFIG"), []byte("shell-integration = false\n"), 0o644); err != nil {
 		t.Fatal(err)

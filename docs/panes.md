@@ -58,7 +58,7 @@ As you scroll, a command that failed shows a mark beside its line and its exit c
 
 When a command that ran for a while ends and you're looking at another session or another app, Kero sends a notification. Turn this off, or change how long counts as a while, in **Settings › Notifications**. Coding agents already notify you through their [status](./status.md), so they don't get a second one.
 
-This works in zsh, bash, fish and PowerShell: Kero has new panes' shells mark their prompts, after your own startup files have run. To start shells exactly as they'd start elsewhere, set `shell-integration = false` in the [configuration](./configuration.md#shell). A shell started from inside a pane, or on the other end of `ssh`, has marks only if it sends them itself. A pane on a [remote host](./remote.md) has all this once that host's Kero is up to date. The marks of commands from before kerod restarted don't come back.
+This works in zsh, bash, fish and PowerShell, and on Windows in PowerShell alone: Kero has new panes' shells mark their prompts, after your own startup files have run. To start shells exactly as they'd start elsewhere, set `shell-integration = false` in the [configuration](./configuration.md#shell). A shell started from inside a pane, or on the other end of `ssh`, has marks only if it sends them itself. A pane on a [remote host](./remote.md) has all this once that host's Kero is up to date. The marks of commands from before kerod restarted don't come back.
 
 ## Browser panes
 
