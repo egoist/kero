@@ -21,6 +21,8 @@ type findState struct {
 	// bar opens.
 	focus bool
 	input ui.Handle
+	// jump is a match of the search of all panes to go to (panesearch.go).
+	jump *findJump
 }
 
 // openFind opens the find bar over the pane the user is in, or gives the
@@ -39,7 +41,7 @@ func (a *App) openFind() {
 			t.EndSearch()
 		}
 	}
-	a.find.pane, a.find.focus = id, true
+	a.find.pane, a.find.focus, a.find.jump = id, true, nil
 }
 
 // findStep goes to the next match, toward older output, or the previous
@@ -57,6 +59,7 @@ func (a *App) findStep(back bool) {
 	if t == nil {
 		return
 	}
+	a.find.jump = nil
 	if back {
 		t.SearchPrevious()
 	} else {
@@ -76,7 +79,7 @@ func (a *App) closeFind() {
 		e.findSeq++
 		go e.view.Page().StopFindInPage()
 	}
-	a.find.pane = ""
+	a.find.pane, a.find.jump = "", nil
 	if pane != "" {
 		a.paneRef(pane).Focus()
 	}
@@ -98,6 +101,9 @@ func (a *App) findBar(c *ui.Context, pal *palette, p *proto.Pane, t *terminal.Te
 	if f.query != "" && t.SearchStatus().Text != f.query {
 		t.Search(f.query)
 	}
+	if f.jump != nil {
+		a.stepJump(c, p, t)
+	}
 	bar := ui.Row(c.Key("find")).Absolute().Top(8).Right(12).Height(36).Padding(0, 4, 0, 12).Gap(4).
 		AlignItems(ui.Center).Radius(10).Background(pal.popover).Label(locales.FindLabel())
 	floating(bar, pal).Children(func() {
@@ -112,8 +118,10 @@ func (a *App) findBar(c *ui.Context, pal *palette, p *proto.Pane, t *terminal.Te
 		}
 		switch {
 		case in.Submitted() && c.Modifiers()&ui.Shift != 0:
+			f.jump = nil
 			t.SearchPrevious()
 		case in.Submitted():
+			f.jump = nil
 			t.SearchNext()
 		}
 		st := t.SearchStatus()

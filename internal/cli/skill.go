@@ -44,6 +44,8 @@ prefix works), or a session's name; a session stands for its focused pane.
     kero history [query] [--json]             # agents' past conversations, to resume
     kero resume <conversation>                # a session resuming one
     kero read <target> [-n 40] [-a]           # the screen, or with scrollback
+    kero search <query> [-p project] [-n 50] [--json]
+                                              # find text in every pane's scrollback: pane, session, line
     kero status <target> --json               # status, program, directory
     kero ls                                   # every session and pane here
 
@@ -63,6 +65,7 @@ own: ` + "`kero ls --all`" + ` lists the sessions here and on every one of them,
 under the name that ` + "`-H`" + ` takes, before the command:
 
     kero ls --all [--json]                    # every machine's sessions; a host out of reach says why
+    kero search <query> --all [--json]        # every machine's panes; a host skipped says why
     kero hosts                                # the machines, and their addresses
     kero -H build new -n tests -d ~/code/app -- go test ./...
     kero -H build new -n review -- claude     # an agent there

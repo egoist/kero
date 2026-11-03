@@ -85,6 +85,8 @@ func (a *App) run(id string, args map[string]string) {
 		a.findStep(false)
 	case "find.previous":
 		a.findStep(true)
+	case "search.panes":
+		a.openPaneSearch(args["query"])
 	case "pane.split.right":
 		if s == nil {
 			a.run("session.new", args)
@@ -166,6 +168,7 @@ var actionTitles = map[string]func() string{
 	"find.open":           locales.ActionFind,
 	"find.next":           locales.ActionFindNext,
 	"find.previous":       locales.ActionFindPrevious,
+	"search.panes":        locales.ActionSearchPanes,
 	"pane.split.right":    locales.ActionSplitRight,
 	"pane.split.down":     locales.ActionSplitDown,
 	"pane.browser":        locales.ActionNewBrowser,
@@ -247,7 +250,7 @@ func (a *App) menu() *mygo.Menu {
 		// The Edit menu's own items, then finding.
 		{Role: mygo.RoleEditMenu, Submenu: append([]*mygo.MenuItem{{Role: mygo.RoleUndo}, {Role: mygo.RoleRedo}, mygo.Separator(),
 			{Role: mygo.RoleCut}, {Role: mygo.RoleCopy}, {Role: mygo.RolePaste}, {Role: mygo.RoleSelectAll}, mygo.Separator()},
-			a.items("Edit", []string{"find.open", "find.next", "find.previous"})...)},
+			a.items("Edit", []string{"find.open", "find.next", "find.previous"}, []string{"search.panes"})...)},
 		{Label: locales.MenuPane(), Submenu: a.items("Pane",
 			[]string{"pane.split.right", "pane.split.down"},
 			[]string{"pane.browser", "browser.address"},
