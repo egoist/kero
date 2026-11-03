@@ -3928,6 +3928,16 @@ func (msgs Messages) ActionToggleRightSidebar() string {
 	return Catalog.Format(msgs.locale, "actionToggleRightSidebar", nil)
 }
 
+// ActionToggleDarkMode says "Toggle Dark Mode"
+// in the language the app shows.
+func ActionToggleDarkMode() string { return In(i18n.Locale()).ActionToggleDarkMode() }
+
+// ActionToggleDarkMode says "Toggle Dark Mode"
+// in the language of msgs.
+func (msgs Messages) ActionToggleDarkMode() string {
+	return Catalog.Format(msgs.locale, "actionToggleDarkMode", nil)
+}
+
 // RightSidebarHide says "Hide Right Sidebar"
 // in the language the app shows.
 func RightSidebarHide() string { return In(i18n.Locale()).RightSidebarHide() }

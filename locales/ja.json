@@ -386,6 +386,7 @@
   "sideFiles": "ファイル",
   "actionToggleFiles": "ファイルの切り替え",
   "actionToggleRightSidebar": "右サイドバーの切り替え",
+  "actionToggleDarkMode": "ダークモードの切り替え",
   "rightSidebarHide": "右サイドバーを隠す",
   "rightSidebarShow": "右サイドバーを表示",
   "changesShowDiffs": "差分を表示",
