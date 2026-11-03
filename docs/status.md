@@ -23,6 +23,8 @@ Kero tells a coding agent's status from what its screen shows: its spinner, a pe
 
 A session shows the status of its panes, and sessions that need you stand out. Press <kbd>⌘</kbd> <kbd>J</kbd> to jump to the next one.
 
+Each session's row in the sidebar starts with the icon of the program in the pane its status comes from: Claude Code, Codex, Gemini and other agents, Node.js or Bun for a script, else a terminal. It stands out while an agent runs, in the agent's own color where it has one, and turns faint once the shell is back or the pane exited.
+
 ## Your own agents
 
 Kero knows the screens of Claude Code, Codex, Gemini, OpenCode, Amp, Cursor, Droid, Qwen, Copilot, Kiro, Cline, Kimi and Pi, from rules it borrows from [herdr](https://github.com/ogulcancelik/herdr). You can teach it another agent, or fix the rules of one whose screen changed, with a manifest of your own in the `agents` folder beside the [configuration file](./configuration.md), as `~/.config/kero/agents/frog.toml`:

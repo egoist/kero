@@ -27,15 +27,28 @@ func (a *App) keepAwake() {
 	case awakeOn:
 		hold = true
 	case awakeAgents:
-		for i := range a.st.Sessions {
-			s := &a.st.Sessions[i]
-			if s.Status == proto.Working && !a.hostOf(s.ID).remote() {
-				hold = true
-				break
+		hold = anyWorking(a.st.Sessions, func(id string) bool { return !a.hostOf(id).remote() })
+	}
+	a.awake.hold(hold)
+}
+
+// anyWorking tells whether a pane of the sessions local takes is Working.
+// Every pane counts, not only the one the session's status comes from,
+// which a pane waiting for the user, or one with output unread, is ahead
+// of.
+func anyWorking(sessions []proto.Session, local func(id string) bool) bool {
+	for i := range sessions {
+		s := &sessions[i]
+		if !local(s.ID) {
+			continue
+		}
+		for j := range s.Panes {
+			if s.Panes[j].Status == proto.Working {
+				return true
 			}
 		}
 	}
-	a.awake.hold(hold)
+	return false
 }
 
 // awakeModeName names a mode of Keep computer awake.

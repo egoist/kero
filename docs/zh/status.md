@@ -23,6 +23,8 @@ Kero 根据编程智能体屏幕上显示的内容判断它的状态：它的加
 
 会话显示其窗格的状态，需要你的会话会被突出显示。按 <kbd>⌘</kbd> <kbd>J</kbd> 跳到下一个需要你的会话。
 
+边栏中每个会话的行以其状态来源窗格中所运行程序的图标开头：Claude Code、Codex、Gemini 等智能体，脚本则是 Node.js 或 Bun，其他情况是终端图标。智能体运行时图标醒目显示（有自己颜色的智能体用其颜色），回到 shell 或窗格退出后会变淡。
+
 ## 自定义智能体
 
 Kero 借用 [herdr](https://github.com/ogulcancelik/herdr) 的规则，读取 Claude Code、Codex、Gemini、OpenCode、Amp、Cursor、Droid、Qwen、Copilot、Kiro、Cline、Kimi 和 Pi 的屏幕。在[配置文件](./configuration.md)旁的 `agents` 文件夹中放一个自己的清单，就能让 Kero 认识其他智能体，或修正屏幕已变的智能体的规则，例如 `~/.config/kero/agents/frog.toml`：
