@@ -50,6 +50,7 @@ kero config check             # report unknown keys and bad values
 | `resume-agents`         | `true`    | As sessions start again, resume the conversation of the agent each pane ran |
 | `session-history`       | `false`   | List the agents' ended conversations in the sidebar, to resume or archive ([more](./sessions.md#ended-sessions)) |
 | `macos-show-app-icon`   | `dock-and-menubar` | Where Kero's icon shows on macOS: `dock-and-menubar`, `dock` or `menubar`. While it's in the menu bar, closing the window keeps Kero running there. Windows and Linux always show it in the notification area, where closing the window does the same |
+| `keep-computer-awake`   | `off`              | Keep this computer from sleeping: `off`; `on`, as long as Kero runs; or `agents`, while an agent on this machine works. The command palette and the menu of Kero's icon in the menu bar or notification area pick it too. Closing a Mac's lid still puts it to sleep |
 
 ## Appearance
 

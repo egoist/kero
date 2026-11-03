@@ -32,6 +32,7 @@ type Settings struct {
 	SessionHistory    bool   `json:"sessionHistory"`    // the sidebar lists the agents' ended conversations
 	QuitConfirm       bool   `json:"quitConfirm"`       // tell, the first time, that quitting keeps sessions
 	AppIcon           string `json:"appIcon"`           // macOS: AppIcons; elsewhere the icon is always in the notification area
+	KeepAwake         string `json:"keepAwake"`         // one of KeepAwakeModes: while the computer is kept from sleeping
 
 	// Appearance
 	Appearance string `json:"appearance"` // "system", "light" or "dark"
@@ -146,6 +147,7 @@ func Default() Settings {
 		ResumeAgents:    true,
 		QuitConfirm:     true,
 		AppIcon:         "dock-and-menubar",
+		KeepAwake:       "off",
 		Appearance:      "system",
 		Language:        "system",
 		Vibrancy:        true,
@@ -191,6 +193,10 @@ var Languages = []string{"en", "ja", "zh-Hans"}
 // AppIcons are where the app's icon shows on macOS: the Dock and the menu
 // bar, the Dock alone, or the menu bar alone.
 var AppIcons = []string{"dock-and-menubar", "dock", "menubar"}
+
+// KeepAwakeModes are when Kero keeps the computer from sleeping: never,
+// as long as it runs, or while an agent on this machine works.
+var KeepAwakeModes = []string{"off", "on", "agents"}
 
 // KeroThemes are kero's themes: the wash each shows under the window's
 // cards, and its name in the configuration.

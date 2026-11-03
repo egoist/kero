@@ -37,6 +37,42 @@ func TestPaletteKeywords(t *testing.T) {
 	}
 }
 
+// The palette offers the modes of Keep computer awake, found by their
+// English names in any language, but for the one it is in.
+func TestPaletteKeepAwake(t *testing.T) {
+	a := testApp(t)
+	tt := ui.NewTester(a.view, 1100, 640)
+	i18n.SetLocaleFunc(func() string { return "zh-Hans" })
+	t.Cleanup(func() { i18n.SetLocaleFunc(nil) })
+	zh := locales.In("zh-Hans")
+	title := func(mode string) string { return zh.AwakeTitle() + ": " + awakeModeIn(zh, mode) }
+	offers := func(mode string) *paletteItem {
+		for _, it := range a.paletteItems() {
+			if it.title == title(mode) {
+				return &it
+			}
+		}
+		return nil
+	}
+	a.openPalette()
+	tt.Frame()
+	tt.Type("while agents")
+	tt.Frame()
+	if !tt.HasText(title(awakeAgents)) {
+		t.Errorf("no %q found; texts %q", title(awakeAgents), tt.Texts())
+	}
+	if offers(awakeOff) != nil {
+		t.Error("the palette offers the mode it is in")
+	}
+	offers(awakeAgents).run()
+	if a.set.KeepAwake != awakeAgents {
+		t.Errorf("the mode is %q, want %q", a.set.KeepAwake, awakeAgents)
+	}
+	if offers(awakeAgents) != nil || offers(awakeOff) == nil {
+		t.Error("the palette's modes did not follow the choice")
+	}
+}
+
 // The wheel scrolls the palette's list away from the one chosen.
 func TestPaletteScrolls(t *testing.T) {
 	a := testApp(t)

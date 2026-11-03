@@ -2270,6 +2270,56 @@ func (msgs Messages) SetAppIconDetail() string {
 	return Catalog.Format(msgs.locale, "setAppIconDetail", nil)
 }
 
+// AwakeTitle says "Keep computer awake"
+// in the language the app shows.
+func AwakeTitle() string { return In(i18n.Locale()).AwakeTitle() }
+
+// AwakeTitle says "Keep computer awake"
+// in the language of msgs.
+func (msgs Messages) AwakeTitle() string {
+	return Catalog.Format(msgs.locale, "awakeTitle", nil)
+}
+
+// AwakeOff says "Off"
+// in the language the app shows.
+func AwakeOff() string { return In(i18n.Locale()).AwakeOff() }
+
+// AwakeOff says "Off"
+// in the language of msgs.
+func (msgs Messages) AwakeOff() string {
+	return Catalog.Format(msgs.locale, "awakeOff", nil)
+}
+
+// AwakeOn says "Always"
+// in the language the app shows.
+func AwakeOn() string { return In(i18n.Locale()).AwakeOn() }
+
+// AwakeOn says "Always"
+// in the language of msgs.
+func (msgs Messages) AwakeOn() string {
+	return Catalog.Format(msgs.locale, "awakeOn", nil)
+}
+
+// AwakeAgents says "While agents work"
+// in the language the app shows.
+func AwakeAgents() string { return In(i18n.Locale()).AwakeAgents() }
+
+// AwakeAgents says "While agents work"
+// in the language of msgs.
+func (msgs Messages) AwakeAgents() string {
+	return Catalog.Format(msgs.locale, "awakeAgents", nil)
+}
+
+// AwakeDetail says "Kero keeps this computer from sleeping as long as it runs, or while an agent on it works. Closing a Mac’s lid still…"
+// in the language the app shows.
+func AwakeDetail() string { return In(i18n.Locale()).AwakeDetail() }
+
+// AwakeDetail says "Kero keeps this computer from sleeping as long as it runs, or while an agent on it works. Closing a Mac’s lid still…"
+// in the language of msgs.
+func (msgs Messages) AwakeDetail() string {
+	return Catalog.Format(msgs.locale, "awakeDetail", nil)
+}
+
 // TrayOpen says "Open {app}"
 // in the language the app shows.
 func TrayOpen(app string) string { return In(i18n.Locale()).TrayOpen(app) }

@@ -50,6 +50,7 @@ kero config check             # 报告未知的配置项和无效的值
 | `resume-agents`         | `true`    | 会话重新启动时，恢复每个窗格中智能体的对话                    |
 | `session-history`       | `false`   | 在侧边栏中列出智能体已结束的对话，可恢复或归档（[详情](./sessions.md#ended-sessions)） |
 | `macos-show-app-icon`   | `dock-and-menubar` | 在 macOS 上显示 Kero 图标的位置：`dock-and-menubar`、`dock` 或 `menubar`。图标显示在菜单栏时，关闭窗口后 Kero 会继续在那里运行。Windows 和 Linux 上始终显示在通知区域，关闭窗口后同样会继续运行 |
+| `keep-computer-awake`   | `off`              | 阻止电脑睡眠：`off`；`on`，Kero 运行期间一直保持；`agents`，本机有智能体工作时保持。也可以在命令面板或菜单栏、通知区域的 Kero 图标菜单中选择。合上 Mac 的盖子仍会让它睡眠 |
 
 ## 外观
 
