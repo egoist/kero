@@ -541,6 +541,7 @@
   "sideFiles": "Files",
   "actionToggleFiles": "Toggle Files",
   "actionToggleRightSidebar": "Toggle Right Sidebar",
+  "actionToggleDarkMode": "Toggle Dark Mode",
   "rightSidebarHide": "Hide Right Sidebar",
   "rightSidebarShow": "Show Right Sidebar",
   "changesShowDiffs": "Show Diffs",

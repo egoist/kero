@@ -64,6 +64,7 @@ On Windows and Linux, <kbd>Ctrl</kbd> with a letter belongs to the shell (<kbd>C
 | Bigger         | <kbd>⌘</kbd> <kbd>=</kbd> | <kbd>Ctrl</kbd> <kbd>=</kbd>                  | `text.bigger`    |
 | Smaller        | <kbd>⌘</kbd> <kbd>-</kbd> | <kbd>Ctrl</kbd> <kbd>-</kbd>                  | `text.smaller`   |
 | Actual Size    | <kbd>⌘</kbd> <kbd>0</kbd> | <kbd>Ctrl</kbd> <kbd>0</kbd>                  | `text.reset`     |
+| Toggle Dark Mode | <kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>L</kbd> | <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>L</kbd> | `theme.toggle` |
 | Quick Terminal | –                         | –                                             | `quickTerminal.toggle` |
 
 ## Quick terminal

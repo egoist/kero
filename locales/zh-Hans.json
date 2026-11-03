@@ -386,6 +386,7 @@
   "sideFiles": "文件",
   "actionToggleFiles": "显示或隐藏文件",
   "actionToggleRightSidebar": "切换右侧边栏",
+  "actionToggleDarkMode": "切换深色模式",
   "rightSidebarHide": "隐藏右侧边栏",
   "rightSidebarShow": "显示右侧边栏",
   "changesShowDiffs": "显示差异",
