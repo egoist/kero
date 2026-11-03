@@ -164,6 +164,8 @@
   "paneDragTip": "拖移以移动此窗格",
   "paneShowAll": "显示所有窗格",
   "paneClose": "关闭窗格",
+  "sidebarShowPanes": "显示窗格",
+  "sidebarHidePanes": "隐藏窗格",
   "paneNeedsPermission": "需要你的许可",
   "paneHasQuestion": "有一个问题",
   "paneNeedsSignIn": "需要你登录",

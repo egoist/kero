@@ -857,3 +857,95 @@ func TestSidebarRows(t *testing.T) {
 		t.Errorf("a compact row lost its branch; texts %q", tt.Texts())
 	}
 }
+
+// Each row leads with its lead pane's program; a split session's row has
+// a count of its panes, which lists them under it, each with its program,
+// name, place and status, and a click focuses one ($KERO_SHOTS).
+func TestSidebarSplitPanes(t *testing.T) {
+	a := testApp(t)
+	a.local().conn = connReady
+	a.terms["a"], a.terms["b"] = &termEntry{}, &termEntry{}
+	s := &a.st.Sessions[0]
+	s.Name = "auth refactor"
+	s.Panes[0] = proto.Pane{ID: "a", Shell: "zsh", Process: "claude", Agent: "claude", Title: "Refactor the auth flow", Dir: "/Users/someone/dev/demo", Status: proto.Working, Progress: -1,
+		Git: &proto.GitInfo{Root: "/Users/someone/dev/demo", Branch: "auth-refactor", Default: "main"}}
+	s.Panes[1] = proto.Pane{ID: "b", Shell: "zsh", Process: "codex", Agent: "codex", Title: "Review the tests", Dir: "/Users/someone/dev/demo", Status: proto.Waiting, Unread: true, Progress: -1, Message: "Allow running npm test?"}
+	s.Panes = append(s.Panes, proto.Pane{ID: "c", Shell: "zsh", Process: "bun", Runtime: "bun", Dir: "/Users/someone/dev/demo/web", Status: proto.Idle, Progress: -1})
+	var l *proto.Layout
+	s.Layout = l.Split("a", "b", "right", 0).Split("b", "c", "down", 0)
+	s.Pane = s.Panes[proto.Lead(s.Panes, s.Focus)]
+	s.Lead = s.Pane.ID
+	base := a.st.Sessions[0]
+	add := func(id, name string, p proto.Pane) {
+		n := base
+		n.ID, n.Name, n.Panes, n.Layout, n.Pane, n.Lead, n.Focus = id, name, []proto.Pane{p}, nil, p, p.ID, p.ID
+		a.st.Sessions = append(a.st.Sessions, n)
+	}
+	add("s2", "docs", proto.Pane{ID: "d", Shell: "zsh", Dir: "/Users/someone/dev/demo", Status: proto.Idle, Progress: -1})
+	add("s3", "gemini", proto.Pane{ID: "e", Shell: "zsh", Process: "gemini", Agent: "gemini", Dir: "/Users/someone/dev/demo", Status: proto.Working, Progress: -1})
+	tt := ui.NewTester(a.view, 1100, 640)
+	tt.Frame()
+	// The pane's header shows its name too: the sidebar adds one.
+	count := func(s string) int {
+		n := 0
+		for _, t := range tt.Texts() {
+			if t == s {
+				n++
+			}
+		}
+		return n
+	}
+	shown := count("Review the tests")
+	if !tt.HasText(locales.SidebarShowPanes()) {
+		t.Fatal("a split session's row has no count of its panes")
+	}
+	if err := tt.Click(locales.SidebarShowPanes()); err != nil {
+		t.Fatal(err)
+	}
+	tt.Advance(time.Second)
+	tt.Frame()
+	if a.selected != "s1" || !a.prefs.Expanded["s1"] {
+		t.Fatalf("the count of panes didn't expand the session; expanded %v", a.prefs.Expanded)
+	}
+	if count("Review the tests") != shown+1 {
+		t.Errorf("the expanded session doesn't list its panes; texts %q", tt.Texts())
+	}
+	for _, want := range []string{"Refactor the auth flow", "auth-refactor", "bun", "web"} {
+		if !tt.HasText(want) {
+			t.Errorf("the expanded session shows no %q; texts %q", want, tt.Texts())
+		}
+	}
+	tt.Move(600, 400) // no tooltip in the shots
+	tt.Frame()
+	shot(t, tt, "sidebar-split-panes-light")
+	tt.SetDark(true)
+	tt.Advance(time.Second)
+	tt.Frame()
+	shot(t, tt, "sidebar-split-panes-dark")
+	tt.SetDark(false)
+	a.set.SidebarRows = "compact"
+	tt.Advance(time.Second)
+	tt.Frame()
+	shot(t, tt, "sidebar-split-panes-compact")
+	a.set.SidebarRows = "detailed"
+	tt.Frame()
+
+	// A click on a pane's row shows its session, with the pane focused:
+	// from another session, whose panes show none of the split one's.
+	a.selectSession("s2")
+	tt.Frame()
+	if err := tt.Click("Review the tests"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if f := a.focusOf(a.session("s1")); a.selected != "s1" || f != "b" {
+		t.Errorf("clicking the pane's row showed %s focused on %q, want s1 on b", a.selected, f)
+	}
+	if err := tt.Click(locales.SidebarHidePanes()); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if a.prefs.Expanded["s1"] || count("Review the tests") != shown {
+		t.Error("the count of panes didn't collapse the session")
+	}
+}
