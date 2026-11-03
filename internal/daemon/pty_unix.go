@@ -36,7 +36,7 @@ func startPTY(o ptyOptions) (*ptyProc, error) {
 	if err != nil {
 		return nil, err
 	}
-	slave, err := os.OpenFile(slaveName, os.O_RDWR|syscall.O_NOCTTY, 0)
+	slave, err := openPTYFile(slaveName, os.O_RDWR|syscall.O_NOCTTY)
 	if err != nil {
 		master.Close()
 		return nil, fmt.Errorf("pty: opening %s: %w", slaveName, err)
