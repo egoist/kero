@@ -285,3 +285,46 @@ func TestProjectCreatePersists(t *testing.T) {
 		t.Errorf("restored projects = %+v, want [%+v]", got, first)
 	}
 }
+
+// project.move puts a project at another index, past either end at that
+// end, and the order outlives kerod.
+func TestProjectMovePersists(t *testing.T) {
+	d := projectDaemon(t)
+	var ids []string
+	for _, name := range []string{"a", "b", "c"} {
+		p, err := createProject(t, d, proto.ProjectParams{Name: name})
+		if err != nil {
+			t.Fatal(err)
+		}
+		ids = append(ids, p.ID)
+	}
+	move := func(id string, index int) {
+		raw, _ := json.Marshal(proto.MoveProjectParams{ID: id, Index: index})
+		if _, err := d.call(nil, "project.move", raw); err != nil {
+			t.Fatal(err)
+		}
+	}
+	order := func(st proto.State) []string {
+		var got []string
+		for _, p := range st.Projects {
+			got = append(got, p.Name)
+		}
+		return got
+	}
+	move(ids[2], 0)
+	if got := order(d.state()); !slices.Equal(got, []string{"c", "a", "b"}) {
+		t.Errorf("c to the top: %v", got)
+	}
+	move(ids[2], 99)
+	if got := order(d.state()); !slices.Equal(got, []string{"a", "b", "c"}) {
+		t.Errorf("c past the end: %v", got)
+	}
+	move(ids[0], 1)
+	d.saveState()
+	restored := &Daemon{dir: d.dir}
+	restored.viewed.Store(new(string))
+	restored.restore()
+	if got := order(restored.state()); !slices.Equal(got, []string{"b", "a", "c"}) {
+		t.Errorf("restored order %v, want b a c", got)
+	}
+}
