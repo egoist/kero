@@ -1106,6 +1106,36 @@ func (msgs Messages) SidebarShow() string {
 	return Catalog.Format(msgs.locale, "sidebarShow", nil)
 }
 
+// SidebarSweep says "Remove Empty Projects"
+// in the language the app shows.
+func SidebarSweep() string { return In(i18n.Locale()).SidebarSweep() }
+
+// SidebarSweep says "Remove Empty Projects"
+// in the language of msgs.
+func (msgs Messages) SidebarSweep() string {
+	return Catalog.Format(msgs.locale, "sidebarSweep", nil)
+}
+
+// SidebarSwept says "{count, plural, one {Removed # empty project} other {Removed # empty projects}}"
+// in the language the app shows.
+func SidebarSwept(count int) string { return In(i18n.Locale()).SidebarSwept(count) }
+
+// SidebarSwept says "{count, plural, one {Removed # empty project} other {Removed # empty projects}}"
+// in the language of msgs.
+func (msgs Messages) SidebarSwept(count int) string {
+	return Catalog.Format(msgs.locale, "sidebarSwept", map[string]any{"count": count})
+}
+
+// SidebarNothingToSweep says "No empty projects"
+// in the language the app shows.
+func SidebarNothingToSweep() string { return In(i18n.Locale()).SidebarNothingToSweep() }
+
+// SidebarNothingToSweep says "No empty projects"
+// in the language of msgs.
+func (msgs Messages) SidebarNothingToSweep() string {
+	return Catalog.Format(msgs.locale, "sidebarNothingToSweep", nil)
+}
+
 // SidebarNoSessions says "No sessions"
 // in the language the app shows.
 func SidebarNoSessions() string { return In(i18n.Locale()).SidebarNoSessions() }
@@ -2030,11 +2060,11 @@ func (msgs Messages) SetSessionsFollowDir() string {
 	return Catalog.Format(msgs.locale, "setSessionsFollowDir", nil)
 }
 
-// SetSessionsFollowDirDetail says "When a session's folder changes, as with cd, move it to the project that holds the folder, or to a new one for it."
+// SetSessionsFollowDirDetail says "When a session's folder changes, as with cd, move it to that folder's own project: its git repository's root, or else…"
 // in the language the app shows.
 func SetSessionsFollowDirDetail() string { return In(i18n.Locale()).SetSessionsFollowDirDetail() }
 
-// SetSessionsFollowDirDetail says "When a session's folder changes, as with cd, move it to the project that holds the folder, or to a new one for it."
+// SetSessionsFollowDirDetail says "When a session's folder changes, as with cd, move it to that folder's own project: its git repository's root, or else…"
 // in the language of msgs.
 func (msgs Messages) SetSessionsFollowDirDetail() string {
 	return Catalog.Format(msgs.locale, "setSessionsFollowDirDetail", nil)
