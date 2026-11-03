@@ -88,6 +88,7 @@ kero config check             # 报告未知的配置项和无效的值
 | `command`          |         | 新窗格使用的 shell；留空则使用你的登录 shell                    |
 | `env`              |         | 以 `NAME=value` 形式加入每个窗格的环境变量；可重复多行          |
 | `scrollback-limit` | `4`     | 每个窗格保留的回滚缓冲大小，单位 MB；`0` 表示不保留             |
+| `attach-detach-key` | `ctrl+\` | 让 [`kero attach`](./cli.md#从终端连接) 从窗格断开的按键：`ctrl+` 加字母、`\` 或 `]`，但不能是 `h`、`i`、`j`、`m`，它们在终端里是其他按键 |
 
 ## 通知
 

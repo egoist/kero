@@ -325,3 +325,35 @@ func TestFontFeature(t *testing.T) {
 		t.Errorf("a new file sets font-feature:\n%s", out)
 	}
 }
+
+// The key that detaches kero attach reads as written, backslash and all, and
+// a key it can't detach on stays the default, reported.
+func TestAttachDetachKey(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("KERO_HOME", dir)
+	t.Setenv("KERO_CONFIG", filepath.Join(dir, "config"))
+	write := func(text string) Settings {
+		t.Helper()
+		if err := os.WriteFile(filepath.Join(dir, "config"), []byte(text), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		return Load()
+	}
+	if got := write("attach-detach-key = ctrl+]\n").AttachDetachKey; got != "ctrl+]" {
+		t.Errorf("read %q", got)
+	}
+	if got := write("attach-detach-key = ctrl+\\\n").AttachDetachKey; got != `ctrl+\` || len(Problems()) > 0 {
+		t.Errorf("read %q, problems %q", got, Problems())
+	}
+	if got := write("attach-detach-key = ctrl+m\n").AttachDetachKey; got != Default().AttachDetachKey || len(Problems()) != 1 {
+		t.Errorf("read %q, problems %q", got, Problems())
+	}
+	s := write("")
+	s.AttachDetachKey = "ctrl+q"
+	if err := Save(s); err != nil {
+		t.Fatal(err)
+	}
+	if got := Load().AttachDetachKey; got != "ctrl+q" {
+		t.Errorf("saved and read %q", got)
+	}
+}

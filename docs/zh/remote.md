@@ -190,6 +190,7 @@ kero hosts remove build
 kero ls --all                    # 本机和每台主机上的会话
 kero -H build ls
 kero -H build prompt review "run the tests and fix them"
+kero -H build attach review      # 在当前终端显示窗格
 kero clients                     # 当前连接到本机 kerod 的客户端
 ```
 

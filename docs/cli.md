@@ -57,6 +57,29 @@ kero read api -a                          # the screen with its scrollback
 
 `kero key` understands `enter`, `tab`, `escape`, `up`, `down`, `left`, `right`, `backspace`, and modifiers such as `ctrl+c` or `ctrl+d`.
 
+## Attaching from a terminal
+
+`kero attach` shows a pane in the terminal you run it in, as `tmux attach` does, and what you type goes to it. Start an agent in the app, SSH in from your phone, and carry on in the same session:
+
+```sh
+kero attach fix-login            # a session's focused pane
+kero attach 4k2x9sd              # a pane by its id (kero ls lists them)
+kero -H devbox attach review     # a session on another machine
+```
+
+- Press <kbd>Ctrl</kbd> <kbd>\</kbd> to detach. The session keeps running, and your shell comes back as you left it. Set [`attach-detach-key`](./configuration.md#shell) to use another key.
+- Since that key doesn't reach the pane, send it with `kero key <target> 'ctrl+\'` if a program needs it.
+- A session stands for its focused pane at the moment you attach. Attach to one pane at a time: layouts don't show, and `kero ls` lists the ids of a session's other panes.
+- The pane fills the terminal, on its alternate screen, so your terminal's scrollback holds none of it. `kero read <target> -a` prints the pane's scrollback.
+- Images don't show.
+- A program in the pane can copy to your terminal's clipboard, but can't read it.
+
+A pane has one size, and it takes the size of the client you last used. Attaching takes it for your terminal, and the app shows the pane at that size until you type in it or come back to it. If you use the app while attached, the terminal says so instead of showing the pane, and pressing a key there takes it back, without typing that key. Once you detach, the pane goes back to the size the other client wants.
+
+`kero attach` ends by itself when the pane does: a program that failed leaves its screen for `kero read`, and `kero restart` starts the pane again. If kerod goes away, it exits with status 4.
+
+It needs a terminal for its input and output: over SSH, in a command of its own, that takes `ssh -t`.
+
 ## Waiting
 
 ```sh

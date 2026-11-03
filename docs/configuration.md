@@ -88,6 +88,7 @@ kero config check             # report unknown keys and bad values
 | `command`          |         | The shell of new panes; empty for your login shell             |
 | `env`              |         | Added to every pane's environment as `NAME=value`; repeat it   |
 | `scrollback-limit` | `4`     | The output each pane keeps, in megabytes; `0` for none         |
+| `attach-detach-key` | `ctrl+\` | The key that detaches [`kero attach`](./cli.md#attaching-from-a-terminal) from a pane: `ctrl+` and a letter, `\` or `]`, but not `h`, `i`, `j` or `m`, which are other keys to a terminal |
 
 ## Notifications
 

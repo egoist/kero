@@ -676,6 +676,8 @@ func (d *Daemon) serveHello(conn net.Conn, r *bufio.Reader, line []byte, id iden
 		if id.peer == "" {
 			id.peer = localPeer(conn)
 		}
+	} else if id.via == "unix" {
+		id.client = hello.Client // a client of this machine, as kero attach
 	}
 	welcome := proto.Welcome{Version: proto.Version, PID: os.Getpid(), Started: d.started.UnixMilli(), App: build.Version(), Build: build.Daemon}
 	if hello.Version != proto.Version {

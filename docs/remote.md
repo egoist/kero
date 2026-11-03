@@ -188,6 +188,7 @@ kero hosts remove build
 kero ls --all                    # the sessions here and on every host
 kero -H build ls
 kero -H build prompt review "run the tests and fix them"
+kero -H build attach review      # show a pane in this terminal
 kero clients                     # who is connected to this machine's kerod
 ```
 
