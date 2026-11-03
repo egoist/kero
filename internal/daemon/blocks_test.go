@@ -321,6 +321,10 @@ func oscSeen(t *testing.T, shell string, env []string, command []string, typed .
 		t.Fatal(err)
 	}
 	base := []string{"HOME=" + home, "TERM=xterm-256color", "PATH=" + os.Getenv("PATH")}
+	if runtime.GOOS == "windows" {
+		// Programs there don't start without the likes of SystemRoot.
+		base = append(os.Environ(), "HOME="+home)
+	}
 	base = append(base, integrationEnv(shell, "", dir, command)...)
 	proc, err := startPTY(ptyOptions{
 		Path: shell, Args: shellArgs(shell, "", dir, command),
