@@ -299,3 +299,29 @@ func TestMouseScrollMultiplier(t *testing.T) {
 		t.Errorf("a new file sets the default:\n%s", out)
 	}
 }
+
+func TestFontFeature(t *testing.T) {
+	for _, c := range []struct {
+		file     string
+		want     []string
+		problems int
+	}{
+		{"", nil, 0},
+		{"font-feature = ss01", []string{"ss01"}, 0},
+		{"font-feature = ss01, -calt , cv05=2", []string{"ss01", "-calt", "cv05=2"}, 0},
+		{"font-feature = +ss01\nfont-feature = calt=0", []string{"+ss01", "calt=0"}, 0},
+		{"font-feature = ss01\nfont-feature =\nfont-feature = ss02", []string{"ss02"}, 0},
+		{"font-feature = ss01, ligatures, -calt=1, cv05=x, ss2", []string{"ss01"}, 1},
+	} {
+		s, probs := parse(c.file + "\n")
+		if !reflect.DeepEqual(s.FontFeatures, c.want) || len(probs) != c.problems {
+			t.Errorf("%q: features %q, problems %q; want %q", c.file, s.FontFeatures, probs, c.want)
+		}
+		if back, _ := parse(format(s, "")); !reflect.DeepEqual(back.FontFeatures, s.FontFeatures) {
+			t.Errorf("%q: read back %q", c.file, back.FontFeatures)
+		}
+	}
+	if out := format(Default(), ""); strings.Contains(out, "font-feature") {
+		t.Errorf("a new file sets font-feature:\n%s", out)
+	}
+}

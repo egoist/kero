@@ -729,10 +729,44 @@ func (a *App) watchReturn() {
 func (a *App) termFont() terminal.Font {
 	f := terminal.Font{Family: a.termFamily(), Size: a.set.FontSize, Weight: a.set.FontWeight,
 		LineHeight: a.set.LineHeight, Thicken: a.set.Thicken}
-	if !a.set.Ligatures {
-		f.Features = []string{"-calt", "-liga", "-dlig"}
-	}
+	f.Features = a.fontFeatures()
 	return f
+}
+
+// fontFeatures are the terminals' OpenType features, as terminal.Font
+// takes them: ligatures off unless they're wanted, then the user's
+// font-feature, which win over them for the tags they name.
+func (a *App) fontFeatures() []string {
+	var fs []string
+	if !a.set.Ligatures {
+		for _, tag := range []string{"calt", "liga", "dlig"} {
+			if !slices.ContainsFunc(a.set.FontFeatures, func(f string) bool { return featureTag(f) == tag }) {
+				fs = append(fs, "-"+tag)
+			}
+		}
+	}
+	return append(fs, a.set.FontFeatures...)
+}
+
+// featureTag is the tag of a feature as terminal.Font takes it.
+func featureTag(f string) string {
+	tag, _, _ := strings.Cut(strings.TrimLeft(f, "+-"), "=")
+	return tag
+}
+
+// uiFeatures converts features as terminal.Font takes them, as -calt,
+// into the list ui.Span.Features takes, as calt=0.
+func uiFeatures(fs []string) string {
+	out := make([]string, 0, len(fs))
+	for _, f := range fs {
+		if tag, ok := strings.CutPrefix(f, "-"); ok {
+			f = tag + "=0"
+		} else {
+			f = strings.TrimPrefix(f, "+")
+		}
+		out = append(out, f)
+	}
+	return strings.Join(out, ",")
 }
 
 // termThemes returns the terminal's colors in light and dark windows: the
@@ -868,7 +902,8 @@ func (a *App) apply(s settings.Settings, save bool) {
 		}
 	}
 	font := old.FontFamily != s.FontFamily || old.FontSize != s.FontSize || old.FontWeight != s.FontWeight ||
-		old.LineHeight != s.LineHeight || old.Ligatures != s.Ligatures || old.Thicken != s.Thicken
+		old.LineHeight != s.LineHeight || old.Ligatures != s.Ligatures || old.Thicken != s.Thicken ||
+		!slices.Equal(old.FontFeatures, s.FontFeatures)
 	themes := old.LightTheme != s.LightTheme || old.DarkTheme != s.DarkTheme
 	anew := old.Cursor != s.Cursor || old.CursorBlink != s.CursorBlink || old.OptionAsAlt != s.OptionAsAlt ||
 		old.Clipboard != s.Clipboard || old.RightClick != s.RightClick

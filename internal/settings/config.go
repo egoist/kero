@@ -131,6 +131,27 @@ var keys = []key{
 	numberKey("font-weight", "100 to 900", func(s *Settings) float64 { return float64(s.FontWeight) }, func(s *Settings, n float64) { s.FontWeight = int(n) }),
 	numberKey("line-height", "a multiple of the font's", func(s *Settings) float64 { return float64(s.LineHeight) }, func(s *Settings, n float64) { s.LineHeight = float32(n) }),
 	boolKey("font-ligatures", "join characters as the font draws them", func(s *Settings) *bool { return &s.Ligatures }),
+	{name: "font-feature", doc: "the font's OpenType features, as Ghostty's: ss01 turns one on, -calt turns one off, cv05=2 picks an alternate; comma-separated or repeated, and applied after font-ligatures", list: true,
+		get: func(s *Settings) []string { return slices.Clone(s.FontFeatures) },
+		set: func(s *Settings, v []string) error {
+			s.FontFeatures = nil
+			var bad []string
+			for _, l := range v {
+				if strings.TrimSpace(l) == "" {
+					s.FontFeatures = nil // an empty value clears those before it
+					continue
+				}
+				fs, err := ParseFontFeatures(l)
+				s.FontFeatures = append(s.FontFeatures, fs...)
+				if err != nil {
+					bad = append(bad, err.Error())
+				}
+			}
+			if bad != nil {
+				return fmt.Errorf("%s", strings.Join(bad, "; "))
+			}
+			return nil
+		}},
 	boolKey("font-thicken", "a heavier stroke, as Ghostty's", func(s *Settings) *bool { return &s.Thicken }),
 	numberKey("minimum-contrast", "the least contrast text keeps with its background, 1 (none) to 21, as Ghostty's", func(s *Settings) float64 { return float64(s.MinContrast) }, func(s *Settings, n float64) { s.MinContrast = float32(min(max(n, 1), 21)) }),
 	boolKey("dim-unfocused-terminals", "fade the terminals you're not in, when a session has several panes", func(s *Settings) *bool { return &s.DimUnfocused }),

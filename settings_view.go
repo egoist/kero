@@ -54,30 +54,34 @@ var settingsPages = []settingsPage{
 
 // settingsState is what the Settings window keeps besides the settings.
 type settingsState struct {
-	page         string
-	recording    string // the action whose shortcut is being typed
-	recordRef    ui.Handle
-	filter       string // the keyboard page's search
-	query        string // the sidebar's search, of every page
-	searchRef    ui.Handle
-	revealed     string // the query and page the search last scrolled to
-	draft        map[string]string
-	envDraft     string
-	shellDraft   string
-	shellEditing bool
-	loginOpen    bool // open at login, as the system says
-	updates      updatePrefs
-	cliPath      string
-	service      string // kerod, as last asked
-	notice       string // a line under the keyboard page, as of a conflict
-	toast        string
-	menus        map[string]*searchMenu     // the search menus', by key
-	problems     []string                   // what the configuration file got wrong
-	scrolls      map[string]*ui.ScrollState // each page's, for its scroll edge
-	host         hostDraft                  // the Hosts page's form
-	hostEdit     hostDraft                  // a host's, as the user edits it
-	tailnet      tailnetLook                // this machine on the tailnet, for the Hosts page
-	confirm      *confirmation              // a question, asked in this window
+	page       string
+	recording  string // the action whose shortcut is being typed
+	recordRef  ui.Handle
+	filter     string // the keyboard page's search
+	query      string // the sidebar's search, of every page
+	searchRef  ui.Handle
+	revealed   string // the query and page the search last scrolled to
+	draft      map[string]string
+	envDraft   string
+	shellDraft string
+	// featuresDraft is font-feature as the field has it, while
+	// featuresEditing.
+	featuresDraft   string
+	featuresEditing bool
+	shellEditing    bool
+	loginOpen       bool // open at login, as the system says
+	updates         updatePrefs
+	cliPath         string
+	service         string // kerod, as last asked
+	notice          string // a line under the keyboard page, as of a conflict
+	toast           string
+	menus           map[string]*searchMenu     // the search menus', by key
+	problems        []string                   // what the configuration file got wrong
+	scrolls         map[string]*ui.ScrollState // each page's, for its scroll edge
+	host            hostDraft                  // the Hosts page's form
+	hostEdit        hostDraft                  // a host's, as the user edits it
+	tailnet         tailnetLook                // this machine on the tailnet, for the Hosts page
+	confirm         *confirmation              // a question, asked in this window
 }
 
 // openSettings shows the Settings window, on a page.
@@ -880,6 +884,9 @@ func (a *App) terminalPage(c *ui.Context, pal *palette) {
 		settingRow(c, pal, locales.SetLigatures(), locales.SetLigaturesDetail(), func() {
 			toggle(c.Key("liga"), &s.Ligatures, pal)
 		})
+		settingRow(c, pal, locales.SetFontFeatures(), locales.SetFontFeaturesDetail(), func() {
+			a.fontFeaturesField(c, pal)
+		})
 		settingRow(c, pal, locales.SetThicken(), locales.SetThickenDetail(), func() {
 			toggle(c.Key("thicken"), &s.Thicken, pal)
 		})
@@ -943,10 +950,7 @@ func (a *App) terminalPreview(c *ui.Context, pal *palette) {
 		th = dark
 	}
 	font := a.termFamily()
-	features := ""
-	if !a.set.Ligatures {
-		features = "-calt,-liga"
-	}
+	features := uiFeatures(a.fontFeatures())
 	line := func(spans ...ui.Span) {
 		for i := range spans {
 			spans[i].Font, spans[i].Size, spans[i].Weight, spans[i].Features = font, a.set.FontSize, a.set.FontWeight, features
@@ -966,6 +970,30 @@ func (a *App) terminalPreview(c *ui.Context, pal *palette) {
 			}
 		})
 	})
+}
+
+// fontFeaturesField edits font-feature as a comma-separated list. What
+// it can read applies as it is submitted or loses the focus; a tag it
+// can't is left in the field, marked, for the user to fix.
+func (a *App) fontFeaturesField(c *ui.Context, pal *palette) {
+	if !a.ss.featuresEditing {
+		a.ss.featuresDraft = strings.Join(a.set.FontFeatures, ", ")
+	}
+	in := textField(c, "features", &a.ss.featuresDraft, "ss01, cv05=2, -calt", 200, pal).Font("monospace")
+	a.ss.featuresEditing = in.Focused()
+	_, err := settings.ParseFontFeatures(a.ss.featuresDraft)
+	if err != nil {
+		in.TextColor(pal.danger)
+	}
+	keep := func() {
+		if fs, err := settings.ParseFontFeatures(a.ss.featuresDraft); err == nil && !slices.Equal(fs, a.set.FontFeatures) {
+			a.set.FontFeatures = fs
+		}
+	}
+	in.OnSubmit(keep)
+	if !a.ss.featuresEditing {
+		keep()
+	}
 }
 
 func (a *App) shellPage(c *ui.Context, pal *palette) {
