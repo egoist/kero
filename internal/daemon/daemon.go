@@ -166,7 +166,12 @@ func Run(opts Options) error {
 	d.loadConversations()
 	d.restore()
 
-	signal.Ignore(syscall.SIGHUP, syscall.SIGPIPE)
+	signal.Ignore(syscall.SIGPIPE)
+	// SIGHUP is caught, on a channel nothing reads, not ignored: kerod
+	// outlives it either way, but an ignored signal stays ignored across
+	// exec, so a pane's programs would ignore their hangup too. A caught
+	// one is back to its default in a child.
+	signal.Notify(make(chan os.Signal, 1), syscall.SIGHUP)
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGTERM, syscall.SIGINT)
 	notifyStop(sigs)
