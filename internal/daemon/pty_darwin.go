@@ -16,7 +16,7 @@ const (
 )
 
 func openMaster() (*os.File, string, error) {
-	master, err := os.OpenFile("/dev/ptmx", os.O_RDWR|syscall.O_NOCTTY|syscall.O_CLOEXEC, 0)
+	master, err := openBlocking("/dev/ptmx", os.O_RDWR|syscall.O_NOCTTY)
 	if err != nil {
 		return nil, "", fmt.Errorf("pty: %w", err)
 	}
@@ -35,4 +35,26 @@ func openMaster() (*os.File, string, error) {
 		n = len(name)
 	}
 	return master, string(name[:n]), nil
+}
+
+// openBlocking opens a path without letting os.OpenFile move the
+// descriptor into the runtime poller's non-blocking mode.
+//
+// macOS 26.2's fcntl(F_SETFL) on a pty master reports ENOTTY while still
+// applying the change: os.OpenFile sees the error, leaves the descriptor
+// non-blocking but unregistered with kqueue, and every Read then fails
+// with EAGAIN instead of waiting for output. Opening the descriptors
+// directly and wrapping them with os.NewFile keeps them blocking, as a
+// pane's terminal reads are meant to be.
+func openBlocking(path string, flag int) (*os.File, error) {
+	fd, err := syscall.Open(path, flag|syscall.O_CLOEXEC, 0)
+	if err != nil {
+		return nil, &os.PathError{Op: "open", Path: path, Err: err}
+	}
+	return os.NewFile(uintptr(fd), path), nil
+}
+
+// openSlave opens the slave side the child's terminal runs on.
+func openSlave(name string) (*os.File, error) {
+	return openBlocking(name, os.O_RDWR|syscall.O_NOCTTY)
 }
