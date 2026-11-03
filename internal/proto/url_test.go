@@ -19,6 +19,11 @@ func TestBrowserURL(t *testing.T) {
 		"github.com/egoist/kero":  "https://github.com/egoist/kero",
 		"how to quit vim":         "https://www.google.com/search?q=how+to+quit+vim",
 		"golang":                  "https://www.google.com/search?q=golang",
+
+		"[fd00::1]:8080/app":                       "http://[fd00::1]:8080/app",
+		"[2606:4700:4700::1111]":                   "https://[2606:4700:4700::1111]",
+		"[2606:4700:4700::1111]:8443/docs?q=1#top": "https://[2606:4700:4700::1111]:8443/docs?q=1#top",
+		"[not-an-ip]":                              "https://www.google.com/search?q=%5Bnot-an-ip%5D",
 	} {
 		if got := BrowserURL(in); got != want {
 			t.Errorf("BrowserURL(%q) = %q, want %q", in, got, want)
@@ -41,6 +46,9 @@ func TestIsAddress(t *testing.T) {
 	for in, want := range map[string]bool{
 		"localhost:3000": true, " kero.sh ": true, "https://x": true, "about:blank": true,
 		"": false, "split right": false, "settings": false,
+
+		"[2606:4700:4700::1111]": true, "[2606:4700:4700::1111]:8443/docs": true,
+		"[not-an-ip]": false,
 	} {
 		if got := IsAddress(in); got != want {
 			t.Errorf("IsAddress(%q) = %v", in, got)
