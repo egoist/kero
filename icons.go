@@ -43,6 +43,7 @@ var (
 	terminalIcon     = glyph("meteor-terminal")
 	returnIcon       = glyph("f7-return")
 	gearIcon         = glyph("f7-gear-alt")
+	coffeeIcon       = glyph("lucide-coffee")
 	splitRightIcon   = glyph("f7-square-split-2x1")
 	splitDownIcon    = glyph("f7-square-split-1x2")
 	zoomIcon         = glyph("f7-arrow-up-left-arrow-down-right")

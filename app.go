@@ -88,6 +88,7 @@ type App struct {
 	win     *mygo.Window
 	winOpen bool
 	tray    *mygo.Tray // the icon in the menu bar or notification area, while it shows
+	awake   awakeHold  // keeps the computer from sleeping, as Keep computer awake asks
 
 	// hosts are the kerods the app shows, this machine's first; st is
 	// what they hold, each host's sessions and projects after the one's
@@ -417,6 +418,7 @@ func (a *App) notify(first bool) {
 		waiting = 0
 	}
 	mygo.App.SetBadgeCount(waiting)
+	a.keepAwake()
 }
 
 func (a *App) updateTitle() {
@@ -928,6 +930,9 @@ func (a *App) apply(s settings.Settings, save bool) {
 	}
 	if old.DockBadge != s.DockBadge {
 		a.notify(true)
+	}
+	if old.KeepAwake != s.KeepAwake {
+		a.keepAwake()
 	}
 	if old.AppIcon != s.AppIcon && a.win != nil {
 		a.changeAppIcon()

@@ -119,6 +119,8 @@ var keys = []key{
 	boolKey("session-history", "list the coding agents' ended conversations in the sidebar, to resume or archive", func(s *Settings) *bool { return &s.SessionHistory }),
 	choiceKey("macos-show-app-icon", "where Kero's icon shows; closing the window keeps Kero running in the menu bar while it shows there. Windows and Linux always show it in the notification area",
 		func(s *Settings) *string { return &s.AppIcon }, AppIcons...),
+	choiceKey("keep-computer-awake", "keep this computer from sleeping: never; as long as Kero runs; or while an agent on it works. Closing a Mac's lid still sleeps it",
+		func(s *Settings) *string { return &s.KeepAwake }, KeepAwakeModes...),
 
 	choiceKey("window-theme", "the app's appearance", func(s *Settings) *string { return &s.Appearance }, "system", "light", "dark"),
 	choiceKey("language", "the app's language; system follows the system's", func(s *Settings) *string { return &s.Language }, append([]string{"system"}, Languages...)...),

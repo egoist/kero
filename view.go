@@ -651,7 +651,7 @@ func (a *App) sessionMenu(m *ui.Menu, s *proto.Session) {
 }
 
 // sidebarFooter is the sidebar's foot: the buttons for projects, the
-// palette and Settings; then, at the right, what across the sessions
+// palette, Keep computer awake and Settings; then, at the right, what across the sessions
 // wants a look, each a button going to the next session of it, and
 // nothing while nothing does, or the connection to kerod while there is
 // none.
@@ -659,6 +659,7 @@ func (a *App) sidebarFooter(c *ui.Context, pal *palette) {
 	ui.Row(c).Height(36).Shrink(0).Padding(0, 12, 4, 12).Gap(2).AlignItems(ui.Center).DragWindow().Children(func() {
 		iconButton(c, "open-project", folderIcon, a.tip(locales.ActionOpenProject(), "project.open"), pal, a.openProject)
 		iconButton(c, "palette", searchIcon, a.tip(locales.ActionGoToSession(), "palette.open"), pal, a.openPalette)
+		a.awakeButton(c, pal)
 		iconButton(c, "settings", gearIcon, a.tip(locales.SettingsTitle(), "settings.open"), pal, func() { a.openSettings("") })
 		ui.Spacer(c)
 		switch a.local().conn {

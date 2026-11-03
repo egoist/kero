@@ -5,7 +5,7 @@
 - `meteor-*.svg`: [Meteor Icons](https://github.com/zkreations/icons) (MIT, © zkreations).
 - `si-*.svg`: [Simple Icons](https://simpleicons.org) (CC0), programs' logos; the brands are their owners' trademarks.
 - `octicon-*.svg`: [Octicons](https://primer.style/octicons) (MIT, © GitHub), for what Framework7 has no icon of, as a file's diff.
-- `lucide-*.svg`: [Lucide](https://lucide.dev) (ISC, © Lucide Contributors), with a heavier stroke than Iconify serves (`stroke-width`), as SF Symbols' semibold: 2.5 for `chevrons-up-down`, 3 for `check`.
+- `lucide-*.svg`: [Lucide](https://lucide.dev) (ISC, © Lucide Contributors), with a heavier stroke than Iconify serves (`stroke-width`), as SF Symbols' semibold: 2.5 for `chevrons-up-down`, 3 for `check`; `coffee` keeps Iconify's 2.
 
 - `files/`: [Pierre Icons](https://diffs.com/icons) (MIT, © The Pierre Computer Company, `files/LICENSE.md`), the file and folder icons of the Files and Changes trees: the complete theme, in its colors for the light appearance (`*_light.svg`) and the dark one. `go run ./scripts/fileicons <checkout>` brings them from a checkout of [pierrecomputer/vscode-icons](https://github.com/pierrecomputer/vscode-icons) built with `node scripts/build-icon-theme.mjs`, with the names and extensions they are for (`fileicons_gen.go`).
 
