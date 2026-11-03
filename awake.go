@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/egoist/mygo/ui"
+	"github.com/egoist/mygo"
 
 	"kero/internal/proto"
 	"kero/internal/settings"
@@ -48,30 +48,23 @@ func awakeModeName(mode string) string {
 	return locales.AwakeOff()
 }
 
-// awakeButton is the sidebar foot's button of Keep computer awake: a cup,
-// in the accent while the mode is not off, whose menu picks the mode.
-func (a *App) awakeButton(c *ui.Context, pal *palette) {
-	label := locales.AwakeTitle() + ": " + awakeModeName(a.set.KeepAwake)
-	b := ui.ButtonBase(c.Key("keep-awake")).Size(28, 26).Radius(6).Center().TextColor(pal.textMuted).Label(label).Tooltip(label)
-	on := a.set.KeepAwake != awakeOff
-	switch {
-	case b.Pressed():
-		b.Background(pal.rowHover.Alpha(0.12))
-	case b.Hovered():
-		b.Background(pal.rowHover)
-		b.TextColor(pal.text)
+// awakeTrayItem is the tray menu's submenu of Keep computer awake, whose
+// items pick the mode.
+func (a *App) awakeTrayItem() *mygo.MenuItem {
+	var modes []*mygo.MenuItem
+	for _, mode := range settings.KeepAwakeModes {
+		modes = append(modes, &mygo.MenuItem{
+			Label:   awakeModeName(mode),
+			Type:    mygo.MenuItemRadio,
+			Checked: a.set.KeepAwake == mode,
+			Click: func(*mygo.MenuItem, *mygo.Window) {
+				a.update(func() {
+					s := a.set
+					s.KeepAwake = mode
+					a.applySettings(s)
+				})
+			},
+		})
 	}
-	if on {
-		b.TextColor(pal.accent)
-	}
-	b.Children(func() { ui.Icon(c, coffeeIcon).Size(16, 16) })
-	b.Menu(func(m *ui.Menu) {
-		for _, mode := range settings.KeepAwakeModes {
-			if m.Item(awakeModeName(mode)).Checked(a.set.KeepAwake == mode).Chosen() {
-				s := a.set
-				s.KeepAwake = mode
-				a.applySettings(s)
-			}
-		}
-	})
+	return &mygo.MenuItem{Label: locales.AwakeTitle(), Submenu: modes}
 }

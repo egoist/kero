@@ -933,6 +933,9 @@ func (a *App) apply(s settings.Settings, save bool) {
 	}
 	if old.KeepAwake != s.KeepAwake {
 		a.keepAwake()
+		if a.tray != nil {
+			a.tray.SetMenu(a.trayMenu())
+		}
 	}
 	if old.AppIcon != s.AppIcon && a.win != nil {
 		a.changeAppIcon()
