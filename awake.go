@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/egoist/mygo"
+	"github.com/egoist/mygo/i18n"
 
 	"kero/internal/proto"
 	"kero/internal/settings"
@@ -38,14 +39,39 @@ func (a *App) keepAwake() {
 }
 
 // awakeModeName names a mode of Keep computer awake.
-func awakeModeName(mode string) string {
+func awakeModeName(mode string) string { return awakeModeIn(locales.In(i18n.Locale()), mode) }
+
+// awakeModeIn names a mode of Keep computer awake in the language of msgs.
+func awakeModeIn(msgs locales.Messages, mode string) string {
 	switch mode {
 	case awakeOn:
-		return locales.AwakeOn()
+		return msgs.AwakeOn()
 	case awakeAgents:
-		return locales.AwakeAgents()
+		return msgs.AwakeAgents()
 	}
-	return locales.AwakeOff()
+	return msgs.AwakeOff()
+}
+
+// setKeepAwake chooses a mode of Keep computer awake, and saves it.
+func (a *App) setKeepAwake(mode string) {
+	s := a.set
+	s.KeepAwake = mode
+	a.applySettings(s)
+}
+
+// awakeCommands are the palette's commands of Keep computer awake: one for
+// each mode but the one it is in.
+func (a *App) awakeCommands() []paletteItem {
+	en := locales.In("en")
+	var cmds []paletteItem
+	for _, mode := range settings.KeepAwakeModes {
+		if mode == a.set.KeepAwake {
+			continue
+		}
+		cmds = append(cmds, paletteItem{title: locales.AwakeTitle() + ": " + awakeModeName(mode),
+			words: en.AwakeTitle() + " " + awakeModeIn(en, mode) + " keep-computer-awake sleep caffeinate", run: func() { a.setKeepAwake(mode) }})
+	}
+	return cmds
 }
 
 // awakeTrayItem is the tray menu's submenu of Keep computer awake, whose
@@ -57,13 +83,7 @@ func (a *App) awakeTrayItem() *mygo.MenuItem {
 			Label:   awakeModeName(mode),
 			Type:    mygo.MenuItemRadio,
 			Checked: a.set.KeepAwake == mode,
-			Click: func(*mygo.MenuItem, *mygo.Window) {
-				a.update(func() {
-					s := a.set
-					s.KeepAwake = mode
-					a.applySettings(s)
-				})
-			},
+			Click:   func(*mygo.MenuItem, *mygo.Window) { a.update(func() { a.setKeepAwake(mode) }) },
 		})
 	}
 	return &mygo.MenuItem{Label: locales.AwakeTitle(), Submenu: modes}
