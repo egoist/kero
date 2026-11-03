@@ -3918,6 +3918,284 @@ func (msgs Messages) ActionToggleFiles() string {
 	return Catalog.Format(msgs.locale, "actionToggleFiles", nil)
 }
 
+// SidePorts says "Ports"
+// in the language the app shows.
+func SidePorts() string { return In(i18n.Locale()).SidePorts() }
+
+// SidePorts says "Ports"
+// in the language of msgs.
+func (msgs Messages) SidePorts() string {
+	return Catalog.Format(msgs.locale, "sidePorts", nil)
+}
+
+// ActionTogglePorts says "Toggle Ports"
+// in the language the app shows.
+func ActionTogglePorts() string { return In(i18n.Locale()).ActionTogglePorts() }
+
+// ActionTogglePorts says "Toggle Ports"
+// in the language of msgs.
+func (msgs Messages) ActionTogglePorts() string {
+	return Catalog.Format(msgs.locale, "actionTogglePorts", nil)
+}
+
+// PortsThisSession says "This session"
+// in the language the app shows.
+func PortsThisSession() string { return In(i18n.Locale()).PortsThisSession() }
+
+// PortsThisSession says "This session"
+// in the language of msgs.
+func (msgs Messages) PortsThisSession() string {
+	return Catalog.Format(msgs.locale, "portsThisSession", nil)
+}
+
+// PortsOthers says "Others"
+// in the language the app shows.
+func PortsOthers() string { return In(i18n.Locale()).PortsOthers() }
+
+// PortsOthers says "Others"
+// in the language of msgs.
+func (msgs Messages) PortsOthers() string {
+	return Catalog.Format(msgs.locale, "portsOthers", nil)
+}
+
+// PortsSystem says "System and apps"
+// in the language the app shows.
+func PortsSystem() string { return In(i18n.Locale()).PortsSystem() }
+
+// PortsSystem says "System and apps"
+// in the language of msgs.
+func (msgs Messages) PortsSystem() string {
+	return Catalog.Format(msgs.locale, "portsSystem", nil)
+}
+
+// PortsNone says "No ports listening"
+// in the language the app shows.
+func PortsNone() string { return In(i18n.Locale()).PortsNone() }
+
+// PortsNone says "No ports listening"
+// in the language of msgs.
+func (msgs Messages) PortsNone() string {
+	return Catalog.Format(msgs.locale, "portsNone", nil)
+}
+
+// PortsNoneDetail says "Start a server in a session, and its port shows here."
+// in the language the app shows.
+func PortsNoneDetail() string { return In(i18n.Locale()).PortsNoneDetail() }
+
+// PortsNoneDetail says "Start a server in a session, and its port shows here."
+// in the language of msgs.
+func (msgs Messages) PortsNoneDetail() string {
+	return Catalog.Format(msgs.locale, "portsNoneDetail", nil)
+}
+
+// PortsCantList says "Can't list the ports"
+// in the language the app shows.
+func PortsCantList() string { return In(i18n.Locale()).PortsCantList() }
+
+// PortsCantList says "Can't list the ports"
+// in the language of msgs.
+func (msgs Messages) PortsCantList() string {
+	return Catalog.Format(msgs.locale, "portsCantList", nil)
+}
+
+// PortsNotConnected says "Not connected to {host}"
+// in the language the app shows.
+func PortsNotConnected(host string) string { return In(i18n.Locale()).PortsNotConnected(host) }
+
+// PortsNotConnected says "Not connected to {host}"
+// in the language of msgs.
+func (msgs Messages) PortsNotConnected(host string) string {
+	return Catalog.Format(msgs.locale, "portsNotConnected", map[string]any{"host": host})
+}
+
+// PortsUpdateTitle says "Update Kero on {host} to see its ports"
+// in the language the app shows.
+func PortsUpdateTitle(host string) string { return In(i18n.Locale()).PortsUpdateTitle(host) }
+
+// PortsUpdateTitle says "Update Kero on {host} to see its ports"
+// in the language of msgs.
+func (msgs Messages) PortsUpdateTitle(host string) string {
+	return Catalog.Format(msgs.locale, "portsUpdateTitle", map[string]any{"host": host})
+}
+
+// PortsRestartTitle says "Restart the Kero service to use ports"
+// in the language the app shows.
+func PortsRestartTitle() string { return In(i18n.Locale()).PortsRestartTitle() }
+
+// PortsRestartTitle says "Restart the Kero service to use ports"
+// in the language of msgs.
+func (msgs Messages) PortsRestartTitle() string {
+	return Catalog.Format(msgs.locale, "portsRestartTitle", nil)
+}
+
+// PortsRestartDetail says "It still runs an older version of Kero, from before this update."
+// in the language the app shows.
+func PortsRestartDetail() string { return In(i18n.Locale()).PortsRestartDetail() }
+
+// PortsRestartDetail says "It still runs an older version of Kero, from before this update."
+// in the language of msgs.
+func (msgs Messages) PortsRestartDetail() string {
+	return Catalog.Format(msgs.locale, "portsRestartDetail", nil)
+}
+
+// PortsOpen says "Open in Browser Pane"
+// in the language the app shows.
+func PortsOpen() string { return In(i18n.Locale()).PortsOpen() }
+
+// PortsOpen says "Open in Browser Pane"
+// in the language of msgs.
+func (msgs Messages) PortsOpen() string {
+	return Catalog.Format(msgs.locale, "portsOpen", nil)
+}
+
+// PortsOpenDefault says "Open in Default Browser"
+// in the language the app shows.
+func PortsOpenDefault() string { return In(i18n.Locale()).PortsOpenDefault() }
+
+// PortsOpenDefault says "Open in Default Browser"
+// in the language of msgs.
+func (msgs Messages) PortsOpenDefault() string {
+	return Catalog.Format(msgs.locale, "portsOpenDefault", nil)
+}
+
+// PortsCopy says "Copy URL"
+// in the language the app shows.
+func PortsCopy() string { return In(i18n.Locale()).PortsCopy() }
+
+// PortsCopy says "Copy URL"
+// in the language of msgs.
+func (msgs Messages) PortsCopy() string {
+	return Catalog.Format(msgs.locale, "portsCopy", nil)
+}
+
+// PortsStop says "Stop Forwarding"
+// in the language the app shows.
+func PortsStop() string { return In(i18n.Locale()).PortsStop() }
+
+// PortsStop says "Stop Forwarding"
+// in the language of msgs.
+func (msgs Messages) PortsStop() string {
+	return Catalog.Format(msgs.locale, "portsStop", nil)
+}
+
+// PortsForwarding says "Forwarding…"
+// in the language the app shows.
+func PortsForwarding() string { return In(i18n.Locale()).PortsForwarding() }
+
+// PortsForwarding says "Forwarding…"
+// in the language of msgs.
+func (msgs Messages) PortsForwarding() string {
+	return Catalog.Format(msgs.locale, "portsForwarding", nil)
+}
+
+// PortsNoListener says "Nothing listening"
+// in the language the app shows.
+func PortsNoListener() string { return In(i18n.Locale()).PortsNoListener() }
+
+// PortsNoListener says "Nothing listening"
+// in the language of msgs.
+func (msgs Messages) PortsNoListener() string {
+	return Catalog.Format(msgs.locale, "portsNoListener", nil)
+}
+
+// PortsUnknownProcess says "Unknown process"
+// in the language the app shows.
+func PortsUnknownProcess() string { return In(i18n.Locale()).PortsUnknownProcess() }
+
+// PortsUnknownProcess says "Unknown process"
+// in the language of msgs.
+func (msgs Messages) PortsUnknownProcess() string {
+	return Catalog.Format(msgs.locale, "portsUnknownProcess", nil)
+}
+
+// PortsListensOn says "Listens on {addresses}"
+// in the language the app shows.
+func PortsListensOn(addresses string) string { return In(i18n.Locale()).PortsListensOn(addresses) }
+
+// PortsListensOn says "Listens on {addresses}"
+// in the language of msgs.
+func (msgs Messages) PortsListensOn(addresses string) string {
+	return Catalog.Format(msgs.locale, "portsListensOn", map[string]any{"addresses": addresses})
+}
+
+// PortsUnreachable says "Not on {host}'s loopback, so Kero can't forward it."
+// in the language the app shows.
+func PortsUnreachable(host string) string { return In(i18n.Locale()).PortsUnreachable(host) }
+
+// PortsUnreachable says "Not on {host}'s loopback, so Kero can't forward it."
+// in the language of msgs.
+func (msgs Messages) PortsUnreachable(host string) string {
+	return Catalog.Format(msgs.locale, "portsUnreachable", map[string]any{"host": host})
+}
+
+// PortsMoved says "Port {port} is taken on this computer: forwarded to localhost:{local}"
+// in the language the app shows.
+func PortsMoved(port string, local string) string { return In(i18n.Locale()).PortsMoved(port, local) }
+
+// PortsMoved says "Port {port} is taken on this computer: forwarded to localhost:{local}"
+// in the language of msgs.
+func (msgs Messages) PortsMoved(port string, local string) string {
+	return Catalog.Format(msgs.locale, "portsMoved", map[string]any{"port": port, "local": local})
+}
+
+// PortsForwardFailed says "Can't forward port {port} of {host}: {error}"
+// in the language the app shows.
+func PortsForwardFailed(host string, port string, error string) string {
+	return In(i18n.Locale()).PortsForwardFailed(host, port, error)
+}
+
+// PortsForwardFailed says "Can't forward port {port} of {host}: {error}"
+// in the language of msgs.
+func (msgs Messages) PortsForwardFailed(host string, port string, error string) string {
+	return Catalog.Format(msgs.locale, "portsForwardFailed", map[string]any{"host": host, "port": port, "error": error})
+}
+
+// PortsNothingListens says "Nothing listens on port {port} on {host}"
+// in the language the app shows.
+func PortsNothingListens(port string, host string) string {
+	return In(i18n.Locale()).PortsNothingListens(port, host)
+}
+
+// PortsNothingListens says "Nothing listens on port {port} on {host}"
+// in the language of msgs.
+func (msgs Messages) PortsNothingListens(port string, host string) string {
+	return Catalog.Format(msgs.locale, "portsNothingListens", map[string]any{"port": port, "host": host})
+}
+
+// PortsCopied says "Copied {url}"
+// in the language the app shows.
+func PortsCopied(url string) string { return In(i18n.Locale()).PortsCopied(url) }
+
+// PortsCopied says "Copied {url}"
+// in the language of msgs.
+func (msgs Messages) PortsCopied(url string) string {
+	return Catalog.Format(msgs.locale, "portsCopied", map[string]any{"url": url})
+}
+
+// PortsPageHere says "{address} is this computer's, not {host}'s."
+// in the language the app shows.
+func PortsPageHere(address string, host string) string {
+	return In(i18n.Locale()).PortsPageHere(address, host)
+}
+
+// PortsPageHere says "{address} is this computer's, not {host}'s."
+// in the language of msgs.
+func (msgs Messages) PortsPageHere(address string, host string) string {
+	return Catalog.Format(msgs.locale, "portsPageHere", map[string]any{"address": address, "host": host})
+}
+
+// PortsForwardFrom says "Forward {port} from {host}"
+// in the language the app shows.
+func PortsForwardFrom(port string, host string) string {
+	return In(i18n.Locale()).PortsForwardFrom(port, host)
+}
+
+// PortsForwardFrom says "Forward {port} from {host}"
+// in the language of msgs.
+func (msgs Messages) PortsForwardFrom(port string, host string) string {
+	return Catalog.Format(msgs.locale, "portsForwardFrom", map[string]any{"port": port, "host": host})
+}
+
 // ActionToggleRightSidebar says "Toggle Right Sidebar"
 // in the language the app shows.
 func ActionToggleRightSidebar() string { return In(i18n.Locale()).ActionToggleRightSidebar() }

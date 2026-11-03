@@ -310,6 +310,9 @@ func (a *App) event(h *host, cl *client.Client, m proto.Message) {
 func (a *App) setState(h *host, st proto.State) {
 	first, hostFirst := !a.loaded, !h.loaded
 	h.loaded = true
+	if !h.remote() {
+		a.setForwards(st.Forwards)
+	}
 	if st.Conversations != h.convGen || hostFirst {
 		h.convGen, h.convKnown = st.Conversations, false
 	}

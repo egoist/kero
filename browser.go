@@ -48,6 +48,9 @@ type webEntry struct {
 	// staged lays the page out unseen, for kero browser screenshot of a
 	// pane never shown, which has no size, and so no picture.
 	staged bool
+	// portNoteClosed is the page whose note the user closed, that its
+	// localhost is this machine's (browserPortNote).
+	portNoteClosed string
 }
 
 // browserUA makes the page look like Safari's on macOS: sites serve a bare
@@ -277,7 +280,7 @@ func (a *App) paneBrowser(c *ui.Context, pal *palette, bar ui.TitleBar, shown fl
 			case !ref.Focused(c):
 				e.focused = false
 			}
-			if e.err != "" {
+			if !a.browserPortNote(c, pal, p, e) && e.err != "" {
 				a.browserError(c, pal, e)
 			}
 			if a.find.pane == p.ID {

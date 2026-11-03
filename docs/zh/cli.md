@@ -188,6 +188,25 @@ kero diff review --branch                 # 自默认分支以来的改动
 
 见 [改动](./changes.md)。
 
+## 端口
+
+`kero ports` 列出某台机器上正在监听的 TCP 端口，以及各端口背后的进程和窗格。目标会话的端口排在最前，默认是命令所在的会话。加上 `-H` 时列出的是该主机的端口，而 `kero ports forward` 可以把其中一个带到本机的环回地址：
+
+```sh
+kero ports                                # 本机的端口
+kero ports --all                          # 包括系统和应用的端口
+kero ports review --json                  # review 会话的端口排在最前，列出所有端口，输出 JSON
+kero -H devbox ports                      # 主机的端口
+kero -H devbox ports forward 3000         # 转发到本机，并打印其 URL
+kero -H devbox ports forward 3000 --local 8000
+kero split --url "$(kero -H devbox ports forward 3000)"
+kero -H devbox ports stop 3000            # 停止转发
+```
+
+`forward` 在本机端口号空闲时保持相同的号码，否则换一个并在 stderr 中说明。用 `--local` 指定的端口绝不会被替换：如果已被占用，命令会失败。不加 `-H` 时没有什么需要转发：命令只打印端口的 URL。不加 `-H` 的 `kero ports stop` 会停止任意主机对该端口的转发，前提是只有一台主机在转发它。
+
+`forward` 后面的目标指定主机上必须存在的会话。见 [转发端口](./remote.md#转发端口)。
+
 ## 配置与设置
 
 ```sh

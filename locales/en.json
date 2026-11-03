@@ -540,6 +540,121 @@
   "sideClose": "Close",
   "sideFiles": "Files",
   "actionToggleFiles": "Toggle Files",
+  "sidePorts": "Ports",
+  "actionTogglePorts": "Toggle Ports",
+  "portsThisSession": "This session",
+  "portsOthers": "Others",
+  "portsSystem": "System and apps",
+  "portsNone": "No ports listening",
+  "portsNoneDetail": "Start a server in a session, and its port shows here.",
+  "portsCantList": "Can't list the ports",
+  "portsNotConnected": "Not connected to {host}",
+  "@portsNotConnected": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "portsUpdateTitle": "Update Kero on {host} to see its ports",
+  "@portsUpdateTitle": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "portsRestartTitle": "Restart the Kero service to use ports",
+  "portsRestartDetail": "It still runs an older version of Kero, from before this update.",
+  "portsOpen": "Open in Browser Pane",
+  "portsOpenDefault": "Open in Default Browser",
+  "portsCopy": "Copy URL",
+  "portsStop": "Stop Forwarding",
+  "portsForwarding": "Forwarding…",
+  "portsNoListener": "Nothing listening",
+  "portsUnknownProcess": "Unknown process",
+  "portsListensOn": "Listens on {addresses}",
+  "@portsListensOn": {
+    "placeholders": {
+      "addresses": {
+        "type": "String"
+      }
+    }
+  },
+  "portsUnreachable": "Not on {host}'s loopback, so Kero can't forward it.",
+  "@portsUnreachable": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "portsMoved": "Port {port} is taken on this computer: forwarded to localhost:{local}",
+  "@portsMoved": {
+    "placeholders": {
+      "port": {
+        "type": "String"
+      },
+      "local": {
+        "type": "String"
+      }
+    }
+  },
+  "portsForwardFailed": "Can't forward port {port} of {host}: {error}",
+  "@portsForwardFailed": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      },
+      "port": {
+        "type": "String"
+      },
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "portsNothingListens": "Nothing listens on port {port} on {host}",
+  "@portsNothingListens": {
+    "placeholders": {
+      "port": {
+        "type": "String"
+      },
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "portsCopied": "Copied {url}",
+  "@portsCopied": {
+    "placeholders": {
+      "url": {
+        "type": "String"
+      }
+    }
+  },
+  "portsPageHere": "{address} is this computer's, not {host}'s.",
+  "@portsPageHere": {
+    "placeholders": {
+      "address": {
+        "type": "String"
+      },
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "portsForwardFrom": "Forward {port} from {host}",
+  "@portsForwardFrom": {
+    "placeholders": {
+      "port": {
+        "type": "String"
+      },
+      "host": {
+        "type": "String"
+      }
+    }
+  },
   "actionToggleRightSidebar": "Toggle Right Sidebar",
   "rightSidebarHide": "Hide Right Sidebar",
   "rightSidebarShow": "Show Right Sidebar",

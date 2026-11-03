@@ -269,6 +269,7 @@ func (a *App) syncHosts() {
 func (a *App) closeHost(h *host) {
 	h.gen++
 	a.dropTerms(h)
+	a.stopForwards(h)
 	if h.cl != nil {
 		go h.cl.Close()
 		h.cl = nil

@@ -143,6 +143,17 @@ On Linux this first enables lingering (`loginctl enable-linger`), which keeps yo
 - **Agents.** Inside a remote pane, `kero` talks to that host's kerod, so the agent skill works there unchanged. Run `kero skill setup` on the host.
 - **Notifications.** A host's notifications and the window's title carry the host's name, so a remote program can't pass for a local one.
 
+### Forwarding ports
+
+The Ports tab of the right sidebar (<kbd>⌥</kbd> <kbd>⌘</kbd> <kbd>P</kbd>) lists what listens on the host of the session you're looking at. A browser pane's page lives in the app on your computer, so `localhost:3000` there means your computer, even in a remote session. To open the host's port 3000, click it in the tab: Kero forwards it to your computer and opens it in a browser pane. On your own computer, there's nothing to forward, and the port just opens.
+
+- **The port number.** A forward keeps the host's number when it's free on your computer. Otherwise it takes one near it, and the row and a message say which.
+- **Over every connection.** Forwards go through Kero's own connection to the host, so they work the same over SSH, WSL and Tailscale, and only reach the host's loopback.
+- **Pages left on localhost.** A remote session's browser pane on a `localhost` page with no forward says so, and offers the forward. Kero never starts one by itself.
+- **How long they last.** A forward ends when you stop it (the **×** on its row, or `kero ports stop`), when the connection to the host ends, or when Kero's service stops. One you started in the app ends when you quit the app; one you started with `kero ports forward` stays until then. None come back after a restart.
+
+From the command line, see [Ports](./cli.md#ports).
+
 ### Remote Control
 
 `kero focus` and `kero do` let a program drive the app. For a host, that's code on another machine driving your computer's window, so it's off by default. Turn it on per host in **Settings › Hosts**, or with `remote-control` after the address:
@@ -189,6 +200,7 @@ kero ls --all                    # the sessions here and on every host
 kero -H build ls
 kero -H build prompt review "run the tests and fix them"
 kero clients                     # who is connected to this machine's kerod
+kero -H build ports              # what listens on the host; see Forwarding ports
 ```
 
 The app and the CLI share one list of hosts, the configuration's `host` keys:
@@ -210,6 +222,7 @@ host = ubuntu=wsl://Ubuntu
 - **A connection can do anything its account can,** including starting programs, as a local one can. Over SSH it's your own account, as SSH logs you in. Over Tailscale, only who the machine's owner lets in.
 - **The socket is yours alone.** kerod's socket is created readable by its user only, and kerod refuses connections from other users' processes.
 - **Updates are signed.** The server build updates itself only from archives signed with the key of Kero's releases.
+- **Forwards stay on your computer's loopback.** They listen on `localhost` only, never on your network, though any program on your computer can reach them, as with `ssh -L`. Only you start them: a program on a host can't, even with Remote Control on. On the host, kerod connects only to its own loopback, so a forward can't reach another machine through it, and needs nothing beyond the connection itself, which can already run programs there.
 - `kero clients` lists who is connected to a kerod, with how they came: `uid 501 over unix`, `me from 10.0.0.5 over ssh`, `alice@example.com over tailnet`.
 
 ## Limits

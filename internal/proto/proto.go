@@ -28,12 +28,14 @@ const Version = 3
 
 // Hello opens a connection.
 type Hello struct {
-	Kind    string `json:"kind"` // "control" or "attach"
+	Kind    string `json:"kind"` // "control", "attach" or KindPort
 	Version int    `json:"version"`
 	// Attach only.
 	Session string `json:"session,omitempty"`
 	Cols    int    `json:"cols,omitempty"`
 	Rows    int    `json:"rows,omitempty"`
+	// KindPort only: the port of the host's loopback to connect to.
+	Port int `json:"port,omitempty"`
 	// Who connects, which `kero __bridge` adds to the Hello of a remote
 	// client's stream, for `kero clients`: the SSH client's address, how it
 	// came (ssh, wsl), and what the client said it is (MuxHello.Client).
@@ -58,6 +60,11 @@ type Welcome struct {
 	// Attach only: the size of the snapshot that follows.
 	Cols int `json:"cols,omitempty"`
 	Rows int `json:"rows,omitempty"`
+	// KindPort only: the port connected to, the stream's bytes then being
+	// its own. A kerod that knows no KindPort tells none.
+	Port int `json:"port,omitempty"`
+	// KindPort only: nothing listens on the port.
+	Refused bool `json:"refused,omitempty"`
 }
 
 // Request is a call on a control connection.
@@ -143,6 +150,9 @@ type State struct {
 	// anew (the conversations method) rather than have them in every
 	// state.
 	Conversations uint64 `json:"conversations,omitempty"`
+	// Forwards are the ports of other machines forwarded to this one, for
+	// the clients on this machine to show.
+	Forwards []PortForward `json:"forwards,omitempty"`
 }
 
 // Project groups sessions, usually those of one repository.

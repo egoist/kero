@@ -15,7 +15,7 @@ In the sidebar, a session on a branch other than the repository's default one, s
 
 ## The right sidebar
 
-The sidebar at the right of the window has two tabs, **Changes** and **Files**. Show or hide it with the button at the top right of the window, or press <kbd>⌥</kbd> <kbd>⌘</kbd> <kbd>B</kbd>. Drag its edge to resize it. In a window too narrow for it beside your panes, it gets out of their way, and comes back as you widen the window; the button still shows it when you need it. A file you click in either tab opens in a card beside the panes, which you close with its <kbd>×</kbd> or leave with <kbd>Esc</kbd>.
+The sidebar at the right of the window has the tabs **Changes**, **Files** and **Ports**. Show or hide it with the button at the top right of the window, or press <kbd>⌥</kbd> <kbd>⌘</kbd> <kbd>B</kbd>. Drag its edge to resize it. In a window too narrow for it beside your panes, it gets out of their way, and comes back as you widen the window; the button still shows it when you need it. A file you click in Changes or Files opens in a card beside the panes, which you close with its <kbd>×</kbd> or leave with <kbd>Esc</kbd>.
 
 ## Changes
 
@@ -43,6 +43,12 @@ Revert works only while no agent in the session is working, so it never races an
 Press <kbd>⌥</kbd> <kbd>⌘</kbd> <kbd>E</kbd> for the Files tab: the folder of the pane you're in, its whole worktree in a git repository. Click a folder to unfold it, and a file to open it beside the panes, where you can find (<kbd>⌘</kbd> <kbd>F</kbd>) in it and edit it. The file follows its changes while you read it. What git ignores shows faded, and `.git` doesn't show.
 
 The buttons above the tree make a new file or folder at its top, and a file's or folder's menu (right-click) makes one in its folder, renames it, or deletes it. Type the name where it will show, and press <kbd>Return</kbd>: a name like `docs/notes.md` makes the folders in it too, and a new file opens beside the panes. Delete asks first, and moves what you delete to the Trash. On a remote host, which has no Trash to move it to, it's deleted for good.
+
+## Ports
+
+Press <kbd>⌥</kbd> <kbd>⌘</kbd> <kbd>P</kbd> for the Ports tab: the TCP ports listening on the machine the session runs on, with the process behind each. Those of the session's own panes come first, then those of other sessions and everything else. What the system and apps listen on stays folded under **System and apps**, so a dev server is easy to spot. The list refreshes while the tab shows.
+
+Click a port to open it in a browser pane. Hover it for the other actions: open it in your default browser, or copy its URL. On a remote host, any of these first forwards the port to your computer; see [Forwarding ports](./remote.md#forwarding-ports).
 
 ## Editing
 
