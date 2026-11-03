@@ -164,6 +164,8 @@
   "paneDragTip": "ドラッグしてこのペインを移動",
   "paneShowAll": "すべてのペインを表示",
   "paneClose": "ペインを閉じる",
+  "sidebarShowPanes": "ペインを表示",
+  "sidebarHidePanes": "ペインを隠す",
   "paneNeedsPermission": "許可を求めています",
   "paneHasQuestion": "質問があります",
   "paneNeedsSignIn": "サインインが必要です",

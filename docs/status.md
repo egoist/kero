@@ -23,6 +23,8 @@ Kero tells a coding agent's status from what its screen shows: its spinner, a pe
 
 A session shows the status of its panes, and sessions that need you stand out. Press <kbd>⌘</kbd> <kbd>J</kbd> to jump to the next one.
 
+Each session's row in the sidebar starts with the icon of the program in the pane its status comes from: Claude Code, Codex, Gemini and other agents, Node.js or Bun for a script, else a terminal. It stands out while an agent runs, in the agent's own color where it has one, and turns faint once the shell is back or the pane exited.
+
 ## Notifications
 
 Kero notifies you when you're looking elsewhere and:

@@ -46,7 +46,10 @@ type prefs struct {
 	SidebarWidth  float32         `json:"sidebarWidth,omitempty"`
 	SidebarHidden bool            `json:"sidebarHidden,omitempty"`
 	Collapsed     map[string]bool `json:"collapsed,omitempty"`
-	FontSize      float32         `json:"fontSize,omitempty"`
+	// Expanded are the split sessions whose panes the sidebar lists under
+	// their rows, by id.
+	Expanded map[string]bool `json:"expanded,omitempty"`
+	FontSize float32         `json:"fontSize,omitempty"`
 	// Side is the tab the right sidebar shows, "" while it is hidden, and
 	// SideTab the one it shows again; RightWidth is its width, and
 	// SideWidth the width of the card beside the panes that opens a file
@@ -1478,6 +1481,25 @@ func (a *App) jumpToAttention() {
 
 func (a *App) toggleSidebar() {
 	a.prefs.SidebarHidden = !a.prefs.SidebarHidden
+	a.savePrefs()
+}
+
+// toggleSessionPanes shows or hides the panes of a split session under
+// its row in the sidebar, forgetting the sessions that are gone.
+func (a *App) toggleSessionPanes(id string) {
+	if a.prefs.Expanded == nil {
+		a.prefs.Expanded = map[string]bool{}
+	}
+	for k := range a.prefs.Expanded {
+		if a.session(k) == nil {
+			delete(a.prefs.Expanded, k)
+		}
+	}
+	if a.prefs.Expanded[id] {
+		delete(a.prefs.Expanded, id)
+	} else {
+		a.prefs.Expanded[id] = true
+	}
 	a.savePrefs()
 }
 
