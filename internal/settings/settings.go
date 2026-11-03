@@ -71,6 +71,9 @@ type Settings struct {
 	Shell      string   `json:"shell"` // "" the account's login shell
 	Env        []string `json:"env"`   // "KEY=value", added to every pane's
 	Scrollback int      `json:"scrollback"`
+	// ShellIntegration has panes' shells mark their prompts and commands
+	// (OSC 133), which command blocks come from.
+	ShellIntegration bool `json:"shellIntegration"`
 
 	// Notifications
 	NotifyWaiting bool `json:"notifyWaiting"` // a session needs you
@@ -79,6 +82,10 @@ type Settings struct {
 	NotifySound   bool `json:"notifySound"`
 	DockBadge     bool `json:"dockBadge"`
 	BounceDock    bool `json:"bounceDock"`
+	// NotifyLongCommand tells of a shell's command that ran at least
+	// LongCommandSeconds and ends while the user is elsewhere.
+	NotifyLongCommand  bool `json:"notifyLongCommand"`
+	LongCommandSeconds int  `json:"longCommandSeconds"`
 
 	// Agents
 	RemoteControl bool `json:"remoteControl"` // kero focus and kero do drive the app
@@ -181,6 +188,10 @@ func Default() Settings {
 		WorktreeBase:    "default",
 		BlockAds:        true,
 		AdLists:         slices.Clone(adblock.DefaultLists),
+
+		NotifyLongCommand:  true,
+		LongCommandSeconds: 30,
+		ShellIntegration:   true,
 	}
 }
 

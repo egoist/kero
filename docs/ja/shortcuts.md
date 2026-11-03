@@ -52,6 +52,9 @@ Windows と Linux では、<kbd>Ctrl</kbd> と文字キーの組み合わせは�
 | 右のペイン         | <kbd>⌘</kbd> <kbd>⌥</kbd> <kbd>→</kbd> | <kbd>Alt</kbd> <kbd>→</kbd>                       | `pane.right`       |
 | 上のペイン         | <kbd>⌘</kbd> <kbd>⌥</kbd> <kbd>↑</kbd> | <kbd>Alt</kbd> <kbd>↑</kbd>                       | `pane.up`          |
 | 下のペイン         | <kbd>⌘</kbd> <kbd>⌥</kbd> <kbd>↓</kbd> | <kbd>Alt</kbd> <kbd>↓</kbd>                       | `pane.down`        |
+| 前のプロンプト | <kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>↑</kbd> | <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>↑</kbd> | `pane.prompt.previous` |
+| 次のプロンプト | <kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>↓</kbd> | <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>↓</kbd> | `pane.prompt.next` |
+| コマンドの出力をコピー | <kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>C</kbd> | <kbd>Alt</kbd> <kbd>Shift</kbd> <kbd>C</kbd> | `pane.copyOutput` |
 
 ## 表示
 

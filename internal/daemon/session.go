@@ -71,8 +71,13 @@ type pane struct {
 	// awaiting tells that the command the pane started with runs, whose
 	// end its shell will tell (OSC 133;D, see shellArgs).
 	awaiting bool
-	closed   bool
-	changed  chan struct{} // closed and replaced on every status change
+	// blocks are the commands its shell ran (OSC 133); chunk is the output
+	// being taken in, the emulator having shown all of it before fed.
+	blocks  blockTrack
+	chunk   []byte
+	fed     int
+	closed  bool
+	changed chan struct{} // closed and replaced on every status change
 	// framing tells that frames for the clients are due, after output.
 	framing bool
 }
@@ -140,10 +145,9 @@ func (s *pane) start(command []string, env []string) error {
 	shell := userShell()
 	name := shellName(shell)
 	bin := s.d.binFirst()
-	args := shellArgs(shell, bin, command)
-	if bin != "" && name == "zsh" {
-		env = append(env[:len(env):len(env)], zshEnv(bin)...)
-	}
+	integ := s.d.integrationDir()
+	args := shellArgs(shell, bin, integ, command)
+	env = append(env[:len(env):len(env)], integrationEnv(shell, bin, integ, command)...)
 	dir := s.info.Dir
 	if st, err := os.Stat(dir); dir == "" || err != nil || !st.IsDir() {
 		dir = proto.Home()
@@ -201,8 +205,10 @@ func (s *pane) output(p []byte) {
 		return
 	}
 	before := s.info.Status
+	s.chunk, s.fed = p, 0
 	s.osc.scan(p, s.handleOSC, s.fullReset)
-	s.term.Feed(p)
+	s.feedOutput(len(p))
+	s.chunk = nil
 	s.dirty = true
 	s.info.Activity = now.UnixMilli()
 	s.looked = false
@@ -211,6 +217,15 @@ func (s *pane) output(p []byte) {
 	s.mu.Unlock()
 	if changed {
 		s.d.changed()
+	}
+}
+
+// feedOutput shows the emulator the output being taken in up to to; s.mu is
+// held.
+func (s *pane) feedOutput(to int) {
+	if to > s.fed {
+		s.term.Feed(s.chunk[s.fed:to])
+		s.fed = to
 	}
 }
 
@@ -325,6 +340,7 @@ func (s *pane) tick(now time.Time) bool {
 			proc = agent
 		}
 	}
+	s.noteBlock(proc, agent)
 	if proc == "" && s.info.Process != "" {
 		// The program ended: its live reports go with it, and an agent's
 		// session is no more to resume.
@@ -720,6 +736,7 @@ func (s *pane) restart() error {
 	s.frame()
 	s.setStatus(proto.Idle)
 	s.info.Unread, s.info.Message, s.info.ExitCode = false, "", 0
+	s.resetBlocks()
 	s.mu.Unlock()
 	if err := s.start(nil, nil); err != nil {
 		return err

@@ -52,6 +52,9 @@ description: Kero 的默认键盘快捷键，以及用于重新绑定的操作 i
 | 右侧窗格      | <kbd>⌘</kbd> <kbd>⌥</kbd> <kbd>→</kbd> | <kbd>Alt</kbd> <kbd>→</kbd>                       | `pane.right`       |
 | 上方窗格      | <kbd>⌘</kbd> <kbd>⌥</kbd> <kbd>↑</kbd> | <kbd>Alt</kbd> <kbd>↑</kbd>                       | `pane.up`          |
 | 下方窗格      | <kbd>⌘</kbd> <kbd>⌥</kbd> <kbd>↓</kbd> | <kbd>Alt</kbd> <kbd>↓</kbd>                       | `pane.down`        |
+| 上一个提示符 | <kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>↑</kbd> | <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>↑</kbd> | `pane.prompt.previous` |
+| 下一个提示符 | <kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>↓</kbd> | <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>↓</kbd> | `pane.prompt.next` |
+| 复制命令输出 | <kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>C</kbd> | <kbd>Alt</kbd> <kbd>Shift</kbd> <kbd>C</kbd> | `pane.copyOutput` |
 
 ## 显示
 

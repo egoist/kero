@@ -21,6 +21,8 @@ type oscScanner struct {
 	state int // 0 text, 1 after ESC, 2 in an OSC we keep, 3 in one we skip, 4 ESC in an OSC
 	skip  bool
 	buf   []byte
+	// at is how much of what scan goes through it went through.
+	at int
 }
 
 const maxOSC = 4096 // OSC 7501's limit on a whole sequence
@@ -28,7 +30,8 @@ const maxOSC = 4096 // OSC 7501's limit on a whole sequence
 // scan calls fn with the body of each OSC 7501, 133 and 9;4 in p (what is
 // between "ESC ]" and the terminator), and reset at each RIS (ESC c).
 func (o *oscScanner) scan(p []byte, fn func(body []byte), reset func()) {
-	for _, b := range p {
+	for i, b := range p {
+		o.at = i + 1
 		switch o.state {
 		case 0:
 			if b == 0x1b {
@@ -231,6 +234,20 @@ func (s *pane) handleOSC(body []byte) {
 		// program's progress bar, as Neovim's for its language servers,
 		// tells no work the user waits on.
 		s.progress = string(body[2:])
+	case bytes.HasPrefix(body, []byte("133;")):
+		if kind, exit, ok := parseMark(string(body[4:])); ok {
+			// What the shell wrote before the mark shows first, as the
+			// blocks read where it put the cursor.
+			s.feedOutput(s.osc.at)
+			s.blockMark(kind, exit)
+		}
+		s.prompted(body)
+	}
+}
+
+// prompted acts on what a prompt mark tells of the status; s.mu is held.
+func (s *pane) prompted(body []byte) {
+	switch {
 	case bytes.HasPrefix(body, []byte("133;A")):
 		// A new prompt: what ran is over.
 		s.dropLive()
@@ -258,6 +275,7 @@ func (s *pane) fullReset() {
 	}
 	s.reported = false
 	s.progress = ""
+	s.resetBlocks()
 }
 
 func (s *pane) applyReport(r proto.Record) {

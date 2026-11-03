@@ -88,6 +88,7 @@ kero config check             # 报告未知的配置项和无效的值
 | `command`          |         | 新窗格使用的 shell；留空则使用你的登录 shell                    |
 | `env`              |         | 以 `NAME=value` 形式加入每个窗格的环境变量；可重复多行          |
 | `scrollback-limit` | `4`     | 每个窗格保留的回滚缓冲大小，单位 MB；`0` 表示不保留             |
+| `shell-integration` | `true` | 让新窗格的 shell 标记提示符和命令，用于[命令](./panes.md#命令) |
 
 ## 通知
 
@@ -96,6 +97,8 @@ kero config check             # 报告未知的配置项和无效的值
 | `notify-on-waiting` | `true`  | 会话需要你时                                   |
 | `notify-on-done`    | `true`  | 智能体完成时                                   |
 | `notify-on-error`   | `true`  | 程序报告失败时                                 |
+| `notify-on-long-command` | `true` | 耗时较长的 shell 命令结束且你在看别处时 |
+| `notify-long-command-seconds` | `30` | 命令运行多久才算耗时较长，单位秒 |
 | `notify-sound`      | `false` | 通知时播放提示音                               |
 | `dock-badge`        | `true`  | 在 Dock 图标上显示有多少会话需要你             |
 | `dock-bounce`       | `false` | 有会话开始需要你时，Dock 图标跳动一次          |

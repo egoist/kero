@@ -25,12 +25,13 @@ func posixShell(name string) bool {
 }
 
 // shellArgs is the argv that starts shell, running command first when set,
-// with bin first on PATH when set (binFirst).
-func shellArgs(shell, bin string, command []string) []string {
+// with bin first on PATH when set (binFirst), and marking its prompts when
+// integ, where its startup files are, is set (integrationDir).
+func shellArgs(shell, bin, integ string, command []string) []string {
 	name := shellName(shell)
 	switch {
 	case name == "pwsh" || name == "powershell":
-		return powershellArgs(name, command)
+		return powershellArgs(name, integ != "", command)
 	case name == "cmd":
 		if len(command) == 0 {
 			return []string{name}
@@ -39,13 +40,20 @@ func shellArgs(shell, bin string, command []string) []string {
 	case runtime.GOOS == "windows" && !posixShell(name):
 		return append([]string{name}, command...)
 	}
+	if runtime.GOOS == "windows" {
+		integ = "" // Windows' POSIX shells start as they were
+	}
 	if len(command) == 0 {
 		if runtime.GOOS == "windows" {
 			// Windows takes argv[0] from the path: no "-bash" there.
 			return []string{name, "-l", "-i"}
 		}
-		if bin != "" && name == "fish" {
-			return []string{"-" + name, "-C", fishBinFirst(bin)}
+		if init := fishInit(bin, integ); init != "" && name == "fish" {
+			return []string{"-" + name, "-C", init}
+		}
+		if integ != "" && name == "bash" && !bashOld(shell) {
+			// Its integration then reads the startup files (bashIntegration).
+			return []string{"-" + name, "--posix"}
 		}
 		return []string{"-" + name}
 	}
@@ -58,16 +66,28 @@ func shellArgs(shell, bin string, command []string) []string {
 	}
 	again := "exec " + shellQuote(name, shell) + " -l"
 	pre := ""
-	if bin != "" {
-		switch name {
-		case "fish":
-			again += " -C " + shellQuote(name, fishBinFirst(bin))
-		case "zsh":
-			again = "exec env ZDOTDIR=" + shellQuote(name, zdotdir(bin)) + " " + shellQuote(name, shell) + " -l"
+	init := fishInit(bin, integ)
+	switch {
+	case name == "fish" && init != "":
+		again += " -C " + shellQuote(name, init)
+	case name == "zsh" && (bin != "" || integ != ""):
+		dir := integ
+		if dir == "" {
+			dir = filepath.Dir(bin)
 		}
-		if name != "fish" {
-			pre = "PATH=" + shellQuote(name, bin) + `:"$PATH"; `
+		env := ""
+		if integ != "" {
+			env = " " + integrationVar + "=1"
 		}
+		again = "exec env ZDOTDIR=" + shellQuote(name, filepath.Join(dir, "zsh")) + env + " " + shellQuote(name, shell) + " -l"
+	case name == "bash" && integ != "" && bashOld(shell):
+		q := shellQuote(name, bashBoot(integ))
+		again = "exec env PROMPT_COMMAND=" + q + " " + bashBootVar + "=" + q + " " + shellQuote(name, shell) + " -l"
+	case name == "bash" && integ != "":
+		again = "exec env ENV=" + shellQuote(name, filepath.Join(integ, "bash", "kero.bash")) + " " + bashInjectVar + "=1 " + shellQuote(name, shell) + " --posix -l"
+	}
+	if bin != "" && name != "fish" {
+		pre = "PATH=" + shellQuote(name, bin) + `:"$PATH"; `
 	}
 	script := pre + shellJoin(name, command) + `; printf '\033]133;D;%s\007' ` + status + "; " + again
 	if name == "fish" {
@@ -100,11 +120,28 @@ func marksExit(shell string) bool {
 const powershellPrompt = `$global:__keroPrompt=$function:prompt;` +
 	`function global:prompt{if($PWD.Provider.Name -eq 'FileSystem'){[Environment]::CurrentDirectory=$PWD.ProviderPath};& $global:__keroPrompt}`
 
+// powershellMarks wraps it to mark the prompts and the commands (OSC 133)
+// too, keeping what it does: PSReadLine hands the shell each line through
+// PSConsoleHostReadLine, which is where a command starts. A line of nothing
+// runs nothing, so no command starts.
+const powershellMarks = `$global:__keroPrompt=$function:prompt;$global:__keroRan=$false;` +
+	`function global:prompt{$__keroOk=$global:?;$__keroCode=$global:LASTEXITCODE;` +
+	`if($global:__keroRan){$global:__keroRan=$false;[Console]::Write("$([char]27)]133;D;$(if($__keroOk){0}elseif($__keroCode){$__keroCode}else{1})$([char]7)")};` +
+	`[Console]::Write("$([char]27)]133;A$([char]7)");` +
+	`if($PWD.Provider.Name -eq 'FileSystem'){[Environment]::CurrentDirectory=$PWD.ProviderPath};` +
+	`$__keroOut=& $global:__keroPrompt;$global:LASTEXITCODE=$__keroCode;$__keroOut};` +
+	`if(Test-Path function:PSConsoleHostReadLine){$global:__keroRead=$function:PSConsoleHostReadLine;` +
+	`function global:PSConsoleHostReadLine{$__keroLine=& $global:__keroRead;` +
+	`if($__keroLine -and $__keroLine.Trim()){$global:__keroRan=$true;[Console]::Write("$([char]27)]133;C$([char]7)")};$__keroLine}}`
+
 const powershellExit = `$__keroOk=$?; $__keroCode=$LASTEXITCODE; ` +
 	`[Console]::Write("$([char]27)]133;D;$(if ($__keroOk) {0} elseif ($__keroCode) {$__keroCode} else {1})$([char]7)")`
 
-func powershellArgs(name string, command []string) []string {
+func powershellArgs(name string, marks bool, command []string) []string {
 	script := powershellPrompt
+	if marks {
+		script = powershellMarks
+	}
 	if len(command) > 0 {
 		// Then its exit status (OSC 133;D): a program's, else 1 for a
 		// cmdlet that failed.

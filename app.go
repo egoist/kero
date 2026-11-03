@@ -81,6 +81,7 @@ type termEntry struct {
 	stream  *client.Stream
 	err     string
 	started time.Time
+	blocks  paneBlocks // the commands its shell ran
 }
 
 // App is the app's state. It lives on the main thread: other goroutines
@@ -170,6 +171,9 @@ type App struct {
 	picker folderPicker // the folders of a host, to open a project in
 	side   sideState    // the side panel, beside a session's panes
 	quick  quickTerm    // the terminal the global shortcut drops down
+
+	// commandEnds is the last command each pane told of (notifyCommands).
+	commandEnds map[string]uint64
 }
 
 // confirmation is a question the app asks before something it cannot undo.
@@ -348,6 +352,7 @@ func (a *App) setState(h *host, st proto.State) {
 		a.selectSession(a.selected)
 	}
 	a.notify(first)
+	a.notifyCommands(first)
 	a.updateTitle()
 }
 

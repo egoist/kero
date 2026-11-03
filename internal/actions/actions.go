@@ -58,6 +58,10 @@ var All = []Action{
 	{ID: "pane.up", Title: "Pane Above", Menu: "Pane", Keys: "CmdOrCtrl+Alt+Up", Remote: true},
 	{ID: "pane.down", Title: "Pane Below", Menu: "Pane", Keys: "CmdOrCtrl+Alt+Down", Remote: true},
 
+	{ID: "pane.prompt.previous", Title: "Previous Prompt", Menu: "Pane", Keys: "CmdOrCtrl+Shift+Up", Remote: true},
+	{ID: "pane.prompt.next", Title: "Next Prompt", Menu: "Pane", Keys: "CmdOrCtrl+Shift+Down", Remote: true},
+	{ID: "pane.copyOutput", Title: "Copy Command Output", Menu: "Pane", Keys: "CmdOrCtrl+Shift+C", Remote: true},
+
 	{ID: "sidebar.toggle", Title: "Toggle Sidebar", Menu: "View", Keys: "CmdOrCtrl+B", Remote: true},
 	{ID: "changes.toggle", Title: "Toggle Changes", Menu: "View", Keys: "CmdOrCtrl+Alt+G", Remote: true},
 	{ID: "files.toggle", Title: "Toggle Files", Menu: "View", Keys: "CmdOrCtrl+Alt+E", Remote: true},
@@ -103,6 +107,7 @@ var pcKeys = map[string]string{
 	"pane.right":          "Alt+Right",
 	"pane.up":             "Alt+Up",
 	"pane.down":           "Alt+Down",
+	"pane.copyOutput":     "Alt+Shift+C",
 	"sidebar.toggle":      "Ctrl+Shift+B",
 	"changes.toggle":      "Ctrl+Shift+G",
 	"files.toggle":        "Ctrl+Shift+E",

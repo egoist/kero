@@ -42,6 +42,24 @@ kero split --right --ratio 0.3 -- go test ./... -count=1
 
 Run inside Kero, `kero split` splits the pane it runs in. Elsewhere, name a target: `kero split my-session --down`.
 
+## Commands
+
+Kero knows where each command you run in a shell starts and ends, so you can move around by command and act on one.
+
+| Action                | macOS                                  | Windows & Linux                               |
+| --------------------- | -------------------------------------- | --------------------------------------------- |
+| Previous prompt       | <kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>↑</kbd> | <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>↑</kbd> |
+| Next prompt           | <kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>↓</kbd> | <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>↓</kbd> |
+| Copy command output   | <kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>C</kbd> | <kbd>Alt</kbd> <kbd>Shift</kbd> <kbd>C</kbd>  |
+
+**Copy Command Output** copies what the last command wrote, or, once you've scrolled up, what the command you're looking at wrote.
+
+As you scroll, a command that failed shows a mark beside its line and its exit code at the right. One that took a couple of seconds or more shows how long it took. Quick commands that went well show nothing. Text at the right gives way to a long line, and the marks go when the output they belong to goes: when you clear the screen, or when it passes the [scrollback limit](./configuration.md#shell).
+
+When a command that ran for a while ends and you're looking at another session or another app, Kero sends a notification. Turn this off, or change how long counts as a while, in **Settings › Notifications**. Coding agents already notify you through their [status](./status.md), so they don't get a second one.
+
+This works in zsh, bash, fish and PowerShell: Kero has new panes' shells mark their prompts, after your own startup files have run. To start shells exactly as they'd start elsewhere, set `shell-integration = false` in the [configuration](./configuration.md#shell). A shell started from inside a pane, or on the other end of `ssh`, has marks only if it sends them itself. A pane on a [remote host](./remote.md) has all this once that host's Kero is up to date. The marks of commands from before kerod restarted don't come back.
+
 ## Browser panes
 
 A browser pane shows a web page beside your terminals: the dev server an agent is working on, the docs it reads, the pull request it opened. It splits, zooms, moves and closes like any pane, and comes back on the same page when Kero restarts.

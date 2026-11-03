@@ -88,6 +88,7 @@ kero config check             # report unknown keys and bad values
 | `command`          |         | The shell of new panes; empty for your login shell             |
 | `env`              |         | Added to every pane's environment as `NAME=value`; repeat it   |
 | `scrollback-limit` | `4`     | The output each pane keeps, in megabytes; `0` for none         |
+| `shell-integration` | `true` | Have new panes' shells mark their prompts and commands, for [commands](./panes.md#commands) |
 
 ## Notifications
 
@@ -96,6 +97,8 @@ kero config check             # report unknown keys and bad values
 | `notify-on-waiting` | `true`  | When a session needs you                       |
 | `notify-on-done`    | `true`  | When an agent finishes                         |
 | `notify-on-error`   | `true`  | When a program reports it failed               |
+| `notify-on-long-command` | `true` | When a shell command that took a while ends and you're looking elsewhere |
+| `notify-long-command-seconds` | `30` | How long a command takes to count as long, in seconds |
 | `notify-sound`      | `false` | Play a sound with notifications                |
 | `dock-badge`        | `true`  | Show how many sessions need you on the Dock icon |
 | `dock-bounce`       | `false` | Bounce the Dock icon once when a session comes to need you |

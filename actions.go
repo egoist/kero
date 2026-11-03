@@ -105,6 +105,12 @@ func (a *App) run(id string, args map[string]string) {
 		a.cyclePane(-1)
 	case "pane.left", "pane.right", "pane.up", "pane.down":
 		a.focusDirection(id[len("pane."):])
+	case "pane.prompt.previous":
+		a.jumpPrompt(-1)
+	case "pane.prompt.next":
+		a.jumpPrompt(1)
+	case "pane.copyOutput":
+		a.copyOutput()
 	case "sidebar.toggle":
 		a.toggleSidebar()
 	case "changes.toggle":
@@ -185,6 +191,10 @@ var actionTitles = map[string]func() string{
 	"text.smaller":        locales.ActionSmaller,
 	"text.reset":          locales.ActionActualSize,
 	quickAction:           locales.ActionQuickTerminal,
+
+	"pane.prompt.previous": locales.ActionPreviousPrompt,
+	"pane.prompt.next":     locales.ActionNextPrompt,
+	"pane.copyOutput":      locales.ActionCopyOutput,
 }
 
 // actionTitle is an action's title as the menus, the palette and
@@ -252,7 +262,8 @@ func (a *App) menu() *mygo.Menu {
 			[]string{"pane.split.right", "pane.split.down"},
 			[]string{"pane.browser", "browser.address"},
 			[]string{"pane.zoom"},
-			[]string{"pane.next", "pane.previous", "pane.left", "pane.right", "pane.up", "pane.down"})},
+			[]string{"pane.next", "pane.previous", "pane.left", "pane.right", "pane.up", "pane.down"},
+			[]string{"pane.prompt.previous", "pane.prompt.next", "pane.copyOutput"})},
 		{Label: locales.MenuView(), Submenu: view},
 		{Role: mygo.RoleWindowMenu},
 	})

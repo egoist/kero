@@ -244,11 +244,14 @@ var keys = []key{
 			}
 			return nil
 		}},
+	boolKey("shell-integration", "panes' shells mark their prompts and commands, for jumping between them, copying a command's output and marking failures; takes effect in new panes", func(s *Settings) *bool { return &s.ShellIntegration }),
 	numberKey("scrollback-limit", "the output each pane keeps, in megabytes; 0 for none", func(s *Settings) float64 { return float64(s.Scrollback) }, func(s *Settings, n float64) { s.Scrollback = int(n) }),
 
 	boolKey("notify-on-waiting", "when a session needs you", func(s *Settings) *bool { return &s.NotifyWaiting }),
 	boolKey("notify-on-done", "when an agent finishes", func(s *Settings) *bool { return &s.NotifyDone }),
 	boolKey("notify-on-error", "when a program reports it failed", func(s *Settings) *bool { return &s.NotifyFailed }),
+	boolKey("notify-on-long-command", "when a shell's command that took a while ends and you're elsewhere", func(s *Settings) *bool { return &s.NotifyLongCommand }),
+	numberKey("notify-long-command-seconds", "how long a command takes to count as long, in seconds", func(s *Settings) float64 { return float64(s.LongCommandSeconds) }, func(s *Settings, n float64) { s.LongCommandSeconds = max(int(n), 1) }),
 	boolKey("notify-sound", "", func(s *Settings) *bool { return &s.NotifySound }),
 	boolKey("dock-badge", "the number of sessions that need you", func(s *Settings) *bool { return &s.DockBadge }),
 	boolKey("dock-bounce", "once, when a session comes to need you", func(s *Settings) *bool { return &s.BounceDock }),

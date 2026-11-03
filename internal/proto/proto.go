@@ -200,6 +200,9 @@ type Pane struct {
 	// CommandExit is the exit status of the command the pane started
 	// with, once it ended and the pane went on with its shell.
 	CommandExit *int `json:"commandExit,omitempty"`
+	// Commands tells of the commands its shell ran, once one did, as its
+	// prompts mark them (Block).
+	Commands *Commands `json:"commands,omitempty"`
 	// AgentSession is the coding agent's own session, as its hook told
 	// (kero hook), while the agent runs: what a restore resumes.
 	AgentSession *AgentSession `json:"agentSession,omitempty"`
