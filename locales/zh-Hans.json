@@ -275,6 +275,8 @@
   "setWeightSemibold": "中粗",
   "setLigatures": "连字",
   "setLigaturesDetail": "按字体的绘制方式连接字符，例如 => 和 !=。",
+  "setFontFeatures": "字体特性",
+  "setFontFeaturesDetail": "OpenType 特性，同 Ghostty 的 font-feature：ss01 开启，-calt 关闭，cv05=2 选择替代字形。",
   "setThicken": "加粗文本",
   "setThickenDetail": "更粗的笔画，同 Ghostty 的 font-thicken。",
   "setColors": "Ghostty 主题",

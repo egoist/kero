@@ -49,6 +49,7 @@ func settingsIndex() []searchEntry {
 		{"terminal", locales.SetLineHeight(), "line-height spacing leading cell"},
 		{"terminal", locales.SetWeight(), "font-weight bold light"},
 		{"terminal", locales.SetLigatures(), "font-ligatures calt arrows"},
+		{"terminal", locales.SetFontFeatures(), "font-feature opentype stylistic sets ss01 cv01 alternates"},
 		{"terminal", locales.SetThicken(), "font-thicken stroke smoothing"},
 		{"appearance", locales.SetLightWindows(), "theme colors color scheme ghostty palette terminal"},
 		{"appearance", locales.SetDarkWindows(), "theme colors color scheme ghostty palette terminal"},

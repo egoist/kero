@@ -423,6 +423,8 @@
   "setWeightSemibold": "Semibold",
   "setLigatures": "Ligatures",
   "setLigaturesDetail": "Join characters as the font draws them, as => and !=.",
+  "setFontFeatures": "Font features",
+  "setFontFeaturesDetail": "OpenType features, as Ghostty’s font-feature: ss01 turns one on, -calt off, cv05=2 picks an alternate.",
   "setThicken": "Thicken text",
   "setThickenDetail": "A heavier stroke, as Ghostty’s font-thicken.",
   "setColors": "Ghostty themes",
