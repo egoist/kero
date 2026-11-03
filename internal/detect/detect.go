@@ -10,12 +10,12 @@
 package detect
 
 import (
+	"bytes"
 	"embed"
 	"errors"
 	"fmt"
 	"maps"
 	"os"
-	"path/filepath"
 	"regexp"
 	"slices"
 	"strconv"
@@ -113,10 +113,11 @@ type gate struct {
 	regex, lineRegex []*regexp.Regexp
 }
 
-// UserDir is the directory of the user's own manifests, *.toml, which add
-// agents and replace the rules of those kero has; "" for none. It is set
-// before the first Load: the daemon reads them as it starts.
-var UserDir string
+// UserFile is the user's own agents, agents.toml: a manifest under
+// [[agents]] each, which adds an agent or replaces the rules of one kero
+// has; "" for none. It is set before the first Load: the daemon reads it
+// as it starts.
+var UserFile string
 
 var (
 	loadOnce    sync.Once
@@ -140,7 +141,7 @@ func load() {
 		loaded[name] = m
 	}
 	var user map[string]*manifest
-	user, executables, problems = readUser(UserDir)
+	user, executables, problems = readUser(UserFile)
 	maps.Copy(loaded, user)
 }
 
@@ -189,43 +190,77 @@ func parse(data []byte, strict bool) (*manifest, error) {
 	return m, nil
 }
 
-// readUser reads the user's manifests in dir: those that read, by the
+// readUser reads the user's agents in file: those that read, by the
 // agent they are for, with the executables of each; and what is wrong
-// with the others, which are left out.
-func readUser(dir string) (ms map[string]*manifest, exes map[string]string, problems []string) {
+// with the others, which are left out, one line each.
+func readUser(file string) (ms map[string]*manifest, exes map[string]string, problems []string) {
 	ms, exes = map[string]*manifest{}, map[string]string{}
-	if dir == "" {
+	if file == "" {
 		return
 	}
-	files, _ := filepath.Glob(filepath.Join(dir, "*.toml"))
-	slices.Sort(files)
-	from := map[string]string{} // the file of each agent
-	for _, f := range files {
-		data, err := os.ReadFile(f)
+	data, err := os.ReadFile(file)
+	if errors.Is(err, os.ErrNotExist) {
+		return
+	}
+	var raw map[string]any
+	if err == nil {
+		_, err = toml.Decode(string(data), &raw)
+	}
+	if err != nil {
+		return ms, exes, []string{fmt.Sprintf("%s: %v", file, err)}
+	}
+	for k := range raw {
+		if k != "agents" {
+			problems = append(problems, fmt.Sprintf("%s: unknown key %s: agents go under [[agents]]", file, k))
+		}
+	}
+	var list []map[string]any
+	switch v := raw["agents"].(type) {
+	case nil:
+	case []map[string]any:
+		list = v
+	case []any:
+		for _, a := range v {
+			t, _ := a.(map[string]any)
+			list = append(list, t)
+		}
+	default:
+		problems = append(problems, fmt.Sprintf("%s: agents is not an array of tables, [[agents]]", file))
+	}
+	seen := map[string]bool{}
+	for i, a := range list {
+		label := fmt.Sprintf("agent %d", i+1)
+		if id, ok := a["id"].(string); ok && id != "" {
+			label = id
+		}
+		// Each agent reads as a manifest of its own, as kero's do.
+		var buf bytes.Buffer
+		err := toml.NewEncoder(&buf).Encode(a)
+		var m *manifest
 		if err == nil {
-			var m *manifest
-			if m, err = parse(data, true); err == nil {
-				err = addUser(ms, exes, from, f, m)
-			}
+			m, err = parse(buf.Bytes(), true)
+		}
+		if err == nil {
+			err = addUser(ms, exes, seen, m)
 		}
 		if err != nil {
-			problems = append(problems, fmt.Sprintf("%s: %v", f, err))
+			problems = append(problems, fmt.Sprintf("%s: %s: %v", file, label, err))
 		}
 	}
 	return
 }
 
-func addUser(ms map[string]*manifest, exes, from map[string]string, file string, m *manifest) error {
+func addUser(ms map[string]*manifest, exes map[string]string, seen map[string]bool, m *manifest) error {
 	id := m.ID
 	if id == "" {
-		id = strings.TrimSuffix(filepath.Base(file), ".toml")
+		return errors.New("no id")
 	}
 	key := builtin(id)
 	if key == "" {
 		key = id
 	}
-	if f, ok := from[key]; ok {
-		return fmt.Errorf("%s is also in %s", id, f)
+	if seen[key] {
+		return fmt.Errorf("%s is there twice", id)
 	}
 	name := agentName(key)
 	list := m.Executables
@@ -245,7 +280,7 @@ func addUser(ms map[string]*manifest, exes, from map[string]string, file string,
 	for _, x := range list {
 		exes[strings.ToLower(strings.TrimSpace(x))] = name
 	}
-	from[key] = file
+	seen[key] = true
 	ms[key] = m
 	return nil
 }
@@ -293,17 +328,17 @@ func Load() error {
 	return loadErr
 }
 
-// Problems tells what is wrong with the user's manifests that Load left
-// out, one line each, naming the file.
+// Problems tells what is wrong with the user's agents that Load left
+// out, one line each, naming the file and the agent.
 func Problems() []string {
 	Load()
 	return problems
 }
 
-// Check reads the user's manifests in dir, as the daemon would, telling
-// what is wrong with them and the agents they are for.
-func Check(dir string) (agents []string, problems []string) {
-	ms, _, problems := readUser(dir)
+// Check reads the user's agents in file, as the daemon would, telling
+// the agents that read and what is wrong with the others.
+func Check(file string) (agents []string, problems []string) {
+	ms, _, problems := readUser(file)
 	for k := range ms {
 		agents = append(agents, agentName(k))
 	}

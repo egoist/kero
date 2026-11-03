@@ -42,11 +42,11 @@ func configCmd(args []string) error {
 		for _, p := range problems {
 			fmt.Println(p)
 		}
-		// The user's agent manifests, which kerod reads as it starts.
-		dir := settings.AgentsDir()
-		agents, bad := detect.Check(dir)
+		// The user's agents, which kerod reads as it starts.
+		file := settings.AgentsPath()
+		agents, bad := detect.Check(file)
 		if len(agents) > 0 {
-			fmt.Printf("ok: %s (%s)\n", dir, strings.Join(agents, ", "))
+			fmt.Printf("ok: %s (%s)\n", file, strings.Join(agents, ", "))
 		}
 		for _, p := range bad {
 			fmt.Println(p)
@@ -56,7 +56,7 @@ func configCmd(args []string) error {
 			errs = append(errs, fmt.Sprintf("%d problem(s) in %s", len(problems), settings.Path()))
 		}
 		if len(bad) > 0 {
-			errs = append(errs, fmt.Sprintf("%d manifest(s) left out of %s", len(bad), dir))
+			errs = append(errs, fmt.Sprintf("%d problem(s) in %s", len(bad), file))
 		}
 		if len(errs) > 0 {
 			return errors.New(strings.Join(errs, "; "))

@@ -112,7 +112,7 @@ func Run(opts Options) error {
 	}
 	lg := log.New(logw, "", log.LstdFlags|log.Lmicroseconds)
 	// The user's agents, which a restart reads anew.
-	detect.UserDir = settings.AgentsDir()
+	detect.UserFile = settings.AgentsPath()
 	for _, p := range detect.Problems() {
 		lg.Printf("agents: %s", p)
 	}
@@ -557,7 +557,7 @@ func expandHome(p string) string {
 
 // agents are the coding agents the sidebar recognizes, by the name of
 // their executable or script, besides those of the user's manifests
-// (detect.UserDir).
+// (detect.UserFile).
 var agents = []string{
 	"claude", "codex", "gemini", "opencode", "amp", "aider", "cursor-agent", "droid",
 	"qwen", "goose", "crush", "copilot", "kiro-cli", "cline", "auggie", "kimi", "pi",

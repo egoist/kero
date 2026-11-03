@@ -34,7 +34,7 @@ The file only needs what you change. Everything else keeps its default.
 ```sh
 kero config edit              # open it in $EDITOR
 kero config show              # every key with its current value
-kero config check             # report unknown keys and bad values, and bad agent manifests
+kero config check             # report unknown keys and bad values, and agents.toml's
 ```
 
 ## General

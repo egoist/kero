@@ -95,65 +95,86 @@ func TestManifestsStrict(t *testing.T) {
 	}
 }
 
-func TestUserManifests(t *testing.T) {
-	dir := t.TempDir()
-	write := func(name, s string) {
-		if err := os.WriteFile(filepath.Join(dir, name), []byte(s), 0o600); err != nil {
-			t.Fatal(err)
-		}
-	}
-	// A new agent, its program of its name and another.
-	write("frog.toml", `
+func TestUserAgents(t *testing.T) {
+	file := filepath.Join(t.TempDir(), "agents.toml")
+	if err := os.WriteFile(file, []byte(`
+# A new agent, its program of its name and another.
+[[agents]]
 id = "frog"
 executables = ["frog", "frog-cli"]
 
-[[rules]]
+[[agents.rules]]
 id = "working"
 state = "working"
 priority = 100
 region = "bottom_non_empty_lines(3)"
 visible_working = true
-contains = ["hopping…"]
+any = [{ contains = ["hopping…"] }, { line_regex = ['^[⠋⠙] Hopping$'] }]
 
-[[rules]]
+[[agents.rules]]
 id = "asking"
 state = "blocked"
 priority = 200
 visible_blocker = true
 line_regex = ['^Allow .+\? \[y/n\]$']
-`)
-	// kero's Copilot, by its daemon's name, replaced.
-	write("my-copilot.toml", `
+
+# kero's Copilot, by its daemon's name, replaced.
+[[agents]]
 id = "copilot"
 executables = ["ghc"]
+rules = [{ id = "busy", state = "working", contains = ["thinking hard"] }]
 
-[[rules]]
-id = "busy"
-state = "working"
-contains = ["thinking hard"]
-`)
-	write("bad-state.toml", "[[rules]]\nid = \"x\"\nstate = \"sleeping\"\n")
-	write("bad-region.toml", "[[rules]]\nid = \"x\"\nstate = \"idle\"\nregion = \"middle\"\n")
-	write("bad-key.toml", "[[rules]]\nid = \"x\"\nstate = \"idle\"\ncontain = [\"a\"]\n")
-	write("bad-regex.toml", "[[rules]]\nid = \"x\"\nstate = \"idle\"\nregex = [\"(\"]\n")
-	write("no-rules.toml", "id = \"empty\"\n")
-	write("twice.toml", "id = \"frog\"\n[[rules]]\nid = \"x\"\nstate = \"idle\"\n")
-	write("newer.toml", "min_engine_version = 9\n[[rules]]\nid = \"x\"\nstate = \"idle\"\n")
+[[agents]]
+id = "bad-state"
+rules = [{ id = "x", state = "sleeping" }]
 
-	agents, problems := Check(dir)
+[[agents]]
+id = "bad-region"
+rules = [{ id = "x", state = "idle", region = "middle" }]
+
+[[agents]]
+id = "bad-key"
+rules = [{ id = "x", state = "idle", contain = ["a"] }]
+
+[[agents]]
+id = "bad-regex"
+rules = [{ id = "x", state = "idle", regex = ["("] }]
+
+[[agents]]
+id = "empty"
+
+[[agents]]
+id = "frog"
+rules = [{ id = "x", state = "idle" }]
+
+[[agents]]
+rules = [{ id = "x", state = "idle" }]
+
+[[agents]]
+id = "newer"
+min_engine_version = 9
+rules = [{ id = "x", state = "idle" }]
+`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	agents, problems := Check(file)
 	if !slices.Equal(agents, []string{"copilot", "frog"}) {
 		t.Errorf("agents %v", agents)
 	}
-	if len(problems) != 7 {
-		t.Errorf("%d problems, want 7:\n%s", len(problems), strings.Join(problems, "\n"))
+	if len(problems) != 8 {
+		t.Errorf("%d problems, want 8:\n%s", len(problems), strings.Join(problems, "\n"))
 	}
 	for _, p := range problems {
-		if !strings.HasPrefix(p, dir) {
+		if !strings.HasPrefix(p, file+": ") {
 			t.Errorf("problem names no file: %s", p)
 		}
 	}
+	if !slices.ContainsFunc(problems, func(p string) bool { return strings.Contains(p, "bad-key: unknown key") }) {
+		t.Errorf("no problem names bad-key's unknown key:\n%s", strings.Join(problems, "\n"))
+	}
 
-	ms, exes, _ := readUser(dir)
+	ms, exes, _ := readUser(file)
 	if exes["frog-cli"] != "frog" || exes["ghc"] != "copilot" {
 		t.Errorf("executables %v", exes)
 	}
@@ -170,6 +191,7 @@ contains = ["thinking hard"]
 		want          State
 	}{
 		{"frog", "> fix it\nhopping…\n", Working},
+		{"frog", "> fix it\n⠙ Hopping\n", Working},
 		{"frog", "Allow rm -rf build? [y/n]\n", Blocked},
 		{"frog", "> \n", Idle},
 		{"copilot", "thinking hard\n", Working},
@@ -177,5 +199,16 @@ contains = ["thinking hard"]
 		if got := Detect(c.agent, Input{Screen: c.screen}); got.State != c.want {
 			t.Errorf("%s %q: %s, want %s", c.agent, c.screen, got.State, c.want)
 		}
+	}
+
+	// No file, no agents and nothing wrong; a file that isn't TOML, one
+	// problem.
+	if a, p := Check(filepath.Join(t.TempDir(), "agents.toml")); a != nil || p != nil {
+		t.Errorf("no file: %v %v", a, p)
+	}
+	bad := filepath.Join(t.TempDir(), "agents.toml")
+	os.WriteFile(bad, []byte("[[agents]\n"), 0o600)
+	if _, p := Check(bad); len(p) != 1 {
+		t.Errorf("not TOML: %v", p)
 	}
 }
