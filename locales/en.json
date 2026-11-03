@@ -540,6 +540,7 @@
   "filesCantReadFolder": "Can't read the folder",
   "filesCantReadFile": "Can't read the file",
   "filesGone": "The file is gone",
+  "filesOpenDefault": "Open in Default App",
   "filesNewFile": "New File…",
   "filesNewFolder": "New Folder…",
   "filesRename": "Rename…",

@@ -385,6 +385,7 @@
   "filesCantReadFolder": "无法读取文件夹",
   "filesCantReadFile": "无法读取文件",
   "filesGone": "文件已不存在",
+  "filesOpenDefault": "在默认应用中打开",
   "filesNewFile": "新建文件…",
   "filesNewFolder": "新建文件夹…",
   "filesRename": "重命名…",

@@ -385,6 +385,7 @@
   "filesCantReadFolder": "フォルダを読み取れません",
   "filesCantReadFile": "ファイルを読み取れません",
   "filesGone": "ファイルがなくなりました",
+  "filesOpenDefault": "デフォルトのアプリで開く",
   "filesNewFile": "新規ファイル…",
   "filesNewFolder": "新規フォルダ…",
   "filesRename": "名前を変更…",
