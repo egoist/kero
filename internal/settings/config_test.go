@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"kero/internal/actions"
 )
@@ -332,9 +333,16 @@ func TestAttachDetachKey(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("KERO_HOME", dir)
 	t.Setenv("KERO_CONFIG", filepath.Join(dir, "config"))
+	when := time.Now()
 	write := func(text string) Settings {
 		t.Helper()
-		if err := os.WriteFile(filepath.Join(dir, "config"), []byte(text), 0o600); err != nil {
+		path := filepath.Join(dir, "config")
+		if err := os.WriteFile(path, []byte(text), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		// Load goes by the file's time, which on Windows may not have moved.
+		when = when.Add(time.Second)
+		if err := os.Chtimes(path, when, when); err != nil {
 			t.Fatal(err)
 		}
 		return Load()
