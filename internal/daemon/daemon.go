@@ -383,34 +383,43 @@ func (d *Daemon) projectFor(ref, dir string) string {
 		}
 		dir = proto.Home()
 	}
-	if best := d.projectHolding(dir); best != "" {
-		return best
-	}
-	root := repoRoot(dir)
-	// A linked worktree outside its repository goes in the project of
-	// the main checkout, rather than in one of its own.
-	if best := d.projectHolding(root); best != "" {
-		return best
-	}
-	name := filepath.Base(root)
-	if root == proto.Home() {
-		name = "Home"
-	}
-	p := proto.Project{ID: newID(), Name: name, Dir: root}
-	d.projects = append(d.projects, p)
-	return p.ID
-}
-
-// projectHolding returns the project whose directory holds dir, the
-// deepest when several do, or "". d.mu is held.
-func (d *Daemon) projectHolding(dir string) string {
 	best, bestLen := "", -1
 	for _, p := range d.projects {
 		if p.Dir != "" && proto.Within(dir, p.Dir) && len(p.Dir) > bestLen {
 			best, bestLen = p.ID, len(p.Dir)
 		}
 	}
-	return best
+	if best != "" {
+		return best
+	}
+	return d.newProject(repoRoot(dir))
+}
+
+// newProject adds a project for dir and returns its ID. d.mu is held.
+func (d *Daemon) newProject(dir string) string {
+	name := filepath.Base(dir)
+	if dir == proto.Home() {
+		name = "Home"
+	}
+	p := proto.Project{ID: newID(), Name: name, Dir: dir}
+	d.projects = append(d.projects, p)
+	return p.ID
+}
+
+// folderProject returns the project of dir's own folder: its repository's
+// root when it is in one, else dir itself. That is the project whose
+// directory is that folder, not one above it, or a new one. d.mu is held.
+func (d *Daemon) folderProject(dir string) string {
+	root := filepath.Clean(repoRoot(dir))
+	for _, p := range d.projects {
+		if p.Dir == "" {
+			continue
+		}
+		if pd := filepath.Clean(p.Dir); len(pd) == len(root) && proto.Within(root, pd) {
+			return p.ID
+		}
+	}
+	return d.newProject(root)
 }
 
 // follow puts each session in the project of its folder, as
@@ -428,7 +437,7 @@ func (d *Daemon) follow() bool {
 			continue
 		}
 		s.followed = dir
-		if pr := d.projectFor("", dir); pr != s.project {
+		if pr := d.folderProject(dir); pr != s.project {
 			s.project = pr
 			moved = true
 		}
