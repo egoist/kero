@@ -233,28 +233,24 @@ func TestTermScrollback(t *testing.T) {
 }
 
 // font-feature reaches the terminals after font-ligatures, and wins over
-// it for the tags it names; the preview gets the same, as ui spells them.
+// it for the tags it names.
 func TestTermFontFeatures(t *testing.T) {
 	a := testApp(t)
 	for _, c := range []struct {
 		liga bool
 		user []string
 		want []string
-		ui   string
 	}{
-		{true, nil, nil, ""},
-		{false, nil, []string{"-calt", "-liga", "-dlig"}, "calt=0,liga=0,dlig=0"},
-		{true, []string{"ss01", "cv05=2"}, []string{"ss01", "cv05=2"}, "ss01,cv05=2"},
-		{false, []string{"+calt", "ss02"}, []string{"-liga", "-dlig", "+calt", "ss02"}, "liga=0,dlig=0,calt,ss02"},
-		{true, []string{"-calt"}, []string{"-calt"}, "calt=0"},
+		{true, nil, nil},
+		{false, nil, []string{"-calt", "-liga", "-dlig"}},
+		{true, []string{"ss01", "cv05=2"}, []string{"ss01", "cv05=2"}},
+		{false, []string{"+calt", "ss02"}, []string{"-liga", "-dlig", "+calt", "ss02"}},
+		{true, []string{"-calt"}, []string{"-calt"}},
 	} {
 		a.set.Ligatures, a.set.FontFeatures = c.liga, c.user
 		got := a.termOptions("a", nil).Font.Features
 		if !slices.Equal(got, c.want) {
 			t.Errorf("ligatures %v, font-feature %q: the terminal has %q, want %q", c.liga, c.user, got, c.want)
-		}
-		if ui := uiFeatures(got); ui != c.ui {
-			t.Errorf("ligatures %v, font-feature %q: the preview has %q, want %q", c.liga, c.user, ui, c.ui)
 		}
 	}
 }

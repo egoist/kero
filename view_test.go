@@ -34,6 +34,11 @@ func testApp(t *testing.T) *App {
 	// The configuration too: never the user's.
 	t.Setenv("KERO_CONFIG", filepath.Join(home, "config"))
 	a := newApp()
+	t.Cleanup(func() {
+		if a.ss.preview != nil {
+			a.ss.preview.Close()
+		}
+	})
 	var l *proto.Layout
 	a.st = proto.State{
 		Projects: []proto.Project{{ID: "p1", Name: "demo", Dir: "/tmp"}},
