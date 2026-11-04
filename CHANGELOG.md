@@ -2,10 +2,11 @@
 
 ## Unreleased
 
-- **Cell width** in Settings › Terminal (`cell-width`) widens the
-  terminal's columns, from 1× to 2×, without making the text bigger or
-  the rows taller: `1.03` adds a little space between characters. Cells
-  take whole pixels, so small steps can look uneven.
+- **Cell width** in Settings › Terminal (`cell-width`) widens or narrows
+  the terminal's columns, from 0.8× to 2×, without changing the text's
+  size or the rows' height: `1.03` adds a little space between
+  characters, `0.95` takes a little away. Cells take whole pixels, so
+  small steps can look uneven.
 
 ## 2.1.33
 

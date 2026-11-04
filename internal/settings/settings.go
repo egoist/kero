@@ -453,7 +453,7 @@ func (s *Settings) normalize() {
 	if s.LineHeight < 0.8 || s.LineHeight > 2.5 {
 		s.LineHeight = d.LineHeight
 	}
-	if !(s.CellWidth >= 1 && s.CellWidth <= 2) {
+	if !(s.CellWidth >= 0.8 && s.CellWidth <= 2) {
 		s.CellWidth = d.CellWidth
 	}
 	if s.FontWeight < 100 || s.FontWeight > 900 {

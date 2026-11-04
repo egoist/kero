@@ -2744,11 +2744,11 @@ func (msgs Messages) SetCellWidth() string {
 	return Catalog.Format(msgs.locale, "setCellWidth", nil)
 }
 
-// SetCellWidthDetail says "Widen terminal cells horizontally without scaling glyphs or changing line height."
+// SetCellWidthDetail says "Widen or narrow terminal cells without scaling glyphs or changing line height."
 // in the language the app shows.
 func SetCellWidthDetail() string { return In(i18n.Locale()).SetCellWidthDetail() }
 
-// SetCellWidthDetail says "Widen terminal cells horizontally without scaling glyphs or changing line height."
+// SetCellWidthDetail says "Widen or narrow terminal cells without scaling glyphs or changing line height."
 // in the language of msgs.
 func (msgs Messages) SetCellWidthDetail() string {
 	return Catalog.Format(msgs.locale, "setCellWidthDetail", nil)

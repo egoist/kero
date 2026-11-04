@@ -888,7 +888,7 @@ func (a *App) terminalPage(c *ui.Context, pal *palette) {
 		})
 		settingRow(c, pal, locales.SetCellWidth(), locales.SetCellWidthDetail(), func() {
 			v := float64(s.CellWidth)
-			slider(c, "cw", &v, 1, 2, 160, pal).OnChange(func() { a.set.CellWidth = float32(int(v*100+0.5)) / 100 })
+			slider(c, "cw", &v, 0.8, 2, 160, pal).OnChange(func() { a.set.CellWidth = float32(int(v*100+0.5)) / 100 })
 			ui.Textf(c, "%.2f×", s.CellWidth).FontSize(12.5).TextColor(pal.textMuted).Width(40).FontFeatures("tnum")
 		})
 		settingRow(c, pal, locales.SetLineHeight(), "", func() {

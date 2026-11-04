@@ -268,7 +268,7 @@
   "setSize": "サイズ",
   "setSizeDetail": "{bigger} と {smaller} でも変更できます。",
   "setCellWidth": "セルの幅",
-  "setCellWidthDetail": "字形の大きさや行の高さを変えずに、ターミナルのセルを横に広げます。",
+  "setCellWidthDetail": "字形の大きさや行の高さを変えずに、ターミナルのセルの幅を広げたり狭めたりします。",
   "setLineHeight": "行の高さ",
   "setWeight": "太さ",
   "setWeightLight": "細字",

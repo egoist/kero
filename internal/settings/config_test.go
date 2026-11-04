@@ -125,7 +125,7 @@ func TestBadValuesKeepDefaults(t *testing.T) {
 	}
 }
 
-// cell-width takes 1 to 2, and anything else keeps the default.
+// cell-width takes 0.8 to 2, and anything else keeps the default.
 func TestCellWidthBounds(t *testing.T) {
 	for _, tt := range []struct {
 		value string
@@ -134,7 +134,8 @@ func TestCellWidthBounds(t *testing.T) {
 		{"1", 1},
 		{"1.03", 1.03},
 		{"2", 2},
-		{"0.99", Default().CellWidth},
+		{"0.8", 0.8},
+		{"0.79", Default().CellWidth},
 		{"2.01", Default().CellWidth},
 		{"NaN", Default().CellWidth},
 		{"+Inf", Default().CellWidth},

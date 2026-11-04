@@ -416,7 +416,7 @@
   "setSize": "Size",
   "setSizeDetail": "{bigger} and {smaller} change it too.",
   "setCellWidth": "Cell width",
-  "setCellWidthDetail": "Widen terminal cells horizontally without scaling glyphs or changing line height.",
+  "setCellWidthDetail": "Widen or narrow terminal cells without scaling glyphs or changing line height.",
   "setLineHeight": "Line height",
   "setWeight": "Weight",
   "setWeightLight": "Light",
