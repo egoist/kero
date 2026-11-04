@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- On macOS, with **Option is Meta** on, Option sends Alt to programs
+  without also typing the key's special character or leaving a dead key
+  to compose with the next letter.
+
 ## 2.1.32
 
 - <kbd>⌘</kbd> <kbd>W</kbd> with the keyboard in the viewer closes the
