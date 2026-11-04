@@ -1,6 +1,10 @@
 package main
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/egoist/mygo/ui"
+)
 
 func TestLastLines(t *testing.T) {
 	for _, c := range []struct {
@@ -20,4 +24,15 @@ func TestLastLines(t *testing.T) {
 			t.Errorf("lastLines(%q, %d) = %q, want %q", c.text, c.n, got, c.want)
 		}
 	}
+}
+
+// A new pane's terminal has the keyboard while its screen is still
+// blank: showing it to assistive technology must not take the app down.
+func TestFocusedBlankTerminal(t *testing.T) {
+	a, _, _ := pasteApp(t)
+	tt := ui.NewTester(a.view, 1280, 720)
+	tt.Frame()
+	a.paneRef("a").Focus()
+	tt.Frame()
+	tt.Frame()
 }
