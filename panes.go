@@ -618,7 +618,7 @@ func (a *App) paneTerminal(c *ui.Context, pal *palette, s *proto.Session, p *pro
 		switch {
 		case e != nil && e.term != nil:
 			ref := a.paneRef(p.ID)
-			terminal.View(c.Key("term"), e.term).Fill().Bind(ref)
+			termAccess(terminal.View(c.Key("term"), e.term).Fill().Bind(ref), e.term, ref.Focused(c))
 			if link, isPath, at := e.term.HoveredLink(); isPath {
 				a.imagePeek(p.ID, link, at, ref.Bounds(c))
 			}
