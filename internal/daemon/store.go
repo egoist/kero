@@ -146,10 +146,7 @@ func (d *Daemon) restore() {
 	for _, ss := range st.Sessions {
 		s := &session{id: ss.ID, project: ss.Project, name: ss.Name, agentNamed: ss.AgentNamed, created: ss.Created, restored: true, focus: ss.Focus, worktree: ss.Worktree}
 		for _, sp := range ss.Panes {
-			if !set.ResumeAgents {
-				sp.Agent = nil
-			}
-			if p := d.restorePane(s.id, sp, when); p != nil {
+			if p := d.restorePane(s.id, sp, when, set.ResumeAgents); p != nil {
 				s.panes = append(s.panes, p)
 				d.panes[p.info.ID] = p
 			}
@@ -175,7 +172,7 @@ func (d *Daemon) restore() {
 // restorePane starts a pane of the last daemon again, under its
 // scrollback, in its directory, with the agent it ran resumed; a browser
 // pane comes back on its page, which the app loads.
-func (d *Daemon) restorePane(sid string, sp savedPane, when string) *pane {
+func (d *Daemon) restorePane(sid string, sp savedPane, when string, resumeAgents bool) *pane {
 	now := time.Now().UnixMilli()
 	if sp.URL != "" {
 		p, _ := newPane(d, sid, proto.Pane{
@@ -183,6 +180,14 @@ func (d *Daemon) restorePane(sid string, sp savedPane, when string) *pane {
 			Created: sp.Created, Restored: true,
 		})
 		return p
+	}
+	var command []string
+	var reason string
+	if resumeAgents || sp.Agent == nil {
+		command, reason = resumeCommandWithReason(sp.Agent)
+	} else {
+		sp.Agent = nil
+		reason = "agent resumption disabled"
 	}
 	p, err := newPane(d, sid, proto.Pane{
 		ID: sp.ID, Dir: sp.Dir, Command: sp.Command, Status: proto.Idle, Since: now,
@@ -202,10 +207,13 @@ func (d *Daemon) restorePane(sid string, sp savedPane, when string) *pane {
 	}
 	// The shell alone: what ran in it may not want to run again unasked.
 	// But an agent's conversation, which only waits for the user.
-	if err := p.start(resumeCommand(sp.Agent), nil); err != nil {
+	if err := p.start(command, nil); err != nil {
 		d.log.Printf("restoring %s: %v", sp.ID, err)
 		p.term.Close()
 		return nil
+	}
+	if reason != "" {
+		d.log.Printf("pane %s restored as shell: %s", sp.ID, reason)
 	}
 	p.dirty = true
 	return p
@@ -214,20 +222,30 @@ func (d *Daemon) restorePane(sid string, sp savedPane, when string) *pane {
 // resumeCommand is the command that resumes an agent's session, nil for
 // none.
 func resumeCommand(a *proto.AgentSession) []string {
-	if a == nil || !agentSessionRe.MatchString(a.ID) {
-		return nil
+	command, _ := resumeCommandWithReason(a)
+	return command
+}
+
+// resumeCommandWithReason also explains a shell fallback without including
+// the agent's name or conversation ID in the diagnostic.
+func resumeCommandWithReason(a *proto.AgentSession) ([]string, string) {
+	if a == nil {
+		return nil, "no agent session recorded"
+	}
+	if !agentSessionRe.MatchString(a.ID) {
+		return nil, "invalid agent session ID"
 	}
 	switch a.Agent {
 	case "claude":
-		return []string{"claude", "--resume", a.ID}
+		return []string{"claude", "--resume", a.ID}, ""
 	case "codex":
-		return []string{"codex", "resume", a.ID}
+		return []string{"codex", "resume", a.ID}, ""
 	case "pi", "opencode":
-		return []string{a.Agent, "--session", a.ID}
+		return []string{a.Agent, "--session", a.ID}, ""
 	case "omp":
-		return []string{"omp", "--session", a.ID}
+		return []string{"omp", "--session", a.ID}, ""
 	}
-	return nil
+	return nil, "unsupported agent"
 }
 
 var agentSessionRe = regexp.MustCompile(`^[A-Za-z0-9_-]{1,128}$`)
