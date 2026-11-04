@@ -196,8 +196,12 @@ func TestCloseInViewer(t *testing.T) {
 	tt.Frame()
 	a.run("pane.close", nil)
 	tt.Frame()
+	tt.Frame()
 	if a.viewOf(s) == nil || a.confirm == nil {
 		t.Fatal("Close with edits didn't ask to save them")
+	}
+	if a.side.focused {
+		t.Fatal("the question left the keyboard in the viewer")
 	}
 	a.run("pane.close", nil)
 	tt.Frame()
