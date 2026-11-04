@@ -329,7 +329,7 @@ func (a *App) quickView(c *ui.Context) {
 	c.Root().Background(lookFor(c).term.Background)
 	switch {
 	case q.e != nil && q.e.term != nil:
-		terminal.View(c.Key("term"), q.e.term).Fill().Bind(&q.ref)
+		termAccess(terminal.View(c.Key("term"), q.e.term).Fill().Bind(&q.ref), q.e.term, q.ref.Focused(c))
 	case q.err != "" || q.e != nil && q.e.err != "":
 		detail := q.err
 		if q.e != nil {
