@@ -58,7 +58,7 @@ kero new -p my-app       # 名前で指定したプロジェクトでセッシ�
 - Kero を終了しても、すべてのセッションは動き続けます。
 - もう一度 Kero を開くと、スクロールバックも含め、すべてのセッションが元のまま表示されます。
 - 再起動のあとなど kerod 自体が再起動すると、Kero はセッションをそれぞれのディレクトリで再び開始します。`restore-sessions = false` でオフにできます。
-- そのエージェント向けに [Kero のスキル](./agents.md#install-the-skill)をセットアップしてあれば、Claude Code、Codex、Pi、OpenCode が動いていたペインは、エージェント自身の再開オプションと同じように会話を再開します。ほかのプログラムは勝手に再起動しません: そのペインはシェルに戻ります。`resume-agents = false` でオフにできます。
+- そのエージェント向けに [Kero のスキル](./agents.md#install-the-skill)をセットアップしてあれば、Claude Code、Codex、Pi、OMP、OpenCode が動いていたペインは、エージェント自身の再開オプションと同じように会話を再開します。ほかのプログラムは勝手に再起動しません: そのペインはシェルに戻ります。`resume-agents = false` でオフにできます。
 
 ```sh
 kero daemon status       # kerod は動いている？
@@ -70,7 +70,7 @@ kero daemon stop         # 停止して、すべてのセッションを終え�
 
 ## 過去の会話
 
-そのエージェント向けに [Kero のスキル](./agents.md#install-the-skill)をセットアップしてあれば、Kero はペインで動いた Claude Code、Codex、Pi、OpenCode の会話を覚えています。セッションを閉じたあとでも、その会話を再開できます。
+そのエージェント向けに [Kero のスキル](./agents.md#install-the-skill)をセットアップしてあれば、Kero はペインで動いた Claude Code、Codex、Pi、OMP、OpenCode の会話を覚えています。セッションを閉じたあとでも、その会話を再開できます。
 
 - <kbd>⌘</kbd> <kbd>P</kbd> は**最近の会話**に直近のいくつかを表示し、入力すると古いものも見つけます。
 - **セッション › 会話を再開…**（<kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>O</kbd>）はすべてを表示します。
