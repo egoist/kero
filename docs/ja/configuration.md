@@ -69,6 +69,7 @@ kero config check             # 不明なキーと不正な値を報告
 | `font-size`           | `13`       | ポイント単位                                                             |
 | `font-weight`         | `400`      | `100` から `900`                                                         |
 | `line-height`         | `1.22`     | フォントの行の高さに対する倍率                                           |
+| `cell-width`          | `1`        | セルの幅。フォントの幅に対する倍率で、`0.8` から `2`。文字の大きさは変わらない |
 | `font-ligatures`      | `true`     | フォントが描くとおりに文字をつなげる                                     |
 | `font-thicken`        | `false`    | Ghostty と同じく、線を太くする                                           |
 | `minimum-contrast`    | `3`        | テキストが背景に対して保つ最小のコントラスト。`1`（なし）から `21`。Ghostty と同じく、暗い背景向けの色が明るい背景でも読めるようにする |
@@ -80,6 +81,10 @@ kero config check             # 不明なキーと不正な値を報告
 | `clipboard-read`      | `ask`      | プログラムによるクリップボードの読み取り（OSC 52）: `ask`、`allow`、`deny` |
 | `right-click-action`  | `context-menu` | `context-menu`、`paste`、`copy-or-paste`                             |
 | `mouse-scroll-multiplier` | `precision:1,discrete:3` | スクロールの量。Ghostty と同じく、`precision:` はトラックパッドのスクロールの倍率、`discrete:` はマウスホイール 1 ノッチでスクロールする行数（Windows では 3 行設定のときの 1 ノッチ）。数値を 1 つだけ書くと両方に適用。`0.01` から `10000` |
+
+`cell-width = 1.03` で文字の間隔が少し広がり、`0.95` で少し狭まります。`1` 未満では
+幅の広い文字どうしが接することがあります。セルの幅はピクセル単位に丸められるため、
+近い値では見た目が同じになったり、1 ピクセル違ったりします。
 
 ## シェル
 

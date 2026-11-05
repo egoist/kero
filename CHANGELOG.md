@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- **Cell width** in Settings › Terminal (`cell-width`) widens or narrows
+  the terminal's columns, from 0.8× to 2×, without changing the text's
+  size or the rows' height: `1.03` adds a little space between
+  characters, `0.95` takes a little away. Cells take whole pixels, so
+  small steps can look uneven.
+
 ## 2.1.33
 
 - **Keep computer awake** stops the computer from sleeping: **Always**,

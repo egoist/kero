@@ -1,6 +1,7 @@
 package main
 
 import (
+	"io"
 	"math"
 	"os"
 	"path/filepath"
@@ -82,6 +83,15 @@ type settingsState struct {
 	hostEdit        hostDraft                  // a host's, as the user edits it
 	tailnet         tailnetLook                // this machine on the tailnet, for the Hosts page
 	confirm         *confirmation              // a question, asked in this window
+	// preview is the Terminal page's sample terminal, made once
+	// previewLoad, which waits for terminal.Load off the main thread,
+	// gives its result; previewText is its text, for assistive technology.
+	preview      *terminal.Terminal
+	previewLoad  chan error
+	previewText  string
+	previewFont  terminal.Font
+	previewTheme terminal.Theme
+	previewError error
 }
 
 // openSettings shows the Settings window, on a page.
@@ -116,6 +126,11 @@ func (a *App) openSettings(page string) {
 	}))
 	a.setWin.OnClosed(func() {
 		offUpdates()
+		if a.ss.preview != nil {
+			a.ss.preview.Close()
+			a.ss.preview = nil
+		}
+		a.ss.previewLoad, a.ss.previewText, a.ss.previewError = nil, "", nil
 		a.setWin = nil
 		a.setRecording("") // the menus take their shortcuts back
 		a.ss.query = ""
@@ -871,6 +886,11 @@ func (a *App) terminalPage(c *ui.Context, pal *palette) {
 			}
 			popup(c, "size", &s.FontSize, sizes, func(v float32) string { return strconv.FormatFloat(float64(v), 'f', -1, 32) + " pt" }, 90, pal)
 		})
+		settingRow(c, pal, locales.SetCellWidth(), locales.SetCellWidthDetail(), func() {
+			v := float64(s.CellWidth)
+			slider(c, "cw", &v, 0.8, 2, 160, pal).OnChange(func() { a.set.CellWidth = float32(int(v*100+0.5)) / 100 })
+			ui.Textf(c, "%.2f×", s.CellWidth).FontSize(12.5).TextColor(pal.textMuted).Width(40).FontFeatures("tnum")
+		})
 		settingRow(c, pal, locales.SetLineHeight(), "", func() {
 			v := float64(s.LineHeight)
 			slider(c, "lh", &v, 1, 2, 160, pal).OnChange(func() { a.set.LineHeight = float32(int(v*100+0.5)) / 100 })
@@ -941,29 +961,41 @@ func (a *App) terminalPage(c *ui.Context, pal *palette) {
 	})
 }
 
-// terminalPreview shows text as the terminals would draw it: the font,
-// its size and line height, and the colors of the window's appearance.
+// terminalPreview uses the terminals' renderer for the font, cell geometry,
+// and colors of the window's appearance.
 func (a *App) terminalPreview(c *ui.Context, pal *palette) {
 	light, dark := a.termThemes()
 	th := light
 	if pal.dark {
 		th = dark
 	}
-	font := a.termFamily()
-	features := uiFeatures(a.fontFeatures())
-	line := func(spans ...ui.Span) {
-		for i := range spans {
-			spans[i].Font, spans[i].Size, spans[i].Weight, spans[i].Features = font, a.set.FontSize, a.set.FontWeight, features
+	font := a.termFont()
+	if a.ss.preview == nil && a.ss.previewError == nil {
+		a.makePreview(c, font, th)
+	}
+	if a.ss.preview != nil {
+		if !reflect.DeepEqual(font, a.ss.previewFont) {
+			a.ss.preview.SetFont(font)
+			a.ss.previewFont = font
 		}
-		ui.RichText(c, spans...).LineHeight(a.set.LineHeight).SingleLine()
+		if *th != a.ss.previewTheme {
+			a.ss.preview.SetTheme(th, th)
+			a.ss.previewTheme = *th
+		}
 	}
 	box := raised(ui.Column(c).Radius(12).Padding(16, 18).Gap(0).Background(th.Background), pal)
 	box.Children(func() {
-		// Nerd Fonts' folder and branch icons: fonts without them show
-		// boxes, which is worth knowing before picking one.
-		line(ui.Span{Text: "\uf07b ~/dev/kero ", Color: th.Palette[4]}, ui.Span{Text: "\ue0a0 main ", Color: th.Palette[5]}, ui.Span{Text: "❯ ", Color: th.Palette[2]}, ui.Span{Text: "git status", Color: th.Foreground})
-		line(ui.Span{Text: "modified:   ", Color: th.Foreground}, ui.Span{Text: "settings_view.go", Color: th.Palette[1]})
-		line(ui.Span{Text: "func ", Color: th.Palette[5]}, ui.Span{Text: "main", Color: th.Palette[4]}, ui.Span{Text: "() { x := a != b && c >= d => ok }", Color: th.Foreground})
+		metrics := (ui.Font{Family: font.Family, Size: font.Size, Weight: font.Weight, Thicken: font.Thicken}).Metrics()
+		rowHeight := float32(math.Ceil(float64((metrics.Ascent + metrics.Descent + metrics.LineGap) * font.LineHeight)))
+		switch {
+		case a.ss.previewError != nil:
+			ui.Text(c, a.ss.previewError.Error()).TextColor(pal.textMuted)
+		case a.ss.preview != nil:
+			terminal.View(c.Key("terminal-preview"), a.ss.preview).Height(3 * rowHeight).Shrink(0).IgnoreInput(true).
+				Role(ui.RoleText).Label(a.ss.previewText)
+		default: // libghostty-vt is loading
+			ui.Box(c).Height(3 * rowHeight).Shrink(0)
+		}
 		ui.Row(c).Gap(4).Margin(10, 0, 0, 0).Children(func() {
 			for i := range 16 {
 				ui.Box(c).Size(16, 10).Radius(3).Background(th.Palette[i])
@@ -971,6 +1003,74 @@ func (a *App) terminalPreview(c *ui.Context, pal *palette) {
 		})
 	})
 }
+
+// makePreview makes the Terminal page's sample terminal once terminal.Load
+// returns, which it waits for off the main thread: a development build
+// downloads libghostty-vt the first time.
+func (a *App) makePreview(c *ui.Context, font terminal.Font, th *terminal.Theme) {
+	if a.ss.previewLoad == nil {
+		loaded := make(chan error, 1)
+		a.ss.previewLoad = loaded
+		services := c.Services()
+		go func() {
+			loaded <- terminal.Load()
+			services.Invalidate()
+		}()
+	}
+	var err error
+	select {
+	case err = <-a.ss.previewLoad:
+		a.ss.previewLoad = nil
+	default:
+		return
+	}
+	var preview *terminal.Terminal
+	if err == nil {
+		conn := &previewConn{done: make(chan struct{})}
+		preview, err = terminal.New(terminal.Options{
+			Conn: conn, ResizeByConn: true,
+			Font: font, Theme: th, DarkTheme: th,
+			Padding: terminal.Padding{X: -1, Y: -1}, Scrollback: -1,
+		})
+		if err != nil {
+			conn.Close()
+		}
+	}
+	if err != nil {
+		a.ss.previewError = err
+		return
+	}
+	preview.Resize(80, 3)
+	// Nerd Fonts' folder and branch icons expose missing font coverage.
+	preview.Feed([]byte("\x1b[?25l\x1b[34m\uf07b ~/dev/kero \x1b[35m\ue0a0 main \x1b[32m❯ \x1b[0mgit status\r\n" +
+		"modified:   \x1b[31msettings_view.go\x1b[0m\r\n" +
+		"\x1b[35mfunc \x1b[34mmain\x1b[0m() { x := a != b && c >= d => ok }"))
+	a.ss.preview = preview
+	a.ss.previewText = strings.TrimSpace(preview.Text())
+	a.ss.previewFont = font
+	a.ss.previewTheme = *th
+}
+
+// previewConn holds a static terminal open without starting a shell.
+type previewConn struct {
+	done chan struct{}
+	once sync.Once
+}
+
+func (p *previewConn) Read([]byte) (int, error) {
+	<-p.done
+	return 0, io.EOF
+}
+
+func (p *previewConn) Write(data []byte) (int, error) { return len(data), nil }
+
+func (p *previewConn) Close() error {
+	p.once.Do(func() { close(p.done) })
+	return nil
+}
+
+// Resize keeps the sample's fixed grid while its view clips to the space available.
+func (p *previewConn) Resize(cols, rows int) error { return nil }
 
 // fontFeaturesField edits font-feature as a comma-separated list. What
 // it can read applies as it is submitted or loses the focus; a tag it

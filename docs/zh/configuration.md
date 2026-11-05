@@ -69,6 +69,7 @@ kero config check             # 报告未知的配置项和无效的值
 | `font-size`           | `13`    | 单位为磅                                                                 |
 | `font-weight`         | `400`   | `100` 到 `900`                                                           |
 | `line-height`         | `1.22`  | 字体默认行高的倍数                                                       |
+| `cell-width`          | `1`     | 单元格宽度，字体宽度的倍数，`0.8` 到 `2`；文字大小不变                   |
 | `font-ligatures`      | `true`  | 按字体的设计连写字符                                                     |
 | `font-thicken`        | `false` | 加粗笔画，同 Ghostty                                                     |
 | `minimum-contrast`    | `3`     | 文字与背景之间保持的最低对比度，从 `1`（不限制）到 `21`，让为深色背景设计的颜色在浅色背景上也清晰可读，同 Ghostty |
@@ -80,6 +81,10 @@ kero config check             # 报告未知的配置项和无效的值
 | `clipboard-read`      | `ask`   | 程序读取剪贴板（OSC 52）时：`ask`、`allow` 或 `deny`                     |
 | `right-click-action`  | `context-menu` | `context-menu`、`paste` 或 `copy-or-paste`                        |
 | `mouse-scroll-multiplier` | `precision:1,discrete:3` | 滚动的幅度，同 Ghostty：`precision:` 是触控板滚动的倍数，`discrete:` 是鼠标滚轮每一格滚动的行数（Windows 上指系统设为 3 行时的一格）；只写一个数字则同时设置两者，范围 `0.01` 到 `10000` |
+
+`cell-width = 1.03` 会让字符之间稍微宽松一些，`0.95` 则稍微紧凑一些；小于 `1` 时，
+较宽的字母可能相互贴住。单元格宽度取整到像素，所以相近的数值可能看起来一样，
+也可能相差一个像素。
 
 ## Shell
 

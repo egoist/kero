@@ -2734,6 +2734,26 @@ func (msgs Messages) SetSizeDetail(bigger string, smaller string) string {
 	return Catalog.Format(msgs.locale, "setSizeDetail", map[string]any{"bigger": bigger, "smaller": smaller})
 }
 
+// SetCellWidth says "Cell width"
+// in the language the app shows.
+func SetCellWidth() string { return In(i18n.Locale()).SetCellWidth() }
+
+// SetCellWidth says "Cell width"
+// in the language of msgs.
+func (msgs Messages) SetCellWidth() string {
+	return Catalog.Format(msgs.locale, "setCellWidth", nil)
+}
+
+// SetCellWidthDetail says "Widen or narrow terminal cells without scaling glyphs or changing line height."
+// in the language the app shows.
+func SetCellWidthDetail() string { return In(i18n.Locale()).SetCellWidthDetail() }
+
+// SetCellWidthDetail says "Widen or narrow terminal cells without scaling glyphs or changing line height."
+// in the language of msgs.
+func (msgs Messages) SetCellWidthDetail() string {
+	return Catalog.Format(msgs.locale, "setCellWidthDetail", nil)
+}
+
 // SetLineHeight says "Line height"
 // in the language the app shows.
 func SetLineHeight() string { return In(i18n.Locale()).SetLineHeight() }

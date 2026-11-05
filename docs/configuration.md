@@ -69,6 +69,7 @@ kero config check             # report unknown keys and bad values
 | `font-size`           | `13`    | In points                                                                |
 | `font-weight`         | `400`   | `100` to `900`                                                           |
 | `line-height`         | `1.22`  | A multiple of the font's                                                 |
+| `cell-width`          | `1`     | The width of cells, a multiple of the font's, from `0.8` to `2`; the text keeps its size |
 | `font-ligatures`      | `true`  | Join characters the way the font draws them                              |
 | `font-thicken`        | `false` | A heavier stroke, as in Ghostty                                          |
 | `minimum-contrast`    | `3`     | The least contrast text keeps with its background, from `1` (none) to `21`, so that colors meant for a dark background stay readable on a light one, as in Ghostty |
@@ -80,6 +81,10 @@ kero config check             # report unknown keys and bad values
 | `clipboard-read`      | `ask`   | Programs reading the clipboard (OSC 52): `ask`, `allow` or `deny`        |
 | `right-click-action`  | `context-menu` | `context-menu`, `paste` or `copy-or-paste`                        |
 | `mouse-scroll-multiplier` | `precision:1,discrete:3` | How far scrolling goes, as in Ghostty: `precision:` scales a touchpad's, `discrete:` is the rows a notch of a mouse wheel scrolls (on Windows, a notch at its 3-line setting); one number sets both, from `0.01` to `10000` |
+
+`cell-width = 1.03` adds a little space between characters, and `0.95` takes a
+little away; below `1`, wide letters can touch. Cells take whole pixels, so
+values close together can look the same or differ by a pixel.
 
 ## Shell
 

@@ -44,6 +44,7 @@ type Settings struct {
 	FontFamily string  `json:"fontFamily"` // "" the font kero carries; "monospace" the system's
 	FontSize   float32 `json:"fontSize"`
 	LineHeight float32 `json:"lineHeight"`
+	CellWidth  float32 `json:"cellWidth"`
 	FontWeight int     `json:"fontWeight"`
 	Ligatures  bool    `json:"ligatures"`
 	// FontFeatures turn the font's OpenType features on and off, as
@@ -159,6 +160,7 @@ func Default() Settings {
 		DimUnfocused:    true,
 		FontSize:        13,
 		LineHeight:      1.22,
+		CellWidth:       1,
 		FontWeight:      400,
 		Ligatures:       true,
 		MinContrast:     3,
@@ -450,6 +452,9 @@ func (s *Settings) normalize() {
 	}
 	if s.LineHeight < 0.8 || s.LineHeight > 2.5 {
 		s.LineHeight = d.LineHeight
+	}
+	if !(s.CellWidth >= 0.8 && s.CellWidth <= 2) {
+		s.CellWidth = d.CellWidth
 	}
 	if s.FontWeight < 100 || s.FontWeight > 900 {
 		s.FontWeight = d.FontWeight

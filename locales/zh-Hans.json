@@ -267,6 +267,8 @@
   "setUseFont": "使用“{name}”",
   "setSize": "大小",
   "setSizeDetail": "也可用 {bigger} 和 {smaller} 调整。",
+  "setCellWidth": "单元格宽度",
+  "setCellWidthDetail": "横向加宽或收窄终端单元格，同时保持字形大小和行高不变。",
   "setLineHeight": "行高",
   "setWeight": "字重",
   "setWeightLight": "细体",
