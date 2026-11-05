@@ -10,6 +10,12 @@
   size or the rows' height: `1.03` adds a little space between
   characters, `0.95` takes a little away. Cells take whole pixels, so
   small steps can look uneven.
+- On Linux, Kero no longer draws its own minimize, maximize and close
+  buttons where the desktop's title bars have none: under tiling
+  compositors such as Hyprland and Sway, where the button layout
+  (`gtk-decoration-layout`) is empty, as on i3, and under KWin on
+  Wayland, whose title bar has its own. `KERO_WINDOW_CONTROLS=1` or `0`
+  shows or hides them anyway.
 
 ## 2.1.33
 

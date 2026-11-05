@@ -1,8 +1,10 @@
 package main
 
 import (
+	"os"
 	"os/exec"
 	"runtime"
+	"strings"
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
@@ -47,6 +49,39 @@ func openTextFile(path string) {
 // window's edge, would straddle the card. macOS keeps its traffic lights.
 var ownControls = runtime.GOOS != "darwin"
 
+// showControls tells that the window controls show (ownControls): where
+// the desktop's title bars have buttons (mygo.Theme.WindowButtons), not
+// under a tiling compositor, as Hyprland or Sway, which gives windows none,
+// or where the user emptied the button layout, as users of tiling window
+// managers on X11 do; nor under KWin on Wayland, whose own title bar has
+// them. KERO_WINDOW_CONTROLS=1 or 0 shows or hides them all the same.
+// followWindowButtons keeps it in step. Main thread only.
+var showControls = ownControls
+
+// followWindowButtons sets showControls, and again as the desktop's button
+// layout changes. Once the app is ready.
+func followWindowButtons() {
+	if !ownControls {
+		return
+	}
+	update := func() { showControls = controlsWanted(os.Getenv, mygo.Theme.WindowButtons()) }
+	update()
+	mygo.Theme.OnUpdated(update)
+}
+
+// controlsWanted tells that Kero should draw the window controls, where
+// the desktop's title bars have buttons, unless KERO_WINDOW_CONTROLS says
+// otherwise.
+func controlsWanted(getenv func(string) string, buttons mygo.WindowButtons) bool {
+	switch strings.ToLower(strings.TrimSpace(getenv("KERO_WINDOW_CONTROLS"))) {
+	case "1", "true", "yes", "on", "show":
+		return true
+	case "0", "false", "no", "off", "hide":
+		return false
+	}
+	return !buttons.Empty()
+}
+
 // framed sets a window's frame: the title bar hidden, under the traffic
 // lights on macOS and without its buttons elsewhere (ownControls), which
 // keeps the edges that resize the window.
@@ -81,7 +116,7 @@ const controlsW = 3*28 + 2*2
 // Kero draws them (ownControls), at the right of a header: the Settings
 // window's. The main window's are over its corner (mainControls).
 func windowControls(c *ui.Context, pal *palette, w *mygo.Window) {
-	if !ownControls || w == nil {
+	if !showControls || w == nil {
 		return
 	}
 	ui.Row(c.Key("window-controls")).Gap(2).AlignItems(ui.Center).Shrink(0).Margin(0, 0, 0, 6).Children(func() {
@@ -96,7 +131,7 @@ func windowControls(c *ui.Context, pal *palette, w *mygo.Window) {
 // nothing as the sidebar shows, the controls moving with it; the headers
 // under them keep room for them (controlsRoom, rightSidebar).
 func (a *App) mainControls(c *ui.Context, pal *palette, edge float32) {
-	if !ownControls || a.win == nil {
+	if !showControls || a.win == nil {
 		return
 	}
 	ui.Row(c.Key("main-controls")).Absolute().Right(edge + 10).Top(barMid - 13).Gap(2).AlignItems(ui.Center).DragWindow().Children(func() {
@@ -109,7 +144,7 @@ func (a *App) mainControls(c *ui.Context, pal *palette, edge float32) {
 // as far as they come over the header: less as the right sidebar comes
 // in beside the card, and none once the sidebar is wider than they are.
 func (a *App) controlsRoom(c *ui.Context, gap float32) {
-	if !ownControls || a.win == nil {
+	if !showControls || a.win == nil {
 		return
 	}
 	// The gap before the room is in it: it narrows to nothing too.
@@ -121,7 +156,7 @@ func (a *App) controlsRoom(c *ui.Context, gap float32) {
 // the header of card, w wide, at the window's top right: as they were the
 // header's own, they keep its pane hovered, its buttons shown.
 func underControls(card ui.Element, w float32) bool {
-	if !ownControls {
+	if !showControls {
 		return false
 	}
 	x, y, in := card.PointerPosition()
