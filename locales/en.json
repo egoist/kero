@@ -159,6 +159,11 @@
   "sidebarCloseProjectMenu": "Close Project…",
   "sidebarCloseProject": "Close Project",
   "sidebarCloseAllSessions": "Close All Sessions",
+  "sidebarMove": "Move",
+  "sidebarMoveUp": "Move Up",
+  "sidebarMoveDown": "Move Down",
+  "sidebarMoveToTop": "Move to Top",
+  "sidebarMoveToBottom": "Move to Bottom",
   "sidebarNeedsYou": "{count} needs you",
   "@sidebarNeedsYou": {
     "placeholders": {

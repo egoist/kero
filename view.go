@@ -311,11 +311,15 @@ func (a *App) sidebar(c *ui.Context, pal *palette, bar ui.TitleBar) {
 	ui.Scroll(c.Key("sessions")).Grow(1).Padding(0, 10, 16, 10).DragWindow().Children(func() {
 		n := 0  // the rows shown, for ⌘1–9 (Ctrl+1–9 elsewhere)
 		gi := 0 // the groups shown, the first of which sits higher
+		// Where the project dragged would go, as the last frame found it;
+		// this frame's groups find it again.
+		at := a.projMove.at
+		a.projMove.at = -1
 		// This machine's projects first, unlabeled; then each host's,
 		// under its name.
 		if local := a.local(); local.loaded {
 			for _, g := range a.hostGroups(local) {
-				a.groupView(c, pal, g, gi, &n)
+				a.groupView(c, pal, g, gi, at, &n)
 				gi++
 			}
 			if len(a.st.Sessions) == 0 && local.conn == connReady && len(a.hosts) == 1 {
@@ -336,7 +340,7 @@ func (a *App) sidebar(c *ui.Context, pal *palette, bar ui.TitleBar) {
 			}
 			for i, g := range groups {
 				g.first = i == 0
-				a.groupView(c, pal, g, gi, &n)
+				a.groupView(c, pal, g, gi, at, &n)
 				gi++
 			}
 		}
@@ -348,7 +352,22 @@ func (a *App) sidebar(c *ui.Context, pal *palette, bar ui.TitleBar) {
 	c.After(20 * time.Second) // times ago move on
 }
 
-func (a *App) groupView(c *ui.Context, pal *palette, g group, gi int, n *int) {
+func (a *App) groupView(c *ui.Context, pal *palette, g group, gi, at int, n *int) {
+	// The group, its header and its rows, takes a project dragged to
+	// another place: a line shows where it would go.
+	grp := ui.Column(c.Key("group-" + g.key())).Shrink(0)
+	a.projectTarget(grp, g, at)
+	moving := g.project.ID != "" && a.projMove.id == g.project.ID
+	grp.Opacity(grp.Animate("moving", 1-0.6*b2f(moving), 120*time.Millisecond))
+	grp.Children(func() {
+		a.groupBody(c, pal, g, gi, moving, n)
+		if a.projMove.id != "" && a.projMove.host == g.host && at >= 0 {
+			a.insertionLine(c, pal, g, gi, at)
+		}
+	})
+}
+
+func (a *App) groupBody(c *ui.Context, pal *palette, g group, gi int, moving bool, n *int) {
 	id, key := g.project.ID, g.key()
 	collapsed := a.prefs.Collapsed[key]
 	needs := 0
@@ -368,8 +387,25 @@ func (a *App) groupView(c *ui.Context, pal *palette, g group, gi int, n *int) {
 		inset++
 	}
 	hdr := ui.Row(c.Key("project-"+key)).Height(28).Margin(top, 0, 3, 0).Padding(0, 6, 0, inset).Gap(6).AlignItems(ui.Center).Radius(6)
-	hovered := hdr.Hovered()
+	// While a project is dragged, the headers it passes do not light up.
+	hovered := hdr.Hovered() && a.projMove.id == ""
 	renaming := id != "" && a.renamingProject == id
+	// Dragged, the header takes its project to another place among its
+	// host's: a chip of it follows the pointer, and its group fades where
+	// it was.
+	if id != "" && !renaming && len(a.hostProjects(g.host)) > 1 {
+		hdr.Drag(projectDrag{g.host, id})
+		if hdr.Dragging() {
+			a.projMove.host, a.projMove.id = g.host, id
+			floating(hdr.Background(pal.popover), pal)
+		} else if moving {
+			a.defer_(func() {
+				if a.projMove.id == id {
+					a.projMove = projectMove{at: -1}
+				}
+			})
+		}
+	}
 	if hdr.Clicked() && !renaming {
 		a.toggleProject(key)
 	}
@@ -388,6 +424,7 @@ func (a *App) groupView(c *ui.Context, pal *palette, g group, gi int, n *int) {
 		if m.Item(locales.SessionRename()).Disabled(id == "").Chosen() {
 			a.startProjectRename(id)
 		}
+		a.projectMenu(m, g)
 		m.Separator()
 		// A remote group's menu has its host's, as the host has no header.
 		if g.host.remote() {

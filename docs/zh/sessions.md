@@ -45,8 +45,11 @@ Kero 将你的工作分为两层：项目（文件夹）包含会话（任务）
 
 **项目**就是一个文件夹。Kero 在边栏中将会话归到各自的项目下。用 <kbd>⌘</kbd> <kbd>O</kbd> 打开项目，或者让 `kero new` 根据会话的启动目录自动选择。
 
+要调整项目的顺序，可以在边栏中上下拖动项目的标题，或使用其右键菜单中的**移动**：上移、下移、移到顶部或移到底部。顺序在重启后依然保留。
+
 ```sh
-kero projects            # 列出项目
+kero projects            # 按边栏的顺序列出项目
+kero projects move my-app top   # 移动项目：top、bottom、up、down 或位置（1 为顶部）
 kero new -p my-app       # 按名称在某个项目中新建会话
 ```
 

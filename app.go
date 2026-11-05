@@ -130,6 +130,7 @@ type App struct {
 	renaming        string
 	renamingProject string
 	renameBuf       string
+	projMove        projectMove // the project dragged in the sidebar
 
 	renameFrames int
 	chrome       chrome // where the sidebar's animation puts things
