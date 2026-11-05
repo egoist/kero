@@ -773,6 +773,31 @@ var commandKeys = map[ui.Key]byte{
 	ui.KeyRight:     0x05, // Control+E, end-of-line
 }
 
+// optionKeys are the keys that, with Option alone on a Mac, send the
+// program Esc and a letter, as Ghostty's, Terminal's and iTerm's do:
+// shells take Esc b and Esc f as backward-word and forward-word, where
+// the Alt arrows' own sequences, unbound, would type a letter.
+var optionKeys = map[ui.Key]byte{
+	ui.KeyLeft:  'b', // backward-word
+	ui.KeyRight: 'f', // forward-word
+}
+
+// macKeySend is what a key with these modifiers sends the program on a
+// Mac in place of its own sequence, nil for the key's own.
+func macKeySend(mods ui.Modifiers, key ui.Key) []byte {
+	switch mods {
+	case ui.Super:
+		if b, ok := commandKeys[key]; ok {
+			return []byte{b}
+		}
+	case ui.Alt:
+		if b, ok := optionKeys[key]; ok {
+			return []byte{0x1b, b}
+		}
+	}
+	return nil
+}
+
 func (a *App) termOptions(id string, conn *gated) terminal.Options {
 	light, dark := a.termThemes()
 	o := terminal.Options{
@@ -811,23 +836,22 @@ func (a *App) termOptions(id string, conn *gated) terminal.Options {
 			conn.Clear(proto.ClearScreen)
 			return true
 		},
-		// ⌘⌫ clears the line the shell is on, and ⌘← and ⌘→ go to its
-		// start and end, as in Ghostty: they send Control+U, Control+A and
-		// Control+E, which shells take as kill-line, beginning-of-line and
-		// end-of-line.
+		// ⌘⌫ clears the line the shell is on, ⌘← and ⌘→ go to its start
+		// and end, and ⌥← and ⌥→ move by a word, as in Ghostty
+		// (macKeySend).
 		OnKey: func(mods ui.Modifiers, key ui.Key) bool {
-			if runtime.GOOS != "darwin" || mods != ui.Super {
+			if runtime.GOOS != "darwin" {
 				return false
 			}
-			b, ok := commandKeys[key]
-			if !ok {
+			b := macKeySend(mods, key)
+			if b == nil {
 				return false
 			}
 			t := a.termFor(id)
 			if t == nil {
 				return false
 			}
-			t.Send([]byte{b})
+			t.Send(b)
 			return true
 		},
 		// The wheel, the user's even over a window not focused, tells they
