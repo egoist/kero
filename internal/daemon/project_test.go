@@ -285,3 +285,99 @@ func TestProjectCreatePersists(t *testing.T) {
 		t.Errorf("restored projects = %+v, want [%+v]", got, first)
 	}
 }
+
+// followRoot makes a folder for a follow test, and home, so that the
+// repository a temporary folder may be in doesn't hold what is made in it.
+func followRoot(t *testing.T) string {
+	t.Helper()
+	root := t.TempDir()
+	t.Setenv("HOME", root)
+	t.Setenv("USERPROFILE", root)
+	return root
+}
+
+func TestFollowPutsSessionsInTheirFolderProject(t *testing.T) {
+	d := projectDaemon(t)
+	root := followRoot(t)
+	code, app, other := filepath.Join(root, "code"), filepath.Join(root, "code", "app"), filepath.Join(root, "code", "other")
+	lib := filepath.Join(app, "lib")
+	for _, dir := range []string{filepath.Join(app, ".git"), lib, other} {
+		if err := os.MkdirAll(dir, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	d.projects = []proto.Project{{ID: "pcode", Name: "code", Dir: code}, {ID: "pother", Name: "other", Dir: other}}
+	term := &pane{info: proto.Pane{ID: "t1", Dir: other}}
+	web := &pane{info: proto.Pane{ID: "b1", Dir: code, URL: "https://example.com"}}
+	s := &session{id: "s1", project: "pcode", panes: []*pane{web, term}, focus: "b1"}
+	d.sessions = []*session{s}
+	project := func() proto.Project {
+		for _, p := range d.projects {
+			if p.ID == s.project {
+				return p
+			}
+		}
+		t.Fatalf("session in no project: %q", s.project)
+		return proto.Project{}
+	}
+
+	// The terminal's folder, not the browser's, though the browser has the focus.
+	if !d.follow() || s.project != "pother" {
+		t.Fatalf("after follow, project = %q, want pother", s.project)
+	}
+	// Moved by hand: it stays while the folder does.
+	s.project = "pcode"
+	if d.follow() || s.project != "pcode" {
+		t.Fatalf("follow moved a session whose folder stayed: project = %q", s.project)
+	}
+	// In a repository, its root's project: a new one, not code's above it,
+	// and the same from deeper in.
+	term.info.Dir = lib
+	d.follow()
+	if p := project(); p.Dir != app || p.Name != "app" {
+		t.Fatalf("after cd into app/lib, project = %+v, want a new one for %s", p, app)
+	}
+	appID := s.project
+	term.info.Dir = app
+	d.follow()
+	if s.project != appID {
+		t.Fatalf("after cd into app, project = %+v, want app's", project())
+	}
+	// Out of a repository, the folder's own, not code's above it.
+	loose := filepath.Join(code, "loose")
+	term.info.Dir = loose
+	d.follow()
+	if p := project(); p.Dir != loose || p.Name != "loose" {
+		t.Fatalf("after cd into a loose folder, project = %+v, want a new one for %s", p, loose)
+	}
+	// The folder of a project, that project.
+	term.info.Dir = code
+	if !d.follow() || s.project != "pcode" {
+		t.Fatalf("after cd into code, project = %+v, want pcode", project())
+	}
+	if n := len(d.projects); n != 4 {
+		t.Fatalf("%d projects, want 4: %+v", n, d.projects)
+	}
+}
+
+func TestFollowPutsAWorktreeInItsRepositorysProject(t *testing.T) {
+	d := projectDaemon(t)
+	root := followRoot(t)
+	repo, wt := filepath.Join(root, "repo"), filepath.Join(root, "trees", "repo-feature")
+	gitdir := filepath.Join(repo, ".git", "worktrees", "repo-feature")
+	for _, dir := range []string{gitdir, wt} {
+		if err := os.MkdirAll(dir, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(wt, ".git"), []byte("gitdir: "+gitdir+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(gitdir, "commondir"), []byte("../..\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	d.projects = []proto.Project{{ID: "prepo", Name: "repo", Dir: repo}}
+	if got := d.folderProject(wt); got != "prepo" {
+		t.Fatalf("folderProject(worktree) = %q (projects %+v), want prepo", got, d.projects)
+	}
+}

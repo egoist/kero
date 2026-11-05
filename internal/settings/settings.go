@@ -24,6 +24,7 @@ import (
 type Settings struct {
 	// General
 	NewSessionDir     string `json:"newSessionDir"`     // "current", "project" or "home"
+	SessionsFollowDir bool   `json:"sessionsFollowDir"` // a session goes in the project of its pane's folder as it changes
 	SessionName       string `json:"sessionName"`       // what names an unnamed session: proto.NameFocused, NameLead or NameFolder
 	SidebarRows       string `json:"sidebarRows"`       // "detailed", two lines a session, or "compact", one
 	FocusFollowsMouse bool   `json:"focusFollowsMouse"` // a pane the pointer enters takes the focus

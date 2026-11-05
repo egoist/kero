@@ -358,6 +358,10 @@ func (d *Daemon) tickLoop() {
 				changed = true
 			}
 		}
+		if settings.Load().SessionsFollowDir && d.follow() {
+			changed = true
+			d.save()
+		}
 		if changed {
 			d.changed()
 		}
@@ -409,14 +413,57 @@ func (d *Daemon) projectFor(ref, dir string) string {
 	if best != "" {
 		return best
 	}
-	root := repoRoot(dir)
-	name := filepath.Base(root)
-	if root == proto.Home() {
+	return d.newProject(repoRoot(dir))
+}
+
+// newProject adds a project for dir and returns its ID. d.mu is held.
+func (d *Daemon) newProject(dir string) string {
+	name := filepath.Base(dir)
+	if dir == proto.Home() {
 		name = "Home"
 	}
-	p := proto.Project{ID: newID(), Name: name, Dir: root}
+	p := proto.Project{ID: newID(), Name: name, Dir: dir}
 	d.projects = append(d.projects, p)
 	return p.ID
+}
+
+// folderProject returns the project of dir's own folder: its repository's
+// root when it is in one, else dir itself. That is the project whose
+// directory is that folder, not one above it, or a new one. d.mu is held.
+func (d *Daemon) folderProject(dir string) string {
+	root := filepath.Clean(repoRoot(dir))
+	for _, p := range d.projects {
+		if p.Dir == "" {
+			continue
+		}
+		if pd := filepath.Clean(p.Dir); len(pd) == len(root) && proto.Within(root, pd) {
+			return p.ID
+		}
+	}
+	return d.newProject(root)
+}
+
+// follow puts each session in the project of its folder, as
+// sessions-follow-directory asks: the folder of the terminal pane it
+// shows, when that is another than the one it last followed. A session
+// moved by hand stays where it was put until its pane goes elsewhere.
+// It reports whether one moved.
+func (d *Daemon) follow() bool {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	moved := false
+	for _, s := range d.sessions {
+		dir := s.shownDir()
+		if dir == "" || dir == s.followed {
+			continue
+		}
+		s.followed = dir
+		if pr := d.folderProject(dir); pr != s.project {
+			s.project = pr
+			moved = true
+		}
+	}
+	return moved
 }
 
 // repoRoot returns the root of the git repository holding dir, or dir. A

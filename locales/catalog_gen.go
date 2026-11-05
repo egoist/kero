@@ -2040,6 +2040,26 @@ func (msgs Messages) SetDirHome() string {
 	return Catalog.Format(msgs.locale, "setDirHome", nil)
 }
 
+// SetSessionsFollowDir says "Sort sessions into projects"
+// in the language the app shows.
+func SetSessionsFollowDir() string { return In(i18n.Locale()).SetSessionsFollowDir() }
+
+// SetSessionsFollowDir says "Sort sessions into projects"
+// in the language of msgs.
+func (msgs Messages) SetSessionsFollowDir() string {
+	return Catalog.Format(msgs.locale, "setSessionsFollowDir", nil)
+}
+
+// SetSessionsFollowDirDetail says "When a session's folder changes, as with cd, move it to the project that holds the folder, or to a new one for it."
+// in the language the app shows.
+func SetSessionsFollowDirDetail() string { return In(i18n.Locale()).SetSessionsFollowDirDetail() }
+
+// SetSessionsFollowDirDetail says "When a session's folder changes, as with cd, move it to the project that holds the folder, or to a new one for it."
+// in the language of msgs.
+func (msgs Messages) SetSessionsFollowDirDetail() string {
+	return Catalog.Format(msgs.locale, "setSessionsFollowDirDetail", nil)
+}
+
 // SetSessionName says "Name sessions after"
 // in the language the app shows.
 func SetSessionName() string { return In(i18n.Locale()).SetSessionName() }

@@ -198,6 +198,8 @@
   "setDirCurrent": "現在のフォルダ",
   "setDirProject": "プロジェクト",
   "setDirHome": "ホーム",
+  "setSessionsFollowDir": "セッションをプロジェクトに振り分ける",
+  "setSessionsFollowDirDetail": "セッションのフォルダーが変わったとき（cd など）、そのフォルダーを含むプロジェクトに移します。なければ新しいプロジェクトを作ります。",
   "setSessionName": "セッション名の付け方",
   "setSessionNameDetail": "あなたかエージェントが名前を付けるまで使われます。“使用中のペイン”では、シェルだけが動いているペインは、最も対応が必要なペインに譲ります。",
   "setNameFocused": "使用中のペイン",
