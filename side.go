@@ -288,7 +288,7 @@ func (a *App) rightSidebar(c *ui.Context, pal *palette, s *proto.Session) {
 	// corner (mainControls): they show up to the controls, not under them.
 	w := a.rightWidth() - 10
 	shown := w
-	if ownControls && a.win != nil {
+	if showControls && a.win != nil {
 		w -= controlsW + 8
 		shown = min(max(a.side.barW-a.side.edge-10-(controlsW+8), 0), w)
 	}

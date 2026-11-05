@@ -10,6 +10,10 @@
   size or the rows' height: `1.03` adds a little space between
   characters, `0.95` takes a little away. Cells take whole pixels, so
   small steps can look uneven.
+- On Linux, Kero no longer draws its own minimize, maximize and close
+  buttons under tiling window managers (Hyprland, sway, i3, niri, river,
+  bspwm and others), which give windows none. `KERO_WINDOW_CONTROLS=1`
+  or `0` shows or hides them anyway.
 
 ## 2.1.33
 

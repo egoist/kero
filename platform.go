@@ -1,8 +1,10 @@
 package main
 
 import (
+	"os"
 	"os/exec"
 	"runtime"
+	"strings"
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
@@ -47,6 +49,60 @@ func openTextFile(path string) {
 // window's edge, would straddle the card. macOS keeps its traffic lights.
 var ownControls = runtime.GOOS != "darwin"
 
+// showControls tells that the window controls show (ownControls): not
+// under a tiling window manager, as Hyprland or sway, which gives windows
+// no minimize, maximize or close of their own and tiles them, its keys
+// closing them. KERO_WINDOW_CONTROLS=1 or 0 shows or hides them all the
+// same.
+var showControls = ownControls && controlsWanted(runtime.GOOS, os.Getenv)
+
+// tilingWMs are the tiling window managers by the names they give in
+// XDG_CURRENT_DESKTOP (or XDG_SESSION_DESKTOP, DESKTOP_SESSION), lower case.
+var tilingWMs = []string{
+	"hyprland", "sway", "i3", "niri", "river", "bspwm", "dwm", "awesome",
+	"qtile", "xmonad", "herbstluftwm", "leftwm", "spectrwm", "dwl",
+	"miracle-wm", "scroll",
+}
+
+// tilingSockets are environment variables only a tiling window manager's
+// session sets, as it runs.
+var tilingSockets = []string{"HYPRLAND_INSTANCE_SIGNATURE", "SWAYSOCK", "I3SOCK", "NIRI_SOCKET"}
+
+// controlsWanted tells, from the environment, that Kero should draw the
+// window controls on goos: everywhere but on Linux under a tiling window
+// manager, unless KERO_WINDOW_CONTROLS says otherwise.
+func controlsWanted(goos string, getenv func(string) string) bool {
+	switch strings.ToLower(strings.TrimSpace(getenv("KERO_WINDOW_CONTROLS"))) {
+	case "1", "true", "yes", "on", "show":
+		return true
+	case "0", "false", "no", "off", "hide":
+		return false
+	}
+	if goos == "darwin" || goos == "windows" {
+		return true
+	}
+	return !tilingWM(getenv)
+}
+
+// tilingWM tells that the session is a tiling window manager's.
+func tilingWM(getenv func(string) string) bool {
+	for _, k := range tilingSockets {
+		if getenv(k) != "" {
+			return true
+		}
+	}
+	for _, k := range []string{"XDG_CURRENT_DESKTOP", "XDG_SESSION_DESKTOP", "DESKTOP_SESSION"} {
+		for _, d := range strings.FieldsFunc(strings.ToLower(getenv(k)), func(r rune) bool { return r == ':' || r == ';' }) {
+			for _, t := range tilingWMs {
+				if d == t {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
 // framed sets a window's frame: the title bar hidden, under the traffic
 // lights on macOS and without its buttons elsewhere (ownControls), which
 // keeps the edges that resize the window.
@@ -81,7 +137,7 @@ const controlsW = 3*28 + 2*2
 // Kero draws them (ownControls), at the right of a header: the Settings
 // window's. The main window's are over its corner (mainControls).
 func windowControls(c *ui.Context, pal *palette, w *mygo.Window) {
-	if !ownControls || w == nil {
+	if !showControls || w == nil {
 		return
 	}
 	ui.Row(c.Key("window-controls")).Gap(2).AlignItems(ui.Center).Shrink(0).Margin(0, 0, 0, 6).Children(func() {
@@ -96,7 +152,7 @@ func windowControls(c *ui.Context, pal *palette, w *mygo.Window) {
 // nothing as the sidebar shows, the controls moving with it; the headers
 // under them keep room for them (controlsRoom, rightSidebar).
 func (a *App) mainControls(c *ui.Context, pal *palette, edge float32) {
-	if !ownControls || a.win == nil {
+	if !showControls || a.win == nil {
 		return
 	}
 	ui.Row(c.Key("main-controls")).Absolute().Right(edge + 10).Top(barMid - 13).Gap(2).AlignItems(ui.Center).DragWindow().Children(func() {
@@ -109,7 +165,7 @@ func (a *App) mainControls(c *ui.Context, pal *palette, edge float32) {
 // as far as they come over the header: less as the right sidebar comes
 // in beside the card, and none once the sidebar is wider than they are.
 func (a *App) controlsRoom(c *ui.Context, gap float32) {
-	if !ownControls || a.win == nil {
+	if !showControls || a.win == nil {
 		return
 	}
 	// The gap before the room is in it: it narrows to nothing too.
@@ -121,7 +177,7 @@ func (a *App) controlsRoom(c *ui.Context, gap float32) {
 // the header of card, w wide, at the window's top right: as they were the
 // header's own, they keep its pane hovered, its buttons shown.
 func underControls(card ui.Element, w float32) bool {
-	if !ownControls {
+	if !showControls {
 		return false
 	}
 	x, y, in := card.PointerPosition()
