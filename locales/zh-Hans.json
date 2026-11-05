@@ -207,6 +207,8 @@
   "setSidebarRowsDetail": "详细模式会在每个会话名称下多显示一行：其状态消息，没有时显示分支和改动。",
   "setRowsDetailed": "详细",
   "setRowsCompact": "紧凑",
+  "setSidebarCount": "会话数量",
+  "setSidebarCountDetail": "在每个项目名称旁显示其包含的会话数量。",
   "setFocusFollowsMouse": "焦点跟随鼠标",
   "setFocusFollowsMouseDetail": "指针移入窗格时，该窗格无需点击即获得焦点。",
   "setAskBeforeClosing": "关闭正在运行的程序前询问",

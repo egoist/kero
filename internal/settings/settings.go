@@ -26,6 +26,7 @@ type Settings struct {
 	NewSessionDir     string `json:"newSessionDir"`     // "current", "project" or "home"
 	SessionName       string `json:"sessionName"`       // what names an unnamed session: proto.NameFocused, NameLead or NameFolder
 	SidebarRows       string `json:"sidebarRows"`       // "detailed", two lines a session, or "compact", one
+	SidebarCount      bool   `json:"sidebarCount"`      // a project's header shows how many sessions it holds
 	FocusFollowsMouse bool   `json:"focusFollowsMouse"` // a pane the pointer enters takes the focus
 	ConfirmClose      bool   `json:"confirmClose"`      // before closing a pane a program runs in
 	RestoreSessions   bool   `json:"restoreSessions"`   // after kerod restarts, as after a reboot
@@ -148,6 +149,7 @@ func Default() Settings {
 		NewSessionDir:   "current",
 		SessionName:     proto.NameFocused,
 		SidebarRows:     "detailed",
+		SidebarCount:    true,
 		ConfirmClose:    true,
 		RestoreSessions: true,
 		ResumeAgents:    true,

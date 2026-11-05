@@ -826,6 +826,28 @@ func TestSidebarRowKeepsTime(t *testing.T) {
 	}
 }
 
+// A project's header shows how many sessions it holds, unless
+// sidebar-session-count is off.
+func TestSidebarSessionCount(t *testing.T) {
+	a := testApp(t)
+	a.local().conn = connReady
+	for _, id := range []string{"s2", "s3"} {
+		s := a.st.Sessions[0]
+		s.ID = id
+		a.st.Sessions = append(a.st.Sessions, s)
+	}
+	tt := ui.NewTester(a.view, 1100, 700)
+	tt.Frame()
+	if !slices.Contains(tt.Texts(), "3") {
+		t.Errorf("the project's header has no count; texts %q", tt.Texts())
+	}
+	a.set.SidebarCount = false
+	tt.Frame()
+	if slices.Contains(tt.Texts(), "3") {
+		t.Errorf("with sidebar-session-count off, the project's header still has its count")
+	}
+}
+
 // A detailed row shows, under the session's name, its status message,
 // else its branch and changes, at the whole row's width; a compact one
 // keeps to one line ($KERO_SHOTS).
