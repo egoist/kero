@@ -49,58 +49,37 @@ func openTextFile(path string) {
 // window's edge, would straddle the card. macOS keeps its traffic lights.
 var ownControls = runtime.GOOS != "darwin"
 
-// showControls tells that the window controls show (ownControls): not
-// under a tiling window manager, as Hyprland or sway, which gives windows
-// no minimize, maximize or close of their own and tiles them, its keys
-// closing them. KERO_WINDOW_CONTROLS=1 or 0 shows or hides them all the
-// same.
-var showControls = ownControls && controlsWanted(runtime.GOOS, os.Getenv)
+// showControls tells that the window controls show (ownControls): where
+// the desktop's title bars have buttons (mygo.Theme.WindowButtons), not
+// under a tiling compositor, as Hyprland or Sway, which gives windows none,
+// or where the user emptied the button layout, as users of tiling window
+// managers on X11 do; nor under KWin on Wayland, whose own title bar has
+// them. KERO_WINDOW_CONTROLS=1 or 0 shows or hides them all the same.
+// followWindowButtons keeps it in step. Main thread only.
+var showControls = ownControls
 
-// tilingWMs are the tiling window managers by the names they give in
-// XDG_CURRENT_DESKTOP (or XDG_SESSION_DESKTOP, DESKTOP_SESSION), lower case.
-var tilingWMs = []string{
-	"hyprland", "sway", "i3", "niri", "river", "bspwm", "dwm", "awesome",
-	"qtile", "xmonad", "herbstluftwm", "leftwm", "spectrwm", "dwl",
-	"miracle-wm", "scroll",
+// followWindowButtons sets showControls, and again as the desktop's button
+// layout changes. Once the app is ready.
+func followWindowButtons() {
+	if !ownControls {
+		return
+	}
+	update := func() { showControls = controlsWanted(os.Getenv, mygo.Theme.WindowButtons()) }
+	update()
+	mygo.Theme.OnUpdated(update)
 }
 
-// tilingSockets are environment variables only a tiling window manager's
-// session sets, as it runs.
-var tilingSockets = []string{"HYPRLAND_INSTANCE_SIGNATURE", "SWAYSOCK", "I3SOCK", "NIRI_SOCKET"}
-
-// controlsWanted tells, from the environment, that Kero should draw the
-// window controls on goos: everywhere but on Linux under a tiling window
-// manager, unless KERO_WINDOW_CONTROLS says otherwise.
-func controlsWanted(goos string, getenv func(string) string) bool {
+// controlsWanted tells that Kero should draw the window controls, where
+// the desktop's title bars have buttons, unless KERO_WINDOW_CONTROLS says
+// otherwise.
+func controlsWanted(getenv func(string) string, buttons mygo.WindowButtons) bool {
 	switch strings.ToLower(strings.TrimSpace(getenv("KERO_WINDOW_CONTROLS"))) {
 	case "1", "true", "yes", "on", "show":
 		return true
 	case "0", "false", "no", "off", "hide":
 		return false
 	}
-	if goos == "darwin" || goos == "windows" {
-		return true
-	}
-	return !tilingWM(getenv)
-}
-
-// tilingWM tells that the session is a tiling window manager's.
-func tilingWM(getenv func(string) string) bool {
-	for _, k := range tilingSockets {
-		if getenv(k) != "" {
-			return true
-		}
-	}
-	for _, k := range []string{"XDG_CURRENT_DESKTOP", "XDG_SESSION_DESKTOP", "DESKTOP_SESSION"} {
-		for _, d := range strings.FieldsFunc(strings.ToLower(getenv(k)), func(r rune) bool { return r == ':' || r == ';' }) {
-			for _, t := range tilingWMs {
-				if d == t {
-					return true
-				}
-			}
-		}
-	}
-	return false
+	return !buttons.Empty()
 }
 
 // framed sets a window's frame: the title bar hidden, under the traffic
