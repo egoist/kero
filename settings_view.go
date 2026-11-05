@@ -521,6 +521,9 @@ func (a *App) generalPage(c *ui.Context, pal *palette) {
 		settingRow(c, pal, locales.SetSidebarRows(), locales.SetSidebarRowsDetail(), func() {
 			segmented(c, "sidebar-rows", &s.SidebarRows, []string{"detailed", "compact"}, []string{locales.SetRowsDetailed(), locales.SetRowsCompact()})
 		})
+		settingRow(c, pal, locales.SetSidebarCount(), locales.SetSidebarCountDetail(), func() {
+			toggle(c.Key("sidebar-count"), &s.SidebarCount, pal)
+		})
 		settingRow(c, pal, locales.SetFocusFollowsMouse(), locales.SetFocusFollowsMouseDetail(), func() {
 			toggle(c.Key("focusmouse"), &s.FocusFollowsMouse, pal)
 		})

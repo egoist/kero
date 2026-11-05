@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Session count** in Settings › General (`sidebar-session-count`)
+  hides the number beside each project's name in the sidebar, for a
+  sidebar that shows only what needs you.
 - **Cell width** in Settings › Terminal (`cell-width`) widens or narrows
   the terminal's columns, from 0.8× to 2×, without changing the text's
   size or the rows' height: `1.03` adds a little space between

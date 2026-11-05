@@ -2130,6 +2130,26 @@ func (msgs Messages) SetRowsCompact() string {
 	return Catalog.Format(msgs.locale, "setRowsCompact", nil)
 }
 
+// SetSidebarCount says "Session count"
+// in the language the app shows.
+func SetSidebarCount() string { return In(i18n.Locale()).SetSidebarCount() }
+
+// SetSidebarCount says "Session count"
+// in the language of msgs.
+func (msgs Messages) SetSidebarCount() string {
+	return Catalog.Format(msgs.locale, "setSidebarCount", nil)
+}
+
+// SetSidebarCountDetail says "Show, beside each project’s name, how many sessions it holds."
+// in the language the app shows.
+func SetSidebarCountDetail() string { return In(i18n.Locale()).SetSidebarCountDetail() }
+
+// SetSidebarCountDetail says "Show, beside each project’s name, how many sessions it holds."
+// in the language of msgs.
+func (msgs Messages) SetSidebarCountDetail() string {
+	return Catalog.Format(msgs.locale, "setSidebarCountDetail", nil)
+}
+
 // SetFocusFollowsMouse says "Focus follows mouse"
 // in the language the app shows.
 func SetFocusFollowsMouse() string { return In(i18n.Locale()).SetFocusFollowsMouse() }
