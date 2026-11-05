@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -25,6 +26,7 @@ type Settings struct {
 	NewSessionDir     string `json:"newSessionDir"`     // "current", "project" or "home"
 	SessionName       string `json:"sessionName"`       // what names an unnamed session: proto.NameFocused, NameLead or NameFolder
 	SidebarRows       string `json:"sidebarRows"`       // "detailed", two lines a session, or "compact", one
+	SidebarCount      bool   `json:"sidebarCount"`      // a project's header shows how many sessions it holds
 	FocusFollowsMouse bool   `json:"focusFollowsMouse"` // a pane the pointer enters takes the focus
 	ConfirmClose      bool   `json:"confirmClose"`      // before closing a pane a program runs in
 	RestoreSessions   bool   `json:"restoreSessions"`   // after kerod restarts, as after a reboot
@@ -40,22 +42,27 @@ type Settings struct {
 	Vibrancy   bool   `json:"vibrancy"`   // the window's material under the wash
 
 	// Terminal
-	FontFamily   string  `json:"fontFamily"` // "" the font kero carries; "monospace" the system's
-	FontSize     float32 `json:"fontSize"`
-	LineHeight   float32 `json:"lineHeight"`
-	FontWeight   int     `json:"fontWeight"`
-	Ligatures    bool    `json:"ligatures"`
-	Thicken      bool    `json:"thicken"`
-	MinContrast  float32 `json:"minContrast"`           // a WCAG ratio text keeps with its background
-	DimUnfocused bool    `json:"dimUnfocusedTerminals"` // the terminals the user is not in fade
-	Cursor       string  `json:"cursor"`                // "block", "bar" or "underline"
-	CursorBlink  bool    `json:"cursorBlink"`
-	LightTheme   string  `json:"lightTheme"` // one of KeroThemes by its Name, or a Ghostty theme's
-	DarkTheme    string  `json:"darkTheme"`
-	OptionAsAlt  bool    `json:"optionAsAlt"`
-	CopyOnSelect bool    `json:"copyOnSelect"`
-	Clipboard    string  `json:"clipboard"`  // programs reading it: "ask", "allow" or "deny"
-	RightClick   string  `json:"rightClick"` // "menu", "paste" or "copyOrPaste"
+	FontFamily string  `json:"fontFamily"` // "" the font kero carries; "monospace" the system's
+	FontSize   float32 `json:"fontSize"`
+	LineHeight float32 `json:"lineHeight"`
+	CellWidth  float32 `json:"cellWidth"`
+	FontWeight int     `json:"fontWeight"`
+	Ligatures  bool    `json:"ligatures"`
+	// FontFeatures turn the font's OpenType features on and off, as
+	// Ghostty's font-feature: "ss01", "-calt", "cv05=2". They apply
+	// after Ligatures, so that they can turn one back on.
+	FontFeatures []string `json:"fontFeatures,omitempty"`
+	Thicken      bool     `json:"thicken"`
+	MinContrast  float32  `json:"minContrast"`           // a WCAG ratio text keeps with its background
+	DimUnfocused bool     `json:"dimUnfocusedTerminals"` // the terminals the user is not in fade
+	Cursor       string   `json:"cursor"`                // "block", "bar" or "underline"
+	CursorBlink  bool     `json:"cursorBlink"`
+	LightTheme   string   `json:"lightTheme"` // one of KeroThemes by its Name, or a Ghostty theme's
+	DarkTheme    string   `json:"darkTheme"`
+	OptionAsAlt  bool     `json:"optionAsAlt"`
+	CopyOnSelect bool     `json:"copyOnSelect"`
+	Clipboard    string   `json:"clipboard"`  // programs reading it: "ask", "allow" or "deny"
+	RightClick   string   `json:"rightClick"` // "menu", "paste" or "copyOrPaste"
 	// ScrollPrecision scales a touchpad's scrolling, and ScrollDiscrete is
 	// the rows a notch of a mouse wheel scrolls, as Ghostty's
 	// mouse-scroll-multiplier = precision:…,discrete:….
@@ -142,6 +149,7 @@ func Default() Settings {
 		NewSessionDir:   "current",
 		SessionName:     proto.NameFocused,
 		SidebarRows:     "detailed",
+		SidebarCount:    true,
 		ConfirmClose:    true,
 		RestoreSessions: true,
 		ResumeAgents:    true,
@@ -154,6 +162,7 @@ func Default() Settings {
 		DimUnfocused:    true,
 		FontSize:        13,
 		LineHeight:      1.22,
+		CellWidth:       1,
 		FontWeight:      400,
 		Ligatures:       true,
 		MinContrast:     3,
@@ -362,6 +371,7 @@ func (s Settings) ScrollbackBytes() int {
 
 func clone(s Settings) Settings {
 	s.Env = append([]string(nil), s.Env...)
+	s.FontFeatures = slices.Clone(s.FontFeatures)
 	s.AdLists = slices.Clone(s.AdLists)
 	s.Hosts = slices.Clone(s.Hosts)
 	s.Listen = slices.Clone(s.Listen)
@@ -374,6 +384,48 @@ func clone(s Settings) Settings {
 		s.Shortcuts = m
 	}
 	return s
+}
+
+// ParseFontFeatures reads OpenType features as font-feature takes them,
+// as Ghostty's: tags of four characters, comma-separated, each turned on
+// as ss01 or +ss01, off as -calt or calt=0, or set as cv05=2. It returns
+// them as written, without spaces, or an error naming those it can't
+// read; nil for none.
+func ParseFontFeatures(list string) ([]string, error) {
+	var out, bad []string
+	for _, f := range strings.Split(list, ",") {
+		f = strings.Join(strings.Fields(f), "")
+		if f == "" {
+			continue
+		}
+		if !validFeature(f) {
+			bad = append(bad, strconv.Quote(f))
+			continue
+		}
+		out = append(out, f)
+	}
+	if bad != nil {
+		return out, fmt.Errorf("%s: write a tag of four characters, as ss01, -calt or cv05=2", strings.Join(bad, ", "))
+	}
+	return out, nil
+}
+
+func validFeature(f string) bool {
+	tag, value, set := strings.Cut(f, "=")
+	if rest, ok := strings.CutPrefix(tag, "-"); ok {
+		if set {
+			return false // -calt=1 says two things
+		}
+		tag = rest
+	} else {
+		tag = strings.TrimPrefix(tag, "+")
+	}
+	if set {
+		if _, err := strconv.ParseUint(value, 10, 32); err != nil {
+			return false
+		}
+	}
+	return len(tag) == 4 && !strings.ContainsFunc(tag, func(r rune) bool { return r <= ' ' || r > '~' })
 }
 
 // normalize keeps values in range, as a file edited by hand may not.
@@ -402,6 +454,9 @@ func (s *Settings) normalize() {
 	}
 	if s.LineHeight < 0.8 || s.LineHeight > 2.5 {
 		s.LineHeight = d.LineHeight
+	}
+	if !(s.CellWidth >= 0.8 && s.CellWidth <= 2) {
+		s.CellWidth = d.CellWidth
 	}
 	if s.FontWeight < 100 || s.FontWeight > 900 {
 		s.FontWeight = d.FontWeight

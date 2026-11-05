@@ -714,3 +714,36 @@ func TestAdListToggles(t *testing.T) {
 		t.Error("the lists show while Block ads is off")
 	}
 }
+
+// The font features field keeps what it can read as it is submitted, and
+// leaves a tag it can't in the field, unapplied ($KERO_SHOTS).
+func TestFontFeaturesField(t *testing.T) {
+	for _, dark := range []bool{false, true} {
+		a := testApp(t)
+		a.ss.page = "terminal"
+		tt := ui.NewTester(a.settingsView, 820, 760)
+		tt.SetDark(dark)
+		tt.Frame()
+		if err := tt.Click("ss01, cv05=2, -calt"); err != nil {
+			t.Fatalf("no font features field: %v; texts %q", err, tt.Texts())
+		}
+		tt.Frame()
+		tt.Type("ss01, cv05=2")
+		tt.Key(0, ui.KeyEnter)
+		tt.Frame()
+		if want := []string{"ss01", "cv05=2"}; !slices.Equal(a.set.FontFeatures, want) {
+			t.Fatalf("font-feature %q, want %q", a.set.FontFeatures, want)
+		}
+		tt.Advance(time.Second)
+		tt.Frame()
+		name := map[bool]string{false: "light", true: "dark"}[dark]
+		shot(t, tt, "font-features-"+name)
+		tt.Type(", ligatures")
+		tt.Key(0, ui.KeyEnter)
+		tt.Frame()
+		if want := []string{"ss01", "cv05=2"}; !slices.Equal(a.set.FontFeatures, want) {
+			t.Errorf("after a bad tag, font-feature %q, want %q", a.set.FontFeatures, want)
+		}
+		shot(t, tt, "font-features-bad-"+name)
+	}
+}

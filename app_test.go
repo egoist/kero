@@ -231,3 +231,26 @@ func TestTermScrollback(t *testing.T) {
 		}
 	}
 }
+
+// font-feature reaches the terminals after font-ligatures, and wins over
+// it for the tags it names.
+func TestTermFontFeatures(t *testing.T) {
+	a := testApp(t)
+	for _, c := range []struct {
+		liga bool
+		user []string
+		want []string
+	}{
+		{true, nil, nil},
+		{false, nil, []string{"-calt", "-liga", "-dlig"}},
+		{true, []string{"ss01", "cv05=2"}, []string{"ss01", "cv05=2"}},
+		{false, []string{"+calt", "ss02"}, []string{"-liga", "-dlig", "+calt", "ss02"}},
+		{true, []string{"-calt"}, []string{"-calt"}},
+	} {
+		a.set.Ligatures, a.set.FontFeatures = c.liga, c.user
+		got := a.termOptions("a", nil).Font.Features
+		if !slices.Equal(got, c.want) {
+			t.Errorf("ligatures %v, font-feature %q: the terminal has %q, want %q", c.liga, c.user, got, c.want)
+		}
+	}
+}

@@ -34,7 +34,7 @@ keybind = cmd+shift+d=pane.split.down
 ```sh
 kero config edit              # 在 $EDITOR 中打开
 kero config show              # 列出所有配置项及其当前值
-kero config check             # 报告未知的配置项和无效的值
+kero config check             # 报告未知的配置项、无效的值和agents.toml 的问题
 ```
 
 ## 通用
@@ -44,6 +44,7 @@ kero config check             # 报告未知的配置项和无效的值
 | `new-session-directory` | `current` | 新会话的起始目录：`current`、`project` 或 `home`               |
 | `session-name`          | `focused` | 未手动命名的会话如何取名：`focused`、`lead` 或 `folder`（[详情](./sessions.md#how-an-unnamed-session-is-named)） |
 | `sidebar-rows`          | `detailed` | 侧边栏如何显示会话：`detailed` 在第二行显示状态消息，没有时显示分支和改动；`compact` 只占一行 |
+| `sidebar-session-count` | `true`    | 在侧边栏的项目名称旁显示其包含的会话数量 |
 | `focus-follows-mouse`   | `false`   | 指针移入哪个窗格，就聚焦哪个窗格                              |
 | `confirm-close`         | `true`    | 关闭仍有程序在运行的窗格前先确认                              |
 | `restore-sessions`      | `true`    | kerod 重启后（例如开机后）重新启动之前的会话                   |
@@ -69,6 +70,7 @@ kero config check             # 报告未知的配置项和无效的值
 | `font-size`           | `13`    | 单位为磅                                                                 |
 | `font-weight`         | `400`   | `100` 到 `900`                                                           |
 | `line-height`         | `1.22`  | 字体默认行高的倍数                                                       |
+| `cell-width`          | `1`     | 单元格宽度，字体宽度的倍数，`0.8` 到 `2`；文字大小不变                   |
 | `font-ligatures`      | `true`  | 按字体的设计连写字符                                                     |
 | `font-thicken`        | `false` | 加粗笔画，同 Ghostty                                                     |
 | `minimum-contrast`    | `3`     | 文字与背景之间保持的最低对比度，从 `1`（不限制）到 `21`，让为深色背景设计的颜色在浅色背景上也清晰可读，同 Ghostty |
@@ -80,6 +82,10 @@ kero config check             # 报告未知的配置项和无效的值
 | `clipboard-read`      | `ask`   | 程序读取剪贴板（OSC 52）时：`ask`、`allow` 或 `deny`                     |
 | `right-click-action`  | `context-menu` | `context-menu`、`paste` 或 `copy-or-paste`                        |
 | `mouse-scroll-multiplier` | `precision:1,discrete:3` | 滚动的幅度，同 Ghostty：`precision:` 是触控板滚动的倍数，`discrete:` 是鼠标滚轮每一格滚动的行数（Windows 上指系统设为 3 行时的一格）；只写一个数字则同时设置两者，范围 `0.01` 到 `10000` |
+
+`cell-width = 1.03` 会让字符之间稍微宽松一些，`0.95` 则稍微紧凑一些；小于 `1` 时，
+较宽的字母可能相互贴住。单元格宽度取整到像素，所以相近的数值可能看起来一样，
+也可能相差一个像素。
 
 ## Shell
 

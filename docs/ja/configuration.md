@@ -34,7 +34,7 @@ keybind = cmd+shift+d=pane.split.down
 ```sh
 kero config edit              # $EDITOR で開く
 kero config show              # すべてのキーと現在の値
-kero config check             # 不明なキーと不正な値を報告
+kero config check             # 不明なキー、不正な値、agents.toml の問題を報告
 ```
 
 ## 一般
@@ -44,6 +44,7 @@ kero config check             # 不明なキーと不正な値を報告
 | `new-session-directory` | `current`  | 新規セッションの開始場所: `current`、`project`、`home`        |
 | `session-name`          | `focused`  | 名前を付けていないセッションの名前の付け方: `focused`、`lead`、`folder`（[詳しく](./sessions.md#how-an-unnamed-session-is-named)） |
 | `sidebar-rows`          | `detailed` | サイドバーでのセッションの表示: `detailed` はステータスメッセージ、なければブランチと変更を 2 行目に表示、`compact` は 1 行で表示 |
+| `sidebar-session-count` | `true`    | サイドバーのプロジェクト名の横に、含まれるセッションの数を表示 |
 | `focus-follows-mouse`   | `false`    | ポインタが入ったペインにフォーカスを移す                      |
 | `confirm-close`         | `true`     | プログラムが実行中のペインを閉じる前に確認する                |
 | `restore-sessions`      | `true`     | 再起動のあとなど kerod が再起動したら、セッションを再び開始する |
@@ -69,6 +70,7 @@ kero config check             # 不明なキーと不正な値を報告
 | `font-size`           | `13`       | ポイント単位                                                             |
 | `font-weight`         | `400`      | `100` から `900`                                                         |
 | `line-height`         | `1.22`     | フォントの行の高さに対する倍率                                           |
+| `cell-width`          | `1`        | セルの幅。フォントの幅に対する倍率で、`0.8` から `2`。文字の大きさは変わらない |
 | `font-ligatures`      | `true`     | フォントが描くとおりに文字をつなげる                                     |
 | `font-thicken`        | `false`    | Ghostty と同じく、線を太くする                                           |
 | `minimum-contrast`    | `3`        | テキストが背景に対して保つ最小のコントラスト。`1`（なし）から `21`。Ghostty と同じく、暗い背景向けの色が明るい背景でも読めるようにする |
@@ -80,6 +82,10 @@ kero config check             # 不明なキーと不正な値を報告
 | `clipboard-read`      | `ask`      | プログラムによるクリップボードの読み取り（OSC 52）: `ask`、`allow`、`deny` |
 | `right-click-action`  | `context-menu` | `context-menu`、`paste`、`copy-or-paste`                             |
 | `mouse-scroll-multiplier` | `precision:1,discrete:3` | スクロールの量。Ghostty と同じく、`precision:` はトラックパッドのスクロールの倍率、`discrete:` はマウスホイール 1 ノッチでスクロールする行数（Windows では 3 行設定のときの 1 ノッチ）。数値を 1 つだけ書くと両方に適用。`0.01` から `10000` |
+
+`cell-width = 1.03` で文字の間隔が少し広がり、`0.95` で少し狭まります。`1` 未満では
+幅の広い文字どうしが接することがあります。セルの幅はピクセル単位に丸められるため、
+近い値では見た目が同じになったり、1 ピクセル違ったりします。
 
 ## シェル
 

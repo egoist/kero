@@ -1748,6 +1748,26 @@ func (msgs Messages) PaneClose() string {
 	return Catalog.Format(msgs.locale, "paneClose", nil)
 }
 
+// SidebarShowPanes says "Show Panes"
+// in the language the app shows.
+func SidebarShowPanes() string { return In(i18n.Locale()).SidebarShowPanes() }
+
+// SidebarShowPanes says "Show Panes"
+// in the language of msgs.
+func (msgs Messages) SidebarShowPanes() string {
+	return Catalog.Format(msgs.locale, "sidebarShowPanes", nil)
+}
+
+// SidebarHidePanes says "Hide Panes"
+// in the language the app shows.
+func SidebarHidePanes() string { return In(i18n.Locale()).SidebarHidePanes() }
+
+// SidebarHidePanes says "Hide Panes"
+// in the language of msgs.
+func (msgs Messages) SidebarHidePanes() string {
+	return Catalog.Format(msgs.locale, "sidebarHidePanes", nil)
+}
+
 // PaneNeedsPermission says "Needs your permission"
 // in the language the app shows.
 func PaneNeedsPermission() string { return In(i18n.Locale()).PaneNeedsPermission() }
@@ -2158,6 +2178,26 @@ func SetRowsCompact() string { return In(i18n.Locale()).SetRowsCompact() }
 // in the language of msgs.
 func (msgs Messages) SetRowsCompact() string {
 	return Catalog.Format(msgs.locale, "setRowsCompact", nil)
+}
+
+// SetSidebarCount says "Session count"
+// in the language the app shows.
+func SetSidebarCount() string { return In(i18n.Locale()).SetSidebarCount() }
+
+// SetSidebarCount says "Session count"
+// in the language of msgs.
+func (msgs Messages) SetSidebarCount() string {
+	return Catalog.Format(msgs.locale, "setSidebarCount", nil)
+}
+
+// SetSidebarCountDetail says "Show, beside each project’s name, how many sessions it holds."
+// in the language the app shows.
+func SetSidebarCountDetail() string { return In(i18n.Locale()).SetSidebarCountDetail() }
+
+// SetSidebarCountDetail says "Show, beside each project’s name, how many sessions it holds."
+// in the language of msgs.
+func (msgs Messages) SetSidebarCountDetail() string {
+	return Catalog.Format(msgs.locale, "setSidebarCountDetail", nil)
 }
 
 // SetFocusFollowsMouse says "Focus follows mouse"
@@ -2764,6 +2804,26 @@ func (msgs Messages) SetSizeDetail(bigger string, smaller string) string {
 	return Catalog.Format(msgs.locale, "setSizeDetail", map[string]any{"bigger": bigger, "smaller": smaller})
 }
 
+// SetCellWidth says "Cell width"
+// in the language the app shows.
+func SetCellWidth() string { return In(i18n.Locale()).SetCellWidth() }
+
+// SetCellWidth says "Cell width"
+// in the language of msgs.
+func (msgs Messages) SetCellWidth() string {
+	return Catalog.Format(msgs.locale, "setCellWidth", nil)
+}
+
+// SetCellWidthDetail says "Widen or narrow terminal cells without scaling glyphs or changing line height."
+// in the language the app shows.
+func SetCellWidthDetail() string { return In(i18n.Locale()).SetCellWidthDetail() }
+
+// SetCellWidthDetail says "Widen or narrow terminal cells without scaling glyphs or changing line height."
+// in the language of msgs.
+func (msgs Messages) SetCellWidthDetail() string {
+	return Catalog.Format(msgs.locale, "setCellWidthDetail", nil)
+}
+
 // SetLineHeight says "Line height"
 // in the language the app shows.
 func SetLineHeight() string { return In(i18n.Locale()).SetLineHeight() }
@@ -2842,6 +2902,26 @@ func SetLigaturesDetail() string { return In(i18n.Locale()).SetLigaturesDetail()
 // in the language of msgs.
 func (msgs Messages) SetLigaturesDetail() string {
 	return Catalog.Format(msgs.locale, "setLigaturesDetail", nil)
+}
+
+// SetFontFeatures says "Font features"
+// in the language the app shows.
+func SetFontFeatures() string { return In(i18n.Locale()).SetFontFeatures() }
+
+// SetFontFeatures says "Font features"
+// in the language of msgs.
+func (msgs Messages) SetFontFeatures() string {
+	return Catalog.Format(msgs.locale, "setFontFeatures", nil)
+}
+
+// SetFontFeaturesDetail says "OpenType features, as Ghostty’s font-feature: ss01 turns one on, -calt off, cv05=2 picks an alternate."
+// in the language the app shows.
+func SetFontFeaturesDetail() string { return In(i18n.Locale()).SetFontFeaturesDetail() }
+
+// SetFontFeaturesDetail says "OpenType features, as Ghostty’s font-feature: ss01 turns one on, -calt off, cv05=2 picks an alternate."
+// in the language of msgs.
+func (msgs Messages) SetFontFeaturesDetail() string {
+	return Catalog.Format(msgs.locale, "setFontFeaturesDetail", nil)
 }
 
 // SetThicken says "Thicken text"
@@ -3936,6 +4016,16 @@ func ActionToggleRightSidebar() string { return In(i18n.Locale()).ActionToggleRi
 // in the language of msgs.
 func (msgs Messages) ActionToggleRightSidebar() string {
 	return Catalog.Format(msgs.locale, "actionToggleRightSidebar", nil)
+}
+
+// ActionToggleDarkMode says "Toggle Dark Mode"
+// in the language the app shows.
+func ActionToggleDarkMode() string { return In(i18n.Locale()).ActionToggleDarkMode() }
+
+// ActionToggleDarkMode says "Toggle Dark Mode"
+// in the language of msgs.
+func (msgs Messages) ActionToggleDarkMode() string {
+	return Catalog.Format(msgs.locale, "actionToggleDarkMode", nil)
 }
 
 // RightSidebarHide says "Hide Right Sidebar"

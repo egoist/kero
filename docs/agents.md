@@ -25,11 +25,12 @@ The hook goes where each agent looks for one, for the agents you have installed:
 | Claude Code | A `SessionStart` hook in `~/.claude/settings.json`     |
 | Codex       | A `SessionStart` hook in `~/.codex/hooks.json`         |
 | Pi          | An extension, `~/.pi/agent/extensions/kero.ts`         |
+| OMP         | An extension, `~/.omp/agent/extensions/kero.ts`        |
 | OpenCode    | A plugin, `~/.config/opencode/plugins/kero`            |
 
-Kero follows `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `PI_CODING_AGENT_DIR` and `XDG_CONFIG_HOME` when they move an agent's files, and leaves the rest of each settings file as it was.
+Kero follows `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `PI_CODING_AGENT_DIR`, `PI_CONFIG_DIR` and `XDG_CONFIG_HOME` when they move an agent's files, and leaves the rest of each settings file as it was.
 
-Pass `--agent` with `claude`, `codex`, `pi` or `opencode` to set up one agent only. Setup is once: the skill is a link to Kero's own copy, which follows Kero as it updates, and Kero keeps the Pi and OpenCode plugins current too. `kero skill status` tells you whether each part is current.
+Pass `--agent` with `claude`, `codex`, `pi`, `omp` or `opencode` to set up one agent only. Setup is once: the skill is a link to Kero's own copy, which follows Kero as it updates, and Kero keeps the Pi, OMP and OpenCode plugins current too. `kero skill status` tells you whether each part is current.
 
 ```sh
 kero skill status    # what's installed, and whether it's current

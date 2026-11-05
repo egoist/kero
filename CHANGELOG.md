@@ -1,5 +1,45 @@
 # Changelog
 
+## Unreleased
+
+- **Session count** in Settings › General (`sidebar-session-count`)
+  hides the number beside each project's name in the sidebar, for a
+  sidebar that shows only what needs you.
+- **Cell width** in Settings › Terminal (`cell-width`) widens or narrows
+  the terminal's columns, from 0.8× to 2×, without changing the text's
+  size or the rows' height: `1.03` adds a little space between
+  characters, `0.95` takes a little away. Cells take whole pixels, so
+  small steps can look uneven.
+
+## 2.1.33
+
+- **Keep computer awake** stops the computer from sleeping: **Always**,
+  or **While agents work** in this computer's panes. Pick it in
+  Settings › General, in the tray menu or from the command palette.
+  Thanks @missuo
+- Each session in the sidebar starts with the icon of the program it
+  runs, and a split session shows how many panes it has: click the count
+  to list them, each with its program, branch or folder, and status.
+- **View › Toggle Dark Mode** (<kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>L</kbd>)
+  switches between the light and the dark appearance. Thanks @kgemici
+- The Files tab's menu opens a file or folder in the app the system
+  opens it with, including files the viewer can't show. Thanks @kgemici
+- **Font features** in Settings › Terminal (`font-feature`) turns the
+  font's OpenType features on or off, as Ghostty's does.
+- OMP (oh-my-pi) is recognized as a coding agent, as Pi is. Thanks
+  @frankberliner
+- Dictation apps such as Typeless see the terminal as a text field, so
+  they no longer leave their "copy this text" panel up after inserting.
+  Thanks @missuo
+- On macOS, with **Option is Meta** on, Option sends Alt to programs
+  without also typing the key's special character or leaving a dead key
+  to compose with the next letter. Thanks @iFwu
+- On macOS 26, panes no longer exit with code 137 a second after they
+  start, leaving them blank. Hosts on macOS get this with their next
+  update. Thanks @gascs
+- The browser's address bar opens a bracketed public IPv6 address
+  instead of searching for it. Thanks @idealistichacker
+
 ## 2.1.32
 
 - <kbd>⌘</kbd> <kbd>W</kbd> with the keyboard in the viewer closes the
