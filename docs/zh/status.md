@@ -25,6 +25,38 @@ Kero 根据编程智能体屏幕上显示的内容判断它的状态：它的加
 
 边栏中每个会话的行以其状态来源窗格中所运行程序的图标开头：Claude Code、Codex、Gemini 等智能体，脚本则是 Node.js 或 Bun，其他情况是终端图标。智能体运行时图标醒目显示（有自己颜色的智能体用其颜色），回到 shell 或窗格退出后会变淡。
 
+## 自定义智能体
+
+Kero 借用 [herdr](https://github.com/ogulcancelik/herdr) 的规则，读取 Claude Code、Codex、Gemini、OpenCode、Amp、Cursor、Droid、Qwen、Copilot、Kiro、Cline、Kimi 和 Pi 的屏幕。在[配置文件](./configuration.md)旁的 `agents.toml` 中，就能让 Kero 认识其他智能体，或修正屏幕已变的智能体的规则。每个智能体是一个 `[[agents]]` 表，规则与 herdr 的清单相同：
+
+```toml
+# ~/.config/kero/agents.toml
+[[agents]]
+id = "frog"
+executables = ["frog", "frog-cli"]   # the programs it is; [id] if left out
+
+[[agents.rules]]
+id = "asking"
+state = "blocked"
+priority = 200
+region = "bottom_non_empty_lines(6)"
+visible_blocker = true
+line_regex = ['^Allow .+\? \[y/n\]$']
+
+[[agents.rules]]
+id = "hopping"
+state = "working"
+priority = 100
+visible_working = true
+any = [{ contains = ["hopping…"] }, { regex = ['[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏] Working'] }]
+```
+
+在与屏幕匹配的规则中，优先级（`priority`）最高的胜出；都不匹配时，智能体为空闲。规则的 `state` 为 `working`、`blocked` 或 `idle`，当它的所有条件都成立时成立：每个 `contains`（不区分大小写）、每个 `regex`、每个与某一行匹配的 `line_regex`、`all` 中的每一项、`any` 中的某一项，以及 `not` 中的每一项都不成立。`region` 选择规则读取的部分：`whole_recent`（默认）、`bottom_lines(n)`、`bottom_non_empty_lines(n)`、`top_non_empty_lines(n)`、`prompt_box_body`、`above_prompt_box`、`after_last_horizontal_rule`、`osc_title`（终端标题）、`osc_progress`（报告的进度）等。Kero 自带的清单（[`internal/detect/manifests`](https://github.com/egoist/kero/tree/main/internal/detect/manifests)）展示了全部用法。
+
+`id` 为 Kero 已有智能体（如 `claude` 或 `codex`）的条目会替换它的规则，其 `executables` 会增加 Kero 识别它的程序名。
+
+kerod 在启动时读取该文件，因此修改后请运行 `kero daemon restart`（会重启会话）。`kero config check` 会报告智能体的问题；kerod 会跳过有问题的智能体，继续使用其余的。
+
 ## 通知
 
 当你在看别处时，Kero 会在以下情况通知你：

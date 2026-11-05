@@ -10,9 +10,14 @@
 package detect
 
 import (
+	"bytes"
 	"embed"
+	"errors"
 	"fmt"
+	"maps"
+	"os"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -63,9 +68,21 @@ var manifests = map[string]string{
 	"kiro-cli":     "kiro",
 }
 
+// engine is the version of herdr's rules this package reads, which a
+// manifest's min_engine_version asks for.
+const engine = 3
+
 type manifest struct {
 	ID    string `toml:"id"`
 	Rules []rule `toml:"rules"`
+	// Executables are the names of the programs the manifest is for, as
+	// the daemon tells agents by (see Executable): the user's manifests'.
+	Executables []string `toml:"executables"`
+	Aliases     []string `toml:"aliases"`
+	MinEngine   int      `toml:"min_engine_version"`
+	// What herdr's manifests say of themselves, which tells nothing here.
+	Version   any `toml:"version"`
+	UpdatedAt any `toml:"updated_at"`
 }
 
 type rule struct {
@@ -96,10 +113,18 @@ type gate struct {
 	regex, lineRegex []*regexp.Regexp
 }
 
+// UserFile is the user's own agents, agents.toml: a manifest under
+// [[agents]] each, which adds an agent or replaces the rules of one kero
+// has; "" for none. It is set before the first Load: the daemon reads it
+// as it starts.
+var UserFile string
+
 var (
-	loadOnce sync.Once
-	loaded   map[string]*manifest // by agent
-	loadErr  error
+	loadOnce    sync.Once
+	loaded      map[string]*manifest // by agent
+	executables map[string]string    // the user's agents, by executable
+	loadErr     error
+	problems    []string
 )
 
 func load() {
@@ -108,28 +133,227 @@ func load() {
 	for _, e := range entries {
 		name := strings.TrimSuffix(e.Name(), ".toml")
 		data, _ := manifestFS.ReadFile("manifests/" + e.Name())
-		m := &manifest{}
-		if _, err := toml.Decode(string(data), m); err != nil {
+		m, err := parse(data, false)
+		if err != nil {
 			loadErr = fmt.Errorf("detect: %s: %w", e.Name(), err)
 			return
 		}
-		for i := range m.Rules {
-			if m.Rules[i].Region == "" {
-				m.Rules[i].Region = "whole_recent"
-			}
-			if err := m.Rules[i].compile(); err != nil {
-				loadErr = fmt.Errorf("detect: %s: rule %s: %w", e.Name(), m.Rules[i].ID, err)
-				return
-			}
-		}
 		loaded[name] = m
 	}
+	var user map[string]*manifest
+	user, executables, problems = readUser(UserFile)
+	maps.Copy(loaded, user)
 }
 
-// Load reads the manifests, reporting the first that does not compile.
+// parse reads a manifest; strict, it holds it to what this package
+// reads, as it does the user's: no key it does not know, a state and a
+// region it knows.
+func parse(data []byte, strict bool) (*manifest, error) {
+	m := &manifest{}
+	md, err := toml.Decode(string(data), m)
+	if err != nil {
+		return nil, err
+	}
+	if strict {
+		if keys := md.Undecoded(); len(keys) > 0 {
+			return nil, fmt.Errorf("unknown key %s", keys[0])
+		}
+		if m.MinEngine > engine {
+			return nil, fmt.Errorf("min_engine_version %d: this version of kero reads version %d", m.MinEngine, engine)
+		}
+		if len(m.Rules) == 0 {
+			return nil, errors.New("no rules")
+		}
+	}
+	for i := range m.Rules {
+		r := &m.Rules[i]
+		if r.Region == "" {
+			r.Region = "whole_recent"
+		}
+		if strict {
+			if r.ID == "" {
+				return nil, fmt.Errorf("rule %d: no id", i+1)
+			}
+			switch r.State {
+			case Idle, Working, Blocked, Unknown:
+			default:
+				return nil, fmt.Errorf("rule %s: state %q is not idle, working, blocked or unknown", r.ID, r.State)
+			}
+			if !validRegion(r.Region) {
+				return nil, fmt.Errorf("rule %s: unknown region %q", r.ID, r.Region)
+			}
+		}
+		if err := r.compile(); err != nil {
+			return nil, fmt.Errorf("rule %s: %w", r.ID, err)
+		}
+	}
+	return m, nil
+}
+
+// readUser reads the user's agents in file: those that read, by the
+// agent they are for, with the executables of each; and what is wrong
+// with the others, which are left out, one line each.
+func readUser(file string) (ms map[string]*manifest, exes map[string]string, problems []string) {
+	ms, exes = map[string]*manifest{}, map[string]string{}
+	if file == "" {
+		return
+	}
+	data, err := os.ReadFile(file)
+	if errors.Is(err, os.ErrNotExist) {
+		return
+	}
+	var raw map[string]any
+	if err == nil {
+		_, err = toml.Decode(string(data), &raw)
+	}
+	if err != nil {
+		return ms, exes, []string{fmt.Sprintf("%s: %v", file, err)}
+	}
+	for k := range raw {
+		if k != "agents" {
+			problems = append(problems, fmt.Sprintf("%s: unknown key %s: agents go under [[agents]]", file, k))
+		}
+	}
+	var list []map[string]any
+	switch v := raw["agents"].(type) {
+	case nil:
+	case []map[string]any:
+		list = v
+	case []any:
+		for _, a := range v {
+			t, _ := a.(map[string]any)
+			list = append(list, t)
+		}
+	default:
+		problems = append(problems, fmt.Sprintf("%s: agents is not an array of tables, [[agents]]", file))
+	}
+	seen := map[string]bool{}
+	for i, a := range list {
+		label := fmt.Sprintf("agent %d", i+1)
+		if id, ok := a["id"].(string); ok && id != "" {
+			label = id
+		}
+		// Each agent reads as a manifest of its own, as kero's do.
+		var buf bytes.Buffer
+		err := toml.NewEncoder(&buf).Encode(a)
+		var m *manifest
+		if err == nil {
+			m, err = parse(buf.Bytes(), true)
+		}
+		if err == nil {
+			err = addUser(ms, exes, seen, m)
+		}
+		if err != nil {
+			problems = append(problems, fmt.Sprintf("%s: %s: %v", file, label, err))
+		}
+	}
+	return
+}
+
+func addUser(ms map[string]*manifest, exes map[string]string, seen map[string]bool, m *manifest) error {
+	id := m.ID
+	if id == "" {
+		return errors.New("no id")
+	}
+	key := builtin(id)
+	if key == "" {
+		key = id
+	}
+	if seen[key] {
+		return fmt.Errorf("%s is there twice", id)
+	}
+	name := agentName(key)
+	list := m.Executables
+	if len(list) == 0 && builtin(id) == "" {
+		// A new agent: its program has its name.
+		list = []string{id}
+	}
+	for _, x := range list {
+		x = strings.ToLower(strings.TrimSpace(x))
+		if x == "" || strings.ContainsAny(x, `/\`) {
+			return fmt.Errorf("executable %q is not a program's name", x)
+		}
+		if a, ok := exes[x]; ok && a != name {
+			return fmt.Errorf("executable %q is also %s's", x, a)
+		}
+	}
+	for _, x := range list {
+		exes[strings.ToLower(strings.TrimSpace(x))] = name
+	}
+	seen[key] = true
+	ms[key] = m
+	return nil
+}
+
+// builtin returns the file name of the manifest kero has for an agent,
+// by its name, the daemon's name for it, its id or an alias; "" for
+// none.
+func builtin(name string) string {
+	if n, ok := manifests[name]; ok {
+		return n
+	}
+	entries, _ := manifestFS.ReadDir("manifests")
+	for _, e := range entries {
+		stem := strings.TrimSuffix(e.Name(), ".toml")
+		if stem == name {
+			return stem
+		}
+		data, _ := manifestFS.ReadFile("manifests/" + e.Name())
+		var head struct {
+			ID      string   `toml:"id"`
+			Aliases []string `toml:"aliases"`
+		}
+		toml.Decode(string(data), &head)
+		if head.ID == name || slices.Contains(head.Aliases, name) {
+			return stem
+		}
+	}
+	return ""
+}
+
+// agentName is the daemon's name of the agent of a manifest.
+func agentName(key string) string {
+	for a, n := range manifests {
+		if n == key {
+			return a
+		}
+	}
+	return key
+}
+
+// Load reads the manifests, reporting the first of kero's that does not
+// compile. The user's that do not are left out, and Problems tells why.
 func Load() error {
 	loadOnce.Do(load)
 	return loadErr
+}
+
+// Problems tells what is wrong with the user's agents that Load left
+// out, one line each, naming the file and the agent.
+func Problems() []string {
+	Load()
+	return problems
+}
+
+// Check reads the user's agents in file, as the daemon would, telling
+// the agents that read and what is wrong with the others.
+func Check(file string) (agents []string, problems []string) {
+	ms, _, problems := readUser(file)
+	for k := range ms {
+		agents = append(agents, agentName(k))
+	}
+	slices.Sort(agents)
+	return agents, problems
+}
+
+// Executable returns the agent of the user's manifests a program is, by
+// the name of its executable, lowercase and without its extension; ""
+// for none.
+func Executable(name string) string {
+	if Load() != nil {
+		return ""
+	}
+	return executables[name]
 }
 
 // Known reports whether there are rules for the agent.
@@ -382,6 +606,24 @@ func region(in Input, spec string) string {
 		return join(ls[:end])
 	}
 	return ""
+}
+
+// validRegion reports whether region reads a region it knows.
+func validRegion(spec string) bool {
+	switch strings.TrimSpace(spec) {
+	case "osc_title", "osc_progress", "whole_recent", "after_last_prompt_marker",
+		"before_current_prompt_marker", "whole_recent_without_current_prompt_marker",
+		"current_prompt_block_marker", "after_current_prompt_block_marker",
+		"prompt_box_body", "above_prompt_box", "last_non_empty_above_prompt_box",
+		"after_last_horizontal_rule":
+		return true
+	}
+	for _, n := range []string{"bottom_lines", "bottom_non_empty_lines", "top_non_empty_lines"} {
+		if _, ok := count(strings.TrimSpace(spec), n); ok {
+			return true
+		}
+	}
+	return false
 }
 
 func count(spec, name string) (int, bool) {

@@ -25,6 +25,38 @@ Kero は、コーディングエージェントの状態を画面の表示から
 
 サイドバーのセッションの行は、状態の元になっているペインで動いているプログラムのアイコンで始まります: Claude Code、Codex、Gemini などのエージェント、スクリプトなら Node.js や Bun、それ以外はターミナルです。エージェントが動いている間ははっきりと（固有の色があるエージェントはその色で）表示され、シェルに戻ったりペインが終了したりすると薄くなります。
 
+## 独自のエージェント
+
+Kero は Claude Code、Codex、Gemini、OpenCode、Amp、Cursor、Droid、Qwen、Copilot、Kiro、Cline、Kimi、Pi の画面を、[herdr](https://github.com/ogulcancelik/herdr) から借りたルールで読み取ります。[設定ファイル](./configuration.md)の隣の `agents.toml` に書くと、ほかのエージェントを教えたり、画面が変わったエージェントのルールを直したりできます。各エージェントは herdr のマニフェストと同じルールを持つ `[[agents]]` テーブルです：
+
+```toml
+# ~/.config/kero/agents.toml
+[[agents]]
+id = "frog"
+executables = ["frog", "frog-cli"]   # the programs it is; [id] if left out
+
+[[agents.rules]]
+id = "asking"
+state = "blocked"
+priority = 200
+region = "bottom_non_empty_lines(6)"
+visible_blocker = true
+line_regex = ['^Allow .+\? \[y/n\]$']
+
+[[agents.rules]]
+id = "hopping"
+state = "working"
+priority = 100
+visible_working = true
+any = [{ contains = ["hopping…"] }, { regex = ['[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏] Working'] }]
+```
+
+画面に一致したルールのうち、優先度（`priority`）の最も高いものが勝ちます。どれも一致しなければ、エージェントはアイドルです。ルールの `state` は `working`、`blocked`、`idle` のいずれかで、すべての条件が成り立つときに成り立ちます：`contains` のすべて（大文字と小文字を区別しない）、`regex` のすべて、ある行に一致する `line_regex` のすべて、`all` のすべて、`any` のいずれか、そして `not` のどれでもないこと。`region` はルールが読む部分を選びます：`whole_recent`（既定）、`bottom_lines(n)`、`bottom_non_empty_lines(n)`、`top_non_empty_lines(n)`、`prompt_box_body`、`above_prompt_box`、`after_last_horizontal_rule`、`osc_title`（ターミナルのタイトル）、`osc_progress`（報告された進捗）など。Kero に付属するマニフェスト（[`internal/detect/manifests`](https://github.com/egoist/kero/tree/main/internal/detect/manifests)）にすべての例があります。
+
+`id` が Kero のエージェント（`claude` や `codex` など）と同じエージェントは、そのルールを置き換え、`executables` は Kero がそれと見なすプログラム名を追加します。
+
+kerod は起動時にファイルを読むので、変更後は `kero daemon restart`（セッションを再起動します）を実行してください。`kero config check` はエージェントの問題を報告し、kerod は問題のあるエージェントだけを除いて残りを使います。
+
 ## 通知
 
 ほかの場所を見ている間に次のことが起きると、Kero が通知します:

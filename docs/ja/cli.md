@@ -196,7 +196,7 @@ kero config path                 # 設定ファイルの場所
 kero config show                 # すべてのキーとその値
 kero config show --defaults      # すべてのキーの初期値
 kero config edit                 # $EDITOR で開く
-kero config check                # 不明なキーと不正な値を報告
+kero config check                # 不明なキー、不正な値、agents.toml の問題を報告
 kero projects                    # プロジェクトを一覧
 kero skill setup                 # コーディングエージェントに kero の使い方を教える
 kero daemon status|stop|restart  # kerod を管理

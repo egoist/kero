@@ -34,7 +34,7 @@ keybind = cmd+shift+d=pane.split.down
 ```sh
 kero config edit              # $EDITOR で開く
 kero config show              # すべてのキーと現在の値
-kero config check             # 不明なキーと不正な値を報告
+kero config check             # 不明なキー、不正な値、agents.toml の問題を報告
 ```
 
 ## 一般

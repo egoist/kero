@@ -34,7 +34,7 @@ keybind = cmd+shift+d=pane.split.down
 ```sh
 kero config edit              # 在 $EDITOR 中打开
 kero config show              # 列出所有配置项及其当前值
-kero config check             # 报告未知的配置项和无效的值
+kero config check             # 报告未知的配置项、无效的值和agents.toml 的问题
 ```
 
 ## 通用

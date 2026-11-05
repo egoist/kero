@@ -25,6 +25,38 @@ A session shows the status of its panes, and sessions that need you stand out. P
 
 Each session's row in the sidebar starts with the icon of the program in the pane its status comes from: Claude Code, Codex, Gemini and other agents, Node.js or Bun for a script, else a terminal. It stands out while an agent runs, in the agent's own color where it has one, and turns faint once the shell is back or the pane exited.
 
+## Your own agents
+
+Kero knows the screens of Claude Code, Codex, Gemini, OpenCode, Amp, Cursor, Droid, Qwen, Copilot, Kiro, Cline, Kimi and Pi, from rules it borrows from [herdr](https://github.com/ogulcancelik/herdr). You can teach it another agent, or fix the rules of one whose screen changed, in `agents.toml` beside the [configuration file](./configuration.md). Each agent there is an `[[agents]]` table with its rules, as herdr's manifests have them:
+
+```toml
+# ~/.config/kero/agents.toml
+[[agents]]
+id = "frog"
+executables = ["frog", "frog-cli"]   # the programs it is; [id] if left out
+
+[[agents.rules]]
+id = "asking"
+state = "blocked"
+priority = 200
+region = "bottom_non_empty_lines(6)"
+visible_blocker = true
+line_regex = ['^Allow .+\? \[y/n\]$']
+
+[[agents.rules]]
+id = "hopping"
+state = "working"
+priority = 100
+visible_working = true
+any = [{ contains = ["hopping…"] }, { regex = ['[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏] Working'] }]
+```
+
+Of the rules that match the screen, the one of the highest priority wins; when none does, the agent is idle. A rule's `state` is `working`, `blocked` or `idle`, and it holds when all its conditions do: every `contains` (ignoring case), every `regex`, every `line_regex` matching a line, every gate of `all`, one of `any` and none of `not`. `region` picks what the rule reads: `whole_recent` (the default), `bottom_lines(n)`, `bottom_non_empty_lines(n)`, `top_non_empty_lines(n)`, `prompt_box_body`, `above_prompt_box`, `after_last_horizontal_rule`, `osc_title` (the terminal's title) or `osc_progress` (the progress it reports), among others. The manifests Kero comes with, in [`internal/detect/manifests`](https://github.com/egoist/kero/tree/main/internal/detect/manifests), show them all.
+
+An agent whose `id` is one of Kero's, as `claude` or `codex`, replaces its rules, and its `executables` add names to those Kero knows it by.
+
+kerod reads the file as it starts, so run `kero daemon restart` (it restarts sessions) after a change. `kero config check` tells what is wrong with an agent, and kerod leaves out one that is wrong and keeps the rest.
+
 ## Notifications
 
 Kero notifies you when you're looking elsewhere and:
