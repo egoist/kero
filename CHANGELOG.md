@@ -1,21 +1,40 @@
 # Changelog
 
-## Unreleased
+## 2.1.34
 
+- **Reorder projects** in the sidebar: drag a project's header up or
+  down, or pick Move Up, Move Down, Move to Top or Move to Bottom in its
+  menu. `kero projects move <project> <position|top|bottom|up|down>`
+  does it from scripts, and the order stays across restarts.
+- Teach Kero an agent it doesn't know, or fix the rules of one whose
+  screen changed, in `agents.toml` beside the configuration file: an
+  `[[agents]]` table each, with rules as herdr's manifests have them.
+  `kero config check` reports an agent that is wrong, and the others
+  still load. Hosts read it with their next update.
 - **Session count** in Settings › General (`sidebar-session-count`)
   hides the number beside each project's name in the sidebar, for a
-  sidebar that shows only what needs you.
+  sidebar that shows only what needs you. Thanks @Binaryify
 - **Cell width** in Settings › Terminal (`cell-width`) widens or narrows
   the terminal's columns, from 0.8× to 2×, without changing the text's
   size or the rows' height: `1.03` adds a little space between
   characters, `0.95` takes a little away. Cells take whole pixels, so
-  small steps can look uneven.
+  small steps can look uneven. Thanks @iFwu
+- In shells that mark their prompts (OSC 133), such as fish,
+  <kbd>⌥</kbd>/<kbd>Alt</kbd>-click on the prompt moves its cursor to
+  the clicked spot.
+- On macOS, CJK punctuation stays inside its cells: kerning is off
+  unless **Font features** (`font-feature`) names `kern`.
 - On Linux, Kero no longer draws its own minimize, maximize and close
   buttons where the desktop's title bars have none: under tiling
   compositors such as Hyprland and Sway, where the button layout
   (`gtk-decoration-layout`) is empty, as on i3, and under KWin on
   Wayland, whose title bar has its own. `KERO_WINDOW_CONTROLS=1` or `0`
   shows or hides them anyway.
+- `kerod.log` says why a restored pane came back as a shell rather than
+  its agent (no agent session recorded, an agent that can't resume, an
+  invalid session ID, or resuming turned off), and notes when the
+  previous kerod didn't exit cleanly. Hosts get it with their next
+  update. Thanks @gezerui888
 
 ## 2.1.33
 
