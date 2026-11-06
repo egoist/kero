@@ -717,6 +717,15 @@ func (a *App) changesViewer(c *ui.Context, pal *palette, s *proto.Session, width
 			ui.Text(c, a.hostOf(s.ID).shortDir(dir)).FontSize(13).TextColor(pal.textFaint).SingleLine().Ellipsis("…").Shrink(2).MinWidth(0).Tooltip(dir)
 		}
 	}, func() {
+		wrapSVG, wrapTip := wrapIcon, locales.ChangesWrap()
+		if a.set.DiffWrap {
+			wrapSVG, wrapTip = unwrapIcon, locales.ChangesNoWrap()
+		}
+		iconButton(c, "wrap", wrapSVG, wrapTip, pal, func() {
+			set := a.set
+			set.DiffWrap = !set.DiffWrap
+			a.applySettings(set)
+		})
 		if files {
 			a.foldAllButton(c, pal, cf.scope, cf.list.Files)
 		}
@@ -1215,6 +1224,7 @@ func (a *App) diffSplit(width float32) bool {
 func (a *App) diffOptions(c *ui.Context, pal *palette, s *proto.Session, sf *sideFile, width float32) {
 	d := sf.d
 	d.FitContent = true
+	d.Wrap = a.set.DiffWrap
 	d.Font = ui.Font{Family: a.termFamily(), Size: max(a.set.FontSize-1, 10)}
 	d.Theme = a.codeTheme(c, pal)
 	d.Layout = editor.DiffUnified
