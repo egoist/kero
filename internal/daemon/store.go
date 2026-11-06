@@ -93,6 +93,7 @@ func (d *Daemon) saveState() {
 		}
 		st.Sessions = append(st.Sessions, ss)
 	}
+	st.Sessions = append(st.Sessions, d.unrestored...)
 	data, err := json.MarshalIndent(st, "", "  ")
 	d.mu.Unlock()
 	if err != nil {
@@ -152,6 +153,10 @@ func (d *Daemon) restore() {
 			}
 		}
 		if len(s.panes) == 0 {
+			if len(ss.Panes) > 0 {
+				d.unrestored = append(d.unrestored, ss)
+				d.log.Printf("session %s not restored; kept for the next start", ss.ID)
+			}
 			continue
 		}
 		if sameLeaves(ss.Layout, s.panes) {
