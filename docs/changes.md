@@ -27,7 +27,7 @@ Click a pane's branch, or press <kbd>⌥</kbd> <kbd>⌘</kbd> <kbd>G</kbd>, to s
 
 Click a file in the tab to show the diffs, scrolled to its own. Each file shows with its diff right below it, one after another, and the diffs follow the files while the agent keeps editing them. The file at the top of the diffs is highlighted in the tab. Scrolled into a long diff, its file's name stays at the top. Click a file's name to fold its diff away, or to unfold it: a binary file and one with very many changed lines start folded. **Collapse All** folds them all. Drag the gap between the panes and the diffs to resize them.
 
-Diffs show unified while their card is narrow and side by side once it's wide. The button at the top of the diffs switches between the two, which the `diff-layout` setting keeps.
+Diffs show unified while their card is narrow and side by side once it's wide. The button at the top of the diffs switches between the two, which the `diff-layout` setting keeps. The first button there wraps lines wider than the card rather than scrolling them sideways, which the `diff-wrap` setting keeps.
 
 ### Reviewing a turn
 
