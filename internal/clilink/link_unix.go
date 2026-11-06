@@ -15,6 +15,9 @@ func target(bin string) string {
 func link(exe, bin string) error {
 	os.MkdirAll(bin, 0o755)
 	link := filepath.Join(bin, "kero")
+	if filepath.Clean(exe) == link {
+		return nil // the link itself, which would then point at itself
+	}
 	if cur, err := os.Readlink(link); err == nil && cur == exe {
 		return nil
 	}

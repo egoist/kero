@@ -92,6 +92,12 @@ func StartDaemon() error {
 		if exe, err = os.Executable(); err != nil {
 			return err
 		}
+		// The app's, not the CLI's link to it (bin/kero), which a bridge
+		// over SSH runs as: on macOS os.Executable names the link, beside
+		// which the app's libraries are not.
+		if real, err := filepath.EvalSymlinks(exe); err == nil {
+			exe = real
+		}
 	}
 	if err := os.MkdirAll(proto.Dir(), 0o700); err != nil {
 		return err

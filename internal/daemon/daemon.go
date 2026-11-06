@@ -48,8 +48,12 @@ type Daemon struct {
 	mu       sync.Mutex
 	projects []proto.Project
 	sessions []*session
-	panes    map[string]*pane
-	subs     map[*controlConn]struct{}
+	// unrestored are the last daemon's sessions none of whose panes
+	// started again, as when the terminal's library was missing: saved
+	// as they were, for the next start to try again, rather than lost.
+	unrestored []savedSession
+	panes      map[string]*pane
+	subs       map[*controlConn]struct{}
 	// watchers are the connections that follow the state and notices,
 	// as kero events does, but are no app: no action, select or browser
 	// call goes to them, nor do they count as an app being open.
@@ -149,7 +153,7 @@ func Run(opts Options) error {
 	}
 	defer os.Remove(sock)
 
-	exe, _ := os.Executable()
+	exe := executable()
 	d := &Daemon{
 		dir: dir, exe: exe, opts: opts, started: time.Now(), log: lg,
 		subs:     map[*controlConn]struct{}{},
@@ -274,6 +278,21 @@ func (d *Daemon) stop() { d.quitOnce.Do(func() { close(d.quit) }) }
 // linkCLI keeps bin/kero pointing at this executable (package clilink),
 // which sessions have on their PATH: the kero CLI, for agents to drive
 // other sessions.
+// executable is this program's path, links resolved: started through the
+// CLI's link (bin/kero), as a bridge over SSH is, os.Executable on macOS
+// names the link, beside which the app's libraries are not, and linking
+// the CLI to it would make the link point at itself.
+func executable() string {
+	exe, err := os.Executable()
+	if err != nil {
+		return ""
+	}
+	if real, err := filepath.EvalSymlinks(exe); err == nil {
+		return real
+	}
+	return exe
+}
+
 func (d *Daemon) linkCLI() {
 	if d.exe == "" {
 		return
