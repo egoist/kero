@@ -322,12 +322,16 @@ type Stream struct {
 func Attach(id string) (*Stream, error) { return AttachVia(Local{NoStart: true}, id) }
 
 // AttachVia opens a session's stream through d.
-func AttachVia(d Dialer, id string) (*Stream, error) {
+func AttachVia(d Dialer, id string) (*Stream, error) { return AttachAs(d, id, "") }
+
+// AttachAs opens a session's stream through d, saying what the client is,
+// for kero clients.
+func AttachAs(d Dialer, id, name string) (*Stream, error) {
 	conn, err := d.Dial()
 	if err != nil {
 		return nil, err
 	}
-	w, r, err := handshake(conn, proto.Hello{Kind: "attach", Session: id})
+	w, r, err := handshake(conn, proto.Hello{Kind: "attach", Session: id, Client: name})
 	if err != nil {
 		conn.Close()
 		return nil, err

@@ -264,6 +264,16 @@ var keys = []key{
 	boolKey("dock-badge", "the number of sessions that need you", func(s *Settings) *bool { return &s.DockBadge }),
 	boolKey("dock-bounce", "once, when a session comes to need you", func(s *Settings) *bool { return &s.BounceDock }),
 
+	{name: "attach-detach-key", doc: "the key that detaches kero attach from a pane, which keeps running: ctrl+ and a letter, \\ or ]",
+		get: func(s *Settings) []string { return []string{s.AttachDetachKey} },
+		set: func(s *Settings, v []string) error {
+			key := v[len(v)-1]
+			if _, _, err := ParseDetachKey(key); err != nil {
+				return err
+			}
+			s.AttachDetachKey = key
+			return nil
+		}},
 	boolKey("remote-control", "kero do, kero focus and kero browser drive the app", func(s *Settings) *bool { return &s.RemoteControl }),
 	{name: "host", doc: "another machine whose sessions the app shows, as name=address: [user@]host or ssh://… over SSH, wsl://distro, http(s)://… for kerod's tailnet listener; add remote-control after it to let its programs drive the app, and color=red, orange, amber, green, teal, blue, purple or pink to mark its sessions; repeat it", list: true,
 		get: func(s *Settings) []string {

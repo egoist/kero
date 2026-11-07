@@ -95,6 +95,7 @@ kero config check             # 不明なキー、不正な値、agents.toml の
 | `command`          |            | 新しいペインのシェル。空欄ならログインシェル                   |
 | `env`              |            | `NAME=value` として、すべてのペインの環境変数に追加する。繰り返して指定する |
 | `scrollback-limit` | `4`        | 各ペインが保持する出力（メガバイト単位）。`0` で保持しない     |
+| `attach-detach-key` | `ctrl+\` | [`kero attach`](./cli.md#ターミナルからの接続) をペインから切断するキー：`ctrl+` と英字、`\`、`]`。ターミナルでは別のキーにあたる `h`、`i`、`j`、`m` は使えません |
 
 ## 通知
 

@@ -74,6 +74,8 @@ type Settings struct {
 	Shell      string   `json:"shell"` // "" the account's login shell
 	Env        []string `json:"env"`   // "KEY=value", added to every pane's
 	Scrollback int      `json:"scrollback"`
+	// AttachDetachKey is the key that ends kero attach (ParseDetachKey).
+	AttachDetachKey string `json:"attachDetachKey"`
 
 	// Notifications
 	NotifyWaiting bool `json:"notifyWaiting"` // a session needs you
@@ -178,6 +180,7 @@ func Default() Settings {
 		ScrollPrecision: 1,
 		ScrollDiscrete:  3,
 		Scrollback:      4,
+		AttachDetachKey: `ctrl+\`,
 		NotifyWaiting:   true,
 		NotifyDone:      true,
 		NotifyFailed:    true,
@@ -479,6 +482,9 @@ func (s *Settings) normalize() {
 	if s.Scrollback < 0 || s.Scrollback > 256 {
 		s.Scrollback = d.Scrollback
 	}
+	if _, _, err := ParseDetachKey(s.AttachDetachKey); err != nil {
+		s.AttachDetachKey = d.AttachDetachKey
+	}
 	s.LightTheme, s.DarkTheme = keroTheme(s.LightTheme, d.LightTheme), keroTheme(s.DarkTheme, d.DarkTheme)
 }
 
@@ -534,4 +540,20 @@ func ParseHost(line string) (Host, error) {
 		}
 	}
 	return h, nil
+}
+
+// ParseDetachKey reads a key kero attach can detach on: ctrl+ and a letter,
+// \ or ], but those that are other keys to a terminal, Tab, Enter and
+// Backspace's. It returns the control character it sends, and its code in
+// the keyboard protocols.
+func ParseDetachKey(key string) (legacy byte, code int, err error) {
+	k, ok := strings.CutPrefix(strings.ToLower(strings.TrimSpace(key)), "ctrl+")
+	if ok && len(k) == 1 {
+		switch c := k[0]; {
+		case c == 'h', c == 'i', c == 'j', c == 'm':
+		case c >= 'a' && c <= 'z', c == '\\', c == ']':
+			return c & 0x1f, int(c), nil
+		}
+	}
+	return 0, 0, fmt.Errorf("%q is not ctrl+ and a letter (but h, i, j, m), \\ or ]", key)
 }

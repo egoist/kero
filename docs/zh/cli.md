@@ -57,6 +57,29 @@ kero read api -a                          # 屏幕内容连同回滚缓冲
 
 `kero key` 支持 `enter`、`tab`、`escape`、`up`、`down`、`left`、`right`、`backspace`，以及 `ctrl+c`、`ctrl+d` 这类带修饰键的组合。
 
+## 从终端连接
+
+`kero attach` 像 `tmux attach` 一样，把窗格显示在你运行它的终端里，你的输入也会发送给它。在应用中启动一个 Agent，然后用手机 SSH 登录，就能在同一个会话里继续：
+
+```sh
+kero attach fix-login            # 会话的焦点窗格
+kero attach 4k2x9sd              # 按 id 指定窗格（kero ls 会列出）
+kero -H devbox attach review     # 另一台机器上的会话
+```
+
+- 按 <kbd>Ctrl</kbd> <kbd>\</kbd> 断开。会话继续运行，你的 shell 恢复原样。用 [`attach-detach-key`](./configuration.md#shell) 可以换一个按键。
+- 这个按键不会发送给窗格；如果程序需要它，用 `kero key <target> 'ctrl+\'` 发送。
+- 会话代表连接那一刻的焦点窗格。一次只连接一个窗格：不显示布局，`kero ls` 会列出会话中其他窗格的 id。
+- 窗格占满终端，显示在备用屏幕上，因此终端的回滚缓冲里不会留下它的内容。`kero read <target> -a` 可以打印窗格的回滚缓冲。
+- 不显示图片。
+- 窗格中的程序可以复制到你终端的剪贴板，但不能读取它。
+
+窗格只有一种尺寸，取你最后使用的客户端的尺寸。连接后窗格会采用你终端的尺寸，应用也按这个尺寸显示，直到你在应用里输入或回到应用。如果你在连接期间使用应用，终端会提示这一点而不显示窗格，在终端按任意键即可取回，这个按键不会被输入。断开后，窗格会恢复为另一个客户端需要的尺寸。
+
+窗格结束时 `kero attach` 也会自动结束：失败的程序会留下屏幕内容供 `kero read` 查看，`kero restart` 可以重新启动窗格。如果 kerod 退出，它以状态码 4 退出。
+
+它的输入和输出都必须是终端：通过 SSH 直接运行这条命令时，需要 `ssh -t`。
+
 ## 等待
 
 ```sh

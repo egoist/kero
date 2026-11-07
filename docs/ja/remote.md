@@ -188,6 +188,7 @@ kero hosts remove build
 kero ls --all                    # このマシンとすべてのホストのセッション
 kero -H build ls
 kero -H build prompt review "run the tests and fix them"
+kero -H build attach review      # このターミナルにペインを表示
 kero clients                     # このマシンの kerod に接続しているもの
 ```
 

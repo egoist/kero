@@ -139,26 +139,33 @@ func connect(host string) (*client.Client, func(), error) { return connectWithin
 
 // connectWithin is connect, giving up on reaching a host after a while.
 func connectWithin(host string, d time.Duration) (*client.Client, func(), error) {
+	c, _, done, err := connectDialer(host, d)
+	return c, done, err
+}
+
+// connectDialer is connectWithin, also returning what opens further
+// connections to the same kerod.
+func connectDialer(host string, d time.Duration) (*client.Client, client.Dialer, func(), error) {
 	if host == "" {
 		c, err := client.Connect(false)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
-		return c, func() { c.Close() }, nil
+		return c, client.Local{NoStart: true}, func() { c.Close() }, nil
 	}
 	rc, err := dialHostWithin(host, d)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	c, err := client.ConnectVia(rc)
 	if err != nil {
 		rc.Close()
 		if errors.Is(err, client.ErrVersion) {
-			return nil, nil, fmt.Errorf("%w: kerod on %s runs Kero %s: update it, or this one (kero -H %s daemon update)", errUnreachable, host, rc.Welcome.Host.Kero, host)
+			return nil, nil, nil, fmt.Errorf("%w: kerod on %s runs Kero %s: update it, or this one (kero -H %s daemon update)", errUnreachable, host, rc.Welcome.Host.Kero, host)
 		}
-		return nil, nil, fmt.Errorf("%w: %s: %v", errUnreachable, host, err)
+		return nil, nil, nil, fmt.Errorf("%w: %s: %v", errUnreachable, host, err)
 	}
-	return c, func() { c.Close(); rc.Close() }, nil
+	return c, rc, func() { c.Close(); rc.Close() }, nil
 }
 
 // hostSessions are the sessions of a machine, for kero ls --all: Host is

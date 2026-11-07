@@ -63,6 +63,10 @@ Usage:
                                 stops working, then print its screen
   kero read [target] [-a] [-n lines]
                                 print the screen (-a with the scrollback)
+  kero attach [target]          show a pane in this terminal, typing into it,
+                                until the detach key (ctrl+\ unless the
+                                configuration's attach-detach-key says
+                                otherwise), which leaves it running
   kero wait [target] [--for idle,waiting,error,exited] [--timeout 10m]
                                 wait until the pane stops working (or
                                 reaches one of the statuses), print it
@@ -173,7 +177,7 @@ ambiguous one), 4 kerod unreachable.
 `
 
 // Commands lists the subcommands, which main sends here.
-var Commands = []string{"ls", "list", "new", "split", "send", "key", "prompt", "read", "capture", "wait", "events", "status", "diff",
+var Commands = []string{"ls", "list", "new", "split", "send", "key", "prompt", "read", "capture", "attach", "wait", "events", "status", "diff",
 	"history", "resume", "rename", "focus", "close", "kill", "restart", "notify", "report", "projects", "skill", "hook", "daemon", "do", "actions", "config",
 	"browser", "hosts", "clients", "__bridge", "-H", "--host", "help", "--help", "-h", "version", "--version"}
 
@@ -324,7 +328,12 @@ func run(args []string, host string) error {
 			return listAll(f.set["json"])
 		}
 	}
-	c, done, err := connect(host)
+	if cmd == "attach" {
+		if err := needTerminal(); err != nil {
+			return err
+		}
+	}
+	c, dialer, done, err := connectDialer(host, 30*time.Second)
 	if err != nil {
 		if errors.Is(err, client.ErrVersion) {
 			return fmt.Errorf("%w: the running kerod is of another version: run `kero daemon restart` (it restarts sessions)", errUnreachable)
@@ -603,6 +612,9 @@ func run(args []string, host string) error {
 
 	case "events":
 		return eventsCmd(c, st, args)
+
+	case "attach":
+		return attachCmd(c, dialer, st, args)
 
 	case "status":
 		f, err := parse(args, nil, map[string]string{"json": "json"})

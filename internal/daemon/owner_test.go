@@ -174,3 +174,29 @@ func TestPaneSizeOverStreams(t *testing.T) {
 	size("Windows gone", 90, 30)
 	mac.Close()
 }
+
+// A client of this machine says what it is, for kero clients, as a stream
+// that shows the pane it attached to.
+func TestClientListNamesAttachedCLI(t *testing.T) {
+	d := testDaemon(t)
+	d.clients = map[*proto.ClientInfo]struct{}{}
+	ses, err := d.create(proto.CreateParams{Project: "pr"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := d.findPane(ses.Panes[0].ID)
+	t.Cleanup(s.close)
+	st, err := keroclient.AttachAs(serveDialer{d}, s.info.ID, "kero CLI on here")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	go io.Copy(io.Discard, st)
+	var found bool
+	for _, c := range d.clientList() {
+		found = found || c.Kind == "attach" && c.Client == "kero CLI on here" && c.Session == s.info.ID && c.Via == "unix"
+	}
+	if !found {
+		t.Errorf("clients %+v", d.clientList())
+	}
+}
