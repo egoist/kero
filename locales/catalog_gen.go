@@ -1638,6 +1638,148 @@ func (msgs Messages) PaletteConversationRunning() string {
 	return Catalog.Format(msgs.locale, "paletteConversationRunning", nil)
 }
 
+// ActionSearchPanes says "Search All Panes…"
+// in the language the app shows.
+func ActionSearchPanes() string { return In(i18n.Locale()).ActionSearchPanes() }
+
+// ActionSearchPanes says "Search All Panes…"
+// in the language of msgs.
+func (msgs Messages) ActionSearchPanes() string {
+	return Catalog.Format(msgs.locale, "actionSearchPanes", nil)
+}
+
+// PaletteSearchLabel says "Search All Panes"
+// in the language the app shows.
+func PaletteSearchLabel() string { return In(i18n.Locale()).PaletteSearchLabel() }
+
+// PaletteSearchLabel says "Search All Panes"
+// in the language of msgs.
+func (msgs Messages) PaletteSearchLabel() string {
+	return Catalog.Format(msgs.locale, "paletteSearchLabel", nil)
+}
+
+// PaletteSearchPlaceholder says "Search what every pane has shown…"
+// in the language the app shows.
+func PaletteSearchPlaceholder() string { return In(i18n.Locale()).PaletteSearchPlaceholder() }
+
+// PaletteSearchPlaceholder says "Search what every pane has shown…"
+// in the language of msgs.
+func (msgs Messages) PaletteSearchPlaceholder() string {
+	return Catalog.Format(msgs.locale, "paletteSearchPlaceholder", nil)
+}
+
+// PaletteSearchHint says "Type to search every pane's scrollback, on every host."
+// in the language the app shows.
+func PaletteSearchHint() string { return In(i18n.Locale()).PaletteSearchHint() }
+
+// PaletteSearchHint says "Type to search every pane's scrollback, on every host."
+// in the language of msgs.
+func (msgs Messages) PaletteSearchHint() string {
+	return Catalog.Format(msgs.locale, "paletteSearchHint", nil)
+}
+
+// PaletteSearchFor says "Search All Panes for “{query}”"
+// in the language the app shows.
+func PaletteSearchFor(query string) string { return In(i18n.Locale()).PaletteSearchFor(query) }
+
+// PaletteSearchFor says "Search All Panes for “{query}”"
+// in the language of msgs.
+func (msgs Messages) PaletteSearchFor(query string) string {
+	return Catalog.Format(msgs.locale, "paletteSearchFor", map[string]any{"query": query})
+}
+
+// PaletteSearching says "Searching…"
+// in the language the app shows.
+func PaletteSearching() string { return In(i18n.Locale()).PaletteSearching() }
+
+// PaletteSearching says "Searching…"
+// in the language of msgs.
+func (msgs Messages) PaletteSearching() string {
+	return Catalog.Format(msgs.locale, "paletteSearching", nil)
+}
+
+// PaletteSearchingHost says "Searching {host}…"
+// in the language the app shows.
+func PaletteSearchingHost(host string) string { return In(i18n.Locale()).PaletteSearchingHost(host) }
+
+// PaletteSearchingHost says "Searching {host}…"
+// in the language of msgs.
+func (msgs Messages) PaletteSearchingHost(host string) string {
+	return Catalog.Format(msgs.locale, "paletteSearchingHost", map[string]any{"host": host})
+}
+
+// PaletteSearchHostOld says "{host} runs a Kero that can't search yet"
+// in the language the app shows.
+func PaletteSearchHostOld(host string) string { return In(i18n.Locale()).PaletteSearchHostOld(host) }
+
+// PaletteSearchHostOld says "{host} runs a Kero that can't search yet"
+// in the language of msgs.
+func (msgs Messages) PaletteSearchHostOld(host string) string {
+	return Catalog.Format(msgs.locale, "paletteSearchHostOld", map[string]any{"host": host})
+}
+
+// PaletteSearchLocalOld says "This computer's background service can't search yet: run Restart Background Service"
+// in the language the app shows.
+func PaletteSearchLocalOld() string { return In(i18n.Locale()).PaletteSearchLocalOld() }
+
+// PaletteSearchLocalOld says "This computer's background service can't search yet: run Restart Background Service"
+// in the language of msgs.
+func (msgs Messages) PaletteSearchLocalOld() string {
+	return Catalog.Format(msgs.locale, "paletteSearchLocalOld", nil)
+}
+
+// PaletteSearchNoAnswer says "{host} didn't answer in time"
+// in the language the app shows.
+func PaletteSearchNoAnswer(host string) string { return In(i18n.Locale()).PaletteSearchNoAnswer(host) }
+
+// PaletteSearchNoAnswer says "{host} didn't answer in time"
+// in the language of msgs.
+func (msgs Messages) PaletteSearchNoAnswer(host string) string {
+	return Catalog.Format(msgs.locale, "paletteSearchNoAnswer", map[string]any{"host": host})
+}
+
+// PaletteSearchFailed says "Couldn't search {host}: {error}"
+// in the language the app shows.
+func PaletteSearchFailed(host string, error string) string {
+	return In(i18n.Locale()).PaletteSearchFailed(host, error)
+}
+
+// PaletteSearchFailed says "Couldn't search {host}: {error}"
+// in the language of msgs.
+func (msgs Messages) PaletteSearchFailed(host string, error string) string {
+	return Catalog.Format(msgs.locale, "paletteSearchFailed", map[string]any{"host": host, "error": error})
+}
+
+// PaletteSearchMore says "More matches than these: type more to narrow them down"
+// in the language the app shows.
+func PaletteSearchMore() string { return In(i18n.Locale()).PaletteSearchMore() }
+
+// PaletteSearchMore says "More matches than these: type more to narrow them down"
+// in the language of msgs.
+func (msgs Messages) PaletteSearchMore() string {
+	return Catalog.Format(msgs.locale, "paletteSearchMore", nil)
+}
+
+// SearchMatchGone says "That match is no longer in the pane's scrollback"
+// in the language the app shows.
+func SearchMatchGone() string { return In(i18n.Locale()).SearchMatchGone() }
+
+// SearchMatchGone says "That match is no longer in the pane's scrollback"
+// in the language of msgs.
+func (msgs Messages) SearchMatchGone() string {
+	return Catalog.Format(msgs.locale, "searchMatchGone", nil)
+}
+
+// SearchPaneGone says "That pane has closed"
+// in the language the app shows.
+func SearchPaneGone() string { return In(i18n.Locale()).SearchPaneGone() }
+
+// SearchPaneGone says "That pane has closed"
+// in the language of msgs.
+func (msgs Messages) SearchPaneGone() string {
+	return Catalog.Format(msgs.locale, "searchPaneGone", nil)
+}
+
 // AgoNow says "now"
 // in the language the app shows.
 func AgoNow() string { return In(i18n.Locale()).AgoNow() }

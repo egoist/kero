@@ -87,6 +87,9 @@ type Message struct {
 	// Browser asks the app to do something on a browser pane's page
 	// ("kero browser"), which it answers with browser.answer.
 	Browser *BrowserRequest `json:"browser,omitempty"`
+	// Search is matches of a search of this connection's ("search"), which
+	// goes to it alone.
+	Search *SearchBatch `json:"search,omitempty"`
 }
 
 // Notice is a desktop notification a program in a session sent.

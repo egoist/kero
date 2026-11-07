@@ -57,6 +57,24 @@ kero read api -a                          # the screen with its scrollback
 
 `kero key` understands `enter`, `tab`, `escape`, `up`, `down`, `left`, `right`, `backspace`, and modifiers such as `ctrl+c` or `ctrl+d`.
 
+## Searching
+
+`kero search` finds text in what every pane holds, its scrollback as well as its screen, and prints each match's pane, session name and line, newest first, from the panes with the latest output first. Give the pane to `kero read` or `kero focus`.
+
+```sh
+kero search "connection refused"          # every pane here
+kero search timeout -p api -n 100         # one project's, up to 100 matches
+kero search panic --all                   # this machine and every host
+kero -H build search panic                # a host's
+kero search panic --json                  # as JSON
+```
+
+It matches as a pane's find does: plain text, ignoring the case of ASCII letters, with a match free to run across a line the terminal wrapped. While a full-screen program shows, a pane has only that program's screen to search. A single pane gives a share of the matches, not all of them, so others show too; `-n` asks for more, and kero says on standard error when there may be more than it printed. Finding nothing isn't a failure: it says so there too, and exits 0.
+
+With `--all`, each machine prints under the name `-H` takes, as it finishes. A host out of reach, or running a Kero too old to search, says why in place of its matches, and the search still succeeds.
+
+`--json` gives each match's `session`, `pane`, `line`, the byte offsets `start` and `end` of the match in the line, and `newer`, how many newer matches its pane has. With `--all` it lists the machines, as `kero ls --all --json` does, each with its `matches`, or an `error`.
+
 ## Waiting
 
 ```sh

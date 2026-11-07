@@ -67,6 +67,16 @@ kero daemon restart      # restart it (sessions start again)
 kero daemon stop         # stop it and end every session
 ```
 
+## Search every pane
+
+Where did you see that error? **Edit › Search All Panes…** (<kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>F</kbd>) searches what every pane holds, its scrollback as well as its screen, on this computer and every connected host. Or start from <kbd>⌘</kbd> <kbd>P</kbd>: type what you're after, then pick **Search All Panes for "…"**, last in the list.
+
+Matches list as they're found, each with its line, session and pane, and its host if it's another machine's: a slow host holds up no other, and one out of reach, or running a Kero too old to search, says so below them. Picking one shows that pane, scrolled to the match and highlighted in its find bar, where <kbd>↩</kbd> goes on to older matches and <kbd>Esc</kbd> closes it. If output has since pushed the match out of the pane's scrollback, Kero tells you, and the bar stays open on what the pane still holds.
+
+It matches as a pane's find does: plain text, ignoring the case of ASCII letters, with a match free to run across a line the terminal wrapped. While a full-screen program shows, a pane has only that program's screen to search. Each pane lists its newest few matches, so type more to narrow them down.
+
+Kero searches on demand, on the machine that holds the panes: only the matches travel, and neither they nor what you searched for are saved anywhere. [`kero search`](./cli.md#searching) does the same from a shell.
+
 ## Past conversations
 
 Kero remembers the conversations of Claude Code, Codex, Pi, OMP and OpenCode that ran in its panes, once [Kero's skill](./agents.md#install-the-skill) is set up for the agent, so you can pick one up after its session is closed.
