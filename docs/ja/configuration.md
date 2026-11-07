@@ -130,7 +130,7 @@ kero config check             # 不明なキー、不正な値、agents.toml の
 | ------------- | ---------- | ------------------------------------------------------------------------------------------------- |
 | `git-status`  | `true`     | 各セッションのブランチと[変更](./changes.md)を表示する                                            |
 | `diff-layout` | `auto`     | 変更タブの差分: `unified`、`split`（左右に並べる）、または広くなると左右に並べる `auto`            |
-| `diff-wrap`   | `false`    | 変更タブの差分の長い行を、横にスクロールせずに折り返す                                               |
+| `wrap-lines`  | `false`    | 差分とファイルタブで開いたファイルの長い行を、横にスクロールせずに折り返す                           |
 | `worktree-base` | `default` | [セッション専用のワークツリー](./changes.md#sessions-in-their-own-worktree)の起点: リポジトリのデフォルトブランチ `default`、または今いるセッションのブランチ `current` |
 | `worktree-dir` |           | セッション専用のワークツリーを置く場所。それぞれリポジトリ名の下に置かれます。空ならリポジトリ内の `.kero/worktrees` |
 

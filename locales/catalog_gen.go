@@ -4486,24 +4486,24 @@ func (msgs Messages) ChangesSplit() string {
 	return Catalog.Format(msgs.locale, "changesSplit", nil)
 }
 
-// ChangesWrap says "Wrap Lines"
+// ViewerWrap says "Wrap Lines"
 // in the language the app shows.
-func ChangesWrap() string { return In(i18n.Locale()).ChangesWrap() }
+func ViewerWrap() string { return In(i18n.Locale()).ViewerWrap() }
 
-// ChangesWrap says "Wrap Lines"
+// ViewerWrap says "Wrap Lines"
 // in the language of msgs.
-func (msgs Messages) ChangesWrap() string {
-	return Catalog.Format(msgs.locale, "changesWrap", nil)
+func (msgs Messages) ViewerWrap() string {
+	return Catalog.Format(msgs.locale, "viewerWrap", nil)
 }
 
-// ChangesNoWrap says "Don't Wrap Lines"
+// ViewerNoWrap says "Don't Wrap Lines"
 // in the language the app shows.
-func ChangesNoWrap() string { return In(i18n.Locale()).ChangesNoWrap() }
+func ViewerNoWrap() string { return In(i18n.Locale()).ViewerNoWrap() }
 
-// ChangesNoWrap says "Don't Wrap Lines"
+// ViewerNoWrap says "Don't Wrap Lines"
 // in the language of msgs.
-func (msgs Messages) ChangesNoWrap() string {
-	return Catalog.Format(msgs.locale, "changesNoWrap", nil)
+func (msgs Messages) ViewerNoWrap() string {
+	return Catalog.Format(msgs.locale, "viewerNoWrap", nil)
 }
 
 // ChangesCollapseFiles says "Collapse All"
@@ -4828,24 +4828,24 @@ func (msgs Messages) SetDiffAuto() string {
 	return Catalog.Format(msgs.locale, "setDiffAuto", nil)
 }
 
-// SetDiffWrap says "Wrap long lines"
+// SetWrapLines says "Wrap long lines"
 // in the language the app shows.
-func SetDiffWrap() string { return In(i18n.Locale()).SetDiffWrap() }
+func SetWrapLines() string { return In(i18n.Locale()).SetWrapLines() }
 
-// SetDiffWrap says "Wrap long lines"
+// SetWrapLines says "Wrap long lines"
 // in the language of msgs.
-func (msgs Messages) SetDiffWrap() string {
-	return Catalog.Format(msgs.locale, "setDiffWrap", nil)
+func (msgs Messages) SetWrapLines() string {
+	return Catalog.Format(msgs.locale, "setWrapLines", nil)
 }
 
-// SetDiffWrapDetail says "Diffs' lines wider than their card wrap rather than scroll sideways."
+// SetWrapLinesDetail says "Lines of diffs and files wider than the viewer wrap rather than scroll sideways."
 // in the language the app shows.
-func SetDiffWrapDetail() string { return In(i18n.Locale()).SetDiffWrapDetail() }
+func SetWrapLinesDetail() string { return In(i18n.Locale()).SetWrapLinesDetail() }
 
-// SetDiffWrapDetail says "Diffs' lines wider than their card wrap rather than scroll sideways."
+// SetWrapLinesDetail says "Lines of diffs and files wider than the viewer wrap rather than scroll sideways."
 // in the language of msgs.
-func (msgs Messages) SetDiffWrapDetail() string {
-	return Catalog.Format(msgs.locale, "setDiffWrapDetail", nil)
+func (msgs Messages) SetWrapLinesDetail() string {
+	return Catalog.Format(msgs.locale, "setWrapLinesDetail", nil)
 }
 
 // PageBrowser says "Browser"

@@ -525,7 +525,7 @@ func TestFoldAllFiles(t *testing.T) {
 	}
 }
 
-// The button at the top of the diffs turns diff-wrap on, then off.
+// The button at the top of the diffs turns wrap-lines on, then off.
 func TestWrapDiffs(t *testing.T) {
 	a := testApp(t)
 	s := &a.st.Sessions[0]
@@ -548,8 +548,8 @@ func TestWrapDiffs(t *testing.T) {
 			t.Fatal(err)
 		}
 		tt.Frame()
-		if a.set.DiffWrap != want {
-			t.Fatalf("clicking %q left diff-wrap %v", label, a.set.DiffWrap)
+		if a.set.WrapLines != want {
+			t.Fatalf("clicking %q left wrap-lines %v", label, a.set.WrapLines)
 		}
 	}
 }
