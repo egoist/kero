@@ -879,10 +879,12 @@ func (a *App) termOptions(id string, conn *gated) terminal.Options {
 	if a.set.CopyOnSelect {
 		o.CopyOnSelect = terminal.CopyOnSelectClipboard
 	}
-	// Files and images pasted into a pane of another machine go there; a
-	// local pane's image alone pastes as the path of a file with it.
+	// Files and images pasted into, or dropped on, a pane of another
+	// machine go there; a local pane's image alone pastes as the path of
+	// a file with it.
 	if a.hostOf(id).remote() {
 		o.OnPaste = func(d transfer.Data) bool { return a.remotePaste(id, d) }
+		o.OnDrop = func(paths []string) bool { return a.remoteDrop(id, paths) }
 	}
 	return o
 }

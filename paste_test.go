@@ -19,6 +19,8 @@ import (
 	"github.com/egoist/mygo/plugins/terminal"
 	"github.com/egoist/mygo/transfer"
 	"github.com/egoist/mygo/ui"
+
+	"kero/internal/client"
 )
 
 // fakePNG is not a picture, and need not be: the paste carries its bytes
@@ -523,5 +525,102 @@ func TestPasteImageSaysWhyNot(t *testing.T) {
 	}
 	if got := sink.quiet(); got != "" {
 		t.Errorf("the program got %q", got)
+	}
+}
+
+// remoteApp is the app with pane "a" on a connected host, whose uploads
+// (sendPaste) come to the channel instead.
+func remoteApp(t *testing.T) (*App, chan []pasteUpload) {
+	t.Helper()
+	a := testApp(t)
+	if a.owner == nil {
+		a.owner = map[string]*host{}
+	}
+	a.owner["a"] = &host{name: "box", cl: &client.Client{}}
+	sent := make(chan []pasteUpload, 1)
+	old := sendPaste
+	sendPaste = func(_ client.Dialer, ups []pasteUpload) ([]string, error) {
+		sent <- ups
+		return []string{"/home/me/.kero/paste/x"}, nil
+	}
+	t.Cleanup(func() { sendPaste = old })
+	return a, sent
+}
+
+// uploaded returns what a paste sent to the host, or fails.
+func uploaded(t *testing.T, sent chan []pasteUpload) []pasteUpload {
+	t.Helper()
+	select {
+	case ups := <-sent:
+		return ups
+	case <-time.After(5 * time.Second):
+		t.Fatal("nothing went to the host")
+	}
+	return nil
+}
+
+// An image pasted into a pane of another machine goes there, in the
+// format it is in, PNG or another an agent takes.
+func TestRemotePasteImage(t *testing.T) {
+	a, sent := remoteApp(t)
+	for _, c := range []struct {
+		d    transfer.Data
+		name string
+	}{
+		{imageData(), "pasted-image.png"},
+		{transfer.New(transfer.NewItem(transfer.Bytes("image/jpeg", []byte("jpeg")))), "pasted-image.jpg"},
+		{transfer.New(transfer.NewItem(transfer.Bytes("image/webp", []byte("webp")))), "pasted-image.webp"},
+	} {
+		if !a.remotePaste("a", c.d) {
+			t.Fatalf("the paste of %s was left to the terminal", c.name)
+		}
+		ups := uploaded(t, sent)
+		if len(ups) != 1 || ups[0].name != c.name || len(ups[0].data) == 0 {
+			t.Errorf("pasting %s uploaded %+v", c.name, ups)
+		}
+		if a.pendingToast != "" {
+			t.Errorf("pasting %s told %q", c.name, a.pendingToast)
+		}
+	}
+}
+
+// Text pastes as it is into a remote pane; an image the host's agents
+// would not take, or a clipboard that could not be read, says so.
+func TestRemotePasteNoUpload(t *testing.T) {
+	a, sent := remoteApp(t)
+	text := transfer.New(transfer.NewItem(transfer.Bytes(transfer.Text, []byte("hi")), transfer.Bytes(transfer.PNG, fakePNG)))
+	if a.remotePaste("a", text) {
+		t.Error("a paste of text was taken")
+	}
+	if !a.remotePaste("a", transfer.New(transfer.NewItem(transfer.Bytes("image/x-icon", []byte("ico"))))) || a.pendingToast == "" {
+		t.Error("an unsupported image pasted with nothing said")
+	}
+	a.pendingToast = ""
+	if !a.remotePaste("a", transfer.New()) || a.pendingToast == "" {
+		t.Error("an unreadable clipboard pasted with nothing said")
+	}
+	select {
+	case ups := <-sent:
+		t.Errorf("uploaded %+v", ups)
+	case <-time.After(100 * time.Millisecond):
+	}
+}
+
+// Files dropped on a pane of another machine go there, as a paste's;
+// on a local pane they are the terminal's, which pastes their paths.
+func TestRemoteDrop(t *testing.T) {
+	a, sent := remoteApp(t)
+	f := filepath.Join(t.TempDir(), "shot.png")
+	if err := os.WriteFile(f, fakePNG, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if !a.remoteDrop("a", []string{f}) {
+		t.Fatal("a drop on a remote pane was left to the terminal")
+	}
+	if ups := uploaded(t, sent); len(ups) != 1 || ups[0].name != "shot.png" || ups[0].file != f {
+		t.Errorf("the drop uploaded %+v", ups)
+	}
+	if a.remoteDrop("b", []string{f}) {
+		t.Error("a drop on a local pane was taken")
 	}
 }

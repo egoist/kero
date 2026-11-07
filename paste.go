@@ -33,94 +33,139 @@ const (
 // the host (paste.file), and their paths there are pasted, which the
 // programs there read, as Claude Code an image's. Text pastes as it is.
 func (a *App) remotePaste(id string, d transfer.Data) bool {
-	h := a.hostOf(id)
-	if !h.remote() {
+	if !a.hostOf(id).remote() {
 		return false
+	}
+	// The terminal asks only for a clipboard that holds something, as a
+	// local pane's paste (pasteImage).
+	if len(d.Formats()) == 0 {
+		a.toast(locales.ToastPasteClipboardUnreadable())
+		return true
 	}
 	files, _ := d.Files()
-	var image []byte
-	if len(files) == 0 {
-		// Text, as of cells copied with a picture of them, pastes as text.
-		if t, err := d.Read(transfer.Text); err == nil && len(t) > 0 {
-			return false
-		}
-		if b, err := d.Read(transfer.PNG); err == nil && len(b) > 0 {
-			image = b
-		}
+	if len(files) > 0 {
+		a.uploadPaste(id, files, pasteUpload{})
+		return true
 	}
-	if len(files) == 0 && image == nil {
+	// Text, as of cells copied with a picture of them, pastes as text.
+	if t, err := d.Read(transfer.Text); err == nil && len(t) > 0 {
 		return false
 	}
+	f, ok := imageToPaste(d)
+	if !ok {
+		return false
+	}
+	ext, ok := pasteImageTypes[f]
+	if !ok {
+		a.toast(locales.ToastPasteImageUnsupported(strings.ToUpper(strings.TrimPrefix(string(f), "image/"))))
+		return true
+	}
+	img, err := d.Read(f)
+	if err == nil && len(img) == 0 {
+		err = errors.New("the image is empty")
+	}
+	if err != nil {
+		a.toast(locales.ToastPasteImageFailed(err.Error()))
+		return true
+	}
+	a.uploadPaste(id, nil, pasteUpload{name: "pasted-image" + ext, data: img})
+	return true
+}
+
+// remoteDrop takes files dropped on a pane of another machine, which go
+// there as a paste's do (remotePaste).
+func (a *App) remoteDrop(id string, paths []string) bool {
+	if !a.hostOf(id).remote() {
+		return false
+	}
+	a.uploadPaste(id, paths, pasteUpload{})
+	return true
+}
+
+// pasteUpload is a file that goes to a host for a paste: an image's
+// bytes, or a file of this machine, read off the main thread.
+type pasteUpload struct {
+	name, file string
+	data       []byte
+}
+
+// uploadPaste copies files of this machine, and an image (if it has a
+// name), to the host of a pane, and pastes their paths there.
+func (a *App) uploadPaste(id string, files []string, image pasteUpload) {
+	h := a.hostOf(id)
 	if h.cl == nil {
 		a.toast(locales.HostNotConnected(h.name))
-		return true
+		return
 	}
-	dialer := h.dialer()
-	// What goes up: the image's bytes, or a file, read off the main
-	// thread.
-	type upload struct {
-		name, file string
-		data       []byte
-	}
-	var ups []upload
-	total := len(image)
-	if len(image) > maxFile {
+	var ups []pasteUpload
+	total := len(image.data)
+	if total > maxFile {
 		a.toast(locales.PasteTooLarge(maxFile >> 20))
-		return true
+		return
 	}
-	if image != nil {
-		ups = append(ups, upload{name: "pasted-image.png", data: image})
+	if image.name != "" {
+		ups = append(ups, image)
 	}
 	for _, f := range files {
 		st, err := os.Stat(f)
 		if err != nil || st.IsDir() {
 			a.toast(locales.PasteNotAFile(filepath.Base(f)))
-			return true
+			return
 		}
 		total += int(st.Size())
 		if total > maxUpload || st.Size() > maxFile {
 			a.toast(locales.PasteTooLarge(maxFile >> 20))
-			return true
+			return
 		}
-		ups = append(ups, upload{name: filepath.Base(f), file: f})
+		ups = append(ups, pasteUpload{name: filepath.Base(f), file: f})
 	}
 	if total > 1<<20 {
 		a.toast(locales.PasteUploading(h.name))
 	}
+	dialer := h.dialer()
 	go func() {
-		// A connection of its own, so that a large file holds up none of
-		// the host's other calls, as the sidebar's.
-		cl, err := client.ConnectVia(dialer)
+		paths, err := sendPaste(dialer, ups)
 		if err != nil {
 			a.update(func() { a.toast(fmt.Sprintf("%s: %v", h.name, err)) })
 			return
 		}
-		defer cl.Close()
-		var paths []string
-		for _, u := range ups {
-			data := u.data
-			if u.file != "" {
-				b, err := os.ReadFile(u.file)
-				if err != nil {
-					a.update(func() { a.toast(err.Error()) })
-					return
-				}
-				data = b
-			}
-			var r proto.PasteFile
-			if err := cl.Call("paste.file", proto.PasteFileParams{Name: u.name, Data: data}, &r); err != nil {
-				a.update(func() { a.toast(fmt.Sprintf("%s: %v", h.name, err)) })
-				return
-			}
-			paths = append(paths, pastedPath(h, r.Path))
+		quoted := make([]string, len(paths))
+		for i, p := range paths {
+			quoted[i] = pastedPath(h, p)
 		}
 		a.update(func() {
 			if e := a.terms[id]; e != nil && e.term != nil {
-				e.term.Paste(strings.Join(paths, " "))
+				e.term.Paste(strings.Join(quoted, " "))
 			}
 		})
 	}()
-	return true
+}
+
+// sendPaste puts the uploads on a host, in kerod's paste directory
+// (paste.file), and returns their paths there. A var for tests.
+var sendPaste = func(dialer client.Dialer, ups []pasteUpload) ([]string, error) {
+	// A connection of its own, so that a large file holds up none of the
+	// host's other calls, as the sidebar's.
+	cl, err := client.ConnectVia(dialer)
+	if err != nil {
+		return nil, err
+	}
+	defer cl.Close()
+	var paths []string
+	for _, u := range ups {
+		data := u.data
+		if u.file != "" {
+			if data, err = os.ReadFile(u.file); err != nil {
+				return nil, err
+			}
+		}
+		var r proto.PasteFile
+		if err := cl.Call("paste.file", proto.PasteFileParams{Name: u.name, Data: data}, &r); err != nil {
+			return nil, err
+		}
+		paths = append(paths, r.Path)
+	}
+	return paths, nil
 }
 
 // shellEscape writes a path as one word of a POSIX shell, as dropped
