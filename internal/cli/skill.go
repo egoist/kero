@@ -24,11 +24,23 @@ background. $KERO_SESSION is your session and $KERO_PANE your pane; the
 ` + "`kero`" + ` command drives them. A target is a session or a pane id (a
 prefix works), or a session's name; a session stands for its focused pane.
 
+## When to use it
+
+Run a command that ends on its own (a test run, a build, a lint, git) with
+your own shell or command tool, as you would outside Kero: it needs no
+pane. Start one with kero only when it should keep running or be seen: a
+dev server or watcher, an interactive program, another agent, or output
+the user should watch. Then make it a pane of your session with split
+rather than a session of its own, and reuse what you started: restart a
+server in its pane (kero key <pane> ctrl+c, then kero send <pane> "npm run
+dev" --enter) rather than open another, and close a pane once its output
+has served.
+
 ## Run something beside you
 
     kero split --down -- npm run dev          # a pane under yours; prints its id
     kero new -n review -- claude              # a session of its own
-    kero new -n tests -d ~/code/app -- go test ./...
+    kero new -n api -d ~/code/app -- npm run dev
     kero split --url localhost:3000           # a browser pane, to show the user a page
 
 ## Drive it
@@ -118,6 +130,8 @@ Report blocked only when you truly cannot go on without them.
 
 ## Etiquette
 
+- Start a session or pane only when the user should have one: a few you
+  reuse beat one for each command.
 - Close what you started when it is done: ` + "`kero close <target>`" + `.
 - Never type into a pane you did not start unless the user asked.
 - Exit status 3 means no such target, 4 that Kero is not running.
