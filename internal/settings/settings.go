@@ -55,6 +55,7 @@ type Settings struct {
 	Thicken      bool     `json:"thicken"`
 	MinContrast  float32  `json:"minContrast"`           // a WCAG ratio text keeps with its background
 	DimUnfocused bool     `json:"dimUnfocusedTerminals"` // the terminals the user is not in fade
+	PaddingColor string   `json:"paddingColor"`          // one of PaddingColors: what the padding around a terminal's text shows
 	Cursor       string   `json:"cursor"`                // "block", "bar" or "underline"
 	CursorBlink  bool     `json:"cursorBlink"`
 	LightTheme   string   `json:"lightTheme"` // one of KeroThemes by its Name, or a Ghostty theme's
@@ -167,6 +168,7 @@ func Default() Settings {
 		FontWeight:      400,
 		Ligatures:       true,
 		MinContrast:     3,
+		PaddingColor:    "extend",
 		Cursor:          "block",
 		CursorBlink:     true,
 		LightTheme:      "paper",
@@ -203,6 +205,12 @@ var Languages = []string{"en", "ja", "zh-Hans"}
 // AppIcons are where the app's icon shows on macOS: the Dock and the menu
 // bar, the Dock alone, or the menu bar alone.
 var AppIcons = []string{"dock-and-menubar", "dock", "menubar"}
+
+// PaddingColors are what the padding around a terminal's text shows, as
+// Ghostty's window-padding-color: the terminal's background; the colors
+// of the cells beside it, but for a row a program left at the background;
+// or theirs always.
+var PaddingColors = []string{"background", "extend", "extend-always"}
 
 // KeepAwakeModes are when Kero keeps the computer from sleeping: never,
 // as long as it runs, or while an agent on this machine works.

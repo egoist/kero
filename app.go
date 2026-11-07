@@ -814,9 +814,10 @@ func (a *App) termOptions(id string, conn *gated) terminal.Options {
 		// another pane.
 		Transparent: true,
 		// Text lines up with the pane's title; a full-screen program's
-		// colors reach the card's edges.
+		// colors reach the card's edges, unless window-padding-color says
+		// otherwise.
 		Padding:      terminal.Padding{X: 16, Y: 6},
-		PaddingColor: terminal.PaddingExtend,
+		PaddingColor: map[string]terminal.PaddingColor{"background": terminal.PaddingBackground, "extend": terminal.PaddingExtend, "extend-always": terminal.PaddingExtendAlways}[a.set.PaddingColor],
 		// Text a program colored for the other appearance, as a dark
 		// theme's light grays on a light one, stays legible.
 		MinimumContrast:  a.set.MinContrast,
@@ -919,7 +920,7 @@ func (a *App) apply(s settings.Settings, save bool) {
 		!slices.Equal(old.FontFeatures, s.FontFeatures)
 	themes := old.LightTheme != s.LightTheme || old.DarkTheme != s.DarkTheme
 	anew := old.Cursor != s.Cursor || old.CursorBlink != s.CursorBlink || old.OptionAsAlt != s.OptionAsAlt ||
-		old.Clipboard != s.Clipboard || old.RightClick != s.RightClick
+		old.Clipboard != s.Clipboard || old.RightClick != s.RightClick || old.PaddingColor != s.PaddingColor
 	light, dark := a.termThemes()
 	retune := func(t *terminal.Terminal) {
 		if font {
