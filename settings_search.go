@@ -34,7 +34,7 @@ func settingsIndex() []searchEntry {
 		{"general", locales.SetSessionHistory(), "session-history ended sessions archived resume claude codex conversation"},
 		{"general", locales.SetGitStatus(), "git-status branch changes diff repository worktree"},
 		{"general", locales.SetDiffLayout(), "diff-layout diff unified split side by side changes"},
-		{"general", locales.SetDiffWrap(), "diff-wrap diff wrap long lines soft wrap changes"},
+		{"general", locales.SetWrapLines(), "wrap-lines diff file viewer wrap long lines soft wrap changes files"},
 		{"general", locales.AwakeTitle(), "keep-computer-awake awake sleep caffeinate power agents idle lid"},
 		{"general", locales.SetOpenAtLogin(), "startup launch login items"},
 		{"general", locales.SetVersion(), "updates check for updates software update about"},

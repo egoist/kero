@@ -130,7 +130,7 @@ Other machines whose sessions the app shows, and `kero -H` reaches. See [Remote 
 | ------------- | ------- | ------------------------------------------------------------------------------------------------- |
 | `git-status`  | `true`  | Show each session's branch and [changes](./changes.md)                                            |
 | `diff-layout` | `auto`  | Diffs of the Changes tab: `unified`, `split` (side by side), or `auto`, side by side once they're wide |
-| `diff-wrap`   | `false` | Wrap the Changes tab's long diff lines rather than scrolling them sideways                       |
+| `wrap-lines`  | `false` | Wrap the long lines of diffs and of files from Files rather than scrolling them sideways          |
 | `worktree-base` | `default` | What a [session's own worktree](./changes.md#sessions-in-their-own-worktree) branches from: `default`, the repository's default branch, or `current`, the branch of the session you're in |
 | `worktree-dir` |        | Where sessions' own worktrees go, each under its repository's name; empty for `.kero/worktrees` in the repository |
 

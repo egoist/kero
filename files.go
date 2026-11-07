@@ -328,6 +328,7 @@ func (a *App) fileViewer(c *ui.Context, pal *palette, s *proto.Session, fv *file
 			ui.Text(c, dir).FontSize(13).TextColor(pal.textFaint).SingleLine().Ellipsis("…").Shrink(2).MinWidth(0).Tooltip(fv.path)
 		}
 	}, func() {
+		a.wrapButton(c, pal)
 		if !h.remote() && !fv.gone {
 			full := fv.path
 			iconButton(c, "open", openFileIcon, locales.ChangesOpenFile(), pal, func() { openPath(full) })
@@ -348,6 +349,7 @@ func (a *App) fileViewer(c *ui.Context, pal *palette, s *proto.Session, fv *file
 		fv.st.Font = ui.Font{Family: a.termFamily(), Size: max(a.set.FontSize-1, 10)}
 		fv.st.Theme = a.codeTheme(c, pal)
 		fv.st.NoScrollPastEnd = true
+		fv.st.SoftWrap = a.set.WrapLines
 		editor.View(c.Key("text-"+fv.path), fv.st).Grow(1).FillWidth().MinHeight(0)
 	}
 }

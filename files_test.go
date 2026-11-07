@@ -6,6 +6,7 @@ import (
 	"math"
 	"os"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -431,6 +432,39 @@ func TestCloseInBrowserBesideViewer(t *testing.T) {
 	tt.Frame()
 	if s.PaneByID("b") != nil || a.viewOf(s) != v {
 		t.Fatalf("Close left pane b %v, viewer %+v", s.PaneByID("b") != nil, a.viewOf(s))
+	}
+}
+
+// The button above a file of Files wraps its long lines, then stops, as
+// it does the diffs', keeping wrap-lines.
+func TestWrapFile(t *testing.T) {
+	a := testApp(t)
+	s := &a.st.Sessions[0]
+	tt := ui.NewTester(a.view, 1280, 720)
+	tt.Frame()
+	fv := &fileView{pane: s.Panes[0].ID, path: "/tmp/a.go", rel: "a.go", fetched: time.Now()}
+	a.showFile(fv, []byte("package a\n\nvar s = \""+strings.Repeat("a long line ", 30)+"\"\n"))
+	a.openView(s, sideFiles, fv)
+	tt.Frame()
+
+	for _, want := range []bool{true, false} {
+		label := locales.ViewerWrap()
+		if !want {
+			label = locales.ViewerNoWrap()
+		}
+		if err := tt.Click(label); err != nil {
+			t.Fatal(err)
+		}
+		tt.Frame()
+		if a.set.WrapLines != want || fv.st.SoftWrap != want {
+			t.Fatalf("clicking %q left wrap-lines %v, the file's wrap %v", label, a.set.WrapLines, fv.st.SoftWrap)
+		}
+		tt.Frame()
+		row, long := fv.st.LineTop(1)-fv.st.LineTop(0), fv.st.LineTop(3)-fv.st.LineTop(2)
+		if wrapped := long > row; wrapped != want {
+			t.Errorf("with wrap-lines %v, the long line is %v high, a row %v", want, long, row)
+		}
+		shot(t, tt, map[bool]string{true: "file-wrapped", false: "file-unwrapped"}[want])
 	}
 }
 
