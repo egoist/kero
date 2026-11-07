@@ -617,7 +617,7 @@ func (a *App) sessionRow(c *ui.Context, pal *palette, s *proto.Session, n *int) 
 				b.Children(func() { ui.Icon(c, closeIcon).Size(13, 13) })
 				if b.Clicked() {
 					id := s.ID
-					a.defer_(func() { a.closeSession(id, false) })
+					a.defer_(func() { a.closeSession(id, true) })
 				}
 			})
 		}

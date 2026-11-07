@@ -133,13 +133,16 @@ func TestSessionHoverClose(t *testing.T) {
 					}
 					tt.Release(button.X+button.W/2, button.Y+button.H/2)
 					tt.Frame()
+					// A busy session asks first, as Close Session does
+					// (confirm-close).
+					if a.confirm == nil || !a.confirm.open || a.session(id) == nil {
+						t.Fatal("closing a working session did not ask first")
+					}
+					a.confirm.run()
+					tt.Frame()
 					if a.session(id) != nil || len(a.st.Sessions) != 1 || a.selected != remaining {
 						t.Fatalf("wrong session closed: selected=%q sessions=%v", a.selected, a.st.Sessions)
 					}
-					if a.confirm != nil && a.confirm.open {
-						t.Fatal("close button asked for confirmation")
-					}
-					tt.Frame()
 				})
 			}
 		}
