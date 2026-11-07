@@ -1,5 +1,28 @@
 # Changelog
 
+## 2.1.35
+
+- **Wrap long lines** in the viewer's diffs and files, from the Wrap
+  Lines button above them or Settings › General (`wrap-lines`), rather
+  than scrolling them sideways. Thanks @Th1nkK1D
+- Hovering a session in the sidebar shows a close button on it.
+  Thanks @bigboss2063
+- `window-padding-color` picks what the padding around a terminal's text
+  shows: `background`, the terminal's background; `extend`, the default,
+  the colors of the cells beside it, but for a row left at the
+  background; or `extend-always`, theirs always, as in Ghostty.
+- On a pane on a remote host, pasting a JPEG, GIF or WebP image uploads
+  it to the host as a PNG already did, and a file dropped on the pane is
+  uploaded too, rather than pasting this computer's path.
+- On macOS, <kbd>⌥</kbd><kbd>←</kbd> and <kbd>⌥</kbd><kbd>→</kbd> move
+  the shell's cursor by a word, as in Ghostty, rather than typing a `D`
+  or a `C`.
+- Updating Kero while an SSH bridge is connected no longer loses the
+  saved sessions, and a session whose panes can't be restored is kept
+  rather than dropped. Hosts get it with their next update.
+- The Kero skill teaches agents when to run short commands themselves
+  and to reuse the panes they already started.
+
 ## 2.1.34
 
 - **Reorder projects** in the sidebar: drag a project's header up or
