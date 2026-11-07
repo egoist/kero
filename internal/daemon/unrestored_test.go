@@ -7,12 +7,12 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"kero/internal/proto"
 )
 
-// A session none of whose panes start again, as when the terminal's
-// library is missing, stays saved for the next start, rather than lost
-// with the next save.
-func TestUnrestoredSessionKept(t *testing.T) {
+// A shell that cannot start stays visible and saved for another attempt.
+func TestFailedShellSessionKept(t *testing.T) {
 	d := testDaemon(t)
 	// A shell there that cannot run, as a program whose library is gone.
 	shell := filepath.Join(d.dir, "broken-shell")
@@ -34,9 +34,11 @@ func TestUnrestoredSessionKept(t *testing.T) {
 		t.Fatal(err)
 	}
 	d.restore()
-	if len(d.sessions) != 0 || len(d.panes) != 0 {
-		t.Fatalf("restored %d sessions, %d panes with a broken shell", len(d.sessions), len(d.panes))
+	p := d.panes["p1"]
+	if len(d.sessions) != 1 || p == nil || p.proc != nil || p.info.Status != proto.Exited {
+		t.Fatalf("failed shell was not kept as an exited pane: %+v", p)
 	}
+	defer p.close()
 	d.saveState()
 	data, err = os.ReadFile(d.statePath())
 	if err != nil {

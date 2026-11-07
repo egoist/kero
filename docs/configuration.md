@@ -93,8 +93,12 @@ values close together can look the same or differ by a pixel.
 | Key                | Default | Description                                                    |
 | ------------------ | ------- | -------------------------------------------------------------- |
 | `command`          |         | The shell of new panes; empty for your login shell             |
+| `command-args`     |         | Shell arguments, split using spaces and quotes; empty keeps Kero's defaults |
+| `working-directory` |       | Startup directory when none is inherited: empty inherits Kero's startup directory, `~` uses home, otherwise a path |
 | `env`              |         | Added to every pane's environment as `NAME=value`; repeat it   |
 | `scrollback-limit` | `4`     | The output each pane keeps, in megabytes; `0` for none         |
+
+The arrow beside **New Session** opens the default shell or **Other Shells…**, which opens the command palette with `shell:` prefilled. This prefix lists only installed shells; keep typing to search them, or clear the prefix to search all sessions and commands. Picking a shell only affects that session. **Settings → Shell** chooses the default program (including a custom command or path), arguments and fallback directory. New sessions and splits still inherit their current pane or project directory.
 
 ## Notifications
 

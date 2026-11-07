@@ -36,9 +36,11 @@ type savedSession struct {
 }
 
 type savedPane struct {
-	ID      string   `json:"id"`
-	Dir     string   `json:"dir,omitempty"`
-	Command []string `json:"command,omitempty"`
+	ID        string   `json:"id"`
+	Dir       string   `json:"dir,omitempty"`
+	Command   []string `json:"command,omitempty"`
+	Shell     string   `json:"shell,omitempty"`
+	ShellArgs []string `json:"shellArgs,omitempty"`
 	// URL and Title are a browser pane's page.
 	URL   string `json:"url,omitempty"`
 	Title string `json:"title,omitempty"`
@@ -85,6 +87,7 @@ func (d *Daemon) saveState() {
 			p.mu.Lock()
 			sp := savedPane{ID: p.info.ID, Dir: p.info.Dir, Command: p.info.Command, URL: p.info.URL,
 				Agent: p.info.AgentSession, Turn: p.info.Turn, Created: p.info.Created, Cols: p.info.Cols, Rows: p.info.Rows}
+			sp.Shell, sp.ShellArgs = p.program, p.args
 			if p.info.Browser() {
 				sp.Title = p.info.Title
 			}
@@ -202,6 +205,7 @@ func (d *Daemon) restorePane(sid string, sp savedPane, when string, resumeAgents
 		d.log.Printf("restoring %s: %v", sp.ID, err)
 		return nil
 	}
+	p.program, p.args = sp.Shell, sp.ShellArgs
 	// What the session showed, down to where its cursor was, with the
 	// new shell under it: what a program drew below the cursor, as an
 	// agent's status bar, goes, rather than show under the new shell's
@@ -214,8 +218,8 @@ func (d *Daemon) restorePane(sid string, sp savedPane, when string, resumeAgents
 	// But an agent's conversation, which only waits for the user.
 	if err := p.start(command, nil); err != nil {
 		d.log.Printf("restoring %s: %v", sp.ID, err)
-		p.term.Close()
-		return nil
+		p.startFailed(err)
+		return p
 	}
 	if reason != "" {
 		d.log.Printf("pane %s restored as shell: %s", sp.ID, reason)

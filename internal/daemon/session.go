@@ -48,6 +48,8 @@ type pane struct {
 	claimer  *attachment
 	stamp    uint64
 	shellPID int
+	program  string   // explicit shell selection; empty follows Settings
+	args     []string // explicit shell arguments
 	fgPGID   int
 	cwdAt    time.Time
 
@@ -137,10 +139,13 @@ func newPane(d *Daemon, sid string, info proto.Pane) (*pane, error) {
 
 // start starts the shell, running command first when set.
 func (s *pane) start(command []string, env []string) error {
-	shell := userShell()
-	name := shellName(shell)
+	program, extra, err := paneShell(s.program, s.args, settings.Load())
+	if err != nil {
+		return err
+	}
+	name := shellName(program)
 	bin := s.d.binFirst()
-	args := shellArgs(shell, bin, command)
+	args := shellLaunchArgs(program, bin, command, extra)
 	if bin != "" && name == "zsh" {
 		env = append(env[:len(env):len(env)], zshEnv(bin)...)
 	}
@@ -149,8 +154,8 @@ func (s *pane) start(command []string, env []string) error {
 		dir = proto.Home()
 	}
 	proc, err := startPTY(ptyOptions{
-		Path: shell, Args: args, Dir: dir,
-		Env:  s.d.environment(s.sid, s.info.ID, shell, env),
+		Path: program, Args: args, Dir: dir,
+		Env:  s.d.environment(s.sid, s.info.ID, program, env),
 		Cols: s.info.Cols, Rows: s.info.Rows,
 		// The pane's terminal answers the console's question of where
 		// its cursor is: under a restored pane's history.
@@ -166,7 +171,7 @@ func (s *pane) start(command []string, env []string) error {
 	s.info.Dir = dir
 	s.info.Shell = name
 	s.info.CommandExit = nil
-	s.awaiting = len(command) > 0 && marksExit(shell)
+	s.awaiting = len(command) > 0 && marksExit(program)
 	s.mu.Unlock()
 	go s.pump(proc)
 	return nil
@@ -708,6 +713,17 @@ func (s *pane) exited(proc *ptyProc) {
 	s.d.changed()
 }
 
+func (s *pane) startFailed(err error) {
+	s.mu.Lock()
+	s.info.ExitCode, s.info.Message = 1, err.Error()
+	s.term.Feed([]byte("\r\n[Could not start shell: " + err.Error() + "]\r\n"))
+	s.setStatus(proto.Exited)
+	s.dirty = true
+	s.frame()
+	s.mu.Unlock()
+	s.d.changed()
+}
+
 // restart starts a shell again in a session that exited.
 func (s *pane) restart() error {
 	s.mu.Lock()
@@ -722,6 +738,7 @@ func (s *pane) restart() error {
 	s.info.Unread, s.info.Message, s.info.ExitCode = false, "", 0
 	s.mu.Unlock()
 	if err := s.start(nil, nil); err != nil {
+		s.startFailed(err)
 		return err
 	}
 	s.d.changed()

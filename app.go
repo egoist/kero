@@ -26,6 +26,7 @@ import (
 	"kero/internal/proto"
 	"kero/internal/settings"
 
+	"kero/internal/shell"
 	"kero/locales"
 )
 
@@ -106,6 +107,9 @@ type App struct {
 	applied    settings.Settings // set, as last applied and saved
 	setWin     *mygo.Window      // the Settings window, while open
 	ss         settingsState
+	shells     []shell.Entry
+	shellMenu  []shell.Entry
+	shellKey   string
 	selected   string
 	terms      map[string]*termEntry
 	webs       map[string]*webEntry // browser panes' pages, by pane
@@ -194,6 +198,7 @@ func newApp() *App {
 	a.loadPrefs()
 	a.loadBackup()
 	a.set = settings.Load()
+	a.shells = shell.Detect()
 	a.ss.problems = settings.Problems()
 	a.applied = a.set.Clone()
 	a.selected = a.prefs.Selected
@@ -1208,10 +1213,14 @@ func (a *App) newSession(projectID string) {
 // newSessionOn starts a session on a host, in a project of its, "" for
 // the one of the session shown there, else the first.
 func (a *App) newSessionOn(h *host, projectID string) {
+	a.newSessionWithShell(h, projectID, "")
+}
+
+func (a *App) newSessionWithShell(h *host, projectID, program string) {
 	if h.cl == nil {
 		return
 	}
-	p := proto.CreateParams{Project: projectID}
+	p := proto.CreateParams{Project: projectID, Shell: program}
 	if cur := a.session(a.selected); cur != nil && a.hostOf(cur.ID) == h {
 		if projectID == "" || cur.Project == projectID {
 			p.Project, p.After = cur.Project, cur.ID
@@ -1228,8 +1237,8 @@ func (a *App) newSessionOn(h *host, projectID string) {
 	if a.set.NewSessionDir == "home" {
 		p.Dir = home
 	}
-	if p.Project == "" && len(a.projectsOf(h)) == 0 {
-		p.Dir = home
+	if !h.remote() && p.Dir == "" && p.Project == "" && len(a.projectsOf(h)) == 0 {
+		p.Dir = a.set.ShellStartDir()
 	}
 	a.create(h, p, "")
 }

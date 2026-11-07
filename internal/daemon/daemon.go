@@ -33,7 +33,6 @@ import (
 	"kero/internal/detect"
 	"kero/internal/proto"
 	"kero/internal/settings"
-	"kero/internal/shell"
 	"kero/internal/update"
 )
 
@@ -566,23 +565,6 @@ func (d *Daemon) environment(sid, pid, shell string, extra []string) []string {
 		set(kv)
 	}
 	return env
-}
-
-// userShell returns the shell of new panes: the one Settings names, else
-// the user's login shell.
-func userShell() string {
-	if sh := settings.Load().Shell; sh != "" {
-		if st, err := os.Stat(expandHome(sh)); err == nil && !st.IsDir() {
-			return expandHome(sh)
-		}
-		// A name on PATH, as "pwsh" or "bash" on Windows.
-		if !strings.ContainsAny(sh, `/\`) {
-			if p, err := exec.LookPath(sh); err == nil {
-				return p
-			}
-		}
-	}
-	return shell.Login()
 }
 
 func expandHome(p string) string {

@@ -67,6 +67,8 @@ func settingsIndex() []searchEntry {
 		{"terminal", locales.SetTrackpadScroll(), "mouse-scroll-multiplier precision scroll speed trackpad touchpad"},
 
 		{"shell", locales.SetShell(), "command fish zsh bash login"},
+		{"shell", locales.SetShellArgs(), "command-args shell arguments flags login profile"},
+		{"shell", locales.SetShellDirectory(), "working-directory startup directory inherit home path"},
 		{"shell", locales.SetScrollback(), "scrollback-limit history buffer lines memory"},
 		{"shell", locales.SetEnvironment(), "env variables path"},
 
