@@ -74,6 +74,7 @@ kero config check             # 不明なキー、不正な値、agents.toml の
 | `font-ligatures`      | `true`     | フォントが描くとおりに文字をつなげる                                     |
 | `font-thicken`        | `false`    | Ghostty と同じく、線を太くする                                           |
 | `minimum-contrast`    | `3`        | テキストが背景に対して保つ最小のコントラスト。`1`（なし）から `21`。Ghostty と同じく、暗い背景向けの色が明るい背景でも読めるようにする |
+| `window-padding-color` | `extend` | ターミナルの文字の周りの余白に表示するもの。`background` はターミナルの背景、`extend` は隣のセルの色（背景のままの行を除く）、`extend-always` は常に隣のセルの色。Ghostty と同じ。`background` にすると、プログラムの下部のバーは 1 行の高さのままになる |
 | `dim-unfocused-terminals` | `true` | セッションに複数のペインがあるとき、使用中でないターミナルを薄くする |
 | `cursor-style`        | `block`    | `block`、`bar`、`underline`。プログラムが変更することがある              |
 | `cursor-style-blink`  | `true`     | カーソルを点滅させる                                                     |

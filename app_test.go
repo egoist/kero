@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/egoist/mygo/plugins/terminal"
+
 	"kero/internal/client"
 	"kero/internal/proto"
 )
@@ -217,6 +219,21 @@ func TestOpenProjectRemotePaths(t *testing.T) {
 				t.Errorf("remote sessions opened in %q, want [%q]", opened, dir)
 			}
 		})
+	}
+}
+
+// window-padding-color picks what the padding shows, extending the cells'
+// colors by default, as before it.
+func TestTermPaddingColor(t *testing.T) {
+	a := testApp(t)
+	if got := a.termOptions("a", nil).PaddingColor; got != terminal.PaddingExtend {
+		t.Errorf("by default the padding is %v, want PaddingExtend", got)
+	}
+	for v, want := range map[string]terminal.PaddingColor{"background": terminal.PaddingBackground, "extend": terminal.PaddingExtend, "extend-always": terminal.PaddingExtendAlways} {
+		a.set.PaddingColor = v
+		if got := a.termOptions("a", nil).PaddingColor; got != want {
+			t.Errorf("window-padding-color = %s gives %v, want %v", v, got, want)
+		}
 	}
 }
 

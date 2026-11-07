@@ -74,6 +74,7 @@ kero config check             # report unknown keys and bad values, and agents.t
 | `font-ligatures`      | `true`  | Join characters the way the font draws them                              |
 | `font-thicken`        | `false` | A heavier stroke, as in Ghostty                                          |
 | `minimum-contrast`    | `3`     | The least contrast text keeps with its background, from `1` (none) to `21`, so that colors meant for a dark background stay readable on a light one, as in Ghostty |
+| `window-padding-color` | `extend` | What the padding around a terminal's text shows: `background`, the terminal's background; `extend`, the colors of the cells beside it, but for a row left at the background; or `extend-always`, theirs always, as in Ghostty. With `background`, a program's bottom bar stays one row tall |
 | `dim-unfocused-terminals` | `true` | Fade the terminals you're not in, when a session has several panes |
 | `cursor-style`        | `block` | `block`, `bar` or `underline`; programs may change it                    |
 | `cursor-style-blink`  | `true`  | Blink the cursor                                                         |
