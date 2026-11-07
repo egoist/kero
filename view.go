@@ -602,6 +602,25 @@ func (a *App) sessionRow(c *ui.Context, pal *palette, s *proto.Session, n *int) 
 				ui.Text(c, ago(s.Since, c.Now())).FontSize(12.5).TextColor(pal.textFaint).FontFeatures("tnum").SingleLine().Shrink(0)
 			}
 		}
+		trailing := func() {
+			// Close takes the status's fixed slot, so hovering moves no text.
+			ui.Box(c.Key("trailing")).Size(20, 20).Shrink(0).Center().Children(func() {
+				if !hovered {
+					statusIconP(c, pal, s.Status, s.Unread, s.Progress, 15)
+					return
+				}
+				b := ui.ButtonBase(c.Key("close")).Size(20, 20).Radius(5).Center().TextColor(pal.textMuted).
+					Label(locales.ActionCloseSession()).Tooltip(locales.ActionCloseSession())
+				if b.Hovered() {
+					b.Background(pal.rowHover).TextColor(pal.text)
+				}
+				b.Children(func() { ui.Icon(c, closeIcon).Size(13, 13) })
+				if b.Clicked() {
+					id := s.ID
+					a.defer_(func() { a.closeSession(id, false) })
+				}
+			})
+		}
 		if detailed {
 			// The name, the time and the status over what the session is
 			// at, on a line of the whole row's width, so that a long
@@ -611,7 +630,7 @@ func (a *App) sessionRow(c *ui.Context, pal *palette, s *proto.Session, n *int) 
 					name()
 					ui.Spacer(c)
 					when()
-					statusIconP(c, pal, s.Status, s.Unread, s.Progress, 15)
+					trailing()
 				})
 				line, msg := rowDetail(s, g, a.hostOf(s.ID).shortDir(s.WorkDir()))
 				fg := pal.textFaint
@@ -628,7 +647,7 @@ func (a *App) sessionRow(c *ui.Context, pal *palette, s *proto.Session, n *int) 
 			}
 			ui.Spacer(c)
 			when()
-			statusIconP(c, pal, s.Status, s.Unread, s.Progress, 15)
+			trailing()
 		}
 	})
 	if expanded {

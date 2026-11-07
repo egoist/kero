@@ -71,6 +71,81 @@ func shot(t *testing.T, tt *ui.Tester, name string) {
 	png.Encode(f, tt.Image())
 }
 
+func TestSessionHoverClose(t *testing.T) {
+	for _, mode := range []string{"compact", "detailed"} {
+		for _, selected := range []bool{false, true} {
+			for _, dark := range []bool{false, true} {
+				t.Run(fmt.Sprintf("%s/selected=%t/dark=%t", mode, selected, dark), func(t *testing.T) {
+					a := testApp(t)
+					a.set.SidebarRows, a.set.ConfirmClose = mode, true
+					other := a.st.Sessions[0]
+					other.ID, other.Name = "s2", "other session"
+					other.Panes = []proto.Pane{{ID: "c", Shell: "fish", Progress: -1}}
+					other.Layout, other.Focus = nil, "c"
+					a.st.Sessions = append(a.st.Sessions, other)
+					id, remaining := "s2", "s1"
+					if selected {
+						id, remaining = remaining, id
+					}
+					s := a.session(id)
+					s.Name, s.Process, s.Status = "hover target", "claude", proto.Working
+					tt := ui.NewTester(a.view, 1100, 640)
+					tt.SetDark(dark)
+					tt.Frame()
+					tt.Advance(time.Second)
+					tt.Frame()
+					label := locales.ActionCloseSession()
+					if _, ok := tt.Find(label); ok {
+						t.Fatal("close button shown without hover")
+					}
+					before, ok := tt.Find("hover target")
+					if !ok {
+						t.Fatalf("no session title; texts %q", tt.Texts())
+					}
+					for range 2 {
+						tt.Move(before.X+before.W/2, before.Y+before.H/2)
+						tt.Frame()
+						if _, ok := tt.Find(label); !ok {
+							t.Fatal("hover did not show close button")
+						}
+						if after, _ := tt.Find("hover target"); after != before {
+							t.Fatalf("hover moved title: %v → %v", before, after)
+						}
+						tt.Move(1000, 600)
+						tt.Frame()
+						if _, ok := tt.Find(label); ok {
+							t.Fatal("close button remained after pointer left")
+						}
+					}
+					tt.Move(before.X+before.W/2, before.Y+before.H/2)
+					tt.Frame()
+					button, ok := tt.Find(label)
+					if !ok {
+						t.Fatal("close button did not return")
+					}
+					tt.Move(button.X+button.W/2, button.Y+button.H/2)
+					tt.Frame()
+					shot(t, tt, fmt.Sprintf("session-close-%s-%t-%t", mode, selected, dark))
+					tt.Press(button.X+button.W/2, button.Y+button.H/2)
+					tt.Frame()
+					if a.selected != "s1" {
+						t.Fatal("pressing close selected the background session")
+					}
+					tt.Release(button.X+button.W/2, button.Y+button.H/2)
+					tt.Frame()
+					if a.session(id) != nil || len(a.st.Sessions) != 1 || a.selected != remaining {
+						t.Fatalf("wrong session closed: selected=%q sessions=%v", a.selected, a.st.Sessions)
+					}
+					if a.confirm != nil && a.confirm.open {
+						t.Fatal("close button asked for confirmation")
+					}
+					tt.Frame()
+				})
+			}
+		}
+	}
+}
+
 func testDropApp(t *testing.T) *App {
 	t.Helper()
 	a := testApp(t)
