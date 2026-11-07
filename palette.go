@@ -54,6 +54,7 @@ type paletteItem struct {
 	score   int
 	words   string // what finds it besides its title and detail, unshown
 	top     bool   // what the query asks for outright, before any match
+	shell   bool   // shell names such as Git Bash do not outrank action keywords
 }
 
 func (a *App) openPalette() {
@@ -164,6 +165,9 @@ func (a *App) paletteItems() []paletteItem {
 	if a.pal.only {
 		return a.conversationItems()
 	}
+	if _, shellsOnly := shellPaletteQuery(a.pal.query); shellsOnly {
+		return a.shellItems()
+	}
 	var items []paletteItem
 	names := map[string]string{}
 	for _, p := range a.st.Projects {
@@ -202,6 +206,7 @@ func (a *App) paletteItems() []paletteItem {
 		cmds = append(cmds, paletteItem{title: locales.PaletteSettingsPage(page.title()), words: "settings preferences " + id + " " + pageWords[id], run: func() { a.openSettings(id) }})
 	}
 	cmds = append(cmds, a.awakeCommands()...)
+	cmds = append(cmds, a.shellItems()...)
 	cmds = append(cmds, paletteItem{title: locales.PaletteRestartService(), detail: locales.PaletteRestartServiceDetail(),
 		words: en.PaletteRestartService() + " " + en.PaletteRestartServiceDetail(), run: a.restartDaemon})
 	for _, p := range a.st.Projects {
@@ -304,11 +309,15 @@ func (a *App) paletteView(c *ui.Context, pal *palette) {
 	if !a.pal.open {
 		return
 	}
+	query := a.pal.query
+	if !a.pal.only {
+		query, _ = shellPaletteQuery(query)
+	}
 	var items []paletteItem
 	for _, it := range a.paletteItems() {
-		sc := fuzzy(a.pal.query, it.title+" "+it.detail)
-		sc = max(sc, keywords(a.pal.query, it.words))
-		if t := fuzzy(a.pal.query, it.title); t >= 0 {
+		sc := fuzzy(query, it.title+" "+it.detail)
+		sc = max(sc, keywords(query, it.words))
+		if t := fuzzy(query, it.title); t >= 0 && !it.shell {
 			sc = max(sc, t+50)
 		}
 		if it.top {
@@ -320,7 +329,7 @@ func (a *App) paletteView(c *ui.Context, pal *palette) {
 		it.score = sc
 		items = append(items, it)
 	}
-	if a.pal.query != "" {
+	if query != "" {
 		slices.SortStableFunc(items, func(x, y paletteItem) int { return y.score - x.score })
 	}
 	a.pal.index = min(max(a.pal.index, 0), max(len(items)-1, 0))

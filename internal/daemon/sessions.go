@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"kero/internal/proto"
+	"kero/internal/settings"
 )
 
 // session is a row of the sidebar: a task's panes, in a layout. d.mu
@@ -254,6 +255,9 @@ func (d *Daemon) startPane(sid string, p proto.CreateParams, dir string) (*pane,
 		info.URL, info.Command = proto.BrowserURL(p.URL), nil
 	}
 	pn, err := newPane(d, sid, info)
+	if pn != nil {
+		pn.program, pn.args = p.Shell, slices.Clone(p.ShellArgs)
+	}
 	if err != nil || pn.info.Browser() {
 		return pn, err
 	}
@@ -268,6 +272,14 @@ func (d *Daemon) startPane(sid string, p proto.CreateParams, dir string) (*pane,
 func (d *Daemon) create(p proto.CreateParams) (proto.Session, error) {
 	if p.Split != "" {
 		return d.split(p)
+	}
+	if p.Dir == "" && p.Project == "" {
+		d.mu.Lock()
+		first := len(d.projects) == 0
+		d.mu.Unlock()
+		if first {
+			p.Dir = settings.Load().ShellStartDir()
+		}
 	}
 	dir, err := d.cleanDir(p.Dir)
 	if err != nil {

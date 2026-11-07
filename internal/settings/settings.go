@@ -72,7 +72,9 @@ type Settings struct {
 
 	// Shell
 	Shell      string   `json:"shell"` // "" the account's login shell
-	Env        []string `json:"env"`   // "KEY=value", added to every pane's
+	ShellArgs  string   `json:"shellArgs,omitempty"`
+	ShellDir   string   `json:"shellDir,omitempty"` // "" inherits Kero's startup directory, "~" for home, else a path
+	Env        []string `json:"env"`                // "KEY=value", added to every pane's
 	Scrollback int      `json:"scrollback"`
 
 	// Notifications
@@ -367,6 +369,17 @@ func target(path string) string {
 
 // Clone returns a copy that shares nothing with s.
 func (s Settings) Clone() Settings { return clone(s) }
+
+// ShellStartDir is used only when no pane or project supplies a directory.
+func (s Settings) ShellStartDir() string {
+	if s.ShellDir != "" {
+		return s.ShellDir
+	}
+	if dir, err := os.Getwd(); err == nil {
+		return dir
+	}
+	return proto.Home()
+}
 
 // ScrollbackBytes is a terminal's terminal.Options.Scrollback for the
 // scrollback-limit, the same in kerod's copy of a pane and the app's: -1

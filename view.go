@@ -71,7 +71,7 @@ func chromeFor(progress, width float32, bar ui.TitleBar) chrome {
 	// Where the header's title starts in the window, rounded once: after
 	// the traffic lights and the sidebar's buttons with the sidebar
 	// hidden, 16 into the card with it shown.
-	hidden, shown := lead(bar)+16+60, width+16
+	hidden, shown := lead(bar)+16+80, width+16
 	x := round(hidden + (shown-hidden)*s)
 	return chrome{shown: s, sideW: w, mainPad: pad, headerPad: x - w - pad}
 }
@@ -304,7 +304,7 @@ func (a *App) sidebar(c *ui.Context, pal *palette, bar ui.TitleBar) {
 			ui.Spacer(c)
 		}
 		iconButton(c, "hide-sidebar", sidebarIcon, a.tip(locales.SidebarHide(), "sidebar.toggle"), pal, a.toggleSidebar)
-		iconButton(c, "new-session", plusIcon, a.tip(locales.ActionNewSession(), "session.new"), pal, func() { a.newSession("") })
+		a.newSessionButton(c, "new-session", pal)
 	})
 	// The space between and below the rows moves the window, as the top
 	// bar does.
@@ -1074,7 +1074,7 @@ func (a *App) card(c *ui.Context, pal *palette, bar ui.TitleBar, shown float32) 
 			if shown < 0.5 {
 				ui.Row(c).Absolute().Left(a.chrome.buttonsLeft(bar)).Top(0).Bottom(0).AlignItems(ui.Center).Gap(2).Opacity(1 - 2*shown).Children(func() {
 					iconButton(c, "show-sidebar", sidebarIcon, a.tip(locales.SidebarShow(), "sidebar.toggle"), pal, a.toggleSidebar)
-					iconButton(c, "new-session-2", plusIcon, a.tip(locales.ActionNewSession(), "session.new"), pal, func() { a.newSession("") })
+					a.newSessionButton(c, "new-session-2", pal)
 				})
 			}
 			ui.Text(c, "Kero").FontSize(14).FontWeight(600).TextColor(pal.text)

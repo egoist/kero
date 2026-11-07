@@ -36,6 +36,176 @@ type Messages struct{ locale string }
 // source language.
 func In(locale string) Messages { return Messages{locale} }
 
+// ShellMenu says "Choose a shell"
+// in the language the app shows.
+func ShellMenu() string { return In(i18n.Locale()).ShellMenu() }
+
+// ShellMenu says "Choose a shell"
+// in the language of msgs.
+func (msgs Messages) ShellMenu() string {
+	return Catalog.Format(msgs.locale, "shellMenu", nil)
+}
+
+// ShellLocal says "Local"
+// in the language the app shows.
+func ShellLocal() string { return In(i18n.Locale()).ShellLocal() }
+
+// ShellLocal says "Local"
+// in the language of msgs.
+func (msgs Messages) ShellLocal() string {
+	return Catalog.Format(msgs.locale, "shellLocal", nil)
+}
+
+// ShellDefault says "Default"
+// in the language the app shows.
+func ShellDefault() string { return In(i18n.Locale()).ShellDefault() }
+
+// ShellDefault says "Default"
+// in the language of msgs.
+func (msgs Messages) ShellDefault() string {
+	return Catalog.Format(msgs.locale, "shellDefault", nil)
+}
+
+// ShellOther says "Other Shells…"
+// in the language the app shows.
+func ShellOther() string { return In(i18n.Locale()).ShellOther() }
+
+// ShellOther says "Other Shells…"
+// in the language of msgs.
+func (msgs Messages) ShellOther() string {
+	return Catalog.Format(msgs.locale, "shellOther", nil)
+}
+
+// ShellPaletteItem says "Shell: {name}"
+// in the language the app shows.
+func ShellPaletteItem(name string) string { return In(i18n.Locale()).ShellPaletteItem(name) }
+
+// ShellPaletteItem says "Shell: {name}"
+// in the language of msgs.
+func (msgs Messages) ShellPaletteItem(name string) string {
+	return Catalog.Format(msgs.locale, "shellPaletteItem", map[string]any{"name": name})
+}
+
+// ShellSystemDefault says "System default"
+// in the language the app shows.
+func ShellSystemDefault() string { return In(i18n.Locale()).ShellSystemDefault() }
+
+// ShellSystemDefault says "System default"
+// in the language of msgs.
+func (msgs Messages) ShellSystemDefault() string {
+	return Catalog.Format(msgs.locale, "shellSystemDefault", nil)
+}
+
+// SetShellArgs says "Shell arguments"
+// in the language the app shows.
+func SetShellArgs() string { return In(i18n.Locale()).SetShellArgs() }
+
+// SetShellArgs says "Shell arguments"
+// in the language of msgs.
+func (msgs Messages) SetShellArgs() string {
+	return Catalog.Format(msgs.locale, "setShellArgs", nil)
+}
+
+// SetShellArgsDetail says "Split on spaces, with quotes for groups, e.g. -l or -c \"echo hi\"."
+// in the language the app shows.
+func SetShellArgsDetail() string { return In(i18n.Locale()).SetShellArgsDetail() }
+
+// SetShellArgsDetail says "Split on spaces, with quotes for groups, e.g. -l or -c \"echo hi\"."
+// in the language of msgs.
+func (msgs Messages) SetShellArgsDetail() string {
+	return Catalog.Format(msgs.locale, "setShellArgsDetail", nil)
+}
+
+// SetShellArgsInvalid says "Invalid shell arguments: {error}"
+// in the language the app shows.
+func SetShellArgsInvalid(error string) string { return In(i18n.Locale()).SetShellArgsInvalid(error) }
+
+// SetShellArgsInvalid says "Invalid shell arguments: {error}"
+// in the language of msgs.
+func (msgs Messages) SetShellArgsInvalid(error string) string {
+	return Catalog.Format(msgs.locale, "setShellArgsInvalid", map[string]any{"error": error})
+}
+
+// SetShellDirectory says "Startup directory"
+// in the language the app shows.
+func SetShellDirectory() string { return In(i18n.Locale()).SetShellDirectory() }
+
+// SetShellDirectory says "Startup directory"
+// in the language of msgs.
+func (msgs Messages) SetShellDirectory() string {
+	return Catalog.Format(msgs.locale, "setShellDirectory", nil)
+}
+
+// SetShellDirectoryDetail says "Used only without a pane or project directory to inherit."
+// in the language the app shows.
+func SetShellDirectoryDetail() string { return In(i18n.Locale()).SetShellDirectoryDetail() }
+
+// SetShellDirectoryDetail says "Used only without a pane or project directory to inherit."
+// in the language of msgs.
+func (msgs Messages) SetShellDirectoryDetail() string {
+	return Catalog.Format(msgs.locale, "setShellDirectoryDetail", nil)
+}
+
+// ShellDirectoryInherit says "Inherit"
+// in the language the app shows.
+func ShellDirectoryInherit() string { return In(i18n.Locale()).ShellDirectoryInherit() }
+
+// ShellDirectoryInherit says "Inherit"
+// in the language of msgs.
+func (msgs Messages) ShellDirectoryInherit() string {
+	return Catalog.Format(msgs.locale, "shellDirectoryInherit", nil)
+}
+
+// ShellDirectoryHome says "Home directory"
+// in the language the app shows.
+func ShellDirectoryHome() string { return In(i18n.Locale()).ShellDirectoryHome() }
+
+// ShellDirectoryHome says "Home directory"
+// in the language of msgs.
+func (msgs Messages) ShellDirectoryHome() string {
+	return Catalog.Format(msgs.locale, "shellDirectoryHome", nil)
+}
+
+// ShellDirectoryCustom says "Custom path…"
+// in the language the app shows.
+func ShellDirectoryCustom() string { return In(i18n.Locale()).ShellDirectoryCustom() }
+
+// ShellDirectoryCustom says "Custom path…"
+// in the language of msgs.
+func (msgs Messages) ShellDirectoryCustom() string {
+	return Catalog.Format(msgs.locale, "shellDirectoryCustom", nil)
+}
+
+// ShellDirectoryPath says "Directory path"
+// in the language the app shows.
+func ShellDirectoryPath() string { return In(i18n.Locale()).ShellDirectoryPath() }
+
+// ShellDirectoryPath says "Directory path"
+// in the language of msgs.
+func (msgs Messages) ShellDirectoryPath() string {
+	return Catalog.Format(msgs.locale, "shellDirectoryPath", nil)
+}
+
+// ShellUseProgram says "Use “{program}”"
+// in the language the app shows.
+func ShellUseProgram(program string) string { return In(i18n.Locale()).ShellUseProgram(program) }
+
+// ShellUseProgram says "Use “{program}”"
+// in the language of msgs.
+func (msgs Messages) ShellUseProgram(program string) string {
+	return Catalog.Format(msgs.locale, "shellUseProgram", map[string]any{"program": program})
+}
+
+// ShellResetProgram says "Reset shell program"
+// in the language the app shows.
+func ShellResetProgram() string { return In(i18n.Locale()).ShellResetProgram() }
+
+// ShellResetProgram says "Reset shell program"
+// in the language of msgs.
+func (msgs Messages) ShellResetProgram() string {
+	return Catalog.Format(msgs.locale, "shellResetProgram", nil)
+}
+
 // ActionSettings says "Settings…"
 // in the language the app shows.
 func ActionSettings() string { return In(i18n.Locale()).ActionSettings() }

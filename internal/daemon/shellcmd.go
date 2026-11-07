@@ -1,10 +1,82 @@
 package daemon
 
 import (
+	"fmt"
+	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
+
+	"kero/internal/settings"
+	"kero/internal/shell"
 )
+
+// paneShell keeps a one-off choice independent of the configured shell's args.
+func paneShell(program string, args []string, set settings.Settings) (string, []string, error) {
+	if program == "" {
+		program = set.Shell
+		var err error
+		args, err = shell.ParseArgs(set.ShellArgs)
+		if err != nil {
+			return "", nil, fmt.Errorf("shell arguments: %w", err)
+		}
+	}
+	if program == "" {
+		program = shell.Login()
+	}
+	path, err := exec.LookPath(expandHome(program))
+	if err != nil {
+		return "", nil, fmt.Errorf("shell %q: %w", program, err)
+	}
+	return path, args, nil
+}
+
+func shellLaunchArgs(program, bin string, command, extra []string) []string {
+	if len(extra) == 0 {
+		return shellArgs(program, bin, command)
+	}
+	name := shellName(program)
+	powershell := name == "pwsh" || name == "powershell"
+	for i, arg := range extra {
+		commandArg, flags := false, ""
+		switch {
+		case powershell:
+			switch strings.ToLower(arg) {
+			case "-c", "-command", "-commandwithargs", "-encodedcommand", "-e", "-ec", "-f", "-file":
+				commandArg = true
+			}
+		case name == "cmd":
+			commandArg = strings.EqualFold(arg, "/c") || strings.EqualFold(arg, "/k")
+		case posixShell(name):
+			commandArg = arg == "--command"
+			if strings.HasPrefix(arg, "-") && !strings.HasPrefix(arg, "--") && strings.Contains(arg, "c") {
+				commandArg, flags = true, strings.ReplaceAll(arg, "c", "")
+			}
+		}
+		if !commandArg {
+			continue
+		}
+		if len(command) == 0 {
+			return append([]string{name}, extra...)
+		}
+		// The requested command replaces the configured command and its arguments.
+		extra = extra[:i]
+		if len(flags) > 1 {
+			extra = append(slices.Clone(extra), flags)
+		}
+		break
+	}
+	args := append([]string{name}, extra...)
+	integrate := len(command) > 0 || powershell
+	if integrate {
+		args = append(args, shellArgs(program, bin, command)[1:]...)
+	}
+	if !integrate && name == "fish" && bin != "" {
+		args = append(args, "-C", fishBinFirst(bin))
+	}
+	return args
+}
 
 // shellName is a shell's name, as the sidebar shows it: "zsh", "pwsh".
 func shellName(shell string) string {

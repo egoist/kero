@@ -708,11 +708,13 @@ type (
 		Direction string  `json:"direction,omitempty"`
 		Ratio     float64 `json:"ratio,omitempty"`
 
-		Project string   `json:"project,omitempty"` // id or name; "" the first
-		Name    string   `json:"name,omitempty"`
-		Dir     string   `json:"dir,omitempty"` // "" the project's, else home
-		Command []string `json:"command,omitempty"`
-		Env     []string `json:"env,omitempty"`
+		Project   string   `json:"project,omitempty"` // id or name; "" the first
+		Name      string   `json:"name,omitempty"`
+		Dir       string   `json:"dir,omitempty"` // "" the project's, else home
+		Command   []string `json:"command,omitempty"`
+		Env       []string `json:"env,omitempty"`
+		Shell     string   `json:"shell,omitempty"` // override for this pane only
+		ShellArgs []string `json:"shellArgs,omitempty"`
 		// URL makes a browser pane showing it, instead of a shell.
 		URL   string `json:"url,omitempty"`
 		After string `json:"after,omitempty"` // put it after this session

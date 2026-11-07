@@ -350,3 +350,26 @@ func TestFontFeature(t *testing.T) {
 		t.Errorf("a new file sets font-feature:\n%s", out)
 	}
 }
+
+func TestShellConfiguration(t *testing.T) {
+	file := "command = pwsh\ncommand-args = -NoLogo -File \"C:\\My Scripts\\init.ps1\"\nworking-directory = ~/work\n"
+	s, probs := parse(file)
+	if len(probs) != 0 || s.Shell != "pwsh" || s.ShellArgs != `-NoLogo -File "C:\My Scripts\init.ps1"` || s.ShellDir != "~/work" {
+		t.Fatalf("parsed %+v, problems %q", s, probs)
+	}
+	back, probs := parse(format(s, ""))
+	if len(probs) != 0 || !reflect.DeepEqual(back, s) {
+		t.Fatalf("shell settings did not round trip: %+v, %q", back, probs)
+	}
+	for _, args := range []string{`-c "echo # hi"`, `"one argument"`, `-File "C:\My Scripts\init.ps1"`, ` -l `} {
+		s.ShellArgs = args
+		back, probs := parse(format(s, ""))
+		if len(probs) != 0 || back.ShellArgs != args {
+			t.Errorf("argument quoting did not round trip: %q became %q (%q)", args, back.ShellArgs, probs)
+		}
+	}
+	bad, probs := parse("command-args = -c \"unterminated\n")
+	if len(probs) != 1 || bad.ShellArgs != "" {
+		t.Fatalf("invalid args accepted: %q, %q", bad.ShellArgs, probs)
+	}
+}

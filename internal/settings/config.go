@@ -12,6 +12,7 @@ import (
 	"kero/internal/adblock"
 	"kero/internal/proto"
 	"kero/internal/remote"
+	"kero/internal/shell"
 )
 
 // kero's configuration is a file of lines `key = value`, as Ghostty's:
@@ -243,6 +244,17 @@ var keys = []key{
 		}},
 
 	stringKey("command", "the shell of new panes: empty for your login shell", func(s *Settings) *string { return &s.Shell }),
+	{name: "command-args", doc: "shell arguments, split on spaces with single or double quotes; empty for Kero's defaults",
+		get: func(s *Settings) []string { return []string{s.ShellArgs} },
+		set: func(s *Settings, v []string) error {
+			value := v[len(v)-1]
+			if _, err := shell.ParseArgs(value); err != nil {
+				return err
+			}
+			s.ShellArgs = value
+			return nil
+		}},
+	stringKey("working-directory", "fallback when no pane or project supplies a directory: empty inherits Kero's startup directory, ~ for home, else a path", func(s *Settings) *string { return &s.ShellDir }),
 	{name: "env", doc: "added to every pane's environment, as NAME=value; repeat it", list: true,
 		get: func(s *Settings) []string { return slices.Clone(s.Env) },
 		set: func(s *Settings, v []string) error {
@@ -508,7 +520,11 @@ func parseLines(data string) []line {
 				l.key = strings.TrimSpace(k)
 				l.value = strings.TrimSpace(v)
 				if len(l.value) >= 2 && l.value[0] == '"' && l.value[len(l.value)-1] == '"' {
-					l.value = l.value[1 : len(l.value)-1]
+					if decoded, err := strconv.Unquote(l.value); l.key == "command-args" && err == nil {
+						l.value = decoded
+					} else {
+						l.value = l.value[1 : len(l.value)-1]
+					}
 				}
 			} else {
 				l.key = t // a key without a value: a problem
@@ -574,6 +590,13 @@ func quote(v string) string {
 	return v
 }
 
+func configValue(k *key, value string) string {
+	if k.name == "command-args" {
+		return strconv.Quote(value) // preserve the arguments' own quotes and backslashes
+	}
+	return quote(value)
+}
+
 // format writes s into a configuration, over the file's lines: a key the
 // file sets takes its new values where it is; one the file leaves out is
 // written at the end when it differs from its default. Comments, blank
@@ -585,7 +608,7 @@ func format(s Settings, data string) string {
 	var out []string
 	emit := func(k *key) {
 		for _, v := range k.get(&s) {
-			out = append(out, k.name+" = "+quote(v))
+			out = append(out, k.name+" = "+configValue(k, v))
 		}
 		written[k.name] = true
 	}
@@ -637,7 +660,7 @@ func Reference(s Settings) string {
 			b.WriteString("# " + k.name + " =\n")
 		}
 		for _, v := range vals {
-			b.WriteString(k.name + " = " + quote(v) + "\n")
+			b.WriteString(k.name + " = " + configValue(&k, v) + "\n")
 		}
 		b.WriteString("\n")
 	}

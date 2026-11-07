@@ -55,21 +55,21 @@ var settingsPages = []settingsPage{
 
 // settingsState is what the Settings window keeps besides the settings.
 type settingsState struct {
-	page       string
-	recording  string // the action whose shortcut is being typed
-	recordRef  ui.Handle
-	filter     string // the keyboard page's search
-	query      string // the sidebar's search, of every page
-	searchRef  ui.Handle
-	revealed   string // the query and page the search last scrolled to
-	draft      map[string]string
-	envDraft   string
-	shellDraft string
+	page                   string
+	recording              string // the action whose shortcut is being typed
+	recordRef              ui.Handle
+	filter                 string // the keyboard page's search
+	query                  string // the sidebar's search, of every page
+	searchRef              ui.Handle
+	revealed               string // the query and page the search last scrolled to
+	draft                  map[string]string
+	envDraft               string
+	argsDraft, argsError   string
+	argsEditing, dirCustom bool
 	// featuresDraft is font-feature as the field has it, while
 	// featuresEditing.
 	featuresDraft   string
 	featuresEditing bool
-	shellEditing    bool
 	loginOpen       bool // open at login, as the system says
 	updates         updatePrefs
 	cliPath         string
@@ -1110,18 +1110,9 @@ func (a *App) shellPage(c *ui.Context, pal *palette) {
 		note += " " + locales.SetShellThisComputer()
 	}
 	settingsGroup(c, pal, locales.SetShellGroup(), note, func() {
-		settingRow(c, pal, locales.SetShell(), locales.SetShellDetail(proto.ShortDir(login)), func() {
-			if !a.ss.shellEditing {
-				a.ss.shellDraft = s.Shell
-			}
-			in := textField(c, "shell", &a.ss.shellDraft, proto.ShortDir(login), 220, pal)
-			a.ss.shellEditing = in.Focused()
-			// Kept as it is submitted, or as the field loses the focus.
-			in.OnSubmit(func() { a.set.Shell = strings.TrimSpace(a.ss.shellDraft) })
-			if !a.ss.shellEditing && strings.TrimSpace(a.ss.shellDraft) != s.Shell {
-				a.set.Shell = strings.TrimSpace(a.ss.shellDraft)
-			}
-		})
+		a.shellProgramSetting(c, pal, login)
+		a.shellArgsSetting(c, pal)
+		a.shellDirectorySetting(c, pal)
 		settingRow(c, pal, locales.SetScrollback(), locales.SetScrollbackDetail(), func() {
 			sizes := []int{0, 1, 4, 16, 64}
 			if !slices.Contains(sizes, s.Scrollback) {
