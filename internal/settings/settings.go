@@ -23,7 +23,8 @@ import (
 // choice of its own: Load fills defaults in.
 type Settings struct {
 	// General
-	NewSessionDir     string `json:"newSessionDir"`     // "current", "project" or "home"
+	NewSessionDir     string `json:"newSessionDir"`     // "current", "project", "home" or "custom", NewSessionPath
+	NewSessionPath    string `json:"newSessionPath"`    // the folder new sessions start in when NewSessionDir is "custom", as ~/… or absolute
 	SessionName       string `json:"sessionName"`       // what names an unnamed session: proto.NameFocused, NameLead or NameFolder
 	SidebarRows       string `json:"sidebarRows"`       // "detailed", two lines a session, or "compact", one
 	SidebarCount      bool   `json:"sidebarCount"`      // a project's header shows how many sessions it holds
@@ -448,7 +449,10 @@ func (s *Settings) normalize() {
 		}
 		*v = def
 	}
-	oneOf(&s.NewSessionDir, d.NewSessionDir, "current", "project", "home")
+	oneOf(&s.NewSessionDir, d.NewSessionDir, "current", "project", "home", "custom")
+	if s.NewSessionDir == "custom" && !IsFolderPath(s.NewSessionPath) {
+		s.NewSessionDir = d.NewSessionDir
+	}
 	oneOf(&s.SidebarRows, d.SidebarRows, "detailed", "compact")
 	oneOf(&s.Appearance, d.Appearance, "system", "light", "dark")
 	oneOf(&s.Language, d.Language, append([]string{"system"}, Languages...)...)

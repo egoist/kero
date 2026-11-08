@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -110,11 +111,39 @@ func mapChoice(name, doc string, f func(*Settings) *string, file, ours []string)
 		}}
 }
 
+// newSessionDirKey takes a folder of the user's too, as ~/… or an
+// absolute path, besides the choices.
+var newSessionDirKey = key{name: "new-session-directory",
+	doc: "where a new session starts (current, project, home, or a folder such as ~/Developer, home when it is gone; sessions on other hosts start in their home)",
+	get: func(s *Settings) []string {
+		if s.NewSessionDir == "custom" {
+			return []string{s.NewSessionPath}
+		}
+		return []string{s.NewSessionDir}
+	},
+	set: func(s *Settings, v []string) error {
+		c := v[len(v)-1]
+		switch {
+		case slices.Contains([]string{"current", "project", "home"}, c):
+			s.NewSessionDir = c
+		case IsFolderPath(c):
+			s.NewSessionDir, s.NewSessionPath = "custom", c
+		default:
+			return fmt.Errorf("%q is none of current, project, home, nor a folder as ~/… or an absolute path", c)
+		}
+		return nil
+	}}
+
+// IsFolderPath tells a folder new-session-directory can name: ~/… or
+// absolute.
+func IsFolderPath(p string) bool {
+	return p == "~" || strings.HasPrefix(p, "~/") || runtime.GOOS == "windows" && strings.HasPrefix(p, `~\`) || filepath.IsAbs(p)
+}
+
 // keys are the configuration's keys, in the order a new file and
 // `kero config show` list them.
 var keys = []key{
-	mapChoice("new-session-directory", "where a new session starts", func(s *Settings) *string { return &s.NewSessionDir },
-		[]string{"current", "project", "home"}, []string{"current", "project", "home"}),
+	newSessionDirKey,
 	choiceKey("session-name", "what names a session you or an agent didn't: the program in the pane you're in, else in the one that most needs you; the program in the one that most needs you; or the first pane's folder",
 		func(s *Settings) *string { return &s.SessionName }, proto.NameFocused, proto.NameLead, proto.NameFolder),
 	choiceKey("sidebar-rows", "how the sidebar shows a session: detailed, with its status message, else its branch and changes, on a second line; or compact, on one line",

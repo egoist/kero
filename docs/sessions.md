@@ -31,6 +31,7 @@ The `new-session-directory` setting picks the folder:
 - `current` (default): the directory of the session you're in
 - `project`: the project's root folder
 - `home`: your home folder
+- a folder of yours, such as `new-session-directory = ~/Developer`, or **Custom…** in Settings › General. If the folder is gone, sessions start in your home. Sessions on other hosts start in their home.
 
 ### How an unnamed session is named
 

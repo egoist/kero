@@ -747,3 +747,23 @@ func TestFontFeaturesField(t *testing.T) {
 		shot(t, tt, "font-features-bad-"+name)
 	}
 }
+
+// With Custom, the general page names the folder new sessions start in,
+// with a button to choose another.
+func TestNewSessionFolderRow(t *testing.T) {
+	a := testApp(t)
+	a.ss.draft = map[string]string{}
+	a.ss.page = "general"
+	a.set.NewSessionDir, a.set.NewSessionPath = "custom", "~/Developer"
+	tt := ui.NewTester(a.settingsView, 820, 420)
+	tt.Frame()
+	if !tt.HasText("Custom…") || !tt.HasText("~/Developer") || !tt.HasText("Choose…") {
+		t.Errorf("texts %q", tt.Texts())
+	}
+	shot(t, tt, "settings-new-session-custom")
+	a.set.NewSessionDir = "home"
+	tt.Frame()
+	if tt.HasText("Choose…") {
+		t.Error("the folder row shows with home")
+	}
+}

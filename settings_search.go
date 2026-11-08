@@ -23,7 +23,7 @@ type searchEntry struct {
 // language the app shows, as their rows are.
 func settingsIndex() []searchEntry {
 	entries := []searchEntry{
-		{"general", locales.SetNewSessionsStartIn(), "new-session-directory folder current project home tab"},
+		{"general", locales.SetNewSessionsStartIn(), "new-session-directory folder current project home custom tab"},
 		{"general", locales.SetSessionName(), "session-name title sidebar focused lead folder pane"},
 		{"general", locales.SetSidebarRows(), "sidebar-rows compact detailed status message branch two lines"},
 		{"general", locales.SetSidebarCount(), "sidebar-session-count project sessions number count header"},

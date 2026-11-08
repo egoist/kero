@@ -350,3 +350,23 @@ func TestFontFeature(t *testing.T) {
 		t.Errorf("a new file sets font-feature:\n%s", out)
 	}
 }
+
+// new-session-directory takes a folder besides its choices, and writes it
+// back as it was given.
+func TestNewSessionDirectoryFolder(t *testing.T) {
+	s, probs := parse("new-session-directory = ~/Developer\n")
+	if len(probs) > 0 || s.NewSessionDir != "custom" || s.NewSessionPath != "~/Developer" {
+		t.Fatalf("got %q %q, problems %q", s.NewSessionDir, s.NewSessionPath, probs)
+	}
+	if v := newSessionDirKey.get(&s); v[0] != "~/Developer" {
+		t.Errorf("written back as %q", v)
+	}
+	if _, probs := parse("new-session-directory = Developer\n"); len(probs) != 1 {
+		t.Errorf("a relative folder: problems %q", probs)
+	}
+	bad := Settings{NewSessionDir: "custom"}
+	bad.normalize()
+	if bad.NewSessionDir != Default().NewSessionDir {
+		t.Errorf("custom with no folder kept as %q", bad.NewSessionDir)
+	}
+}

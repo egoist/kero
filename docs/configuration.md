@@ -41,7 +41,7 @@ kero config check             # report unknown keys and bad values, and agents.t
 
 | Key                     | Default   | Description                                                   |
 | ----------------------- | --------- | ------------------------------------------------------------- |
-| `new-session-directory` | `current` | Where a new session starts: `current`, `project` or `home`    |
+| `new-session-directory` | `current` | Where a new session starts: `current`, `project`, `home`, or a folder such as `~/Developer` |
 | `session-name`          | `focused` | What names a session you haven't: `focused`, `lead` or `folder` ([more](./sessions.md#how-an-unnamed-session-is-named)) |
 | `sidebar-rows`          | `detailed` | How the sidebar shows a session: `detailed`, with its status message, else its branch and changes, on a second line; or `compact`, on one line |
 | `sidebar-session-count` | `true`    | Show, beside a project's name in the sidebar, how many sessions it holds |

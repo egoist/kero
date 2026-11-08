@@ -536,6 +536,16 @@ func (msgs Messages) CommonOpen() string {
 	return Catalog.Format(msgs.locale, "commonOpen", nil)
 }
 
+// CommonChoose says "Choose"
+// in the language the app shows.
+func CommonChoose() string { return In(i18n.Locale()).CommonChoose() }
+
+// CommonChoose says "Choose"
+// in the language of msgs.
+func (msgs Messages) CommonChoose() string {
+	return Catalog.Format(msgs.locale, "commonChoose", nil)
+}
+
 // CommonShow says "Show"
 // in the language the app shows.
 func CommonShow() string { return In(i18n.Locale()).CommonShow() }
@@ -912,6 +922,26 @@ func OpenProjectMessage() string { return In(i18n.Locale()).OpenProjectMessage()
 // in the language of msgs.
 func (msgs Messages) OpenProjectMessage() string {
 	return Catalog.Format(msgs.locale, "openProjectMessage", nil)
+}
+
+// NewSessionFolderTitle says "New Sessions Start In"
+// in the language the app shows.
+func NewSessionFolderTitle() string { return In(i18n.Locale()).NewSessionFolderTitle() }
+
+// NewSessionFolderTitle says "New Sessions Start In"
+// in the language of msgs.
+func (msgs Messages) NewSessionFolderTitle() string {
+	return Catalog.Format(msgs.locale, "newSessionFolderTitle", nil)
+}
+
+// NewSessionFolderMessage says "Choose the folder new sessions start in."
+// in the language the app shows.
+func NewSessionFolderMessage() string { return In(i18n.Locale()).NewSessionFolderMessage() }
+
+// NewSessionFolderMessage says "Choose the folder new sessions start in."
+// in the language of msgs.
+func (msgs Messages) NewSessionFolderMessage() string {
+	return Catalog.Format(msgs.locale, "newSessionFolderMessage", nil)
 }
 
 // ConfirmCloseTitle says "Close “{name}”?"
@@ -2088,6 +2118,36 @@ func SetDirHome() string { return In(i18n.Locale()).SetDirHome() }
 // in the language of msgs.
 func (msgs Messages) SetDirHome() string {
 	return Catalog.Format(msgs.locale, "setDirHome", nil)
+}
+
+// SetDirCustom says "Custom…"
+// in the language the app shows.
+func SetDirCustom() string { return In(i18n.Locale()).SetDirCustom() }
+
+// SetDirCustom says "Custom…"
+// in the language of msgs.
+func (msgs Messages) SetDirCustom() string {
+	return Catalog.Format(msgs.locale, "setDirCustom", nil)
+}
+
+// SetNewSessionFolderDetail says "Sessions on other hosts start in their home, as they do here when the folder is gone."
+// in the language the app shows.
+func SetNewSessionFolderDetail() string { return In(i18n.Locale()).SetNewSessionFolderDetail() }
+
+// SetNewSessionFolderDetail says "Sessions on other hosts start in their home, as they do here when the folder is gone."
+// in the language of msgs.
+func (msgs Messages) SetNewSessionFolderDetail() string {
+	return Catalog.Format(msgs.locale, "setNewSessionFolderDetail", nil)
+}
+
+// SetChooseFolder says "Choose…"
+// in the language the app shows.
+func SetChooseFolder() string { return In(i18n.Locale()).SetChooseFolder() }
+
+// SetChooseFolder says "Choose…"
+// in the language of msgs.
+func (msgs Messages) SetChooseFolder() string {
+	return Catalog.Format(msgs.locale, "setChooseFolder", nil)
 }
 
 // SetSessionName says "Name sessions after"
