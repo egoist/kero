@@ -22,6 +22,8 @@ Kero 将你的工作分为两层：项目（文件夹）包含会话（任务）
 | 重命名会话                 | <kbd>⌘</kbd> <kbd>R</kbd>                    |
 | 关闭会话                   | <kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>W</kbd>       |
 
+双击边栏的空白处即可新建会话，与 <kbd>⌘</kbd> <kbd>T</kbd> 相同。
+
 按任务给会话命名，比如 `fix-login-redirect` 或 `review-pr-42`，这样就能在边栏中找到它们，也能在[命令行](./cli.md)中指定它们。
 
 ### 新会话从哪里开始

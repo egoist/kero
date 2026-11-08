@@ -22,6 +22,8 @@ A **session** is a unit of work: one task, one agent, one long-running process. 
 | Rename session             | <kbd>⌘</kbd> <kbd>R</kbd>                    |
 | Close session              | <kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>W</kbd>       |
 
+Double-click the empty part of the sidebar to start a new session, as <kbd>⌘</kbd> <kbd>T</kbd> does.
+
 Name sessions after their task, such as `fix-login-redirect` or `review-pr-42`, so you can find them in the sidebar and target them from the [CLI](./cli.md).
 
 ### Where a new session starts

@@ -307,8 +307,12 @@ func (a *App) sidebar(c *ui.Context, pal *palette, bar ui.TitleBar) {
 		iconButton(c, "new-session", plusIcon, a.tip(locales.ActionNewSession(), "session.new"), pal, func() { a.newSession("") })
 	})
 	// The space between and below the rows moves the window, as the top
-	// bar does.
-	ui.Scroll(c.Key("sessions")).Grow(1).Padding(0, 10, 16, 10).DragWindow().Children(func() {
+	// bar does, and a double click there starts a session, as ⌘T does.
+	list := ui.Scroll(c.Key("sessions")).Grow(1).Padding(0, 10, 16, 10).DragWindow()
+	if list.WindowDoubleClicked() {
+		a.defer_(func() { a.newSession("") })
+	}
+	list.Children(func() {
 		n := 0  // the rows shown, for ⌘1–9 (Ctrl+1–9 elsewhere)
 		gi := 0 // the groups shown, the first of which sits higher
 		// Where the project dragged would go, as the last frame found it;
