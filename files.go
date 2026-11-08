@@ -63,6 +63,10 @@ type fileItem struct {
 	edit      bool
 }
 
+// fileDrag is a file or folder of the tree dragged onto a pane, which
+// types its path there (insertPath).
+type fileDrag struct{ host, path string }
+
 // fileView is a file the viewer shows, as its text.
 type fileView struct {
 	pane  string // a pane of the host it is on
@@ -228,6 +232,7 @@ func (a *App) filesSide(c *ui.Context, pal *palette, s *proto.Session) {
 				}
 			})
 			row.ContextMenu(func(m *ui.Menu) { a.entryMenu(m, s, pid, it) })
+			row.Drag(fileDrag{host: h.name, path: it.path})
 		default:
 			row := a.treeEntry(c, pal, it, it.path == shown, func() {
 				s := a.session(sid)
@@ -255,6 +260,7 @@ func (a *App) filesSide(c *ui.Context, pal *palette, s *proto.Session) {
 				})
 			})
 			row.ContextMenu(func(m *ui.Menu) { a.entryMenu(m, s, pid, it) })
+			row.Drag(fileDrag{host: h.name, path: it.path})
 		}
 	}).Grow(1).MinHeight(0).Padding(0, 10, 16, 10)
 }
