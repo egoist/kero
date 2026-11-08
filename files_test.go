@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/egoist/mygo/plugins/terminal"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
 
@@ -994,5 +995,60 @@ func TestViewerFollowsResize(t *testing.T) {
 		if want := row.W - minPanes; math.Abs(float64(card.W-want)) > 0.5 {
 			t.Errorf("at %d wide the viewer is %v wide, want %v as the row is %v", w, card.W, want, row.W)
 		}
+	}
+}
+
+// A file dragged from the Files tab onto a pane types its path there,
+// quoted for the pane's shell, and puts the keyboard in that pane.
+func TestDragFileIntoPane(t *testing.T) {
+	a, sink, _ := pasteApp(t)
+	sinkB := newSink()
+	termB, err := terminal.New(terminal.Options{Conn: sinkB})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { termB.Close() })
+	a.terms["b"] = &termEntry{term: termB}
+	s := &a.st.Sessions[0]
+	g := &proto.GitInfo{Root: "/tmp/demo", Branch: "main", Default: "main"}
+	s.Panes[0].Git, s.Panes[1].Git = g, g
+	a.prefs.Side = sideFiles
+	h := a.hostOf(s.ID)
+	a.side.files.dirs = map[string]*dirList{
+		filesKey(h, "/tmp/demo"): {entries: []proto.FSEntry{{Name: "my notes.md"}, {Name: "main.go"}}},
+	}
+	tt := ui.NewTester(a.view, 1280, 720)
+	tt.Frame()
+	tt.Advance(time.Second)
+	tt.Frame()
+	row, ok := tt.Find("my notes.md")
+	if !ok {
+		t.Fatalf("no row; texts %q", tt.Texts())
+	}
+	// Pane b is the right one of the two, left of the Files tab.
+	x, y := row.X+row.W/2, row.Y+row.H/2
+	tx, ty := row.X-220, float32(400)
+	tt.Press(x, y)
+	for i := 1; i <= 12; i++ {
+		f := float32(i) / 12
+		tt.Move(x+(tx-x)*f, y+(ty-y)*f)
+		tt.Advance(16 * time.Millisecond)
+		tt.Frame()
+	}
+	shot(t, tt, "drag-file-into-pane")
+	tt.Release(tx, ty)
+	tt.Frame()
+	tt.Frame()
+	if got := sinkB.written(t); got != "'/tmp/demo/my notes.md'" {
+		t.Errorf("pane b got %q", got)
+	}
+	if got := sink.quiet(); got != "" {
+		t.Errorf("pane a got %q", got)
+	}
+	if s.Focus != "b" {
+		t.Errorf("the keyboard is in %q", s.Focus)
+	}
+	if v := a.viewOf(s); v != nil && v.file != nil {
+		t.Errorf("the drag opened %q", v.file.path)
 	}
 }

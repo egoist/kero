@@ -416,3 +416,21 @@ func quotePath(goos, shell, path string) string {
 	}
 	return "'" + strings.ReplaceAll(path, "'", `'\''`) + "'"
 }
+
+// insertPath types the path of a file or folder dragged from the Files
+// tab into a pane, quoted for its shell, and puts the keyboard there.
+func (a *App) insertPath(sid, id string, d fileDrag) {
+	e := a.terms[id]
+	if e == nil || e.term == nil || a.hostOf(id).name != d.host {
+		return
+	}
+	q := quotePath(runtime.GOOS, a.paneShell(id), d.path)
+	if h := a.hostOf(id); h.remote() {
+		q = pastedPath(h, d.path)
+	}
+	e.term.Paste(q)
+	if s := a.session(sid); s != nil {
+		a.setFocus(s, id)
+		a.paneRef(id).Focus()
+	}
+}
