@@ -1227,13 +1227,38 @@ func (a *App) newSessionOn(h *host, projectID string) {
 	if h.remote() {
 		home = "~" // the host's, as kerod there takes it
 	}
-	if a.set.NewSessionDir == "home" {
+	switch a.set.NewSessionDir {
+	case "home":
 		p.Dir = home
+	case "custom":
+		p.Dir = home
+		if !h.remote() {
+			if dir := expandHome(a.set.NewSessionPath); isDir(dir) {
+				p.Dir = dir
+			}
+		}
 	}
-	if p.Project == "" && len(a.projectsOf(h)) == 0 {
+	if p.Project == "" && len(a.projectsOf(h)) == 0 && a.set.NewSessionDir != "custom" {
 		p.Dir = home
 	}
 	a.create(h, p, "")
+}
+
+// expandHome makes a path of ~/… this machine's home's.
+func expandHome(p string) string {
+	if p == "~" {
+		return proto.Home()
+	}
+	if strings.HasPrefix(p, "~/") || runtime.GOOS == "windows" && strings.HasPrefix(p, `~\`) {
+		return filepath.Join(proto.Home(), p[2:])
+	}
+	return p
+}
+
+// isDir tells whether a folder exists.
+func isDir(p string) bool {
+	st, err := os.Stat(p)
+	return err == nil && st.IsDir()
 }
 
 // create starts a session on a host, and shows it, opening the project

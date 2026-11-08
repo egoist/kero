@@ -31,6 +31,7 @@ Kero 将你的工作分为两层：项目（文件夹）包含会话（任务）
 - `current`（默认）：你当前所在会话的目录
 - `project`：项目的根目录
 - `home`：你的主目录
+- 你的某个文件夹，如 `new-session-directory = ~/Developer`，或在设置 › 通用中选 **自定义…**。文件夹不存在时从主目录开始。其他主机上的会话从其主目录开始。
 
 <a id="how-an-unnamed-session-is-named"></a>
 ### 未命名的会话如何命名

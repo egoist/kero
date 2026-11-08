@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"io"
 	"math"
 	"os"
@@ -65,6 +66,11 @@ type settingsState struct {
 	draft      map[string]string
 	envDraft   string
 	shellDraft string
+	// dirBefore is where new sessions started before Custom was picked,
+	// to go back to when its dialog is cancelled; choosingDir, that the
+	// dialog is open.
+	dirBefore   string
+	choosingDir bool
 	// featuresDraft is font-feature as the field has it, while
 	// featuresEditing.
 	featuresDraft   string
@@ -512,8 +518,22 @@ func (a *App) generalPage(c *ui.Context, pal *palette) {
 	s := &a.set
 	settingsGroup(c, pal, locales.SetSessions(), locales.SetSessionsDetail(a.tip(strings.TrimSuffix(actionTitle("app.quitAll"), "…"), "app.quitAll")), func() {
 		settingRow(c, pal, locales.SetNewSessionsStartIn(), "", func() {
-			segmented(c, "newdir", &s.NewSessionDir, []string{"current", "project", "home"}, []string{locales.SetDirCurrent(), locales.SetDirProject(), locales.SetDirHome()})
+			segmented(c, "newdir", &s.NewSessionDir, []string{"current", "project", "home", "custom"},
+				[]string{locales.SetDirCurrent(), locales.SetDirProject(), locales.SetDirHome(), locales.SetDirCustom()})
 		})
+		// Custom, picked with no folder yet, asks for one.
+		if s.NewSessionDir == "custom" && s.NewSessionPath == "" {
+			a.chooseNewSessionDir()
+		}
+		if s.NewSessionDir != "custom" {
+			a.ss.dirBefore = s.NewSessionDir
+		} else {
+			settingRow(c, pal, s.NewSessionPath, locales.SetNewSessionFolderDetail(), func() {
+				if button(c, "newdir-choose", locales.SetChooseFolder(), "", false, pal) {
+					a.chooseNewSessionDir()
+				}
+			})
+		}
 		settingRow(c, pal, locales.SetSessionName(), locales.SetSessionNameDetail(), func() {
 			segmented(c, "sessionname", &s.SessionName, []string{proto.NameFocused, proto.NameLead, proto.NameFolder},
 				[]string{locales.SetNameFocused(), locales.SetNameLead(), locales.SetNameFolder()})
@@ -1324,6 +1344,32 @@ func (a *App) advancedPage(c *ui.Context, pal *palette) {
 			}
 		})
 	})
+}
+
+// chooseNewSessionDir asks, with the system's dialog, for the folder new
+// sessions start in. Cancelled with none chosen yet, the choice goes back
+// to what it was.
+func (a *App) chooseNewSessionDir() {
+	if a.ss.choosingDir {
+		return
+	}
+	a.ss.choosingDir = true
+	win := a.win
+	go func() {
+		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{
+			Parent: win, Title: locales.NewSessionFolderTitle(), Directory: true, ButtonLabel: locales.CommonChoose(),
+			Message: locales.NewSessionFolderMessage(),
+		})
+		a.update(func() {
+			a.ss.choosingDir = false
+			switch {
+			case err == nil && len(paths) > 0:
+				a.set.NewSessionDir, a.set.NewSessionPath = "custom", proto.ShortDir(paths[0])
+			case a.set.NewSessionPath == "":
+				a.set.NewSessionDir = cmp.Or(a.ss.dirBefore, "current")
+			}
+		})
+	}()
 }
 
 // ensureConfig writes the configuration file, with its header, when

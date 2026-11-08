@@ -41,7 +41,7 @@ kero config check             # 报告未知的配置项、无效的值和agents
 
 | 配置项                  | 默认值    | 说明                                                          |
 | ----------------------- | --------- | ------------------------------------------------------------- |
-| `new-session-directory` | `current` | 新会话的起始目录：`current`、`project` 或 `home`               |
+| `new-session-directory` | `current` | 新会话的起始目录：`current`、`project`、`home`，或 `~/Developer` 这样的文件夹 |
 | `session-name`          | `focused` | 未手动命名的会话如何取名：`focused`、`lead` 或 `folder`（[详情](./sessions.md#how-an-unnamed-session-is-named)） |
 | `sidebar-rows`          | `detailed` | 侧边栏如何显示会话：`detailed` 在第二行显示状态消息，没有时显示分支和改动；`compact` 只占一行 |
 | `sidebar-session-count` | `true`    | 在侧边栏的项目名称旁显示其包含的会话数量 |
