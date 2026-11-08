@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"image"
 	"image/color"
@@ -1052,5 +1053,54 @@ func TestSidebarSplitPanes(t *testing.T) {
 	tt.Frame()
 	if a.prefs.Expanded["s1"] || count("Review the tests") != shown {
 		t.Error("the count of panes didn't collapse the session")
+	}
+}
+
+// A double click on the sidebar's empty space starts a session, as ⌘T
+// does; one on a session's row renames it instead.
+func TestDoubleClickSidebarNewSession(t *testing.T) {
+	a := testApp(t)
+	a.local().conn = connReady
+	created := make(chan proto.CreateParams, 2)
+	cl, stop := projectClient(t, func(method string, raw json.RawMessage) (any, error) {
+		if method != "create" {
+			return nil, errors.New("unexpected method " + method)
+		}
+		var p proto.CreateParams
+		if err := json.Unmarshal(raw, &p); err != nil {
+			return nil, err
+		}
+		created <- p
+		return proto.Session{ID: "s2", Project: p.Project}, nil
+	})
+	a.local().cl = cl
+	defer stop()
+	tt := ui.NewTester(a.view, 1100, 640)
+	tt.Frame()
+	row, ok := tt.Find("demo")
+	if !ok {
+		t.Fatalf("no row; texts %q", tt.Texts())
+	}
+	// Well below the rows.
+	tt.ClickAt(row.X+20, 400)
+	tt.Frame()
+	tt.ClickAt(row.X+20, 400)
+	tt.Frame()
+	select {
+	case p := <-created:
+		if p.Project != "p1" || p.After != "s1" {
+			t.Errorf("created %+v, want after s1 in p1, as ⌘T", p)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("the double click started no session")
+	}
+	tt.Advance(time.Second)
+	tt.Frame()
+	tt.ClickAt(row.X+20, 400)
+	tt.Frame()
+	select {
+	case p := <-created:
+		t.Errorf("a single click created %+v", p)
+	case <-time.After(200 * time.Millisecond):
 	}
 }
