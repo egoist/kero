@@ -4312,6 +4312,76 @@ func (msgs Messages) FilesDeleteFailed(name string, error string) string {
 	return Catalog.Format(msgs.locale, "filesDeleteFailed", map[string]any{"name": name, "error": error})
 }
 
+// FilesReplaceTitle says "Replace “{name}”?"
+// in the language the app shows.
+func FilesReplaceTitle(name string) string { return In(i18n.Locale()).FilesReplaceTitle(name) }
+
+// FilesReplaceTitle says "Replace “{name}”?"
+// in the language of msgs.
+func (msgs Messages) FilesReplaceTitle(name string) string {
+	return Catalog.Format(msgs.locale, "filesReplaceTitle", map[string]any{"name": name})
+}
+
+// FilesReplaceManyTitle says "{count, plural, one {Replace # item?} other {Replace # items?}}"
+// in the language the app shows.
+func FilesReplaceManyTitle(count int) string { return In(i18n.Locale()).FilesReplaceManyTitle(count) }
+
+// FilesReplaceManyTitle says "{count, plural, one {Replace # item?} other {Replace # items?}}"
+// in the language of msgs.
+func (msgs Messages) FilesReplaceManyTitle(count int) string {
+	return Catalog.Format(msgs.locale, "filesReplaceManyTitle", map[string]any{"count": count})
+}
+
+// FilesReplaceDetail says "{count, plural, one {The folder already has an item with this name. Replacing it can't be undone.} other {The folder …"
+// in the language the app shows.
+func FilesReplaceDetail(count int) string { return In(i18n.Locale()).FilesReplaceDetail(count) }
+
+// FilesReplaceDetail says "{count, plural, one {The folder already has an item with this name. Replacing it can't be undone.} other {The folder …"
+// in the language of msgs.
+func (msgs Messages) FilesReplaceDetail(count int) string {
+	return Catalog.Format(msgs.locale, "filesReplaceDetail", map[string]any{"count": count})
+}
+
+// FilesReplace says "Replace"
+// in the language the app shows.
+func FilesReplace() string { return In(i18n.Locale()).FilesReplace() }
+
+// FilesReplace says "Replace"
+// in the language of msgs.
+func (msgs Messages) FilesReplace() string {
+	return Catalog.Format(msgs.locale, "filesReplace", nil)
+}
+
+// FilesSkip says "Skip"
+// in the language the app shows.
+func FilesSkip() string { return In(i18n.Locale()).FilesSkip() }
+
+// FilesSkip says "Skip"
+// in the language of msgs.
+func (msgs Messages) FilesSkip() string {
+	return Catalog.Format(msgs.locale, "filesSkip", nil)
+}
+
+// FilesCopyFailed says "Couldn't copy {errors}"
+// in the language the app shows.
+func FilesCopyFailed(errors string) string { return In(i18n.Locale()).FilesCopyFailed(errors) }
+
+// FilesCopyFailed says "Couldn't copy {errors}"
+// in the language of msgs.
+func (msgs Messages) FilesCopyFailed(errors string) string {
+	return Catalog.Format(msgs.locale, "filesCopyFailed", map[string]any{"errors": errors})
+}
+
+// FilesDropRemote says "Dropping files into Files works on this computer only, not on {host} yet"
+// in the language the app shows.
+func FilesDropRemote(host string) string { return In(i18n.Locale()).FilesDropRemote(host) }
+
+// FilesDropRemote says "Dropping files into Files works on this computer only, not on {host} yet"
+// in the language of msgs.
+func (msgs Messages) FilesDropRemote(host string) string {
+	return Catalog.Format(msgs.locale, "filesDropRemote", map[string]any{"host": host})
+}
+
 // FilesCreateFailed says "Couldn't create “{name}”: {error}"
 // in the language the app shows.
 func FilesCreateFailed(name string, error string) string {

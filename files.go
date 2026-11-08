@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"path"
+	"slices"
 	"strings"
 	"time"
 
@@ -215,7 +216,7 @@ func (a *App) filesSide(c *ui.Context, pal *palette, s *proto.Session) {
 		shown = v.file.path
 	}
 	sid, pid := s.ID, p.ID
-	ui.List(c.Key("files"), ls, len(items), func(i int) {
+	tree := ui.List(c.Key("files"), ls, len(items), func(i int) {
 		it := items[i]
 		switch {
 		case it.edit:
@@ -233,6 +234,7 @@ func (a *App) filesSide(c *ui.Context, pal *palette, s *proto.Session) {
 			})
 			row.ContextMenu(func(m *ui.Menu) { a.entryMenu(m, s, pid, it) })
 			row.Drag(fileDrag{host: h.name, path: it.path})
+			a.dropTarget(row, pal, pid, it.path)
 		default:
 			row := a.treeEntry(c, pal, it, it.path == shown, func() {
 				s := a.session(sid)
@@ -261,8 +263,27 @@ func (a *App) filesSide(c *ui.Context, pal *palette, s *proto.Session) {
 			})
 			row.ContextMenu(func(m *ui.Menu) { a.entryMenu(m, s, pid, it) })
 			row.Drag(fileDrag{host: h.name, path: it.path})
+			a.dropTarget(row, pal, pid, it.parent)
 		}
 	}).Grow(1).MinHeight(0).Padding(0, 10, 16, 10)
+	// Dropped below the rows, files go into the root.
+	a.dropTarget(tree, pal, pid, root)
+}
+
+// dropTarget makes an element of the Files tab take files dropped from
+// the file manager, which go into dir (dropInto), showing it would while
+// they are over it.
+func (a *App) dropTarget(e ui.Element, pal *palette, pane, dir string) {
+	if a.confirm != nil && a.confirm.open {
+		return
+	}
+	if files := e.DroppedFiles(); len(files) > 0 {
+		files = slices.Clone(files)
+		a.defer_(func() { a.dropInto(pane, dir, files) })
+	}
+	if e.FileDragOver() {
+		e.Background(pal.accent.Alpha(0.12))
+	}
 }
 
 // treeEntry is a file of the Files tab's tree, which a click opens in the
