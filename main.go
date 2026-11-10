@@ -156,6 +156,7 @@ func (a *App) openWindow() {
 		Vibrancy:  vibrancyFor(a.set),
 		Content:   ui.View(a.view),
 	}))
+	followWindowCorners(a.win)
 	a.winOpen = true
 	a.updateTitle()
 	a.win.OnFocus(func() { a.update(func() { a.focused = true; a.claimShown(); a.reportView() }) })
