@@ -294,16 +294,16 @@ func executable() string {
 }
 
 func (d *Daemon) linkCLI() {
+	if dir := d.zshDir(); dir != "" {
+		if err := writeZshenv(dir, d.binFirst()); err != nil {
+			d.log.Printf("writing zsh's startup file: %v", err)
+		}
+	}
 	if d.exe == "" {
 		return
 	}
 	if err := clilink.Link(d.exe, filepath.Join(d.dir, "bin")); err != nil {
 		d.log.Printf("linking the CLI: %v", err)
-	}
-	if bin := d.binFirst(); bin != "" {
-		if err := writeZshenv(bin); err != nil {
-			d.log.Printf("writing zsh's startup file: %v", err)
-		}
 	}
 }
 

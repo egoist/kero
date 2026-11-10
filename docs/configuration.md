@@ -96,6 +96,12 @@ values close together can look the same or differ by a pixel.
 | `env`              |         | Added to every pane's environment as `NAME=value`; repeat it   |
 | `scrollback-limit` | `4`     | The output each pane keeps, in megabytes; `0` for none         |
 
+zsh starts with a `.zshenv` of Kero's, which sets `ZDOTDIR` back to yours (or
+unsets it) and runs your startup files as zsh would. It then marks where each
+prompt starts and ends, so that the terminal can clear the prompt when it
+resizes before zsh draws it again. Without this, a prompt as wide as the
+terminal, such as Powerlevel10k's, would leave a copy behind at each width.
+
 ## Notifications
 
 | Key                 | Default | Description                                    |

@@ -125,6 +125,11 @@ func newPane(d *Daemon, sid string, info proto.Pane) (*pane, error) {
 		ClipboardRead: terminal.ClipboardForward,
 		OnTitle:       s.onTitle,
 		OnNotify:      s.onNotify,
+		// zsh marks its prompts (Kero's .zshenv, zshDir), which the
+		// terminal clears when it resizes, as zsh draws them again: a
+		// prompt as wide as the terminal, as Powerlevel10k's, would leave
+		// a copy at each size otherwise.
+		ShellIntegration: zshPrompts(),
 	})
 	if err != nil {
 		return nil, err
@@ -139,10 +144,13 @@ func newPane(d *Daemon, sid string, info proto.Pane) (*pane, error) {
 func (s *pane) start(command []string, env []string) error {
 	shell := userShell()
 	name := shellName(shell)
-	bin := s.d.binFirst()
-	args := shellArgs(shell, bin, command)
-	if bin != "" && name == "zsh" {
-		env = append(env[:len(env):len(env)], zshEnv(bin)...)
+	bin, zdot := s.d.binFirst(), ""
+	if name == "zsh" {
+		zdot = s.d.zshDir()
+	}
+	args := shellArgs(shell, bin, zdot, command)
+	if zdot != "" {
+		env = append(env[:len(env):len(env)], zshEnv(zdot)...)
 	}
 	dir := s.info.Dir
 	if st, err := os.Stat(dir); dir == "" || err != nil || !st.IsDir() {
