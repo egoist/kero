@@ -20,7 +20,9 @@ jobs:
       - name: Vet
         run: go vet ./...
       - name: Test
-        run: go test ./internal/...
+        run: |
+          go test ./internal/...
+          go test . -run '^TestWindowCorners$'
       - name: Build for every platform
         run: |
           set -eu
