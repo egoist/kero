@@ -25,8 +25,9 @@ func posixShell(name string) bool {
 }
 
 // shellArgs is the argv that starts shell, running command first when set,
-// with bin first on PATH when set (binFirst).
-func shellArgs(shell, bin string, command []string) []string {
+// with bin first on PATH when set (binFirst), and zsh's startup files from
+// zdot when set (zshDir).
+func shellArgs(shell, bin, zdot string, command []string) []string {
 	name := shellName(shell)
 	switch {
 	case name == "pwsh" || name == "powershell":
@@ -57,15 +58,15 @@ func shellArgs(shell, bin string, command []string) []string {
 		status = "$status"
 	}
 	again := "exec " + shellQuote(name, shell) + " -l"
+	if name == "zsh" && zdot != "" {
+		// Kero's .zshenv gave the user's ZDOTDIR back.
+		again = "exec env ZDOTDIR=" + shellQuote(name, zdot) + " " + shellQuote(name, shell) + " -l"
+	}
 	pre := ""
 	if bin != "" {
-		switch name {
-		case "fish":
+		if name == "fish" {
 			again += " -C " + shellQuote(name, fishBinFirst(bin))
-		case "zsh":
-			again = "exec env ZDOTDIR=" + shellQuote(name, zdotdir(bin)) + " " + shellQuote(name, shell) + " -l"
-		}
-		if name != "fish" {
+		} else {
 			pre = "PATH=" + shellQuote(name, bin) + `:"$PATH"; `
 		}
 	}
