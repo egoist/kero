@@ -57,6 +57,26 @@ kero read api -a                          # 屏幕内容连同回滚缓冲
 
 `kero key` 支持 `enter`、`tab`、`escape`、`up`、`down`、`left`、`right`、`backspace`，以及 `ctrl+c`、`ctrl+d` 这类带修饰键的组合。
 
+<a id="searching"></a>
+
+## 搜索
+
+`kero search` 在每个窗格的内容（屏幕和回滚缓冲）中查找文本，并打印每处匹配所在的窗格、会话名称和行：最新的匹配在前，最近有输出的窗格在前。可以把窗格交给 `kero read` 或 `kero focus`。
+
+```sh
+kero search "connection refused"          # 这台机器上的所有窗格
+kero search timeout -p api -n 100         # 某个项目的，最多 100 处匹配
+kero search panic --all                   # 这台机器和所有主机
+kero -H build search panic                # 某台主机的
+kero search panic --json                  # 输出 JSON
+```
+
+它的匹配方式与窗格的查找相同：纯文本，忽略 ASCII 字母的大小写，匹配可以跨越终端自动折行的位置。全屏程序显示时，窗格只能搜索该程序的屏幕。单个窗格只占匹配的一部分，好让其他窗格也能显示；用 `-n` 可以要求更多，可能还有更多匹配时，kero 会在标准错误中说明。没有找到不算失败：同样在标准错误中说明，退出码为 0。
+
+使用 `--all` 时，每台机器在完成后打印在 `-H` 所用的名字下。连不上的主机，或者 Kero 版本太旧不支持搜索的主机，会说明原因，搜索仍然成功。
+
+`--json` 给出每处匹配的 `session`、`pane`、`line`、匹配在行中的字节偏移 `start` 和 `end`，以及 `newer`（该窗格中比它新的匹配数）。使用 `--all` 时，它像 `kero ls --all --json` 一样列出各台机器，每台带有 `matches` 或 `error`。
+
 ## 等待
 
 ```sh

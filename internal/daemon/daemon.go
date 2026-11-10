@@ -647,6 +647,8 @@ type controlConn struct {
 	enc  *json.Encoder
 	out  chan proto.Message
 	done chan struct{}
+	// searches are the connection's searches going, by number, to cancel.
+	searches sync.Map
 }
 
 func (c *controlConn) write(m proto.Message) {
