@@ -150,10 +150,6 @@ type Project struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
 	Dir  string `json:"dir,omitempty"`
-	// Auto tells that sessions-follow-directory made the project for a
-	// session's folder: it goes again when its last session follows its
-	// folder elsewhere, until the user names it.
-	Auto bool `json:"auto,omitempty"`
 }
 
 // Pane is a terminal the daemon keeps running: a shell in a

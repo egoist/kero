@@ -333,6 +333,7 @@ func (d *Daemon) create(p proto.CreateParams) (proto.Session, error) {
 	}
 	d.mu.Lock()
 	var project string
+	had := len(d.projects)
 	if root != "" {
 		project = d.folderProject(root)
 	} else {
@@ -345,20 +346,30 @@ func (d *Daemon) create(p proto.CreateParams) (proto.Session, error) {
 			}
 		}
 	}
+	made := len(d.projects) > had
 	d.mu.Unlock()
+	// The project made for a session that did not start waits for none.
+	failed := func(err error) (proto.Session, error) {
+		if made {
+			d.mu.Lock()
+			delete(d.fresh, project)
+			d.mu.Unlock()
+		}
+		return proto.Session{}, err
+	}
 	var wt *proto.Worktree
 	if p.Worktree != "" {
 		// In the project of the repository, where the sidebar shows it
 		// under its branch's name.
 		if wt, err = d.addWorktree(dir, p.Worktree, p.Base); err != nil {
-			return proto.Session{}, err
+			return failed(err)
 		}
 		dir = wt.Path
 	}
 	s := &session{id: newID(), project: project, name: strings.TrimSpace(p.Name), created: time.Now().UnixMilli(), worktree: wt}
 	pn, err := d.startPane(s.id, p, dir)
 	if err != nil {
-		return proto.Session{}, err
+		return failed(err)
 	}
 	s.panes, s.focus = []*pane{pn}, pn.info.ID
 	if follow {
@@ -373,6 +384,7 @@ func (d *Daemon) create(p proto.CreateParams) (proto.Session, error) {
 		}
 	}
 	d.sessions = slices.Insert(d.sessions, i, s)
+	delete(d.fresh, s.project)
 	d.panes[pn.info.ID] = pn
 	info := d.sessionInfo(s)
 	d.mu.Unlock()
@@ -516,6 +528,7 @@ func (d *Daemon) move(p proto.MoveParams) error {
 	}
 	if p.Project != "" {
 		s.project = d.projectFor(p.Project, "")
+		delete(d.fresh, s.project)
 	}
 	i := slices.Index(d.sessions, s)
 	d.sessions = slices.Delete(d.sessions, i, i+1)

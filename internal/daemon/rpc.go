@@ -486,7 +486,7 @@ func (d *Daemon) call(c *controlConn, method string, raw json.RawMessage) (any, 
 				return existing, nil
 			}
 			pr := proto.Project{ID: newID(), Name: name, Dir: dir}
-			d.projects = append(d.projects, pr)
+			d.addProject(pr)
 			d.mu.Unlock()
 			d.changed()
 			return pr, nil
@@ -504,8 +504,7 @@ func (d *Daemon) call(c *controlConn, method string, raw json.RawMessage) (any, 
 		d.mu.Lock()
 		for i := range d.projects {
 			if d.projects[i].ID == p.ID {
-				// Named by the user, it is theirs to close.
-				d.projects[i].Name, d.projects[i].Auto = name, false
+				d.projects[i].Name = name
 			}
 		}
 		d.mu.Unlock()
@@ -546,6 +545,7 @@ func (d *Daemon) call(c *controlConn, method string, raw json.RawMessage) (any, 
 			return false, nil
 		}
 		d.projects = slices.DeleteFunc(d.projects, func(pr proto.Project) bool { return pr.ID == p.ID })
+		delete(d.fresh, p.ID)
 		d.mu.Unlock()
 		for _, id := range ids {
 			d.removeSession(id)

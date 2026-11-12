@@ -47,6 +47,10 @@ type Daemon struct {
 
 	mu       sync.Mutex
 	projects []proto.Project
+	// fresh are the projects made since kerod started that no session
+	// came into yet, which prune leaves: one made for a session that is
+	// still starting, or by hand.
+	fresh    map[string]bool
 	sessions []*session
 	// unrestored are the last daemon's sessions none of whose panes
 	// started again, as when the terminal's library was missing: saved
@@ -383,8 +387,9 @@ func (d *Daemon) tickLoop() {
 				changed = true
 			}
 		}
-		if settings.Load().SessionsFollowDir && d.follow() {
-			changed = true
+		if settings.Load().SessionsFollowDir {
+			moved, closed := d.follow(), d.prune()
+			changed = changed || moved || closed
 		}
 		if changed {
 			d.changed()
@@ -419,7 +424,7 @@ func (d *Daemon) projectFor(ref, dir string) string {
 			}
 		}
 		p := proto.Project{ID: newID(), Name: ref, Dir: dir}
-		d.projects = append(d.projects, p)
+		d.addProject(p)
 		return p.ID
 	}
 	if dir == "" {
@@ -437,19 +442,28 @@ func (d *Daemon) projectFor(ref, dir string) string {
 	if best != "" {
 		return best
 	}
-	return d.newProject(repoRoot(dir), false)
+	return d.newProject(repoRoot(dir))
 }
 
-// newProject adds a project for dir and returns its ID; auto tells that
-// sessions-follow-directory makes it (proto.Project.Auto). d.mu is held.
-func (d *Daemon) newProject(dir string, auto bool) string {
+// newProject adds a project for dir and returns its ID. d.mu is held.
+func (d *Daemon) newProject(dir string) string {
 	name := filepath.Base(dir)
 	if dir == proto.Home() {
 		name = "Home"
 	}
-	p := proto.Project{ID: newID(), Name: name, Dir: dir, Auto: auto}
-	d.projects = append(d.projects, p)
+	p := proto.Project{ID: newID(), Name: name, Dir: dir}
+	d.addProject(p)
 	return p.ID
+}
+
+// addProject adds a project, which holds no session yet (fresh). d.mu is
+// held.
+func (d *Daemon) addProject(p proto.Project) {
+	d.projects = append(d.projects, p)
+	if d.fresh == nil {
+		d.fresh = map[string]bool{}
+	}
+	d.fresh[p.ID] = true
 }
 
 // folderProject returns the project of a folder, root: the one whose
@@ -464,7 +478,7 @@ func (d *Daemon) folderProject(root string) string {
 			return p.ID
 		}
 	}
-	return d.newProject(root, true)
+	return d.newProject(root)
 }
 
 // sameDir reports whether two clean paths name the same folder. Windows'
@@ -482,9 +496,7 @@ func sameDir(a, b string) bool {
 // it shows. The project is that of the folder's repository, else of the
 // folder itself (folderProject). Showing another pane moves nothing, so a
 // session of panes in several folders stays put, and so does one moved by
-// hand, until a pane of it goes elsewhere. A project follow made, and
-// then emptied, goes with the session. It reports whether anything
-// changed.
+// hand, until a pane of it goes elsewhere. It reports whether one moved.
 func (d *Daemon) follow() bool {
 	type move struct {
 		s         *session
@@ -517,25 +529,41 @@ func (d *Daemon) follow() bool {
 			continue
 		}
 		m.s.project = to
-		d.dropLeft(from)
+		delete(d.fresh, to)
 		changed = true
 	}
 	return changed
 }
 
-// dropLeft closes the project a session followed its folder out of, when
-// follow made it and no session is left in it. d.mu is held.
-func (d *Daemon) dropLeft(id string) {
-	i := slices.IndexFunc(d.projects, func(p proto.Project) bool { return p.ID == id })
-	if i < 0 || !d.projects[i].Auto {
-		return
+// prune closes the projects that hold no session, as
+// sessions-follow-directory asks: there, a project is the folder of its
+// sessions, and goes with the last of them, closed or gone to another
+// folder. One that no session came into yet stays (fresh, which create,
+// move and follow end as they put a session in it), and so does that of a
+// session that did not start again (unrestored). It reports whether one
+// went.
+func (d *Daemon) prune() bool {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if len(d.projects) == 0 {
+		return false
 	}
+	held := map[string]bool{}
 	for _, s := range d.sessions {
-		if s.project == id {
-			return
-		}
+		held[s.project] = true
 	}
-	d.projects = slices.Delete(d.projects, i, i+1)
+	for _, ss := range d.unrestored {
+		held[ss.Project] = true
+	}
+	n := len(d.projects)
+	d.projects = slices.DeleteFunc(d.projects, func(p proto.Project) bool {
+		if held[p.ID] {
+			delete(d.fresh, p.ID)
+			return false
+		}
+		return !d.fresh[p.ID]
+	})
+	return len(d.projects) != n
 }
 
 // repoRoot returns the root of the git repository holding dir, or dir. A
