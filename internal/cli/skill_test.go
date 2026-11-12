@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 )
 
@@ -98,5 +99,37 @@ func TestSkillLinks(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(home, ".config", "opencode")); err == nil {
 		t.Error("SyncSkill installed OpenCode's plugin")
+	}
+}
+
+// OMP's extension goes under PI_CONFIG_DIR, which moves its config root,
+// and its hook names OMP, so Kero resumes it with `omp --session`.
+func TestOMPHook(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("KERO_HOME", filepath.Join(home, "kero"))
+	t.Setenv("PI_CONFIG_DIR", filepath.Join(home, "omp"))
+	ts := filepath.Join(home, "omp", "agent", "extensions", "kero.ts")
+	os.MkdirAll(filepath.Dir(ts), 0o755)
+	var plugin agentPlugin
+	for _, it := range agentHooks("omp") {
+		if p, ok := it.(agentPlugin); ok && p.agent == "omp" {
+			plugin = p
+		}
+	}
+	if plugin.dir != filepath.Dir(ts) {
+		t.Fatalf("dir %q, want %q", plugin.dir, filepath.Dir(ts))
+	}
+	if err := plugin.install(); err != nil {
+		t.Fatal(err)
+	}
+	if got := read(t, ts); !strings.Contains(got, `const AGENT = "omp"`) || !strings.Contains(got, `["hook", AGENT]`) {
+		t.Errorf("no OMP hook in:\n%s", got)
+	}
+	if plugin.state() != "current" {
+		t.Errorf("state %s", plugin.state())
+	}
+	if dir := skillDirs("omp")["agents"]; dir != filepath.Join(home, ".agents", "skills", "kero") {
+		t.Errorf("skill %q", dir)
 	}
 }

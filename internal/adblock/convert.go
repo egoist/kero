@@ -399,7 +399,8 @@ func (c *converter) network(line string) bool {
 			important = true
 		case except && (name == "elemhide" || name == "ehide" || name == "generichide" || name == "ghide" || name == "specifichide" || name == "shide"):
 			hiding = true
-		case name == "document" || name == "doc":
+		case (name == "document" || name == "doc") && !not:
+			// ~document leaves pages out, a type to subtract below.
 			if except {
 				page = true
 			} else {

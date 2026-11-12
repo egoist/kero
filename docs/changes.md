@@ -27,7 +27,7 @@ Click a pane's branch, or press <kbd>⌥</kbd> <kbd>⌘</kbd> <kbd>G</kbd>, to s
 
 Click a file in the tab to show the diffs, scrolled to its own. Each file shows with its diff right below it, one after another, and the diffs follow the files while the agent keeps editing them. The file at the top of the diffs is highlighted in the tab. Scrolled into a long diff, its file's name stays at the top. Click a file's name to fold its diff away, or to unfold it: a binary file and one with very many changed lines start folded. **Collapse All** folds them all. Drag the gap between the panes and the diffs to resize them.
 
-Diffs show unified while their card is narrow and side by side once it's wide. The button at the top of the diffs switches between the two, which the `diff-layout` setting keeps.
+Diffs show unified while their card is narrow and side by side once it's wide. The button at the top of the diffs switches between the two, which the `diff-layout` setting keeps. The first button there wraps lines wider than the card rather than scrolling them sideways, as the same button above a file from Files does, which the `wrap-lines` setting keeps for both.
 
 ### Reviewing a turn
 
@@ -40,7 +40,7 @@ Revert works only while no agent in the session is working, so it never races an
 
 ## Files
 
-Press <kbd>⌥</kbd> <kbd>⌘</kbd> <kbd>E</kbd> for the Files tab: the folder of the pane you're in, its whole worktree in a git repository. Click a folder to unfold it, and a file to open it beside the panes, where you can find (<kbd>⌘</kbd> <kbd>F</kbd>) in it and edit it. The file follows its changes while you read it. What git ignores shows faded, and `.git` doesn't show.
+Press <kbd>⌥</kbd> <kbd>⌘</kbd> <kbd>E</kbd> for the Files tab: the folder of the pane you're in, its whole worktree in a git repository. Click a folder to unfold it, and a file to open it beside the panes, where you can find (<kbd>⌘</kbd> <kbd>F</kbd>) in it and edit it. The file follows its changes while you read it. What git ignores shows faded, and `.git` doesn't show. Drag a file or folder onto a pane to type its path there, quoted for the pane's shell, as a file dropped from Finder or Explorer does. Drop files or folders from Finder or Explorer on a folder in the tree to copy them into it, on a file to copy them beside it, or below the rows to copy them into the root. If a name is already there, Kero asks whether to replace it or skip it. On a remote host this doesn't work yet.
 
 The buttons above the tree make a new file or folder at its top, and a file's or folder's menu (right-click) makes one in its folder, renames it, or deletes it. Type the name where it will show, and press <kbd>Return</kbd>: a name like `docs/notes.md` makes the folders in it too, and a new file opens beside the panes. Delete asks first, and moves what you delete to the Trash. On a remote host, which has no Trash to move it to, it's deleted for good.
 

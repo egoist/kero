@@ -26,11 +26,12 @@ kero skill setup
 | Claude Code | `~/.claude/settings.json` 中的 `SessionStart` 钩子     |
 | Codex       | `~/.codex/hooks.json` 中的 `SessionStart` 钩子         |
 | Pi          | 扩展 `~/.pi/agent/extensions/kero.ts`                  |
+| OMP         | 扩展 `~/.omp/agent/extensions/kero.ts`                 |
 | OpenCode    | 插件 `~/.config/opencode/plugins/kero`                 |
 
-如果 `CLAUDE_CONFIG_DIR`、`CODEX_HOME`、`PI_CODING_AGENT_DIR` 或 `XDG_CONFIG_HOME` 改变了智能体文件的位置，Kero 会跟着走，并且不会改动各设置文件里的其他内容。
+如果 `CLAUDE_CONFIG_DIR`、`CODEX_HOME`、`PI_CODING_AGENT_DIR`、`PI_CONFIG_DIR` 或 `XDG_CONFIG_HOME` 改变了智能体文件的位置，Kero 会跟着走，并且不会改动各设置文件里的其他内容。
 
-传入 `--agent` 并指定 `claude`、`codex`、`pi` 或 `opencode`，可以只为一个智能体安装。只需安装一次：技能是指向 Kero 自己那份副本的链接，会随 Kero 更新而更新；Pi 和 OpenCode 的插件，Kero 也会保持为最新。`kero skill status` 会告诉你各部分是否为最新。
+传入 `--agent` 并指定 `claude`、`codex`、`pi`、`omp` 或 `opencode`，可以只为一个智能体安装。只需安装一次：技能是指向 Kero 自己那份副本的链接，会随 Kero 更新而更新；Pi、OMP 和 OpenCode 的插件，Kero 也会保持为最新。`kero skill status` 会告诉你各部分是否为最新。
 
 ```sh
 kero skill status    # 已安装什么，是否为最新

@@ -34,22 +34,24 @@ keybind = cmd+shift+d=pane.split.down
 ```sh
 kero config edit              # 在 $EDITOR 中打开
 kero config show              # 列出所有配置项及其当前值
-kero config check             # 报告未知的配置项和无效的值
+kero config check             # 报告未知的配置项、无效的值和agents.toml 的问题
 ```
 
 ## 通用
 
 | 配置项                  | 默认值    | 说明                                                          |
 | ----------------------- | --------- | ------------------------------------------------------------- |
-| `new-session-directory` | `current` | 新会话的起始目录：`current`、`project` 或 `home`               |
+| `new-session-directory` | `current` | 新会话的起始目录：`current`、`project`、`home`，或 `~/Developer` 这样的文件夹 |
 | `session-name`          | `focused` | 未手动命名的会话如何取名：`focused`、`lead` 或 `folder`（[详情](./sessions.md#how-an-unnamed-session-is-named)） |
 | `sidebar-rows`          | `detailed` | 侧边栏如何显示会话：`detailed` 在第二行显示状态消息，没有时显示分支和改动；`compact` 只占一行 |
+| `sidebar-session-count` | `true`    | 在侧边栏的项目名称旁显示其包含的会话数量 |
 | `focus-follows-mouse`   | `false`   | 指针移入哪个窗格，就聚焦哪个窗格                              |
 | `confirm-close`         | `true`    | 关闭仍有程序在运行的窗格前先确认                              |
 | `restore-sessions`      | `true`    | kerod 重启后（例如开机后）重新启动之前的会话                   |
 | `resume-agents`         | `true`    | 会话重新启动时，恢复每个窗格中智能体的对话                    |
 | `session-history`       | `false`   | 在侧边栏中列出智能体已结束的对话，可恢复或归档（[详情](./sessions.md#ended-sessions)） |
 | `macos-show-app-icon`   | `dock-and-menubar` | 在 macOS 上显示 Kero 图标的位置：`dock-and-menubar`、`dock` 或 `menubar`。图标显示在菜单栏时，关闭窗口后 Kero 会继续在那里运行。Windows 和 Linux 上始终显示在通知区域，关闭窗口后同样会继续运行 |
+| `keep-computer-awake`   | `off`              | 阻止电脑睡眠：`off`；`on`，Kero 运行期间一直保持；`agents`，本机有智能体工作时保持。也可以在命令面板或菜单栏、通知区域的 Kero 图标菜单中选择。合上 Mac 的盖子仍会让它睡眠 |
 
 ## 外观
 
@@ -68,9 +70,11 @@ kero config check             # 报告未知的配置项和无效的值
 | `font-size`           | `13`    | 单位为磅                                                                 |
 | `font-weight`         | `400`   | `100` 到 `900`                                                           |
 | `line-height`         | `1.22`  | 字体默认行高的倍数                                                       |
+| `cell-width`          | `1`     | 单元格宽度，字体宽度的倍数，`0.8` 到 `2`；文字大小不变                   |
 | `font-ligatures`      | `true`  | 按字体的设计连写字符                                                     |
 | `font-thicken`        | `false` | 加粗笔画，同 Ghostty                                                     |
 | `minimum-contrast`    | `3`     | 文字与背景之间保持的最低对比度，从 `1`（不限制）到 `21`，让为深色背景设计的颜色在浅色背景上也清晰可读，同 Ghostty |
+| `window-padding-color` | `extend` | 终端文字周围的留白显示什么：`background` 为终端背景；`extend` 为相邻单元格的颜色（保持背景色的行除外）；`extend-always` 总是相邻单元格的颜色，同 Ghostty。设为 `background` 时，程序底部的栏保持一行高 |
 | `dim-unfocused-terminals` | `true` | 会话有多个窗格时，淡化未聚焦的终端                                  |
 | `cursor-style`        | `block` | `block`、`bar` 或 `underline`；程序可以更改它                            |
 | `cursor-style-blink`  | `true`  | 光标闪烁                                                                 |
@@ -79,6 +83,10 @@ kero config check             # 报告未知的配置项和无效的值
 | `clipboard-read`      | `ask`   | 程序读取剪贴板（OSC 52）时：`ask`、`allow` 或 `deny`                     |
 | `right-click-action`  | `context-menu` | `context-menu`、`paste` 或 `copy-or-paste`                        |
 | `mouse-scroll-multiplier` | `precision:1,discrete:3` | 滚动的幅度，同 Ghostty：`precision:` 是触控板滚动的倍数，`discrete:` 是鼠标滚轮每一格滚动的行数（Windows 上指系统设为 3 行时的一格）；只写一个数字则同时设置两者，范围 `0.01` 到 `10000` |
+
+`cell-width = 1.03` 会让字符之间稍微宽松一些，`0.95` 则稍微紧凑一些；小于 `1` 时，
+较宽的字母可能相互贴住。单元格宽度取整到像素，所以相近的数值可能看起来一样，
+也可能相差一个像素。
 
 ## Shell
 
@@ -122,6 +130,7 @@ kero config check             # 报告未知的配置项和无效的值
 | ------------- | ------- | ------------------------------------------------------------------------------------------------- |
 | `git-status`  | `true`  | 显示每个会话的分支和[改动](./changes.md)                                                          |
 | `diff-layout` | `auto`  | 改动标签页中的 diff 布局：`unified`、`split`（左右对照）或 `auto`（够宽时左右对照）               |
+| `wrap-lines`  | `false` | diff 和从文件标签页打开的文件中的长行自动换行，而不是横向滚动                                       |
 | `worktree-base` | `default` | [会话专属工作树](./changes.md#sessions-in-their-own-worktree)的起点：`default` 为仓库的默认分支，`current` 为你所在会话的分支 |
 | `worktree-dir` |        | 会话专属工作树的存放位置，各自放在仓库名之下；留空则放在仓库内的 `.kero/worktrees` |
 

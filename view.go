@@ -308,15 +308,23 @@ func (a *App) sidebar(c *ui.Context, pal *palette, bar ui.TitleBar) {
 		iconButton(c, "sweep-projects", sweepIcon, locales.SidebarSweep(), pal, a.sweepProjects)
 	})
 	// The space between and below the rows moves the window, as the top
-	// bar does.
-	ui.Scroll(c.Key("sessions")).Grow(1).Padding(0, 10, 16, 10).DragWindow().Children(func() {
+	// bar does, and a double click there starts a session, as ⌘T does.
+	list := ui.Scroll(c.Key("sessions")).Grow(1).Padding(0, 10, 16, 10).DragWindow()
+	if list.WindowDoubleClicked() {
+		a.defer_(func() { a.newSession("") })
+	}
+	list.Children(func() {
 		n := 0  // the rows shown, for ⌘1–9 (Ctrl+1–9 elsewhere)
 		gi := 0 // the groups shown, the first of which sits higher
+		// Where the project dragged would go, as the last frame found it;
+		// this frame's groups find it again.
+		at := a.projMove.at
+		a.projMove.at = -1
 		// This machine's projects first, unlabeled; then each host's,
 		// under its name.
 		if local := a.local(); local.loaded {
 			for _, g := range a.hostGroups(local) {
-				a.groupView(c, pal, g, gi, &n)
+				a.groupView(c, pal, g, gi, at, &n)
 				gi++
 			}
 			if len(a.st.Sessions) == 0 && local.conn == connReady && len(a.hosts) == 1 {
@@ -337,7 +345,7 @@ func (a *App) sidebar(c *ui.Context, pal *palette, bar ui.TitleBar) {
 			}
 			for i, g := range groups {
 				g.first = i == 0
-				a.groupView(c, pal, g, gi, &n)
+				a.groupView(c, pal, g, gi, at, &n)
 				gi++
 			}
 		}
@@ -349,7 +357,22 @@ func (a *App) sidebar(c *ui.Context, pal *palette, bar ui.TitleBar) {
 	c.After(20 * time.Second) // times ago move on
 }
 
-func (a *App) groupView(c *ui.Context, pal *palette, g group, gi int, n *int) {
+func (a *App) groupView(c *ui.Context, pal *palette, g group, gi, at int, n *int) {
+	// The group, its header and its rows, takes a project dragged to
+	// another place: a line shows where it would go.
+	grp := ui.Column(c.Key("group-" + g.key())).Shrink(0)
+	a.projectTarget(grp, g, at)
+	moving := g.project.ID != "" && a.projMove.id == g.project.ID
+	grp.Opacity(grp.Animate("moving", 1-0.6*b2f(moving), 120*time.Millisecond))
+	grp.Children(func() {
+		a.groupBody(c, pal, g, gi, moving, n)
+		if a.projMove.id != "" && a.projMove.host == g.host && at >= 0 {
+			a.insertionLine(c, pal, g, gi, at)
+		}
+	})
+}
+
+func (a *App) groupBody(c *ui.Context, pal *palette, g group, gi int, moving bool, n *int) {
 	id, key := g.project.ID, g.key()
 	collapsed := a.prefs.Collapsed[key]
 	needs := 0
@@ -369,8 +392,25 @@ func (a *App) groupView(c *ui.Context, pal *palette, g group, gi int, n *int) {
 		inset++
 	}
 	hdr := ui.Row(c.Key("project-"+key)).Height(28).Margin(top, 0, 3, 0).Padding(0, 6, 0, inset).Gap(6).AlignItems(ui.Center).Radius(6)
-	hovered := hdr.Hovered()
+	// While a project is dragged, the headers it passes do not light up.
+	hovered := hdr.Hovered() && a.projMove.id == ""
 	renaming := id != "" && a.renamingProject == id
+	// Dragged, the header takes its project to another place among its
+	// host's: a chip of it follows the pointer, and its group fades where
+	// it was.
+	if id != "" && !renaming && len(a.hostProjects(g.host)) > 1 {
+		hdr.Drag(projectDrag{g.host, id})
+		if hdr.Dragging() {
+			a.projMove.host, a.projMove.id = g.host, id
+			floating(hdr.Background(pal.popover), pal)
+		} else if moving {
+			a.defer_(func() {
+				if a.projMove.id == id {
+					a.projMove = projectMove{at: -1}
+				}
+			})
+		}
+	}
 	if hdr.Clicked() && !renaming {
 		a.toggleProject(key)
 	}
@@ -389,6 +429,7 @@ func (a *App) groupView(c *ui.Context, pal *palette, g group, gi int, n *int) {
 		if m.Item(locales.SessionRename()).Disabled(id == "").Chosen() {
 			a.startProjectRename(id)
 		}
+		a.projectMenu(m, g)
 		m.Separator()
 		// A remote group's menu has its host's, as the host has no header.
 		if g.host.remote() {
@@ -435,7 +476,9 @@ func (a *App) groupView(c *ui.Context, pal *palette, g group, gi int, n *int) {
 		if g.host.remote() {
 			a.hostTag(c, pal, g.host)
 		}
-		ui.Textf(c, "%d", len(g.sessions)).FontSize(12.5).TextColor(pal.textFaint).FontFeatures("tnum")
+		if a.set.SidebarCount {
+			ui.Textf(c, "%d", len(g.sessions)).FontSize(12.5).TextColor(pal.textFaint).FontFeatures("tnum")
+		}
 		chev := ui.Icon(c, chevronIcon).Size(11, 11).TextColor(pal.textFaint)
 		turn := chev.AnimateTo("turn", 90*(1-b2f(collapsed)), ui.Snappy)
 		chev.Rotate(turn).Opacity(chev.Animate("shown", b2f(hovered || collapsed), 120*time.Millisecond))
@@ -509,6 +552,7 @@ func (a *App) sessionRow(c *ui.Context, pal *palette, s *proto.Session, n *int) 
 	if row.DoubleClicked() {
 		a.startRename(s.ID)
 	}
+	expanded := len(s.Panes) > 1 && a.prefs.Expanded[s.ID]
 	tip := a.hostOf(s.ID).shortDir(s.WorkDir())
 	if s.Process != "" {
 		tip = s.Process + " · " + tip
@@ -537,6 +581,12 @@ func (a *App) sessionRow(c *ui.Context, pal *palette, s *proto.Session, n *int) 
 			}
 			return
 		}
+		// The program the lead pane runs, whose status the row shows.
+		size := float32(14)
+		if detailed {
+			size = 16
+		}
+		ui.Icon(c, programIcon(&s.Pane)).Size(size, size).TextColor(programColor(pal, &s.Pane)).Shrink(0)
 		name := func() {
 			name := ui.Text(c, s.DisplayName(a.set.SessionName)).FontSize(13.5).SingleLine().Ellipsis("…").Shrink(1).MinWidth(0).TextColor(pal.text)
 			if s.Unread {
@@ -544,6 +594,9 @@ func (a *App) sessionRow(c *ui.Context, pal *palette, s *proto.Session, n *int) 
 			}
 			if s.Status == proto.Exited && !s.Unread {
 				name.TextColor(pal.textMuted)
+			}
+			if len(s.Panes) > 1 {
+				a.panesToggle(c, pal, s, expanded)
 			}
 		}
 		when := func() {
@@ -554,6 +607,25 @@ func (a *App) sessionRow(c *ui.Context, pal *palette, s *proto.Session, n *int) 
 				ui.Text(c, ago(s.Since, c.Now())).FontSize(12.5).TextColor(pal.textFaint).FontFeatures("tnum").SingleLine().Shrink(0)
 			}
 		}
+		trailing := func() {
+			// Close takes the status's fixed slot, so hovering moves no text.
+			ui.Box(c.Key("trailing")).Size(20, 20).Shrink(0).Center().Children(func() {
+				if !hovered {
+					statusIconP(c, pal, s.Status, s.Unread, s.Progress, 15)
+					return
+				}
+				b := ui.ButtonBase(c.Key("close")).Size(20, 20).Radius(5).Center().TextColor(pal.textMuted).
+					Label(locales.ActionCloseSession()).Tooltip(locales.ActionCloseSession())
+				if b.Hovered() {
+					b.Background(pal.rowHover).TextColor(pal.text)
+				}
+				b.Children(func() { ui.Icon(c, closeIcon).Size(13, 13) })
+				if b.Clicked() {
+					id := s.ID
+					a.defer_(func() { a.closeSession(id, true) })
+				}
+			})
+		}
 		if detailed {
 			// The name, the time and the status over what the session is
 			// at, on a line of the whole row's width, so that a long
@@ -563,7 +635,7 @@ func (a *App) sessionRow(c *ui.Context, pal *palette, s *proto.Session, n *int) 
 					name()
 					ui.Spacer(c)
 					when()
-					statusIconP(c, pal, s.Status, s.Unread, s.Progress, 15)
+					trailing()
 				})
 				line, msg := rowDetail(s, g, a.hostOf(s.ID).shortDir(s.WorkDir()))
 				fg := pal.textFaint
@@ -580,8 +652,114 @@ func (a *App) sessionRow(c *ui.Context, pal *palette, s *proto.Session, n *int) 
 			}
 			ui.Spacer(c)
 			when()
-			statusIconP(c, pal, s.Status, s.Unread, s.Progress, 15)
+			trailing()
 		}
+	})
+	if expanded {
+		for i := range s.Panes {
+			a.paneRow(c, pal, s, &s.Panes[i], detailed)
+		}
+	}
+}
+
+// panesToggle is a split session's count of panes by its name, which
+// shows or hides them under its row.
+func (a *App) panesToggle(c *ui.Context, pal *palette, s *proto.Session, expanded bool) {
+	label := locales.SidebarShowPanes()
+	if expanded {
+		label = locales.SidebarHidePanes()
+	}
+	b := ui.ButtonBase(c.Key("panes")).Height(18).Padding(0, 4).Gap(2).Radius(5).AlignItems(ui.Center).Shrink(0).
+		TextColor(pal.textFaint).Label(label).Tooltip(label)
+	if b.Hovered() {
+		b.Background(pal.chip).TextColor(pal.text)
+	}
+	if b.Clicked() {
+		id := s.ID
+		a.defer_(func() { a.toggleSessionPanes(id) })
+	}
+	b.Children(func() {
+		ui.Textf(c, "%d", len(s.Panes)).FontSize(12).FontFeatures("tnum").SingleLine()
+		chev := ui.Icon(c, chevronIcon).Size(9, 9)
+		chev.Rotate(chev.AnimateTo("turn", 90*b2f(expanded), ui.Snappy))
+	})
+}
+
+// paneRow is a pane of an expanded split session, under its row: its
+// program, its name, where it works and its status. A click shows the
+// session with that pane focused.
+func (a *App) paneRow(c *ui.Context, pal *palette, s *proto.Session, p *proto.Pane, detailed bool) {
+	sid, pid := s.ID, p.ID
+	h := a.hostOf(sid)
+	// The pane's program under the session's, its name under the
+	// session's name.
+	inset := float32(rowInset + 14 + 10)
+	if detailed {
+		inset += 2
+	}
+	row := ui.Row(c.Key(sid+"/"+pid)).Height(28).Padding(0, 10, 0, inset).Gap(8).AlignItems(ui.Center).Radius(7).Margin(0, 0, 1, 0)
+	focused := s.ID == a.selected && a.focusOf(s) == pid
+	switch {
+	case focused:
+		row.Background(pal.rowSelected)
+	case row.Hovered():
+		row.Background(pal.rowHover)
+	}
+	if pal.dark {
+		row.Border(1, ui.Transparent)
+	}
+	if h.remote() && h.conn != connReady {
+		row.Opacity(0.55)
+	}
+	if row.Clicked() {
+		a.defer_(func() {
+			s := a.session(sid)
+			if s == nil || s.PaneByID(pid) == nil {
+				return
+			}
+			a.setFocus(s, pid)
+			a.selectSession(sid)
+			a.paneRef(pid).Focus()
+		})
+	}
+	// Where it works: a branch other than the default, else a folder
+	// other than the session's.
+	dir := h.shortDir(p.WorkDir())
+	where := ""
+	if b := offBranch(p.Git); b != "" {
+		where = b
+	} else if p.WorkDir() != s.WorkDir() && p.WorkDir() != "" {
+		where = proto.DirName(p.WorkDir())
+	}
+	tip := dir
+	if p.Message != "" {
+		tip = p.Message + "\n" + tip
+	}
+	pointerTooltip(c, row, "tip-"+sid+"/"+pid, tip)
+	row.ContextMenu(func(m *ui.Menu) {
+		if s.Zoomed != pid && m.Item(locales.ActionZoomPane()).Chosen() {
+			a.defer_(func() {
+				if s := a.session(sid); s != nil && s.PaneByID(pid) != nil {
+					a.zoomPane(s, pid)
+					a.selectSession(sid)
+				}
+			})
+		}
+		if m.Item(locales.PaneClose()).Chosen() {
+			a.defer_(func() { a.closePane(a.session(sid), pid, true) })
+		}
+	})
+	row.Children(func() {
+		ui.Icon(c, programIcon(p)).Size(13, 13).TextColor(programColor(pal, p)).Shrink(0)
+		name := ui.Text(c, p.PaneName()).FontSize(12.5).SingleLine().Ellipsis("…").Shrink(1).MinWidth(0).TextColor(pal.textMuted)
+		if focused || p.Unread {
+			name.TextColor(pal.text)
+		}
+		if where != "" && where != p.PaneName() {
+			ui.Text(c, where).FontSize(12).TextColor(pal.textFaint).SingleLine().Ellipsis("…").Shrink(3).MinWidth(24).MaxWidth(100)
+		}
+		ui.Spacer(c)
+		statusIconP(c, pal, p.Status, p.Unread, p.Progress, 13)
 	})
 }
 

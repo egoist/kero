@@ -22,6 +22,8 @@ Kero 将你的工作分为两层：项目（文件夹）包含会话（任务）
 | 重命名会话                 | <kbd>⌘</kbd> <kbd>R</kbd>                    |
 | 关闭会话                   | <kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>W</kbd>       |
 
+双击边栏的空白处即可新建会话，与 <kbd>⌘</kbd> <kbd>T</kbd> 相同。
+
 按任务给会话命名，比如 `fix-login-redirect` 或 `review-pr-42`，这样就能在边栏中找到它们，也能在[命令行](./cli.md)中指定它们。
 
 ### 新会话从哪里开始
@@ -31,6 +33,7 @@ Kero 将你的工作分为两层：项目（文件夹）包含会话（任务）
 - `current`（默认）：你当前所在会话的目录
 - `project`：项目的根目录
 - `home`：你的主目录
+- 你的某个文件夹，如 `new-session-directory = ~/Developer`，或在设置 › 通用中选 **自定义…**。文件夹不存在时从主目录开始。其他主机上的会话从其主目录开始。
 
 <a id="how-an-unnamed-session-is-named"></a>
 ### 未命名的会话如何命名
@@ -45,8 +48,11 @@ Kero 将你的工作分为两层：项目（文件夹）包含会话（任务）
 
 **项目**就是一个文件夹。Kero 在边栏中将会话归到各自的项目下。用 <kbd>⌘</kbd> <kbd>O</kbd> 打开项目，或者让 `kero new` 根据会话的启动目录自动选择。
 
+要调整项目的顺序，可以在边栏中上下拖动项目的标题，或使用其右键菜单中的**移动**：上移、下移、移到顶部或移到底部。顺序在重启后依然保留。
+
 ```sh
-kero projects            # 列出项目
+kero projects            # 按边栏的顺序列出项目
+kero projects move my-app top   # 移动项目：top、bottom、up、down 或位置（1 为顶部）
 kero new -p my-app       # 按名称在某个项目中新建会话
 ```
 
@@ -57,7 +63,7 @@ kero new -p my-app       # 按名称在某个项目中新建会话
 - 退出 Kero 后，所有会话仍在运行。
 - 再次打开 Kero，所有会话都保持原样，回滚缓冲也在。
 - kerod 自身重启之后（比如重启电脑后），Kero 会在原来的目录中重新启动你的会话。设置 `restore-sessions = false` 可以关闭这一行为。
-- 为某个智能体设置好 [Kero 的技能](./agents.md#install-the-skill)后，原先运行 Claude Code、Codex、Pi 或 OpenCode 的窗格会接着之前的对话继续，效果与智能体自带的恢复选项相同。其他程序不会擅自重新启动：它们的窗格会回到 shell。设置 `resume-agents = false` 可以关闭这一行为。
+- 为某个智能体设置好 [Kero 的技能](./agents.md#install-the-skill)后，原先运行 Claude Code、Codex、Pi、OMP 或 OpenCode 的窗格会接着之前的对话继续，效果与智能体自带的恢复选项相同。其他程序不会擅自重新启动：它们的窗格会回到 shell。设置 `resume-agents = false` 可以关闭这一行为。
 
 ```sh
 kero daemon status       # kerod 是否在运行？
@@ -69,7 +75,7 @@ kero daemon stop         # 停止它，并结束所有会话
 
 ## 过去的对话
 
-为智能体设置好 [Kero 的技能](./agents.md#install-the-skill)后，Kero 会记住在它的窗格中运行过的 Claude Code、Codex、Pi 和 OpenCode 对话，这样即使会话已经关闭，你也能接着继续。
+为智能体设置好 [Kero 的技能](./agents.md#install-the-skill)后，Kero 会记住在它的窗格中运行过的 Claude Code、Codex、Pi、OMP 和 OpenCode 对话，这样即使会话已经关闭，你也能接着继续。
 
 - <kbd>⌘</kbd> <kbd>P</kbd> 在**最近的对话**下列出最近几个，输入时也能找到更早的。
 - **会话 › 恢复对话…**（<kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>O</kbd>）列出全部。

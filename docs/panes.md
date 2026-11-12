@@ -19,6 +19,8 @@ Split a session to run things side by side: an agent on the left, its dev server
 
 **Zoom** fills the session with one pane; press it again to bring the others back.
 
+In the sidebar, a split session's row shows how many panes it has, after its name. Click the count to list the panes under the row, each with its program, its name, its branch or folder when it differs, and its status; it tells which pane needs you. Click a pane there to go to it, or right-click it to zoom or close it. Click the count again to fold them back.
+
 When a pane's program exits, the pane stays so you can read its output. **Restart Pane** starts its shell again in the same directory.
 
 ## From the command line

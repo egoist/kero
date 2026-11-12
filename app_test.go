@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/egoist/mygo/plugins/terminal"
+
 	"kero/internal/client"
 	"kero/internal/proto"
 )
@@ -220,6 +222,21 @@ func TestOpenProjectRemotePaths(t *testing.T) {
 	}
 }
 
+// window-padding-color picks what the padding shows, extending the cells'
+// colors by default, as before it.
+func TestTermPaddingColor(t *testing.T) {
+	a := testApp(t)
+	if got := a.termOptions("a", nil).PaddingColor; got != terminal.PaddingExtend {
+		t.Errorf("by default the padding is %v, want PaddingExtend", got)
+	}
+	for v, want := range map[string]terminal.PaddingColor{"background": terminal.PaddingBackground, "extend": terminal.PaddingExtend, "extend-always": terminal.PaddingExtendAlways} {
+		a.set.PaddingColor = v
+		if got := a.termOptions("a", nil).PaddingColor; got != want {
+			t.Errorf("window-padding-color = %s gives %v, want %v", v, got, want)
+		}
+	}
+}
+
 // The app's copy of a pane keeps the scrollback-limit, as kerod's does,
 // not the terminal's default of 10 MB.
 func TestTermScrollback(t *testing.T) {
@@ -244,5 +261,28 @@ func TestEmptyProjects(t *testing.T) {
 	h.loaded = false
 	if got := a.emptyProjects(h); got != nil {
 		t.Fatalf("emptyProjects before the state came = %v, want none", got)
+	}
+}
+
+// font-feature reaches the terminals after font-ligatures, and wins over
+// it for the tags it names.
+func TestTermFontFeatures(t *testing.T) {
+	a := testApp(t)
+	for _, c := range []struct {
+		liga bool
+		user []string
+		want []string
+	}{
+		{true, nil, nil},
+		{false, nil, []string{"-calt", "-liga", "-dlig"}},
+		{true, []string{"ss01", "cv05=2"}, []string{"ss01", "cv05=2"}},
+		{false, []string{"+calt", "ss02"}, []string{"-liga", "-dlig", "+calt", "ss02"}},
+		{true, []string{"-calt"}, []string{"-calt"}},
+	} {
+		a.set.Ligatures, a.set.FontFeatures = c.liga, c.user
+		got := a.termOptions("a", nil).Font.Features
+		if !slices.Equal(got, c.want) {
+			t.Errorf("ligatures %v, font-feature %q: the terminal has %q, want %q", c.liga, c.user, got, c.want)
+		}
 	}
 }

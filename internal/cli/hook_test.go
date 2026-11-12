@@ -2,6 +2,7 @@ package cli
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -177,4 +178,13 @@ func TestAgentPlugins(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(home, ".pi", "agent", "extensions")); err != nil {
 		t.Fatal("Pi's extensions directory went with Kero's extension")
 	}
+}
+
+func TestMain(m *testing.M) {
+	// The kero command of TestCodexHookRunsInEveryShell: this test binary.
+	if os.Getenv("KERO_TEST_HOOK") == "1" {
+		fmt.Println("hook ran:", strings.Join(os.Args[1:], " "))
+		os.Exit(0)
+	}
+	os.Exit(m.Run())
 }

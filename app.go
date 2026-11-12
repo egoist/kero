@@ -46,7 +46,10 @@ type prefs struct {
 	SidebarWidth  float32         `json:"sidebarWidth,omitempty"`
 	SidebarHidden bool            `json:"sidebarHidden,omitempty"`
 	Collapsed     map[string]bool `json:"collapsed,omitempty"`
-	FontSize      float32         `json:"fontSize,omitempty"`
+	// Expanded are the split sessions whose panes the sidebar lists under
+	// their rows, by id.
+	Expanded map[string]bool `json:"expanded,omitempty"`
+	FontSize float32         `json:"fontSize,omitempty"`
 	// Side is the tab the right sidebar shows, "" while it is hidden, and
 	// SideTab the one it shows again; RightWidth is its width, and
 	// SideWidth the width of the card beside the panes that opens a file
@@ -88,6 +91,7 @@ type App struct {
 	win     *mygo.Window
 	winOpen bool
 	tray    *mygo.Tray // the icon in the menu bar or notification area, while it shows
+	awake   awakeHold  // keeps the computer from sleeping, as Keep computer awake asks
 
 	// hosts are the kerods the app shows, this machine's first; st is
 	// what they hold, each host's sessions and projects after the one's
@@ -126,6 +130,7 @@ type App struct {
 	renaming        string
 	renamingProject string
 	renameBuf       string
+	projMove        projectMove // the project dragged in the sidebar
 
 	renameFrames int
 	chrome       chrome // where the sidebar's animation puts things
@@ -417,6 +422,7 @@ func (a *App) notify(first bool) {
 		waiting = 0
 	}
 	mygo.App.SetBadgeCount(waiting)
+	a.keepAwake()
 }
 
 func (a *App) updateTitle() {
@@ -726,11 +732,30 @@ func (a *App) watchReturn() {
 
 func (a *App) termFont() terminal.Font {
 	f := terminal.Font{Family: a.termFamily(), Size: a.set.FontSize, Weight: a.set.FontWeight,
-		LineHeight: a.set.LineHeight, Thicken: a.set.Thicken}
-	if !a.set.Ligatures {
-		f.Features = []string{"-calt", "-liga", "-dlig"}
-	}
+		CellWidth: a.set.CellWidth, LineHeight: a.set.LineHeight, Thicken: a.set.Thicken}
+	f.Features = a.fontFeatures()
 	return f
+}
+
+// fontFeatures are the terminals' OpenType features, as terminal.Font
+// takes them: ligatures off unless they're wanted, then the user's
+// font-feature, which win over them for the tags they name.
+func (a *App) fontFeatures() []string {
+	var fs []string
+	if !a.set.Ligatures {
+		for _, tag := range []string{"calt", "liga", "dlig"} {
+			if !slices.ContainsFunc(a.set.FontFeatures, func(f string) bool { return featureTag(f) == tag }) {
+				fs = append(fs, "-"+tag)
+			}
+		}
+	}
+	return append(fs, a.set.FontFeatures...)
+}
+
+// featureTag is the tag of a feature as terminal.Font takes it.
+func featureTag(f string) string {
+	tag, _, _ := strings.Cut(strings.TrimLeft(f, "+-"), "=")
+	return tag
 }
 
 // termThemes returns the terminal's colors in light and dark windows: the
@@ -746,6 +771,31 @@ var commandKeys = map[ui.Key]byte{
 	ui.KeyBackspace: 0x15, // Control+U, kill-line
 	ui.KeyLeft:      0x01, // Control+A, beginning-of-line
 	ui.KeyRight:     0x05, // Control+E, end-of-line
+}
+
+// optionKeys are the keys that, with Option alone on a Mac, send the
+// program Esc and a letter, as Ghostty's, Terminal's and iTerm's do:
+// shells take Esc b and Esc f as backward-word and forward-word, where
+// the Alt arrows' own sequences, unbound, would type a letter.
+var optionKeys = map[ui.Key]byte{
+	ui.KeyLeft:  'b', // backward-word
+	ui.KeyRight: 'f', // forward-word
+}
+
+// macKeySend is what a key with these modifiers sends the program on a
+// Mac in place of its own sequence, nil for the key's own.
+func macKeySend(mods ui.Modifiers, key ui.Key) []byte {
+	switch mods {
+	case ui.Super:
+		if b, ok := commandKeys[key]; ok {
+			return []byte{b}
+		}
+	case ui.Alt:
+		if b, ok := optionKeys[key]; ok {
+			return []byte{0x1b, b}
+		}
+	}
+	return nil
 }
 
 func (a *App) termOptions(id string, conn *gated) terminal.Options {
@@ -764,9 +814,10 @@ func (a *App) termOptions(id string, conn *gated) terminal.Options {
 		// another pane.
 		Transparent: true,
 		// Text lines up with the pane's title; a full-screen program's
-		// colors reach the card's edges.
+		// colors reach the card's edges, unless window-padding-color says
+		// otherwise.
 		Padding:      terminal.Padding{X: 16, Y: 6},
-		PaddingColor: terminal.PaddingExtend,
+		PaddingColor: map[string]terminal.PaddingColor{"background": terminal.PaddingBackground, "extend": terminal.PaddingExtend, "extend-always": terminal.PaddingExtendAlways}[a.set.PaddingColor],
 		// Text a program colored for the other appearance, as a dark
 		// theme's light grays on a light one, stays legible.
 		MinimumContrast:  a.set.MinContrast,
@@ -786,23 +837,22 @@ func (a *App) termOptions(id string, conn *gated) terminal.Options {
 			conn.Clear(proto.ClearScreen)
 			return true
 		},
-		// ⌘⌫ clears the line the shell is on, and ⌘← and ⌘→ go to its
-		// start and end, as in Ghostty: they send Control+U, Control+A and
-		// Control+E, which shells take as kill-line, beginning-of-line and
-		// end-of-line.
+		// ⌘⌫ clears the line the shell is on, ⌘← and ⌘→ go to its start
+		// and end, and ⌥← and ⌥→ move by a word, as in Ghostty
+		// (macKeySend).
 		OnKey: func(mods ui.Modifiers, key ui.Key) bool {
-			if runtime.GOOS != "darwin" || mods != ui.Super {
+			if runtime.GOOS != "darwin" {
 				return false
 			}
-			b, ok := commandKeys[key]
-			if !ok {
+			b := macKeySend(mods, key)
+			if b == nil {
 				return false
 			}
 			t := a.termFor(id)
 			if t == nil {
 				return false
 			}
-			t.Send([]byte{b})
+			t.Send(b)
 			return true
 		},
 		// The wheel, the user's even over a window not focused, tells they
@@ -829,10 +879,12 @@ func (a *App) termOptions(id string, conn *gated) terminal.Options {
 	if a.set.CopyOnSelect {
 		o.CopyOnSelect = terminal.CopyOnSelectClipboard
 	}
-	// Files and images pasted into a pane of another machine go there; a
-	// local pane's image alone pastes as the path of a file with it.
+	// Files and images pasted into, or dropped on, a pane of another
+	// machine go there; a local pane's image alone pastes as the path of
+	// a file with it.
 	if a.hostOf(id).remote() {
 		o.OnPaste = func(d transfer.Data) bool { return a.remotePaste(id, d) }
+		o.OnDrop = func(paths []string) bool { return a.remoteDrop(id, paths) }
 	}
 	return o
 }
@@ -866,10 +918,11 @@ func (a *App) apply(s settings.Settings, save bool) {
 		}
 	}
 	font := old.FontFamily != s.FontFamily || old.FontSize != s.FontSize || old.FontWeight != s.FontWeight ||
-		old.LineHeight != s.LineHeight || old.Ligatures != s.Ligatures || old.Thicken != s.Thicken
+		old.CellWidth != s.CellWidth || old.LineHeight != s.LineHeight || old.Ligatures != s.Ligatures || old.Thicken != s.Thicken ||
+		!slices.Equal(old.FontFeatures, s.FontFeatures)
 	themes := old.LightTheme != s.LightTheme || old.DarkTheme != s.DarkTheme
 	anew := old.Cursor != s.Cursor || old.CursorBlink != s.CursorBlink || old.OptionAsAlt != s.OptionAsAlt ||
-		old.Clipboard != s.Clipboard || old.RightClick != s.RightClick
+		old.Clipboard != s.Clipboard || old.RightClick != s.RightClick || old.PaddingColor != s.PaddingColor
 	light, dark := a.termThemes()
 	retune := func(t *terminal.Terminal) {
 		if font {
@@ -928,6 +981,12 @@ func (a *App) apply(s settings.Settings, save bool) {
 	}
 	if old.DockBadge != s.DockBadge {
 		a.notify(true)
+	}
+	if old.KeepAwake != s.KeepAwake {
+		a.keepAwake()
+		if a.tray != nil {
+			a.tray.SetMenu(a.trayMenu())
+		}
 	}
 	if old.AppIcon != s.AppIcon && a.win != nil {
 		a.changeAppIcon()
@@ -1168,13 +1227,38 @@ func (a *App) newSessionOn(h *host, projectID string) {
 	if h.remote() {
 		home = "~" // the host's, as kerod there takes it
 	}
-	if a.set.NewSessionDir == "home" {
+	switch a.set.NewSessionDir {
+	case "home":
 		p.Dir = home
+	case "custom":
+		p.Dir = home
+		if !h.remote() {
+			if dir := expandHome(a.set.NewSessionPath); isDir(dir) {
+				p.Dir = dir
+			}
+		}
 	}
-	if p.Project == "" && len(a.projectsOf(h)) == 0 {
+	if p.Project == "" && len(a.projectsOf(h)) == 0 && a.set.NewSessionDir != "custom" {
 		p.Dir = home
 	}
 	a.create(h, p, "")
+}
+
+// expandHome makes a path of ~/… this machine's home's.
+func expandHome(p string) string {
+	if p == "~" {
+		return proto.Home()
+	}
+	if strings.HasPrefix(p, "~/") || runtime.GOOS == "windows" && strings.HasPrefix(p, `~\`) {
+		return filepath.Join(proto.Home(), p[2:])
+	}
+	return p
+}
+
+// isDir tells whether a folder exists.
+func isDir(p string) bool {
+	st, err := os.Stat(p)
+	return err == nil && st.IsDir()
 }
 
 // create starts a session on a host, and shows it, opening the project
@@ -1506,6 +1590,25 @@ func (a *App) jumpToAttention() {
 
 func (a *App) toggleSidebar() {
 	a.prefs.SidebarHidden = !a.prefs.SidebarHidden
+	a.savePrefs()
+}
+
+// toggleSessionPanes shows or hides the panes of a split session under
+// its row in the sidebar, forgetting the sessions that are gone.
+func (a *App) toggleSessionPanes(id string) {
+	if a.prefs.Expanded == nil {
+		a.prefs.Expanded = map[string]bool{}
+	}
+	for k := range a.prefs.Expanded {
+		if a.session(k) == nil {
+			delete(a.prefs.Expanded, k)
+		}
+	}
+	if a.prefs.Expanded[id] {
+		delete(a.prefs.Expanded, id)
+	} else {
+		a.prefs.Expanded[id] = true
+	}
 	a.savePrefs()
 }
 

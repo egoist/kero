@@ -288,7 +288,7 @@ func (a *App) rightSidebar(c *ui.Context, pal *palette, s *proto.Session) {
 	// corner (mainControls): they show up to the controls, not under them.
 	w := a.rightWidth() - 10
 	shown := w
-	if ownControls && a.win != nil {
+	if showControls && a.win != nil {
 		w -= controlsW + 8
 		shown = min(max(a.side.barW-a.side.edge-10-(controlsW+8), 0), w)
 	}
@@ -717,6 +717,7 @@ func (a *App) changesViewer(c *ui.Context, pal *palette, s *proto.Session, width
 			ui.Text(c, a.hostOf(s.ID).shortDir(dir)).FontSize(13).TextColor(pal.textFaint).SingleLine().Ellipsis("…").Shrink(2).MinWidth(0).Tooltip(dir)
 		}
 	}, func() {
+		a.wrapButton(c, pal)
 		if files {
 			a.foldAllButton(c, pal, cf.scope, cf.list.Files)
 		}
@@ -881,6 +882,20 @@ func (a *App) fileCollapsed(scope string, f proto.GitFile) bool {
 		return v
 	}
 	return f.Binary || f.Added+f.Removed > 600
+}
+
+// wrapButton wraps the viewer's long lines, of diffs and files, or stops
+// wrapping them, as wrap-lines keeps.
+func (a *App) wrapButton(c *ui.Context, pal *palette) {
+	svg, tip := wrapIcon, locales.ViewerWrap()
+	if a.set.WrapLines {
+		svg, tip = unwrapIcon, locales.ViewerNoWrap()
+	}
+	iconButton(c, "wrap", svg, tip, pal, func() {
+		set := a.set
+		set.WrapLines = !set.WrapLines
+		a.applySettings(set)
+	})
 }
 
 // foldAllButton folds every file's diff while any shows, else unfolds
@@ -1215,6 +1230,7 @@ func (a *App) diffSplit(width float32) bool {
 func (a *App) diffOptions(c *ui.Context, pal *palette, s *proto.Session, sf *sideFile, width float32) {
 	d := sf.d
 	d.FitContent = true
+	d.Wrap = a.set.WrapLines
 	d.Font = ui.Font{Family: a.termFamily(), Size: max(a.set.FontSize-1, 10)}
 	d.Theme = a.codeTheme(c, pal)
 	d.Layout = editor.DiffUnified

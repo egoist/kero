@@ -127,6 +127,8 @@ func runApp() {
 		mygo.App.SetActivationPolicy(activationPolicy(a.set))
 	}
 	mygo.App.WhenReady(func() {
+		followWindowButtons()
+		a.keepAwake()
 		a.openWindow()
 		a.applyTray()
 		a.applyGlobalShortcuts()

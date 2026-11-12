@@ -64,6 +64,7 @@ Windows と Linux では、<kbd>Ctrl</kbd> と文字キーの組み合わせは�
 | 拡大                   | <kbd>⌘</kbd> <kbd>=</kbd>              | <kbd>Ctrl</kbd> <kbd>=</kbd>                  | `text.bigger`    |
 | 縮小                   | <kbd>⌘</kbd> <kbd>-</kbd>              | <kbd>Ctrl</kbd> <kbd>-</kbd>                  | `text.smaller`   |
 | 実際のサイズ           | <kbd>⌘</kbd> <kbd>0</kbd>              | <kbd>Ctrl</kbd> <kbd>0</kbd>                  | `text.reset`     |
+| ダークモードの切り替え | <kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>L</kbd> | <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>L</kbd> | `theme.toggle` |
 | クイックターミナル     | –                                      | –                                             | `quickTerminal.toggle` |
 
 ## クイックターミナル

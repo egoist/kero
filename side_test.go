@@ -525,6 +525,35 @@ func TestFoldAllFiles(t *testing.T) {
 	}
 }
 
+// The button at the top of the diffs turns wrap-lines on, then off.
+func TestWrapDiffs(t *testing.T) {
+	a := testApp(t)
+	s := &a.st.Sessions[0]
+	g := &proto.GitInfo{Root: "/tmp/demo", Branch: "main", Default: "main", Files: 1, Added: 1}
+	s.Panes[0].Git, s.Panes[1].Git = g, g
+	a.toggleSide(sideChanges)
+	ch := &a.side.changes
+	ch.base, ch.scope, ch.stamp = git.BaseHead, changesScope(&s.Panes[0], git.BaseHead), gitStamp(g)
+	ch.res = &proto.GitChanges{Root: "/tmp/demo", Files: []proto.GitFile{{Path: "f.go", Status: "modified", Added: 1}}}
+	ch.fetched = time.Now()
+	tt := ui.NewTester(a.view, 1280, 720)
+	tt.Frame()
+
+	for _, want := range []bool{true, false} {
+		label := "Wrap Lines"
+		if !want {
+			label = "Don't Wrap Lines"
+		}
+		if err := tt.Click(label); err != nil {
+			t.Fatal(err)
+		}
+		tt.Frame()
+		if a.set.WrapLines != want {
+			t.Fatalf("clicking %q left wrap-lines %v", label, a.set.WrapLines)
+		}
+	}
+}
+
 // A pane just split from another has no worktree until kerod looks at
 // it: meanwhile the sidebar keeps the worktree its directory is in, its
 // changes listed and its base chosen, and its files.

@@ -125,6 +125,31 @@ func TestBadValuesKeepDefaults(t *testing.T) {
 	}
 }
 
+// cell-width takes 0.8 to 2, and anything else keeps the default.
+func TestCellWidthBounds(t *testing.T) {
+	for _, tt := range []struct {
+		value string
+		want  float32
+	}{
+		{"1", 1},
+		{"1.03", 1.03},
+		{"2", 2},
+		{"0.8", 0.8},
+		{"0.79", Default().CellWidth},
+		{"2.01", Default().CellWidth},
+		{"NaN", Default().CellWidth},
+		{"+Inf", Default().CellWidth},
+		{"-Inf", Default().CellWidth},
+	} {
+		t.Run(tt.value, func(t *testing.T) {
+			s, _ := parse("cell-width = " + tt.value + "\n")
+			if s.CellWidth != tt.want {
+				t.Errorf("cell width = %v, want %v", s.CellWidth, tt.want)
+			}
+		})
+	}
+}
+
 // Kero elsewhere updates the app here only once the user lets it.
 func TestRemoteUpdatesOptIn(t *testing.T) {
 	if Default().RemoteUpdates {
@@ -297,5 +322,51 @@ func TestMouseScrollMultiplier(t *testing.T) {
 	}
 	if out := format(Default(), ""); strings.Contains(out, "mouse-scroll-multiplier =") {
 		t.Errorf("a new file sets the default:\n%s", out)
+	}
+}
+
+func TestFontFeature(t *testing.T) {
+	for _, c := range []struct {
+		file     string
+		want     []string
+		problems int
+	}{
+		{"", nil, 0},
+		{"font-feature = ss01", []string{"ss01"}, 0},
+		{"font-feature = ss01, -calt , cv05=2", []string{"ss01", "-calt", "cv05=2"}, 0},
+		{"font-feature = +ss01\nfont-feature = calt=0", []string{"+ss01", "calt=0"}, 0},
+		{"font-feature = ss01\nfont-feature =\nfont-feature = ss02", []string{"ss02"}, 0},
+		{"font-feature = ss01, ligatures, -calt=1, cv05=x, ss2", []string{"ss01"}, 1},
+	} {
+		s, probs := parse(c.file + "\n")
+		if !reflect.DeepEqual(s.FontFeatures, c.want) || len(probs) != c.problems {
+			t.Errorf("%q: features %q, problems %q; want %q", c.file, s.FontFeatures, probs, c.want)
+		}
+		if back, _ := parse(format(s, "")); !reflect.DeepEqual(back.FontFeatures, s.FontFeatures) {
+			t.Errorf("%q: read back %q", c.file, back.FontFeatures)
+		}
+	}
+	if out := format(Default(), ""); strings.Contains(out, "font-feature") {
+		t.Errorf("a new file sets font-feature:\n%s", out)
+	}
+}
+
+// new-session-directory takes a folder besides its choices, and writes it
+// back as it was given.
+func TestNewSessionDirectoryFolder(t *testing.T) {
+	s, probs := parse("new-session-directory = ~/Developer\n")
+	if len(probs) > 0 || s.NewSessionDir != "custom" || s.NewSessionPath != "~/Developer" {
+		t.Fatalf("got %q %q, problems %q", s.NewSessionDir, s.NewSessionPath, probs)
+	}
+	if v := newSessionDirKey.get(&s); v[0] != "~/Developer" {
+		t.Errorf("written back as %q", v)
+	}
+	if _, probs := parse("new-session-directory = Developer\n"); len(probs) != 1 {
+		t.Errorf("a relative folder: problems %q", probs)
+	}
+	bad := Settings{NewSessionDir: "custom"}
+	bad.normalize()
+	if bad.NewSessionDir != Default().NewSessionDir {
+		t.Errorf("custom with no folder kept as %q", bad.NewSessionDir)
 	}
 }

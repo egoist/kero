@@ -30,6 +30,7 @@ import (
 	"kero/internal/build"
 	"kero/internal/clilink"
 	"kero/internal/detach"
+	"kero/internal/detect"
 	"kero/internal/proto"
 	"kero/internal/settings"
 	"kero/internal/shell"
@@ -47,8 +48,12 @@ type Daemon struct {
 	mu       sync.Mutex
 	projects []proto.Project
 	sessions []*session
-	panes    map[string]*pane
-	subs     map[*controlConn]struct{}
+	// unrestored are the last daemon's sessions none of whose panes
+	// started again, as when the terminal's library was missing: saved
+	// as they were, for the next start to try again, rather than lost.
+	unrestored []savedSession
+	panes      map[string]*pane
+	subs       map[*controlConn]struct{}
 	// watchers are the connections that follow the state and notices,
 	// as kero events does, but are no app: no action, select or browser
 	// call goes to them, nor do they count as an app being open.
@@ -110,6 +115,11 @@ func Run(opts Options) error {
 		logw = io.MultiWriter(logf, os.Stderr)
 	}
 	lg := log.New(logw, "", log.LstdFlags|log.Lmicroseconds)
+	// The user's agents, which a restart reads anew.
+	detect.UserFile = settings.AgentsPath()
+	for _, p := range detect.Problems() {
+		lg.Printf("agents: %s", p)
+	}
 	// What an update of the server build on Windows moved aside, which
 	// it could not remove as it ran (update.Replace).
 	if build.Server && runtime.GOOS == "windows" {
@@ -143,7 +153,7 @@ func Run(opts Options) error {
 	}
 	defer os.Remove(sock)
 
-	exe, _ := os.Executable()
+	exe := executable()
 	d := &Daemon{
 		dir: dir, exe: exe, opts: opts, started: time.Now(), log: lg,
 		subs:     map[*controlConn]struct{}{},
@@ -158,6 +168,18 @@ func Run(opts Options) error {
 	d.git = newGitFollow(d)
 	empty := ""
 	d.viewed.Store(&empty)
+	lg.Print("--- daemon run ---")
+	// The daemon lock stays held until Run returns. Only its owner reads or
+	// changes this marker; a rejected second daemon must leave it alone.
+	runMarker := filepath.Join(dir, "kerod.running")
+	if _, err := os.Stat(runMarker); err == nil {
+		lg.Print("previous daemon exit was unclean")
+	} else if !os.IsNotExist(err) {
+		lg.Printf("reading daemon run marker: %v", err)
+	}
+	if err := os.WriteFile(runMarker, nil, 0o600); err != nil {
+		lg.Printf("recording daemon run: %v", err)
+	}
 	lg.Printf("kerod %d started (Kero %s, pid %d, %s)", proto.Version, build.Version(), os.Getpid(), exe)
 	d.linkCLI()
 	// The listeners first: Tailscale Serve's socket takes a umask of its
@@ -166,7 +188,12 @@ func Run(opts Options) error {
 	d.loadConversations()
 	d.restore()
 
-	signal.Ignore(syscall.SIGHUP, syscall.SIGPIPE)
+	signal.Ignore(syscall.SIGPIPE)
+	// SIGHUP is caught, on a channel nothing reads, not ignored: kerod
+	// outlives it either way, but an ignored signal stays ignored across
+	// exec, so a pane's programs would ignore their hangup too. A caught
+	// one is back to its default in a child.
+	signal.Notify(make(chan os.Signal, 1), syscall.SIGHUP)
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGTERM, syscall.SIGINT)
 	notifyStop(sigs)
@@ -203,6 +230,10 @@ func Run(opts Options) error {
 	<-d.quit
 	ln.Close()
 	d.net.close()
+	// Do not defer this: a panic or forced exit must leave the marker behind.
+	if err := os.Remove(runMarker); err != nil && !os.IsNotExist(err) {
+		lg.Printf("clearing daemon run marker: %v", err)
+	}
 	if d.restarting {
 		d.successor()
 	}
@@ -247,17 +278,32 @@ func (d *Daemon) stop() { d.quitOnce.Do(func() { close(d.quit) }) }
 // linkCLI keeps bin/kero pointing at this executable (package clilink),
 // which sessions have on their PATH: the kero CLI, for agents to drive
 // other sessions.
+// executable is this program's path, links resolved: started through the
+// CLI's link (bin/kero), as a bridge over SSH is, os.Executable on macOS
+// names the link, beside which the app's libraries are not, and linking
+// the CLI to it would make the link point at itself.
+func executable() string {
+	exe, err := os.Executable()
+	if err != nil {
+		return ""
+	}
+	if real, err := filepath.EvalSymlinks(exe); err == nil {
+		return real
+	}
+	return exe
+}
+
 func (d *Daemon) linkCLI() {
+	if dir := d.zshDir(); dir != "" {
+		if err := writeZshenv(dir, d.binFirst()); err != nil {
+			d.log.Printf("writing zsh's startup file: %v", err)
+		}
+	}
 	if d.exe == "" {
 		return
 	}
 	if err := clilink.Link(d.exe, filepath.Join(d.dir, "bin")); err != nil {
 		d.log.Printf("linking the CLI: %v", err)
-	}
-	if bin := d.binFirst(); bin != "" {
-		if err := writeZshenv(bin); err != nil {
-			d.log.Printf("writing zsh's startup file: %v", err)
-		}
 	}
 }
 
@@ -597,10 +643,11 @@ func expandHome(p string) string {
 }
 
 // agents are the coding agents the sidebar recognizes, by the name of
-// their executable or script.
+// their executable or script, besides those of the user's manifests
+// (detect.UserFile).
 var agents = []string{
 	"claude", "codex", "gemini", "opencode", "amp", "aider", "cursor-agent", "droid",
-	"qwen", "goose", "crush", "copilot", "kiro-cli", "cline", "auggie", "kimi", "pi",
+	"qwen", "goose", "crush", "copilot", "kiro-cli", "cline", "auggie", "kimi", "pi", "omp",
 }
 
 func detectAgent(name string, args []string) string {
@@ -613,6 +660,10 @@ func detectAgent(name string, args []string) string {
 	}
 	for _, c := range cands {
 		c = strings.ToLower(strings.TrimSuffix(c, filepath.Ext(c)))
+		// The user's, which may name a program as one of kero's.
+		if a := detect.Executable(c); a != "" {
+			return a
+		}
 		for _, a := range agents {
 			if c == a || strings.HasPrefix(c, a+"-") && a != "pi" {
 				return a

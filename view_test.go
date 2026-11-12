@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"image"
 	"image/color"
@@ -34,6 +35,11 @@ func testApp(t *testing.T) *App {
 	// The configuration too: never the user's.
 	t.Setenv("KERO_CONFIG", filepath.Join(home, "config"))
 	a := newApp()
+	t.Cleanup(func() {
+		if a.ss.preview != nil {
+			a.ss.preview.Close()
+		}
+	})
 	var l *proto.Layout
 	a.st = proto.State{
 		Projects: []proto.Project{{ID: "p1", Name: "demo", Dir: "/tmp"}},
@@ -64,6 +70,84 @@ func shot(t *testing.T, tt *ui.Tester, name string) {
 	}
 	defer f.Close()
 	png.Encode(f, tt.Image())
+}
+
+func TestSessionHoverClose(t *testing.T) {
+	for _, mode := range []string{"compact", "detailed"} {
+		for _, selected := range []bool{false, true} {
+			for _, dark := range []bool{false, true} {
+				t.Run(fmt.Sprintf("%s/selected=%t/dark=%t", mode, selected, dark), func(t *testing.T) {
+					a := testApp(t)
+					a.set.SidebarRows, a.set.ConfirmClose = mode, true
+					other := a.st.Sessions[0]
+					other.ID, other.Name = "s2", "other session"
+					other.Panes = []proto.Pane{{ID: "c", Shell: "fish", Progress: -1}}
+					other.Layout, other.Focus = nil, "c"
+					a.st.Sessions = append(a.st.Sessions, other)
+					id, remaining := "s2", "s1"
+					if selected {
+						id, remaining = remaining, id
+					}
+					s := a.session(id)
+					s.Name, s.Process, s.Status = "hover target", "claude", proto.Working
+					tt := ui.NewTester(a.view, 1100, 640)
+					tt.SetDark(dark)
+					tt.Frame()
+					tt.Advance(time.Second)
+					tt.Frame()
+					label := locales.ActionCloseSession()
+					if _, ok := tt.Find(label); ok {
+						t.Fatal("close button shown without hover")
+					}
+					before, ok := tt.Find("hover target")
+					if !ok {
+						t.Fatalf("no session title; texts %q", tt.Texts())
+					}
+					for range 2 {
+						tt.Move(before.X+before.W/2, before.Y+before.H/2)
+						tt.Frame()
+						if _, ok := tt.Find(label); !ok {
+							t.Fatal("hover did not show close button")
+						}
+						if after, _ := tt.Find("hover target"); after != before {
+							t.Fatalf("hover moved title: %v → %v", before, after)
+						}
+						tt.Move(1000, 600)
+						tt.Frame()
+						if _, ok := tt.Find(label); ok {
+							t.Fatal("close button remained after pointer left")
+						}
+					}
+					tt.Move(before.X+before.W/2, before.Y+before.H/2)
+					tt.Frame()
+					button, ok := tt.Find(label)
+					if !ok {
+						t.Fatal("close button did not return")
+					}
+					tt.Move(button.X+button.W/2, button.Y+button.H/2)
+					tt.Frame()
+					shot(t, tt, fmt.Sprintf("session-close-%s-%t-%t", mode, selected, dark))
+					tt.Press(button.X+button.W/2, button.Y+button.H/2)
+					tt.Frame()
+					if a.selected != "s1" {
+						t.Fatal("pressing close selected the background session")
+					}
+					tt.Release(button.X+button.W/2, button.Y+button.H/2)
+					tt.Frame()
+					// A busy session asks first, as Close Session does
+					// (confirm-close).
+					if a.confirm == nil || !a.confirm.open || a.session(id) == nil {
+						t.Fatal("closing a working session did not ask first")
+					}
+					a.confirm.run()
+					tt.Frame()
+					if a.session(id) != nil || len(a.st.Sessions) != 1 || a.selected != remaining {
+						t.Fatalf("wrong session closed: selected=%q sessions=%v", a.selected, a.st.Sessions)
+					}
+				})
+			}
+		}
+	}
 }
 
 func testDropApp(t *testing.T) *App {
@@ -821,6 +905,28 @@ func TestSidebarRowKeepsTime(t *testing.T) {
 	}
 }
 
+// A project's header shows how many sessions it holds, unless
+// sidebar-session-count is off.
+func TestSidebarSessionCount(t *testing.T) {
+	a := testApp(t)
+	a.local().conn = connReady
+	for _, id := range []string{"s2", "s3"} {
+		s := a.st.Sessions[0]
+		s.ID = id
+		a.st.Sessions = append(a.st.Sessions, s)
+	}
+	tt := ui.NewTester(a.view, 1100, 700)
+	tt.Frame()
+	if !slices.Contains(tt.Texts(), "3") {
+		t.Errorf("the project's header has no count; texts %q", tt.Texts())
+	}
+	a.set.SidebarCount = false
+	tt.Frame()
+	if slices.Contains(tt.Texts(), "3") {
+		t.Errorf("with sidebar-session-count off, the project's header still has its count")
+	}
+}
+
 // A detailed row shows, under the session's name, its status message,
 // else its branch and changes, at the whole row's width; a compact one
 // keeps to one line ($KERO_SHOTS).
@@ -855,5 +961,146 @@ func TestSidebarRows(t *testing.T) {
 	}
 	if !strings.Contains(texts, "fix-login-redirect-after-oauth") {
 		t.Errorf("a compact row lost its branch; texts %q", tt.Texts())
+	}
+}
+
+// Each row leads with its lead pane's program; a split session's row has
+// a count of its panes, which lists them under it, each with its program,
+// name, place and status, and a click focuses one ($KERO_SHOTS).
+func TestSidebarSplitPanes(t *testing.T) {
+	a := testApp(t)
+	a.local().conn = connReady
+	a.terms["a"], a.terms["b"] = &termEntry{}, &termEntry{}
+	s := &a.st.Sessions[0]
+	s.Name = "auth refactor"
+	s.Panes[0] = proto.Pane{ID: "a", Shell: "zsh", Process: "claude", Agent: "claude", Title: "Refactor the auth flow", Dir: "/Users/someone/dev/demo", Status: proto.Working, Progress: -1,
+		Git: &proto.GitInfo{Root: "/Users/someone/dev/demo", Branch: "auth-refactor", Default: "main"}}
+	s.Panes[1] = proto.Pane{ID: "b", Shell: "zsh", Process: "codex", Agent: "codex", Title: "Review the tests", Dir: "/Users/someone/dev/demo", Status: proto.Waiting, Unread: true, Progress: -1, Message: "Allow running npm test?"}
+	s.Panes = append(s.Panes, proto.Pane{ID: "c", Shell: "zsh", Process: "bun", Runtime: "bun", Dir: "/Users/someone/dev/demo/web", Status: proto.Idle, Progress: -1})
+	var l *proto.Layout
+	s.Layout = l.Split("a", "b", "right", 0).Split("b", "c", "down", 0)
+	s.Pane = s.Panes[proto.Lead(s.Panes, s.Focus)]
+	s.Lead = s.Pane.ID
+	base := a.st.Sessions[0]
+	add := func(id, name string, p proto.Pane) {
+		n := base
+		n.ID, n.Name, n.Panes, n.Layout, n.Pane, n.Lead, n.Focus = id, name, []proto.Pane{p}, nil, p, p.ID, p.ID
+		a.st.Sessions = append(a.st.Sessions, n)
+	}
+	add("s2", "docs", proto.Pane{ID: "d", Shell: "zsh", Dir: "/Users/someone/dev/demo", Status: proto.Idle, Progress: -1})
+	add("s3", "gemini", proto.Pane{ID: "e", Shell: "zsh", Process: "gemini", Agent: "gemini", Dir: "/Users/someone/dev/demo", Status: proto.Working, Progress: -1})
+	tt := ui.NewTester(a.view, 1100, 640)
+	tt.Frame()
+	// The pane's header shows its name too: the sidebar adds one.
+	count := func(s string) int {
+		n := 0
+		for _, t := range tt.Texts() {
+			if t == s {
+				n++
+			}
+		}
+		return n
+	}
+	shown := count("Review the tests")
+	if !tt.HasText(locales.SidebarShowPanes()) {
+		t.Fatal("a split session's row has no count of its panes")
+	}
+	if err := tt.Click(locales.SidebarShowPanes()); err != nil {
+		t.Fatal(err)
+	}
+	tt.Advance(time.Second)
+	tt.Frame()
+	if a.selected != "s1" || !a.prefs.Expanded["s1"] {
+		t.Fatalf("the count of panes didn't expand the session; expanded %v", a.prefs.Expanded)
+	}
+	if count("Review the tests") != shown+1 {
+		t.Errorf("the expanded session doesn't list its panes; texts %q", tt.Texts())
+	}
+	for _, want := range []string{"Refactor the auth flow", "auth-refactor", "bun", "web"} {
+		if !tt.HasText(want) {
+			t.Errorf("the expanded session shows no %q; texts %q", want, tt.Texts())
+		}
+	}
+	tt.Move(600, 400) // no tooltip in the shots
+	tt.Frame()
+	shot(t, tt, "sidebar-split-panes-light")
+	tt.SetDark(true)
+	tt.Advance(time.Second)
+	tt.Frame()
+	shot(t, tt, "sidebar-split-panes-dark")
+	tt.SetDark(false)
+	a.set.SidebarRows = "compact"
+	tt.Advance(time.Second)
+	tt.Frame()
+	shot(t, tt, "sidebar-split-panes-compact")
+	a.set.SidebarRows = "detailed"
+	tt.Frame()
+
+	// A click on a pane's row shows its session, with the pane focused:
+	// from another session, whose panes show none of the split one's.
+	a.selectSession("s2")
+	tt.Frame()
+	if err := tt.Click("Review the tests"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if f := a.focusOf(a.session("s1")); a.selected != "s1" || f != "b" {
+		t.Errorf("clicking the pane's row showed %s focused on %q, want s1 on b", a.selected, f)
+	}
+	if err := tt.Click(locales.SidebarHidePanes()); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if a.prefs.Expanded["s1"] || count("Review the tests") != shown {
+		t.Error("the count of panes didn't collapse the session")
+	}
+}
+
+// A double click on the sidebar's empty space starts a session, as ⌘T
+// does; one on a session's row renames it instead.
+func TestDoubleClickSidebarNewSession(t *testing.T) {
+	a := testApp(t)
+	a.local().conn = connReady
+	created := make(chan proto.CreateParams, 2)
+	cl, stop := projectClient(t, func(method string, raw json.RawMessage) (any, error) {
+		if method != "create" {
+			return nil, errors.New("unexpected method " + method)
+		}
+		var p proto.CreateParams
+		if err := json.Unmarshal(raw, &p); err != nil {
+			return nil, err
+		}
+		created <- p
+		return proto.Session{ID: "s2", Project: p.Project}, nil
+	})
+	a.local().cl = cl
+	defer stop()
+	tt := ui.NewTester(a.view, 1100, 640)
+	tt.Frame()
+	row, ok := tt.Find("demo")
+	if !ok {
+		t.Fatalf("no row; texts %q", tt.Texts())
+	}
+	// Well below the rows.
+	tt.ClickAt(row.X+20, 400)
+	tt.Frame()
+	tt.ClickAt(row.X+20, 400)
+	tt.Frame()
+	select {
+	case p := <-created:
+		if p.Project != "p1" || p.After != "s1" {
+			t.Errorf("created %+v, want after s1 in p1, as ⌘T", p)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("the double click started no session")
+	}
+	tt.Advance(time.Second)
+	tt.Frame()
+	tt.ClickAt(row.X+20, 400)
+	tt.Frame()
+	select {
+	case p := <-created:
+		t.Errorf("a single click created %+v", p)
+	case <-time.After(200 * time.Millisecond):
 	}
 }

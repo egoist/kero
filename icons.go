@@ -52,6 +52,8 @@ var (
 	swapIcon         = glyph("f7-arrow-right-arrow-left")
 	branchIcon       = glyph("f7-arrow-branch")
 	diffIcon         = glyph("octicon-file-diff-16")
+	wrapIcon         = glyph("octicon-wrap-16")
+	unwrapIcon       = glyph("octicon-unwrap-16")
 	treeIcon         = glyph("f7-list-bullet-indent")
 	collapseIcon     = glyph("f7-rectangle-compress-vertical")
 	expandIcon       = glyph("f7-rectangle-expand-vertical")
@@ -96,4 +98,30 @@ func programIcon(p *proto.Pane) *ui.SVG {
 		}
 	}
 	return terminalIcon
+}
+
+// agentColors are the colors of coding agents whose logos have one of
+// their own, as Claude's orange; the others take the text's.
+var agentColors = map[string]ui.Color{
+	"claude": ui.Hex("#d97757"),
+	"gemini": ui.Hex("#3186ff"),
+}
+
+// programColor is the color of a pane's program icon in the sidebar: a
+// coding agent's own while it runs, the text's for another program, and
+// faint once the shell is back in the foreground or the pane ended, as
+// the Ended list shows the agents that stopped.
+func programColor(pal *palette, p *proto.Pane) ui.Color {
+	switch {
+	case p.Status == proto.Exited:
+		return pal.textFaint
+	case p.Agent != "":
+		if col, ok := agentColors[p.Agent]; ok {
+			return col
+		}
+		return pal.text
+	case p.Process != "", p.Browser():
+		return pal.textMuted
+	}
+	return pal.textFaint
 }

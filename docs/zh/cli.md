@@ -195,8 +195,9 @@ kero config path                 # 配置文件所在位置
 kero config show                 # 每个配置项及其值
 kero config show --defaults      # 每个配置项的默认值
 kero config edit                 # 在 $EDITOR 中打开它
-kero config check                # 报告未知的配置项和无效的值
-kero projects                    # 列出项目
+kero config check                # 报告未知的配置项、无效的值和agents.toml 的问题
+kero projects                    # 按边栏的顺序列出项目
+kero projects move <project> top # 移动：top、bottom、up、down 或位置（1 为顶部）
 kero skill setup                 # 教编程智能体使用 kero
 kero daemon status|stop|restart  # 管理 kerod
 kero daemon install-service      # 让 kerod 随系统启动（systemd、launchd）

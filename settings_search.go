@@ -23,10 +23,11 @@ type searchEntry struct {
 // language the app shows, as their rows are.
 func settingsIndex() []searchEntry {
 	entries := []searchEntry{
-		{"general", locales.SetNewSessionsStartIn(), "new-session-directory folder current project home tab"},
+		{"general", locales.SetNewSessionsStartIn(), "new-session-directory folder current project home custom tab"},
 		{"general", locales.SetSessionsFollowDir(), "sessions-follow-directory project sort group move cd folder tab auto"},
 		{"general", locales.SetSessionName(), "session-name title sidebar focused lead folder pane"},
 		{"general", locales.SetSidebarRows(), "sidebar-rows compact detailed status message branch two lines"},
+		{"general", locales.SetSidebarCount(), "sidebar-session-count project sessions number count header"},
 		{"general", locales.SetFocusFollowsMouse(), "focus-follows-mouse hover pointer niri hyprland sloppy"},
 		{"general", locales.SetAskBeforeClosing(), "confirm-close quit kill"},
 		{"general", locales.SetRestoreSessions(), "restore-sessions reboot persist"},
@@ -34,6 +35,8 @@ func settingsIndex() []searchEntry {
 		{"general", locales.SetSessionHistory(), "session-history ended sessions archived resume claude codex conversation"},
 		{"general", locales.SetGitStatus(), "git-status branch changes diff repository worktree"},
 		{"general", locales.SetDiffLayout(), "diff-layout diff unified split side by side changes"},
+		{"general", locales.SetWrapLines(), "wrap-lines diff file viewer wrap long lines soft wrap changes files"},
+		{"general", locales.AwakeTitle(), "keep-computer-awake awake sleep caffeinate power agents idle lid"},
 		{"general", locales.SetOpenAtLogin(), "startup launch login items"},
 		{"general", locales.SetVersion(), "updates check for updates software update about"},
 		{"general", locales.SetAutoCheck(), "updates automatic background daily"},
@@ -46,9 +49,11 @@ func settingsIndex() []searchEntry {
 
 		{"terminal", locales.SetFont(), "font-family typeface jetbrains mono nerd"},
 		{"terminal", locales.SetSize(), "font-size zoom bigger smaller text"},
+		{"terminal", locales.SetCellWidth(), "cell-width horizontal spacing glyph " + locales.SetCellWidthDetail()},
 		{"terminal", locales.SetLineHeight(), "line-height spacing leading cell"},
 		{"terminal", locales.SetWeight(), "font-weight bold light"},
 		{"terminal", locales.SetLigatures(), "font-ligatures calt arrows"},
+		{"terminal", locales.SetFontFeatures(), "font-feature opentype stylistic sets ss01 cv01 alternates"},
 		{"terminal", locales.SetThicken(), "font-thicken stroke smoothing"},
 		{"appearance", locales.SetLightWindows(), "theme colors color scheme ghostty palette terminal"},
 		{"appearance", locales.SetDarkWindows(), "theme colors color scheme ghostty palette terminal"},

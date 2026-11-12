@@ -34,22 +34,24 @@ The file only needs what you change. Everything else keeps its default.
 ```sh
 kero config edit              # open it in $EDITOR
 kero config show              # every key with its current value
-kero config check             # report unknown keys and bad values
+kero config check             # report unknown keys and bad values, and agents.toml's
 ```
 
 ## General
 
 | Key                     | Default   | Description                                                   |
 | ----------------------- | --------- | ------------------------------------------------------------- |
-| `new-session-directory` | `current` | Where a new session starts: `current`, `project` or `home`    |
+| `new-session-directory` | `current` | Where a new session starts: `current`, `project`, `home`, or a folder such as `~/Developer` |
 | `session-name`          | `focused` | What names a session you haven't: `focused`, `lead` or `folder` ([more](./sessions.md#how-an-unnamed-session-is-named)) |
 | `sidebar-rows`          | `detailed` | How the sidebar shows a session: `detailed`, with its status message, else its branch and changes, on a second line; or `compact`, on one line |
+| `sidebar-session-count` | `true`    | Show, beside a project's name in the sidebar, how many sessions it holds |
 | `focus-follows-mouse`   | `false`   | Focus the pane the pointer moves into                         |
 | `confirm-close`         | `true`    | Ask before closing a pane that a program is running in        |
 | `restore-sessions`      | `true`    | Start sessions again after kerod restarts, as after a reboot  |
 | `resume-agents`         | `true`    | As sessions start again, resume the conversation of the agent each pane ran |
 | `session-history`       | `false`   | List the agents' ended conversations in the sidebar, to resume or archive ([more](./sessions.md#ended-sessions)) |
 | `macos-show-app-icon`   | `dock-and-menubar` | Where Kero's icon shows on macOS: `dock-and-menubar`, `dock` or `menubar`. While it's in the menu bar, closing the window keeps Kero running there. Windows and Linux always show it in the notification area, where closing the window does the same |
+| `keep-computer-awake`   | `off`              | Keep this computer from sleeping: `off`; `on`, as long as Kero runs; or `agents`, while an agent on this machine works. The command palette and the menu of Kero's icon in the menu bar or notification area pick it too. Closing a Mac's lid still puts it to sleep |
 
 ## Appearance
 
@@ -68,9 +70,11 @@ kero config check             # report unknown keys and bad values
 | `font-size`           | `13`    | In points                                                                |
 | `font-weight`         | `400`   | `100` to `900`                                                           |
 | `line-height`         | `1.22`  | A multiple of the font's                                                 |
+| `cell-width`          | `1`     | The width of cells, a multiple of the font's, from `0.8` to `2`; the text keeps its size |
 | `font-ligatures`      | `true`  | Join characters the way the font draws them                              |
 | `font-thicken`        | `false` | A heavier stroke, as in Ghostty                                          |
 | `minimum-contrast`    | `3`     | The least contrast text keeps with its background, from `1` (none) to `21`, so that colors meant for a dark background stay readable on a light one, as in Ghostty |
+| `window-padding-color` | `extend` | What the padding around a terminal's text shows: `background`, the terminal's background; `extend`, the colors of the cells beside it, but for a row left at the background; or `extend-always`, theirs always, as in Ghostty. With `background`, a program's bottom bar stays one row tall |
 | `dim-unfocused-terminals` | `true` | Fade the terminals you're not in, when a session has several panes |
 | `cursor-style`        | `block` | `block`, `bar` or `underline`; programs may change it                    |
 | `cursor-style-blink`  | `true`  | Blink the cursor                                                         |
@@ -80,6 +84,10 @@ kero config check             # report unknown keys and bad values
 | `right-click-action`  | `context-menu` | `context-menu`, `paste` or `copy-or-paste`                        |
 | `mouse-scroll-multiplier` | `precision:1,discrete:3` | How far scrolling goes, as in Ghostty: `precision:` scales a touchpad's, `discrete:` is the rows a notch of a mouse wheel scrolls (on Windows, a notch at its 3-line setting); one number sets both, from `0.01` to `10000` |
 
+`cell-width = 1.03` adds a little space between characters, and `0.95` takes a
+little away; below `1`, wide letters can touch. Cells take whole pixels, so
+values close together can look the same or differ by a pixel.
+
 ## Shell
 
 | Key                | Default | Description                                                    |
@@ -87,6 +95,12 @@ kero config check             # report unknown keys and bad values
 | `command`          |         | The shell of new panes; empty for your login shell             |
 | `env`              |         | Added to every pane's environment as `NAME=value`; repeat it   |
 | `scrollback-limit` | `4`     | The output each pane keeps, in megabytes; `0` for none         |
+
+zsh starts with a `.zshenv` of Kero's, which sets `ZDOTDIR` back to yours (or
+unsets it) and runs your startup files as zsh would. It then marks where each
+prompt starts and ends, so that the terminal can clear the prompt when it
+resizes before zsh draws it again. Without this, a prompt as wide as the
+terminal, such as Powerlevel10k's, would leave a copy behind at each width.
 
 ## Notifications
 
@@ -122,6 +136,7 @@ Other machines whose sessions the app shows, and `kero -H` reaches. See [Remote 
 | ------------- | ------- | ------------------------------------------------------------------------------------------------- |
 | `git-status`  | `true`  | Show each session's branch and [changes](./changes.md)                                            |
 | `diff-layout` | `auto`  | Diffs of the Changes tab: `unified`, `split` (side by side), or `auto`, side by side once they're wide |
+| `wrap-lines`  | `false` | Wrap the long lines of diffs and of files from Files rather than scrolling them sideways          |
 | `worktree-base` | `default` | What a [session's own worktree](./changes.md#sessions-in-their-own-worktree) branches from: `default`, the repository's default branch, or `current`, the branch of the session you're in |
 | `worktree-dir` |        | Where sessions' own worktrees go, each under its repository's name; empty for `.kero/worktrees` in the repository |
 

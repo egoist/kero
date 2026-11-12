@@ -27,11 +27,12 @@ kero skill setup
 | Claude Code  | `~/.claude/settings.json` の `SessionStart` フック     |
 | Codex        | `~/.codex/hooks.json` の `SessionStart` フック         |
 | Pi           | 拡張機能 `~/.pi/agent/extensions/kero.ts`              |
+| OMP          | 拡張機能 `~/.omp/agent/extensions/kero.ts`             |
 | OpenCode     | プラグイン `~/.config/opencode/plugins/kero`           |
 
-`CLAUDE_CONFIG_DIR`、`CODEX_HOME`、`PI_CODING_AGENT_DIR`、`XDG_CONFIG_HOME` でエージェントのファイルの場所が変わっている場合、Kero はそれに従い、各設定ファイルのほかの部分はそのままにします。
+`CLAUDE_CONFIG_DIR`、`CODEX_HOME`、`PI_CODING_AGENT_DIR`、`PI_CONFIG_DIR`、`XDG_CONFIG_HOME` でエージェントのファイルの場所が変わっている場合、Kero はそれに従い、各設定ファイルのほかの部分はそのままにします。
 
-1 つのエージェントだけをセットアップするには、`--agent` に `claude`、`codex`、`pi`、`opencode` のいずれかを渡します。セットアップは一度だけです: スキルは Kero 自身のコピーへのリンクで、Kero のアップデートに合わせて更新されます。Pi と OpenCode のプラグインも Kero が最新に保ちます。`kero skill status` で、各部分が最新かどうかがわかります。
+1 つのエージェントだけをセットアップするには、`--agent` に `claude`、`codex`、`pi`、`omp`、`opencode` のいずれかを渡します。セットアップは一度だけです: スキルは Kero 自身のコピーへのリンクで、Kero のアップデートに合わせて更新されます。Pi、OMP、OpenCode のプラグインも Kero が最新に保ちます。`kero skill status` で、各部分が最新かどうかがわかります。
 
 ```sh
 kero skill status    # インストール済みのものと、それが最新かどうか

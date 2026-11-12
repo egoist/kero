@@ -22,6 +22,8 @@ A **session** is a unit of work: one task, one agent, one long-running process. 
 | Rename session             | <kbd>⌘</kbd> <kbd>R</kbd>                    |
 | Close session              | <kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>W</kbd>       |
 
+Double-click the empty part of the sidebar to start a new session, as <kbd>⌘</kbd> <kbd>T</kbd> does.
+
 Name sessions after their task, such as `fix-login-redirect` or `review-pr-42`, so you can find them in the sidebar and target them from the [CLI](./cli.md).
 
 ### Where a new session starts
@@ -31,6 +33,7 @@ The `new-session-directory` setting picks the folder:
 - `current` (default): the directory of the session you're in
 - `project`: the project's root folder
 - `home`: your home folder
+- a folder of yours, such as `new-session-directory = ~/Developer`, or **Custom…** in Settings › General. If the folder is gone, sessions start in your home. Sessions on other hosts start in their home.
 
 ### How an unnamed session is named
 
@@ -44,8 +47,11 @@ Until you or an agent name a session, the `session-name` setting (**Name session
 
 A **project** is a folder. Kero groups sessions under their project in the sidebar. Open one with <kbd>⌘</kbd> <kbd>O</kbd>, drag folders from your file manager into the sidebar, or let `kero new` pick it by the directory a session starts in. Dropping folders opens one session per unique project; folders already registered reuse their project. Native folder drops always open on This Computer, even when a remote session is selected. Files and inaccessible folders are rejected. On macOS, file packages such as `.app` bundles are rejected too, matching the Open Project folder picker.
 
+To change the order of projects, drag a project's header up or down in the sidebar, or use **Move** in its context menu: Move Up, Move Down, Move to Top or Move to Bottom. The order is kept across restarts.
+
 ```sh
-kero projects            # list projects
+kero projects            # list projects, in the sidebar's order
+kero projects move my-app top   # move a project: top, bottom, up, down or a position (1 is the top)
 kero new -p my-app       # start a session in a project by name
 ```
 
@@ -56,7 +62,7 @@ Sessions run in **kerod**, a daemon that the app starts on demand. Kero is a win
 - Quitting Kero leaves every session running.
 - Opening Kero again shows every session as it was, scrollback included.
 - After kerod itself restarts, such as after a reboot, Kero starts your sessions again in their directories. Turn this off with `restore-sessions = false`.
-- A pane that was running Claude Code, Codex, Pi or OpenCode resumes its conversation, as the agent's own resume option would, once [Kero's skill](./agents.md#install-the-skill) is set up for that agent. Other programs don't start again unasked: their pane comes back at a shell. Turn this off with `resume-agents = false`.
+- A pane that was running Claude Code, Codex, Pi, OMP or OpenCode resumes its conversation, as the agent's own resume option would, once [Kero's skill](./agents.md#install-the-skill) is set up for that agent. Other programs don't start again unasked: their pane comes back at a shell. Turn this off with `resume-agents = false`.
 
 ```sh
 kero daemon status       # is kerod running?
@@ -66,7 +72,7 @@ kero daemon stop         # stop it and end every session
 
 ## Past conversations
 
-Kero remembers the conversations of Claude Code, Codex, Pi and OpenCode that ran in its panes, once [Kero's skill](./agents.md#install-the-skill) is set up for the agent, so you can pick one up after its session is closed.
+Kero remembers the conversations of Claude Code, Codex, Pi, OMP and OpenCode that ran in its panes, once [Kero's skill](./agents.md#install-the-skill) is set up for the agent, so you can pick one up after its session is closed.
 
 - <kbd>⌘</kbd> <kbd>P</kbd> lists the last few under **Recent Conversations**, and finds older ones as you type.
 - **Session › Resume Conversation…** (<kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>O</kbd>) lists them all.

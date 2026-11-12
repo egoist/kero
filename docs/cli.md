@@ -201,8 +201,9 @@ kero config path                 # where the configuration file is
 kero config show                 # every key with its value
 kero config show --defaults      # every key as kero comes
 kero config edit                 # open it in $EDITOR
-kero config check                # report unknown keys and bad values
-kero projects                    # list projects
+kero config check                # report unknown keys and bad values, and agents.toml's
+kero projects                    # list projects, in the sidebar's order
+kero projects move <project> top # move one: top, bottom, up, down or a position (1 is the top)
 kero skill setup                 # teach coding agents to use kero
 kero daemon status|stop|restart  # manage kerod
 kero daemon install-service      # run kerod with the machine (systemd, launchd)

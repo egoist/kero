@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -33,6 +34,13 @@ func ConfigPath() string {
 		base = filepath.Join(home, ".config")
 	}
 	return filepath.Join(base, proto.Name(), "config")
+}
+
+// AgentsPath returns the user's agents file, agents.toml, beside the
+// configuration file: the rules that tell what an agent is doing from its
+// screen (package detect), which the flat configuration can't hold.
+func AgentsPath() string {
+	return filepath.Join(filepath.Dir(ConfigPath()), "agents.toml")
 }
 
 // key is a key of the configuration: how it reads and writes a setting.
@@ -103,17 +111,46 @@ func mapChoice(name, doc string, f func(*Settings) *string, file, ours []string)
 		}}
 }
 
+// newSessionDirKey takes a folder of the user's too, as ~/… or an
+// absolute path, besides the choices.
+var newSessionDirKey = key{name: "new-session-directory",
+	doc: "where a new session starts (current, project, home, or a folder such as ~/Developer, home when it is gone; sessions on other hosts start in their home)",
+	get: func(s *Settings) []string {
+		if s.NewSessionDir == "custom" {
+			return []string{s.NewSessionPath}
+		}
+		return []string{s.NewSessionDir}
+	},
+	set: func(s *Settings, v []string) error {
+		c := v[len(v)-1]
+		switch {
+		case slices.Contains([]string{"current", "project", "home"}, c):
+			s.NewSessionDir = c
+		case IsFolderPath(c):
+			s.NewSessionDir, s.NewSessionPath = "custom", c
+		default:
+			return fmt.Errorf("%q is none of current, project, home, nor a folder as ~/… or an absolute path", c)
+		}
+		return nil
+	}}
+
+// IsFolderPath tells a folder new-session-directory can name: ~/… or
+// absolute.
+func IsFolderPath(p string) bool {
+	return p == "~" || strings.HasPrefix(p, "~/") || runtime.GOOS == "windows" && strings.HasPrefix(p, `~\`) || filepath.IsAbs(p)
+}
+
 // keys are the configuration's keys, in the order a new file and
 // `kero config show` list them.
 var keys = []key{
-	mapChoice("new-session-directory", "where a new session starts", func(s *Settings) *string { return &s.NewSessionDir },
-		[]string{"current", "project", "home"}, []string{"current", "project", "home"}),
+	newSessionDirKey,
 	boolKey("sessions-follow-directory", "move a session to the project of its pane's folder whenever the folder changes, as with cd; a folder no project holds gets a project of its own",
 		func(s *Settings) *bool { return &s.SessionsFollowDir }),
 	choiceKey("session-name", "what names a session you or an agent didn't: the program in the pane you're in, else in the one that most needs you; the program in the one that most needs you; or the first pane's folder",
 		func(s *Settings) *string { return &s.SessionName }, proto.NameFocused, proto.NameLead, proto.NameFolder),
 	choiceKey("sidebar-rows", "how the sidebar shows a session: detailed, with its status message, else its branch and changes, on a second line; or compact, on one line",
 		func(s *Settings) *string { return &s.SidebarRows }, "detailed", "compact"),
+	boolKey("sidebar-session-count", "show, beside a project's name in the sidebar, how many sessions it holds", func(s *Settings) *bool { return &s.SidebarCount }),
 	boolKey("focus-follows-mouse", "focus the pane the pointer moves into", func(s *Settings) *bool { return &s.FocusFollowsMouse }),
 	boolKey("confirm-close", "ask before closing a pane a program runs in", func(s *Settings) *bool { return &s.ConfirmClose }),
 	boolKey("restore-sessions", "start sessions again after kerod restarts, as after a reboot", func(s *Settings) *bool { return &s.RestoreSessions }),
@@ -121,6 +158,8 @@ var keys = []key{
 	boolKey("session-history", "list the coding agents' ended conversations in the sidebar, to resume or archive", func(s *Settings) *bool { return &s.SessionHistory }),
 	choiceKey("macos-show-app-icon", "where Kero's icon shows; closing the window keeps Kero running in the menu bar while it shows there. Windows and Linux always show it in the notification area",
 		func(s *Settings) *string { return &s.AppIcon }, AppIcons...),
+	choiceKey("keep-computer-awake", "keep this computer from sleeping: never; as long as Kero runs; or while an agent on it works. Closing a Mac's lid still sleeps it",
+		func(s *Settings) *string { return &s.KeepAwake }, KeepAwakeModes...),
 
 	choiceKey("window-theme", "the app's appearance", func(s *Settings) *string { return &s.Appearance }, "system", "light", "dark"),
 	choiceKey("language", "the app's language; system follows the system's", func(s *Settings) *string { return &s.Language }, append([]string{"system"}, Languages...)...),
@@ -130,9 +169,33 @@ var keys = []key{
 	numberKey("font-size", "in points", func(s *Settings) float64 { return float64(s.FontSize) }, func(s *Settings, n float64) { s.FontSize = float32(n) }),
 	numberKey("font-weight", "100 to 900", func(s *Settings) float64 { return float64(s.FontWeight) }, func(s *Settings, n float64) { s.FontWeight = int(n) }),
 	numberKey("line-height", "a multiple of the font's", func(s *Settings) float64 { return float64(s.LineHeight) }, func(s *Settings, n float64) { s.LineHeight = float32(n) }),
+	numberKey("cell-width", "the width of terminal cells, a multiple of the font's, from 0.8 to 2; the text keeps its size", func(s *Settings) float64 { return float64(s.CellWidth) }, func(s *Settings, n float64) { s.CellWidth = float32(n) }),
 	boolKey("font-ligatures", "join characters as the font draws them", func(s *Settings) *bool { return &s.Ligatures }),
+	{name: "font-feature", doc: "the font's OpenType features, as Ghostty's: ss01 turns one on, -calt turns one off, cv05=2 picks an alternate; comma-separated or repeated, and applied after font-ligatures", list: true,
+		get: func(s *Settings) []string { return slices.Clone(s.FontFeatures) },
+		set: func(s *Settings, v []string) error {
+			s.FontFeatures = nil
+			var bad []string
+			for _, l := range v {
+				if strings.TrimSpace(l) == "" {
+					s.FontFeatures = nil // an empty value clears those before it
+					continue
+				}
+				fs, err := ParseFontFeatures(l)
+				s.FontFeatures = append(s.FontFeatures, fs...)
+				if err != nil {
+					bad = append(bad, err.Error())
+				}
+			}
+			if bad != nil {
+				return fmt.Errorf("%s", strings.Join(bad, "; "))
+			}
+			return nil
+		}},
 	boolKey("font-thicken", "a heavier stroke, as Ghostty's", func(s *Settings) *bool { return &s.Thicken }),
 	numberKey("minimum-contrast", "the least contrast text keeps with its background, 1 (none) to 21, as Ghostty's", func(s *Settings) float64 { return float64(s.MinContrast) }, func(s *Settings, n float64) { s.MinContrast = float32(min(max(n, 1), 21)) }),
+	choiceKey("window-padding-color", "what the padding around a terminal's text shows: the background, or the colors of the cells beside it, as Ghostty's",
+		func(s *Settings) *string { return &s.PaddingColor }, PaddingColors...),
 	boolKey("dim-unfocused-terminals", "fade the terminals you're not in, when a session has several panes", func(s *Settings) *bool { return &s.DimUnfocused }),
 	{name: "theme", doc: "the theme of the window, its panes and terminals: one of kero's (" + strings.Join(keroThemeNames(), ", ") + "), a Ghostty theme, or light:<theme>,dark:<theme>",
 		get: func(s *Settings) []string {
@@ -300,6 +363,7 @@ var keys = []key{
 	choiceKey("worktree-base", "what a session's own git worktree branches from: the repository's default branch, or the branch of the session you're in", func(s *Settings) *string { return &s.WorktreeBase }, "default", "current"),
 	stringKey("worktree-dir", "where sessions' own git worktrees go, each under its repository's name; empty for .kero/worktrees in the repository", func(s *Settings) *string { return &s.WorktreeDir }),
 	choiceKey("diff-layout", "the changes panel's diffs: unified while the panel is narrow and side by side once it's wide, or always one", func(s *Settings) *string { return &s.DiffLayout }, "auto", "unified", "split"),
+	boolKey("wrap-lines", "wrap the long lines of the viewer's diffs and files rather than scrolling them sideways", func(s *Settings) *bool { return &s.WrapLines }),
 	boolKey("browser-block-ads", "block ads and trackers in browser panes, with the browser-filter-list lists", func(s *Settings) *bool { return &s.BlockAds }),
 	{name: "browser-filter-list", doc: "a filter list browser-block-ads blocks with: " + strings.Join(adListIDs(), ", ") + ", or a list's https URL; repeat it, and leave it empty for none", list: true,
 		get: func(s *Settings) []string {

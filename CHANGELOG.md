@@ -1,5 +1,108 @@
 # Changelog
 
+## 2.1.35
+
+- **Wrap long lines** in the viewer's diffs and files, from the Wrap
+  Lines button above them or Settings › General (`wrap-lines`), rather
+  than scrolling them sideways. Thanks @Th1nkK1D
+- Hovering a session in the sidebar shows a close button on it.
+  Thanks @bigboss2063
+- `window-padding-color` picks what the padding around a terminal's text
+  shows: `background`, the terminal's background; `extend`, the default,
+  the colors of the cells beside it, but for a row left at the
+  background; or `extend-always`, theirs always, as in Ghostty.
+- On a pane on a remote host, pasting a JPEG, GIF or WebP image uploads
+  it to the host as a PNG already did, and a file dropped on the pane is
+  uploaded too, rather than pasting this computer's path.
+- On macOS, <kbd>⌥</kbd><kbd>←</kbd> and <kbd>⌥</kbd><kbd>→</kbd> move
+  the shell's cursor by a word, as in Ghostty, rather than typing a `D`
+  or a `C`.
+- Updating Kero while an SSH bridge is connected no longer loses the
+  saved sessions, and a session whose panes can't be restored is kept
+  rather than dropped. Hosts get it with their next update.
+- The Kero skill teaches agents when to run short commands themselves
+  and to reuse the panes they already started.
+
+## 2.1.34
+
+- **Reorder projects** in the sidebar: drag a project's header up or
+  down, or pick Move Up, Move Down, Move to Top or Move to Bottom in its
+  menu. `kero projects move <project> <position|top|bottom|up|down>`
+  does it from scripts, and the order stays across restarts.
+- Teach Kero an agent it doesn't know, or fix the rules of one whose
+  screen changed, in `agents.toml` beside the configuration file: an
+  `[[agents]]` table each, with rules as herdr's manifests have them.
+  `kero config check` reports an agent that is wrong, and the others
+  still load. Hosts read it with their next update.
+- **Session count** in Settings › General (`sidebar-session-count`)
+  hides the number beside each project's name in the sidebar, for a
+  sidebar that shows only what needs you. Thanks @Binaryify
+- **Cell width** in Settings › Terminal (`cell-width`) widens or narrows
+  the terminal's columns, from 0.8× to 2×, without changing the text's
+  size or the rows' height: `1.03` adds a little space between
+  characters, `0.95` takes a little away. Cells take whole pixels, so
+  small steps can look uneven. Thanks @iFwu
+- In shells that mark their prompts (OSC 133), such as fish,
+  <kbd>⌥</kbd>/<kbd>Alt</kbd>-click on the prompt moves its cursor to
+  the clicked spot.
+- On macOS, CJK punctuation stays inside its cells: kerning is off
+  unless **Font features** (`font-feature`) names `kern`.
+- On Linux, Kero no longer draws its own minimize, maximize and close
+  buttons where the desktop's title bars have none: under tiling
+  compositors such as Hyprland and Sway, where the button layout
+  (`gtk-decoration-layout`) is empty, as on i3, and under KWin on
+  Wayland, whose title bar has its own. `KERO_WINDOW_CONTROLS=1` or `0`
+  shows or hides them anyway.
+- `kerod.log` says why a restored pane came back as a shell rather than
+  its agent (no agent session recorded, an agent that can't resume, an
+  invalid session ID, or resuming turned off), and notes when the
+  previous kerod didn't exit cleanly. Hosts get it with their next
+  update. Thanks @gezerui888
+
+## 2.1.33
+
+- **Keep computer awake** stops the computer from sleeping: **Always**,
+  or **While agents work** in this computer's panes. Pick it in
+  Settings › General, in the tray menu or from the command palette.
+  Thanks @missuo
+- Each session in the sidebar starts with the icon of the program it
+  runs, and a split session shows how many panes it has: click the count
+  to list them, each with its program, branch or folder, and status.
+- **View › Toggle Dark Mode** (<kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>L</kbd>)
+  switches between the light and the dark appearance. Thanks @kgemici
+- The Files tab's menu opens a file or folder in the app the system
+  opens it with, including files the viewer can't show. Thanks @kgemici
+- **Font features** in Settings › Terminal (`font-feature`) turns the
+  font's OpenType features on or off, as Ghostty's does.
+- OMP (oh-my-pi) is recognized as a coding agent, as Pi is. Thanks
+  @frankberliner
+- Dictation apps such as Typeless see the terminal as a text field, so
+  they no longer leave their "copy this text" panel up after inserting.
+  Thanks @missuo
+- On macOS, with **Option is Meta** on, Option sends Alt to programs
+  without also typing the key's special character or leaving a dead key
+  to compose with the next letter. Thanks @iFwu
+- On macOS 26, panes no longer exit with code 137 a second after they
+  start, leaving them blank. Hosts on macOS get this with their next
+  update. Thanks @gascs
+- The browser's address bar opens a bracketed public IPv6 address
+  instead of searching for it. Thanks @idealistichacker
+
+## 2.1.32
+
+- <kbd>⌘</kbd> <kbd>W</kbd> with the keyboard in the viewer closes the
+  viewer, asking first to save its edits, instead of the pane beside it.
+  Opening a file, a diff or the branch's changes gives the viewer the
+  keyboard.
+- `kero ls --all` lists this machine's sessions and each host's, under
+  the names `-H` takes, and says why a host is out of reach.
+- Kero keeps its agent skill and the Pi and OpenCode plugins current as
+  it starts.
+- On Windows, Codex's hook runs from every shell, including a Kero
+  installed under a path with spaces. Thanks @f1sherb0y
+- Filter list rules with `$~document` block every other kind of request
+  instead of none. Thanks @kevin9327
+
 ## 2.1.31
 
 - The terminal's scroll bar looks as the lists' and the viewer's do: as

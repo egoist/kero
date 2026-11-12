@@ -65,6 +65,7 @@ var All = []Action{
 	{ID: "text.bigger", Title: "Bigger", Menu: "View", Keys: "CmdOrCtrl+=", Remote: true},
 	{ID: "text.smaller", Title: "Smaller", Menu: "View", Keys: "CmdOrCtrl+-", Remote: true},
 	{ID: "text.reset", Title: "Actual Size", Menu: "View", Keys: "CmdOrCtrl+0", Remote: true},
+	{ID: "theme.toggle", Title: "Toggle Dark Mode", Menu: "View", Keys: "CmdOrCtrl+Shift+L", Remote: true},
 	// No shortcut until the user gives it one: a global shortcut takes its
 	// keys from every other app, as Control+` from VS Code's terminal.
 	{ID: "quickTerminal.toggle", Title: "Quick Terminal", Menu: "View", Remote: true, Global: true},
@@ -110,6 +111,7 @@ var pcKeys = map[string]string{
 	"text.bigger":         "Ctrl+=",
 	"text.smaller":        "Ctrl+-",
 	"text.reset":          "Ctrl+0",
+	"theme.toggle":        "Ctrl+Shift+L",
 }
 
 func init() {

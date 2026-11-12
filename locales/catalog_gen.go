@@ -536,6 +536,16 @@ func (msgs Messages) CommonOpen() string {
 	return Catalog.Format(msgs.locale, "commonOpen", nil)
 }
 
+// CommonChoose says "Choose"
+// in the language the app shows.
+func CommonChoose() string { return In(i18n.Locale()).CommonChoose() }
+
+// CommonChoose says "Choose"
+// in the language of msgs.
+func (msgs Messages) CommonChoose() string {
+	return Catalog.Format(msgs.locale, "commonChoose", nil)
+}
+
 // CommonShow says "Show"
 // in the language the app shows.
 func CommonShow() string { return In(i18n.Locale()).CommonShow() }
@@ -914,6 +924,26 @@ func (msgs Messages) OpenProjectMessage() string {
 	return Catalog.Format(msgs.locale, "openProjectMessage", nil)
 }
 
+// NewSessionFolderTitle says "New Sessions Start In"
+// in the language the app shows.
+func NewSessionFolderTitle() string { return In(i18n.Locale()).NewSessionFolderTitle() }
+
+// NewSessionFolderTitle says "New Sessions Start In"
+// in the language of msgs.
+func (msgs Messages) NewSessionFolderTitle() string {
+	return Catalog.Format(msgs.locale, "newSessionFolderTitle", nil)
+}
+
+// NewSessionFolderMessage says "Choose the folder new sessions start in."
+// in the language the app shows.
+func NewSessionFolderMessage() string { return In(i18n.Locale()).NewSessionFolderMessage() }
+
+// NewSessionFolderMessage says "Choose the folder new sessions start in."
+// in the language of msgs.
+func (msgs Messages) NewSessionFolderMessage() string {
+	return Catalog.Format(msgs.locale, "newSessionFolderMessage", nil)
+}
+
 // ConfirmCloseTitle says "Close “{name}”?"
 // in the language the app shows.
 func ConfirmCloseTitle(name string) string { return In(i18n.Locale()).ConfirmCloseTitle(name) }
@@ -1194,6 +1224,56 @@ func SidebarCloseAllSessions() string { return In(i18n.Locale()).SidebarCloseAll
 // in the language of msgs.
 func (msgs Messages) SidebarCloseAllSessions() string {
 	return Catalog.Format(msgs.locale, "sidebarCloseAllSessions", nil)
+}
+
+// SidebarMove says "Move"
+// in the language the app shows.
+func SidebarMove() string { return In(i18n.Locale()).SidebarMove() }
+
+// SidebarMove says "Move"
+// in the language of msgs.
+func (msgs Messages) SidebarMove() string {
+	return Catalog.Format(msgs.locale, "sidebarMove", nil)
+}
+
+// SidebarMoveUp says "Move Up"
+// in the language the app shows.
+func SidebarMoveUp() string { return In(i18n.Locale()).SidebarMoveUp() }
+
+// SidebarMoveUp says "Move Up"
+// in the language of msgs.
+func (msgs Messages) SidebarMoveUp() string {
+	return Catalog.Format(msgs.locale, "sidebarMoveUp", nil)
+}
+
+// SidebarMoveDown says "Move Down"
+// in the language the app shows.
+func SidebarMoveDown() string { return In(i18n.Locale()).SidebarMoveDown() }
+
+// SidebarMoveDown says "Move Down"
+// in the language of msgs.
+func (msgs Messages) SidebarMoveDown() string {
+	return Catalog.Format(msgs.locale, "sidebarMoveDown", nil)
+}
+
+// SidebarMoveToTop says "Move to Top"
+// in the language the app shows.
+func SidebarMoveToTop() string { return In(i18n.Locale()).SidebarMoveToTop() }
+
+// SidebarMoveToTop says "Move to Top"
+// in the language of msgs.
+func (msgs Messages) SidebarMoveToTop() string {
+	return Catalog.Format(msgs.locale, "sidebarMoveToTop", nil)
+}
+
+// SidebarMoveToBottom says "Move to Bottom"
+// in the language the app shows.
+func SidebarMoveToBottom() string { return In(i18n.Locale()).SidebarMoveToBottom() }
+
+// SidebarMoveToBottom says "Move to Bottom"
+// in the language of msgs.
+func (msgs Messages) SidebarMoveToBottom() string {
+	return Catalog.Format(msgs.locale, "sidebarMoveToBottom", nil)
 }
 
 // SidebarNeedsYou says "{count} needs you"
@@ -1728,6 +1808,26 @@ func (msgs Messages) PaneClose() string {
 	return Catalog.Format(msgs.locale, "paneClose", nil)
 }
 
+// SidebarShowPanes says "Show Panes"
+// in the language the app shows.
+func SidebarShowPanes() string { return In(i18n.Locale()).SidebarShowPanes() }
+
+// SidebarShowPanes says "Show Panes"
+// in the language of msgs.
+func (msgs Messages) SidebarShowPanes() string {
+	return Catalog.Format(msgs.locale, "sidebarShowPanes", nil)
+}
+
+// SidebarHidePanes says "Hide Panes"
+// in the language the app shows.
+func SidebarHidePanes() string { return In(i18n.Locale()).SidebarHidePanes() }
+
+// SidebarHidePanes says "Hide Panes"
+// in the language of msgs.
+func (msgs Messages) SidebarHidePanes() string {
+	return Catalog.Format(msgs.locale, "sidebarHidePanes", nil)
+}
+
 // PaneNeedsPermission says "Needs your permission"
 // in the language the app shows.
 func PaneNeedsPermission() string { return In(i18n.Locale()).PaneNeedsPermission() }
@@ -2050,6 +2150,36 @@ func (msgs Messages) SetDirHome() string {
 	return Catalog.Format(msgs.locale, "setDirHome", nil)
 }
 
+// SetDirCustom says "Custom…"
+// in the language the app shows.
+func SetDirCustom() string { return In(i18n.Locale()).SetDirCustom() }
+
+// SetDirCustom says "Custom…"
+// in the language of msgs.
+func (msgs Messages) SetDirCustom() string {
+	return Catalog.Format(msgs.locale, "setDirCustom", nil)
+}
+
+// SetNewSessionFolderDetail says "Sessions on other hosts start in their home, as they do here when the folder is gone."
+// in the language the app shows.
+func SetNewSessionFolderDetail() string { return In(i18n.Locale()).SetNewSessionFolderDetail() }
+
+// SetNewSessionFolderDetail says "Sessions on other hosts start in their home, as they do here when the folder is gone."
+// in the language of msgs.
+func (msgs Messages) SetNewSessionFolderDetail() string {
+	return Catalog.Format(msgs.locale, "setNewSessionFolderDetail", nil)
+}
+
+// SetChooseFolder says "Choose…"
+// in the language the app shows.
+func SetChooseFolder() string { return In(i18n.Locale()).SetChooseFolder() }
+
+// SetChooseFolder says "Choose…"
+// in the language of msgs.
+func (msgs Messages) SetChooseFolder() string {
+	return Catalog.Format(msgs.locale, "setChooseFolder", nil)
+}
+
 // SetSessionsFollowDir says "Sort sessions into projects"
 // in the language the app shows.
 func SetSessionsFollowDir() string { return In(i18n.Locale()).SetSessionsFollowDir() }
@@ -2158,6 +2288,26 @@ func SetRowsCompact() string { return In(i18n.Locale()).SetRowsCompact() }
 // in the language of msgs.
 func (msgs Messages) SetRowsCompact() string {
 	return Catalog.Format(msgs.locale, "setRowsCompact", nil)
+}
+
+// SetSidebarCount says "Session count"
+// in the language the app shows.
+func SetSidebarCount() string { return In(i18n.Locale()).SetSidebarCount() }
+
+// SetSidebarCount says "Session count"
+// in the language of msgs.
+func (msgs Messages) SetSidebarCount() string {
+	return Catalog.Format(msgs.locale, "setSidebarCount", nil)
+}
+
+// SetSidebarCountDetail says "Show, beside each project’s name, how many sessions it holds."
+// in the language the app shows.
+func SetSidebarCountDetail() string { return In(i18n.Locale()).SetSidebarCountDetail() }
+
+// SetSidebarCountDetail says "Show, beside each project’s name, how many sessions it holds."
+// in the language of msgs.
+func (msgs Messages) SetSidebarCountDetail() string {
+	return Catalog.Format(msgs.locale, "setSidebarCountDetail", nil)
 }
 
 // SetFocusFollowsMouse says "Focus follows mouse"
@@ -2318,6 +2468,56 @@ func SetAppIconDetail() string { return In(i18n.Locale()).SetAppIconDetail() }
 // in the language of msgs.
 func (msgs Messages) SetAppIconDetail() string {
 	return Catalog.Format(msgs.locale, "setAppIconDetail", nil)
+}
+
+// AwakeTitle says "Keep computer awake"
+// in the language the app shows.
+func AwakeTitle() string { return In(i18n.Locale()).AwakeTitle() }
+
+// AwakeTitle says "Keep computer awake"
+// in the language of msgs.
+func (msgs Messages) AwakeTitle() string {
+	return Catalog.Format(msgs.locale, "awakeTitle", nil)
+}
+
+// AwakeOff says "Off"
+// in the language the app shows.
+func AwakeOff() string { return In(i18n.Locale()).AwakeOff() }
+
+// AwakeOff says "Off"
+// in the language of msgs.
+func (msgs Messages) AwakeOff() string {
+	return Catalog.Format(msgs.locale, "awakeOff", nil)
+}
+
+// AwakeOn says "Always"
+// in the language the app shows.
+func AwakeOn() string { return In(i18n.Locale()).AwakeOn() }
+
+// AwakeOn says "Always"
+// in the language of msgs.
+func (msgs Messages) AwakeOn() string {
+	return Catalog.Format(msgs.locale, "awakeOn", nil)
+}
+
+// AwakeAgents says "While agents work"
+// in the language the app shows.
+func AwakeAgents() string { return In(i18n.Locale()).AwakeAgents() }
+
+// AwakeAgents says "While agents work"
+// in the language of msgs.
+func (msgs Messages) AwakeAgents() string {
+	return Catalog.Format(msgs.locale, "awakeAgents", nil)
+}
+
+// AwakeDetail says "Kero keeps this computer from sleeping as long as it runs, or while an agent on it works. Closing a Mac’s lid still…"
+// in the language the app shows.
+func AwakeDetail() string { return In(i18n.Locale()).AwakeDetail() }
+
+// AwakeDetail says "Kero keeps this computer from sleeping as long as it runs, or while an agent on it works. Closing a Mac’s lid still…"
+// in the language of msgs.
+func (msgs Messages) AwakeDetail() string {
+	return Catalog.Format(msgs.locale, "awakeDetail", nil)
 }
 
 // TrayOpen says "Open {app}"
@@ -2714,6 +2914,26 @@ func (msgs Messages) SetSizeDetail(bigger string, smaller string) string {
 	return Catalog.Format(msgs.locale, "setSizeDetail", map[string]any{"bigger": bigger, "smaller": smaller})
 }
 
+// SetCellWidth says "Cell width"
+// in the language the app shows.
+func SetCellWidth() string { return In(i18n.Locale()).SetCellWidth() }
+
+// SetCellWidth says "Cell width"
+// in the language of msgs.
+func (msgs Messages) SetCellWidth() string {
+	return Catalog.Format(msgs.locale, "setCellWidth", nil)
+}
+
+// SetCellWidthDetail says "Widen or narrow terminal cells without scaling glyphs or changing line height."
+// in the language the app shows.
+func SetCellWidthDetail() string { return In(i18n.Locale()).SetCellWidthDetail() }
+
+// SetCellWidthDetail says "Widen or narrow terminal cells without scaling glyphs or changing line height."
+// in the language of msgs.
+func (msgs Messages) SetCellWidthDetail() string {
+	return Catalog.Format(msgs.locale, "setCellWidthDetail", nil)
+}
+
 // SetLineHeight says "Line height"
 // in the language the app shows.
 func SetLineHeight() string { return In(i18n.Locale()).SetLineHeight() }
@@ -2792,6 +3012,26 @@ func SetLigaturesDetail() string { return In(i18n.Locale()).SetLigaturesDetail()
 // in the language of msgs.
 func (msgs Messages) SetLigaturesDetail() string {
 	return Catalog.Format(msgs.locale, "setLigaturesDetail", nil)
+}
+
+// SetFontFeatures says "Font features"
+// in the language the app shows.
+func SetFontFeatures() string { return In(i18n.Locale()).SetFontFeatures() }
+
+// SetFontFeatures says "Font features"
+// in the language of msgs.
+func (msgs Messages) SetFontFeatures() string {
+	return Catalog.Format(msgs.locale, "setFontFeatures", nil)
+}
+
+// SetFontFeaturesDetail says "OpenType features, as Ghostty’s font-feature: ss01 turns one on, -calt off, cv05=2 picks an alternate."
+// in the language the app shows.
+func SetFontFeaturesDetail() string { return In(i18n.Locale()).SetFontFeaturesDetail() }
+
+// SetFontFeaturesDetail says "OpenType features, as Ghostty’s font-feature: ss01 turns one on, -calt off, cv05=2 picks an alternate."
+// in the language of msgs.
+func (msgs Messages) SetFontFeaturesDetail() string {
+	return Catalog.Format(msgs.locale, "setFontFeaturesDetail", nil)
 }
 
 // SetThicken says "Thicken text"
@@ -3888,6 +4128,16 @@ func (msgs Messages) ActionToggleRightSidebar() string {
 	return Catalog.Format(msgs.locale, "actionToggleRightSidebar", nil)
 }
 
+// ActionToggleDarkMode says "Toggle Dark Mode"
+// in the language the app shows.
+func ActionToggleDarkMode() string { return In(i18n.Locale()).ActionToggleDarkMode() }
+
+// ActionToggleDarkMode says "Toggle Dark Mode"
+// in the language of msgs.
+func (msgs Messages) ActionToggleDarkMode() string {
+	return Catalog.Format(msgs.locale, "actionToggleDarkMode", nil)
+}
+
 // RightSidebarHide says "Hide Right Sidebar"
 // in the language the app shows.
 func RightSidebarHide() string { return In(i18n.Locale()).RightSidebarHide() }
@@ -3966,6 +4216,16 @@ func FilesGone() string { return In(i18n.Locale()).FilesGone() }
 // in the language of msgs.
 func (msgs Messages) FilesGone() string {
 	return Catalog.Format(msgs.locale, "filesGone", nil)
+}
+
+// FilesOpenDefault says "Open in Default App"
+// in the language the app shows.
+func FilesOpenDefault() string { return In(i18n.Locale()).FilesOpenDefault() }
+
+// FilesOpenDefault says "Open in Default App"
+// in the language of msgs.
+func (msgs Messages) FilesOpenDefault() string {
+	return Catalog.Format(msgs.locale, "filesOpenDefault", nil)
 }
 
 // FilesNewFile says "New File…"
@@ -4100,6 +4360,76 @@ func FilesDeleteFailed(name string, error string) string {
 // in the language of msgs.
 func (msgs Messages) FilesDeleteFailed(name string, error string) string {
 	return Catalog.Format(msgs.locale, "filesDeleteFailed", map[string]any{"name": name, "error": error})
+}
+
+// FilesReplaceTitle says "Replace “{name}”?"
+// in the language the app shows.
+func FilesReplaceTitle(name string) string { return In(i18n.Locale()).FilesReplaceTitle(name) }
+
+// FilesReplaceTitle says "Replace “{name}”?"
+// in the language of msgs.
+func (msgs Messages) FilesReplaceTitle(name string) string {
+	return Catalog.Format(msgs.locale, "filesReplaceTitle", map[string]any{"name": name})
+}
+
+// FilesReplaceManyTitle says "{count, plural, one {Replace # item?} other {Replace # items?}}"
+// in the language the app shows.
+func FilesReplaceManyTitle(count int) string { return In(i18n.Locale()).FilesReplaceManyTitle(count) }
+
+// FilesReplaceManyTitle says "{count, plural, one {Replace # item?} other {Replace # items?}}"
+// in the language of msgs.
+func (msgs Messages) FilesReplaceManyTitle(count int) string {
+	return Catalog.Format(msgs.locale, "filesReplaceManyTitle", map[string]any{"count": count})
+}
+
+// FilesReplaceDetail says "{count, plural, one {The folder already has an item with this name. Replacing it can't be undone.} other {The folder …"
+// in the language the app shows.
+func FilesReplaceDetail(count int) string { return In(i18n.Locale()).FilesReplaceDetail(count) }
+
+// FilesReplaceDetail says "{count, plural, one {The folder already has an item with this name. Replacing it can't be undone.} other {The folder …"
+// in the language of msgs.
+func (msgs Messages) FilesReplaceDetail(count int) string {
+	return Catalog.Format(msgs.locale, "filesReplaceDetail", map[string]any{"count": count})
+}
+
+// FilesReplace says "Replace"
+// in the language the app shows.
+func FilesReplace() string { return In(i18n.Locale()).FilesReplace() }
+
+// FilesReplace says "Replace"
+// in the language of msgs.
+func (msgs Messages) FilesReplace() string {
+	return Catalog.Format(msgs.locale, "filesReplace", nil)
+}
+
+// FilesSkip says "Skip"
+// in the language the app shows.
+func FilesSkip() string { return In(i18n.Locale()).FilesSkip() }
+
+// FilesSkip says "Skip"
+// in the language of msgs.
+func (msgs Messages) FilesSkip() string {
+	return Catalog.Format(msgs.locale, "filesSkip", nil)
+}
+
+// FilesCopyFailed says "Couldn't copy {errors}"
+// in the language the app shows.
+func FilesCopyFailed(errors string) string { return In(i18n.Locale()).FilesCopyFailed(errors) }
+
+// FilesCopyFailed says "Couldn't copy {errors}"
+// in the language of msgs.
+func (msgs Messages) FilesCopyFailed(errors string) string {
+	return Catalog.Format(msgs.locale, "filesCopyFailed", map[string]any{"errors": errors})
+}
+
+// FilesDropRemote says "Dropping files into Files works on this computer only, not on {host} yet"
+// in the language the app shows.
+func FilesDropRemote(host string) string { return In(i18n.Locale()).FilesDropRemote(host) }
+
+// FilesDropRemote says "Dropping files into Files works on this computer only, not on {host} yet"
+// in the language of msgs.
+func (msgs Messages) FilesDropRemote(host string) string {
+	return Catalog.Format(msgs.locale, "filesDropRemote", map[string]any{"host": host})
 }
 
 // FilesCreateFailed says "Couldn't create “{name}”: {error}"
@@ -4334,6 +4664,26 @@ func ChangesSplit() string { return In(i18n.Locale()).ChangesSplit() }
 // in the language of msgs.
 func (msgs Messages) ChangesSplit() string {
 	return Catalog.Format(msgs.locale, "changesSplit", nil)
+}
+
+// ViewerWrap says "Wrap Lines"
+// in the language the app shows.
+func ViewerWrap() string { return In(i18n.Locale()).ViewerWrap() }
+
+// ViewerWrap says "Wrap Lines"
+// in the language of msgs.
+func (msgs Messages) ViewerWrap() string {
+	return Catalog.Format(msgs.locale, "viewerWrap", nil)
+}
+
+// ViewerNoWrap says "Don't Wrap Lines"
+// in the language the app shows.
+func ViewerNoWrap() string { return In(i18n.Locale()).ViewerNoWrap() }
+
+// ViewerNoWrap says "Don't Wrap Lines"
+// in the language of msgs.
+func (msgs Messages) ViewerNoWrap() string {
+	return Catalog.Format(msgs.locale, "viewerNoWrap", nil)
 }
 
 // ChangesCollapseFiles says "Collapse All"
@@ -4656,6 +5006,26 @@ func SetDiffAuto() string { return In(i18n.Locale()).SetDiffAuto() }
 // in the language of msgs.
 func (msgs Messages) SetDiffAuto() string {
 	return Catalog.Format(msgs.locale, "setDiffAuto", nil)
+}
+
+// SetWrapLines says "Wrap long lines"
+// in the language the app shows.
+func SetWrapLines() string { return In(i18n.Locale()).SetWrapLines() }
+
+// SetWrapLines says "Wrap long lines"
+// in the language of msgs.
+func (msgs Messages) SetWrapLines() string {
+	return Catalog.Format(msgs.locale, "setWrapLines", nil)
+}
+
+// SetWrapLinesDetail says "Lines of diffs and files wider than the viewer wrap rather than scroll sideways."
+// in the language the app shows.
+func SetWrapLinesDetail() string { return In(i18n.Locale()).SetWrapLinesDetail() }
+
+// SetWrapLinesDetail says "Lines of diffs and files wider than the viewer wrap rather than scroll sideways."
+// in the language of msgs.
+func (msgs Messages) SetWrapLinesDetail() string {
+	return Catalog.Format(msgs.locale, "setWrapLinesDetail", nil)
 }
 
 // PageBrowser says "Browser"

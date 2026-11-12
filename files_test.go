@@ -6,9 +6,11 @@ import (
 	"math"
 	"os"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/egoist/mygo/plugins/terminal"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
 
@@ -196,8 +198,12 @@ func TestCloseInViewer(t *testing.T) {
 	tt.Frame()
 	a.run("pane.close", nil)
 	tt.Frame()
+	tt.Frame()
 	if a.viewOf(s) == nil || a.confirm == nil {
 		t.Fatal("Close with edits didn't ask to save them")
+	}
+	if a.side.focused {
+		t.Fatal("the question left the keyboard in the viewer")
 	}
 	a.run("pane.close", nil)
 	tt.Frame()
@@ -427,6 +433,39 @@ func TestCloseInBrowserBesideViewer(t *testing.T) {
 	tt.Frame()
 	if s.PaneByID("b") != nil || a.viewOf(s) != v {
 		t.Fatalf("Close left pane b %v, viewer %+v", s.PaneByID("b") != nil, a.viewOf(s))
+	}
+}
+
+// The button above a file of Files wraps its long lines, then stops, as
+// it does the diffs', keeping wrap-lines.
+func TestWrapFile(t *testing.T) {
+	a := testApp(t)
+	s := &a.st.Sessions[0]
+	tt := ui.NewTester(a.view, 1280, 720)
+	tt.Frame()
+	fv := &fileView{pane: s.Panes[0].ID, path: "/tmp/a.go", rel: "a.go", fetched: time.Now()}
+	a.showFile(fv, []byte("package a\n\nvar s = \""+strings.Repeat("a long line ", 30)+"\"\n"))
+	a.openView(s, sideFiles, fv)
+	tt.Frame()
+
+	for _, want := range []bool{true, false} {
+		label := locales.ViewerWrap()
+		if !want {
+			label = locales.ViewerNoWrap()
+		}
+		if err := tt.Click(label); err != nil {
+			t.Fatal(err)
+		}
+		tt.Frame()
+		if a.set.WrapLines != want || fv.st.SoftWrap != want {
+			t.Fatalf("clicking %q left wrap-lines %v, the file's wrap %v", label, a.set.WrapLines, fv.st.SoftWrap)
+		}
+		tt.Frame()
+		row, long := fv.st.LineTop(1)-fv.st.LineTop(0), fv.st.LineTop(3)-fv.st.LineTop(2)
+		if wrapped := long > row; wrapped != want {
+			t.Errorf("with wrap-lines %v, the long line is %v high, a row %v", want, long, row)
+		}
+		shot(t, tt, map[bool]string{true: "file-wrapped", false: "file-unwrapped"}[want])
 	}
 }
 
@@ -956,5 +995,60 @@ func TestViewerFollowsResize(t *testing.T) {
 		if want := row.W - minPanes; math.Abs(float64(card.W-want)) > 0.5 {
 			t.Errorf("at %d wide the viewer is %v wide, want %v as the row is %v", w, card.W, want, row.W)
 		}
+	}
+}
+
+// A file dragged from the Files tab onto a pane types its path there,
+// quoted for the pane's shell, and puts the keyboard in that pane.
+func TestDragFileIntoPane(t *testing.T) {
+	a, sink, _ := pasteApp(t)
+	sinkB := newSink()
+	termB, err := terminal.New(terminal.Options{Conn: sinkB})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { termB.Close() })
+	a.terms["b"] = &termEntry{term: termB}
+	s := &a.st.Sessions[0]
+	g := &proto.GitInfo{Root: "/tmp/demo", Branch: "main", Default: "main"}
+	s.Panes[0].Git, s.Panes[1].Git = g, g
+	a.prefs.Side = sideFiles
+	h := a.hostOf(s.ID)
+	a.side.files.dirs = map[string]*dirList{
+		filesKey(h, "/tmp/demo"): {entries: []proto.FSEntry{{Name: "my notes.md"}, {Name: "main.go"}}},
+	}
+	tt := ui.NewTester(a.view, 1280, 720)
+	tt.Frame()
+	tt.Advance(time.Second)
+	tt.Frame()
+	row, ok := tt.Find("my notes.md")
+	if !ok {
+		t.Fatalf("no row; texts %q", tt.Texts())
+	}
+	// Pane b is the right one of the two, left of the Files tab.
+	x, y := row.X+row.W/2, row.Y+row.H/2
+	tx, ty := row.X-220, float32(400)
+	tt.Press(x, y)
+	for i := 1; i <= 12; i++ {
+		f := float32(i) / 12
+		tt.Move(x+(tx-x)*f, y+(ty-y)*f)
+		tt.Advance(16 * time.Millisecond)
+		tt.Frame()
+	}
+	shot(t, tt, "drag-file-into-pane")
+	tt.Release(tx, ty)
+	tt.Frame()
+	tt.Frame()
+	if got := sinkB.written(t); got != "'/tmp/demo/my notes.md'" {
+		t.Errorf("pane b got %q", got)
+	}
+	if got := sink.quiet(); got != "" {
+		t.Errorf("pane a got %q", got)
+	}
+	if s.Focus != "b" {
+		t.Errorf("the keyboard is in %q", s.Focus)
+	}
+	if v := a.viewOf(s); v != nil && v.file != nil {
+		t.Errorf("the drag opened %q", v.file.path)
 	}
 }

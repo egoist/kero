@@ -137,7 +137,10 @@ Usage:
                                 the configuration file: where it is, every
                                 key with its value (--defaults: as kero
                                 comes), open it in $EDITOR, check it
-  kero projects [--json]
+  kero projects [--json]        list projects, in the sidebar's order
+  kero projects move <project> <position|top|bottom|up|down>
+                                move a project in that order (1 is the
+                                top)
   kero skill setup|status|show|remove
                                 teach coding agents to use kero
   kero clients [--json]         list who is connected to kerod
@@ -356,6 +359,12 @@ func run(args []string, host string) error {
 		f, err := parse(args, nil, map[string]string{"json": "json"})
 		if err != nil {
 			return err
+		}
+		switch {
+		case len(f.pos) > 0 && f.pos[0] == "move":
+			return moveProject(c, st, f.pos[1:])
+		case len(f.pos) > 0 && f.pos[0] != "ls" && f.pos[0] != "list":
+			return usageErr("kero projects [ls] [--json] | %s", moveUsage)
 		}
 		if f.set["json"] {
 			return printJSON(st.Projects)
