@@ -24,6 +24,7 @@ type searchEntry struct {
 func settingsIndex() []searchEntry {
 	entries := []searchEntry{
 		{"general", locales.SetNewSessionsStartIn(), "new-session-directory folder current project home custom tab"},
+		{"general", locales.SetSessionsFollowDir(), "sessions-follow-directory project sort group move cd folder tab auto"},
 		{"general", locales.SetSessionName(), "session-name title sidebar focused lead folder pane"},
 		{"general", locales.SetSidebarRows(), "sidebar-rows compact detailed status message branch two lines"},
 		{"general", locales.SetSidebarCount(), "sidebar-session-count project sessions number count header"},

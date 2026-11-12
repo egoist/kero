@@ -1453,6 +1453,42 @@ func (a *App) closeAllSessions(g group) {
 	}
 }
 
+// sweepProjects closes the projects that hold no session, of every host
+// whose state came and that is connected: one not yet heard from may
+// have sessions it hasn't told of.
+func (a *App) sweepProjects() {
+	n := 0
+	for _, h := range a.hosts {
+		if h.conn != connReady {
+			continue
+		}
+		for _, id := range a.emptyProjects(h) {
+			a.callOn(h, "project.close", proto.CloseProjectParams{ID: id, Empty: true}, nil)
+			n++
+		}
+	}
+	if n == 0 {
+		a.toast(locales.SidebarNothingToSweep())
+	} else {
+		a.toast(locales.SidebarSwept(n))
+	}
+}
+
+// emptyProjects returns the IDs of a host's projects that hold no
+// session, none before its state came.
+func (a *App) emptyProjects(h *host) []string {
+	if !h.loaded {
+		return nil
+	}
+	var ids []string
+	for _, g := range a.hostGroups(h) {
+		if g.project.ID != "" && len(g.sessions) == 0 {
+			ids = append(ids, g.project.ID)
+		}
+	}
+	return ids
+}
+
 func (a *App) restartSession(id string) {
 	a.call(id, "restart", proto.IDParams{ID: id}, nil)
 }

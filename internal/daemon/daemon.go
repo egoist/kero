@@ -47,6 +47,10 @@ type Daemon struct {
 
 	mu       sync.Mutex
 	projects []proto.Project
+	// fresh are the projects made since kerod started that no session
+	// came into yet, which prune leaves: one made for a session that is
+	// still starting, or by hand.
+	fresh    map[string]bool
 	sessions []*session
 	// unrestored are the last daemon's sessions none of whose panes
 	// started again, as when the terminal's library was missing: saved
@@ -383,6 +387,10 @@ func (d *Daemon) tickLoop() {
 				changed = true
 			}
 		}
+		if settings.Load().SessionsFollowDir {
+			moved, closed := d.follow(), d.prune()
+			changed = changed || moved || closed
+		}
 		if changed {
 			d.changed()
 		}
@@ -416,7 +424,7 @@ func (d *Daemon) projectFor(ref, dir string) string {
 			}
 		}
 		p := proto.Project{ID: newID(), Name: ref, Dir: dir}
-		d.projects = append(d.projects, p)
+		d.addProject(p)
 		return p.ID
 	}
 	if dir == "" {
@@ -434,14 +442,128 @@ func (d *Daemon) projectFor(ref, dir string) string {
 	if best != "" {
 		return best
 	}
-	root := repoRoot(dir)
-	name := filepath.Base(root)
-	if root == proto.Home() {
+	return d.newProject(repoRoot(dir))
+}
+
+// newProject adds a project for dir and returns its ID. d.mu is held.
+func (d *Daemon) newProject(dir string) string {
+	name := filepath.Base(dir)
+	if dir == proto.Home() {
 		name = "Home"
 	}
-	p := proto.Project{ID: newID(), Name: name, Dir: root}
-	d.projects = append(d.projects, p)
+	p := proto.Project{ID: newID(), Name: name, Dir: dir}
+	d.addProject(p)
 	return p.ID
+}
+
+// addProject adds a project, which holds no session yet (fresh). d.mu is
+// held.
+func (d *Daemon) addProject(p proto.Project) {
+	d.projects = append(d.projects, p)
+	if d.fresh == nil {
+		d.fresh = map[string]bool{}
+	}
+	d.fresh[p.ID] = true
+}
+
+// folderProject returns the project of a folder, root: the one whose
+// directory is that folder, not one above it, or a new one. Root is a
+// session's folder's repoRoot, which the caller finds before it takes
+// d.mu: looking for a repository reads the disk, and a share can be slow.
+// d.mu is held.
+func (d *Daemon) folderProject(root string) string {
+	root = filepath.Clean(root)
+	for _, p := range d.projects {
+		if p.Dir != "" && sameDir(filepath.Clean(p.Dir), root) {
+			return p.ID
+		}
+	}
+	return d.newProject(root)
+}
+
+// sameDir reports whether two clean paths name the same folder. Windows'
+// paths are of any case.
+func sameDir(a, b string) bool {
+	if runtime.GOOS == "windows" {
+		return strings.EqualFold(a, b)
+	}
+	return a == b
+}
+
+// follow puts sessions in the projects of their folders, as
+// sessions-follow-directory asks: a session whose terminal pane went to
+// another folder, as with cd, and one it has not sorted yet, by the pane
+// it shows. The project is that of the folder's repository, else of the
+// folder itself (folderProject). Showing another pane moves nothing, so a
+// session of panes in several folders stays put, and so does one moved by
+// hand, until a pane of it goes elsewhere. It reports whether one moved.
+func (d *Daemon) follow() bool {
+	type move struct {
+		s         *session
+		dir, root string
+	}
+	d.mu.Lock()
+	var moves []move
+	for _, s := range d.sessions {
+		if dir := s.wentTo(); dir != "" {
+			moves = append(moves, move{s: s, dir: dir})
+		}
+	}
+	d.mu.Unlock()
+	if len(moves) == 0 {
+		return false
+	}
+	for i := range moves {
+		moves[i].root = repoRoot(moves[i].dir)
+	}
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	changed := false
+	for _, m := range moves {
+		if !slices.Contains(d.sessions, m.s) {
+			continue
+		}
+		m.s.followed = m.dir
+		from, to := m.s.project, d.folderProject(m.root)
+		if to == from {
+			continue
+		}
+		m.s.project = to
+		delete(d.fresh, to)
+		changed = true
+	}
+	return changed
+}
+
+// prune closes the projects that hold no session, as
+// sessions-follow-directory asks: there, a project is the folder of its
+// sessions, and goes with the last of them, closed or gone to another
+// folder. One that no session came into yet stays (fresh, which create,
+// move and follow end as they put a session in it), and so does that of a
+// session that did not start again (unrestored). It reports whether one
+// went.
+func (d *Daemon) prune() bool {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if len(d.projects) == 0 {
+		return false
+	}
+	held := map[string]bool{}
+	for _, s := range d.sessions {
+		held[s.project] = true
+	}
+	for _, ss := range d.unrestored {
+		held[ss.Project] = true
+	}
+	n := len(d.projects)
+	d.projects = slices.DeleteFunc(d.projects, func(p proto.Project) bool {
+		if held[p.ID] {
+			delete(d.fresh, p.ID)
+			return false
+		}
+		return !d.fresh[p.ID]
+	})
+	return len(d.projects) != n
 }
 
 // repoRoot returns the root of the git repository holding dir, or dir. A
@@ -453,8 +575,12 @@ func repoRoot(dir string) string {
 				if main := worktreeMain(d); main != "" {
 					return main
 				}
+				return d
 			}
-			return d
+			// A repository's, not a folder that only has the name.
+			if _, err := os.Stat(filepath.Join(d, ".git", "HEAD")); err == nil {
+				return d
+			}
 		}
 		parent := filepath.Dir(d)
 		if parent == d || d == proto.Home() {

@@ -1136,6 +1136,36 @@ func (msgs Messages) SidebarShow() string {
 	return Catalog.Format(msgs.locale, "sidebarShow", nil)
 }
 
+// SidebarSweep says "Remove Empty Projects"
+// in the language the app shows.
+func SidebarSweep() string { return In(i18n.Locale()).SidebarSweep() }
+
+// SidebarSweep says "Remove Empty Projects"
+// in the language of msgs.
+func (msgs Messages) SidebarSweep() string {
+	return Catalog.Format(msgs.locale, "sidebarSweep", nil)
+}
+
+// SidebarSwept says "{count, plural, one {Removed # empty project} other {Removed # empty projects}}"
+// in the language the app shows.
+func SidebarSwept(count int) string { return In(i18n.Locale()).SidebarSwept(count) }
+
+// SidebarSwept says "{count, plural, one {Removed # empty project} other {Removed # empty projects}}"
+// in the language of msgs.
+func (msgs Messages) SidebarSwept(count int) string {
+	return Catalog.Format(msgs.locale, "sidebarSwept", map[string]any{"count": count})
+}
+
+// SidebarNothingToSweep says "No empty projects"
+// in the language the app shows.
+func SidebarNothingToSweep() string { return In(i18n.Locale()).SidebarNothingToSweep() }
+
+// SidebarNothingToSweep says "No empty projects"
+// in the language of msgs.
+func (msgs Messages) SidebarNothingToSweep() string {
+	return Catalog.Format(msgs.locale, "sidebarNothingToSweep", nil)
+}
+
 // SidebarNoSessions says "No sessions"
 // in the language the app shows.
 func SidebarNoSessions() string { return In(i18n.Locale()).SidebarNoSessions() }
@@ -2148,6 +2178,26 @@ func SetChooseFolder() string { return In(i18n.Locale()).SetChooseFolder() }
 // in the language of msgs.
 func (msgs Messages) SetChooseFolder() string {
 	return Catalog.Format(msgs.locale, "setChooseFolder", nil)
+}
+
+// SetSessionsFollowDir says "Sort sessions into projects"
+// in the language the app shows.
+func SetSessionsFollowDir() string { return In(i18n.Locale()).SetSessionsFollowDir() }
+
+// SetSessionsFollowDir says "Sort sessions into projects"
+// in the language of msgs.
+func (msgs Messages) SetSessionsFollowDir() string {
+	return Catalog.Format(msgs.locale, "setSessionsFollowDir", nil)
+}
+
+// SetSessionsFollowDirDetail says "Put a session in its folder’s own project, when it starts and whenever a pane of it changes folder, as with cd: its…"
+// in the language the app shows.
+func SetSessionsFollowDirDetail() string { return In(i18n.Locale()).SetSessionsFollowDirDetail() }
+
+// SetSessionsFollowDirDetail says "Put a session in its folder’s own project, when it starts and whenever a pane of it changes folder, as with cd: its…"
+// in the language of msgs.
+func (msgs Messages) SetSessionsFollowDirDetail() string {
+	return Catalog.Format(msgs.locale, "setSessionsFollowDirDetail", nil)
 }
 
 // SetSessionName says "Name sessions after"

@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"kero/internal/proto"
+	"kero/internal/settings"
 )
 
 func projectDaemon(t *testing.T) *Daemon {
@@ -283,6 +284,286 @@ func TestProjectCreatePersists(t *testing.T) {
 	restored.restore()
 	if got := restored.state().Projects; !slices.Equal(got, []proto.Project{first}) {
 		t.Errorf("restored projects = %+v, want [%+v]", got, first)
+	}
+}
+
+// followRoot makes a folder for a follow test, and home, so that the
+// repository a temporary folder may be in doesn't hold what is made in it.
+func followRoot(t *testing.T) string {
+	t.Helper()
+	root := t.TempDir()
+	t.Setenv("HOME", root)
+	t.Setenv("USERPROFILE", root)
+	return root
+}
+
+// repoAt makes the folders, and of the first a repository's root.
+func repoAt(t *testing.T, repo string, more ...string) {
+	t.Helper()
+	for _, dir := range append([]string{filepath.Join(repo, ".git")}, more...) {
+		if err := os.MkdirAll(dir, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(repo, ".git", "HEAD"), []byte("ref: refs/heads/main\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// projectOf returns the project a session is in.
+func projectOf(t *testing.T, d *Daemon, s *session) proto.Project {
+	t.Helper()
+	for _, p := range d.projects {
+		if p.ID == s.project {
+			return p
+		}
+	}
+	t.Fatalf("session in no project: %q of %+v", s.project, d.projects)
+	return proto.Project{}
+}
+
+func TestFollowPutsSessionsInTheirFolderProject(t *testing.T) {
+	d := projectDaemon(t)
+	root := followRoot(t)
+	code, app, other := filepath.Join(root, "code"), filepath.Join(root, "code", "app"), filepath.Join(root, "code", "other")
+	lib, loose := filepath.Join(app, "lib"), filepath.Join(code, "loose")
+	repoAt(t, app, lib, other, loose)
+	d.projects = []proto.Project{{ID: "pcode", Name: "code", Dir: code}, {ID: "pother", Name: "other", Dir: other}}
+	term := &pane{info: proto.Pane{ID: "t1", Dir: other}}
+	web := &pane{info: proto.Pane{ID: "b1", Dir: code, URL: "https://example.com"}}
+	s := &session{id: "s1", project: "pcode", panes: []*pane{web, term}, focus: "b1"}
+	d.sessions = []*session{s}
+
+	// Not sorted yet: by the terminal's folder, not the browser's, though
+	// the browser has the focus.
+	if !d.follow() || s.project != "pother" {
+		t.Fatalf("after follow, project = %q, want pother", s.project)
+	}
+	// Moved by hand: it stays while the folder does.
+	s.project = "pcode"
+	if d.follow() || s.project != "pcode" {
+		t.Fatalf("follow moved a session whose folder stayed: project = %q", s.project)
+	}
+	// In a repository, its root's project: a new one, not code's above it,
+	// and the same from deeper in.
+	term.info.Dir = lib
+	d.follow()
+	if p := projectOf(t, d, s); p.Dir != app || p.Name != "app" {
+		t.Fatalf("after cd into app/lib, project = %+v, want a new one for %s", p, app)
+	}
+	appID := s.project
+	term.info.Dir = app
+	if d.follow() || s.project != appID {
+		t.Fatalf("after cd into app, project = %+v, want app's", projectOf(t, d, s))
+	}
+	// Out of a repository, the folder's own, not code's above it; and the
+	// projects left with no session go.
+	term.info.Dir = loose
+	d.follow()
+	if p := projectOf(t, d, s); p.Dir != loose || p.Name != "loose" {
+		t.Fatalf("after cd into a loose folder, project = %+v, want a new one for %s", p, loose)
+	}
+	if !d.prune() || len(d.projects) != 1 || d.projects[0].Dir != loose {
+		t.Fatalf("after prune, projects = %+v, want loose's alone", d.projects)
+	}
+	// The folder of a project, that project.
+	d.projects = append(d.projects, proto.Project{ID: "pcode", Name: "code", Dir: code})
+	term.info.Dir = code
+	if !d.follow() || s.project != "pcode" {
+		t.Fatalf("after cd into code, project = %+v, want pcode", projectOf(t, d, s))
+	}
+}
+
+// A session of panes in several folders goes where a pane of it went, not
+// where the user looks: showing another pane, or splitting one off, moves
+// nothing.
+func TestFollowMovesOnCdNotOnFocus(t *testing.T) {
+	d := projectDaemon(t)
+	root := followRoot(t)
+	a, b, c := filepath.Join(root, "a"), filepath.Join(root, "b"), filepath.Join(root, "c")
+	repoAt(t, a, filepath.Join(a, "src"), c)
+	repoAt(t, b, filepath.Join(b, "src"))
+	p1 := &pane{info: proto.Pane{ID: "p1", Dir: a}}
+	p2 := &pane{info: proto.Pane{ID: "p2", Dir: b}}
+	s := &session{id: "s1", panes: []*pane{p1, p2}, focus: "p1"}
+	d.sessions = []*session{s}
+
+	if !d.follow() || projectOf(t, d, s).Dir != a {
+		t.Fatalf("first sorted into %+v, want a's", d.projects)
+	}
+	s.focus = "p2"
+	if d.follow() || projectOf(t, d, s).Dir != a {
+		t.Fatalf("showing the other pane moved the session: %+v", projectOf(t, d, s))
+	}
+	p3 := &pane{info: proto.Pane{ID: "p3", Dir: c}}
+	s.panes, s.focus = append(s.panes, p3), "p3"
+	if d.follow() || projectOf(t, d, s).Dir != a {
+		t.Fatalf("a pane split off elsewhere moved the session: %+v", projectOf(t, d, s))
+	}
+	// A pane the user is not in goes elsewhere: the session with it.
+	p2.info.Dir = filepath.Join(b, "src")
+	if !d.follow() || projectOf(t, d, s).Dir != b {
+		t.Fatalf("after cd in the second pane, project = %+v, want b's", projectOf(t, d, s))
+	}
+	// Two at once: the one the user is in.
+	s.focus = "p1"
+	p1.info.Dir, p3.info.Dir = c, filepath.Join(a, "src")
+	if !d.follow() || projectOf(t, d, s).Dir != c {
+		t.Fatalf("after cd in two panes, project = %+v, want c's", projectOf(t, d, s))
+	}
+}
+
+// With sessions-follow-directory, a project goes with its last session,
+// whoever made it; one no session came into yet stays until one did, and
+// so does that of a session that did not start again.
+func TestPruneClosesProjectsWithNoSession(t *testing.T) {
+	d := testDaemon(t) // with the project pr
+	d.projects = append(d.projects, proto.Project{ID: "old", Name: "old"}, proto.Project{ID: "kept", Name: "kept"})
+	d.unrestored = []savedSession{{ID: "s0", Project: "kept"}}
+	made, err := createProject(t, d, proto.ProjectParams{Name: "by hand"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	names := func() []string {
+		var got []string
+		for _, p := range d.projects {
+			got = append(got, p.Name)
+		}
+		return got
+	}
+	if !d.prune() || !slices.Equal(names(), []string{"kept", "by hand"}) {
+		t.Fatalf("after prune, projects = %v, want kept and by hand", names())
+	}
+	// A session comes into the one made by hand, and closes: it goes.
+	info, err := d.create(proto.CreateParams{Project: made.ID, URL: "localhost:3000"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d.prune() || info.Project != made.ID {
+		t.Fatalf("prune closed a project that holds a session: %v", names())
+	}
+	if err := d.removeSession(info.ID); err != nil {
+		t.Fatal(err)
+	}
+	if !d.prune() || !slices.Equal(names(), []string{"kept"}) {
+		t.Fatalf("after its session closed, projects = %v, want kept", names())
+	}
+}
+
+// A project made for a session that did not start goes too.
+func TestPruneClosesTheProjectOfASessionThatDidNotStart(t *testing.T) {
+	d := testDaemon(t)
+	d.projects = nil
+	if _, err := d.create(proto.CreateParams{Project: "new", Dir: t.TempDir(), Worktree: "x"}); err == nil {
+		t.Fatal("a worktree of no repository started a session")
+	}
+	if len(d.projects) != 1 || !d.prune() || len(d.projects) != 0 {
+		t.Fatalf("projects %+v, want the one made, then none", d.projects)
+	}
+}
+
+func TestFollowPutsAWorktreeInItsRepositorysProject(t *testing.T) {
+	d := projectDaemon(t)
+	root := followRoot(t)
+	repo, wt := filepath.Join(root, "repo"), filepath.Join(root, "trees", "repo-feature")
+	gitdir := filepath.Join(repo, ".git", "worktrees", "repo-feature")
+	repoAt(t, repo, gitdir, wt)
+	if err := os.WriteFile(filepath.Join(wt, ".git"), []byte("gitdir: "+gitdir+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(gitdir, "commondir"), []byte("../..\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	d.projects = []proto.Project{{ID: "prepo", Name: "repo", Dir: repo}}
+	if got := d.folderProject(repoRoot(wt)); got != "prepo" {
+		t.Fatalf("folderProject(worktree) = %q (projects %+v), want prepo", got, d.projects)
+	}
+}
+
+// A folder named .git that holds no repository makes none of the folder
+// it is in.
+func TestRepoRootWantsARepository(t *testing.T) {
+	root := followRoot(t)
+	sub := filepath.Join(root, "stray", "sub")
+	for _, dir := range []string{filepath.Join(root, "stray", ".git"), sub} {
+		if err := os.MkdirAll(dir, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := repoRoot(sub); got != sub {
+		t.Fatalf("repoRoot under a stray .git = %s, want %s", got, sub)
+	}
+}
+
+// With sessions-follow-directory, a session starts in its folder's own
+// project, whatever project was asked for, and counts as sorted; one that
+// names no folder starts in the project asked for.
+func TestCreateStartsInTheFolderProject(t *testing.T) {
+	d := testDaemon(t)
+	root := followRoot(t)
+	repo, sub := filepath.Join(root, "repo"), filepath.Join(root, "repo", "sub")
+	repoAt(t, repo, sub)
+	set := settings.Load()
+	set.SessionsFollowDir = true
+	if err := settings.Save(set); err != nil {
+		t.Fatal(err)
+	}
+	info, err := d.create(proto.CreateParams{Project: "pr", Dir: sub, URL: "localhost:3000"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := d.sessions[0]
+	if p := projectOf(t, d, s); p.Dir != repo || info.Project != p.ID {
+		t.Fatalf("started in %+v, want a new project for %s", p, repo)
+	}
+	if s.followed != sub {
+		t.Fatalf("followed = %q, want %s", s.followed, sub)
+	}
+	if d.follow() {
+		t.Fatal("follow moved a session just started")
+	}
+	info, err = d.create(proto.CreateParams{Project: "pr", URL: "localhost:3000"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Project != "pr" {
+		t.Fatalf("with no folder, started in %q, want pr", info.Project)
+	}
+}
+
+// What follow sorted a session by outlives kerod, so that the next one
+// doesn't sort again a session the user moved.
+func TestFollowedOutlivesKerod(t *testing.T) {
+	d := testDaemon(t)
+	if _, err := d.create(proto.CreateParams{URL: "localhost:3000"}); err != nil {
+		t.Fatal(err)
+	}
+	d.sessions[0].followed = "/somewhere"
+	d.saveState()
+	restored := &Daemon{dir: d.dir, log: d.log, panes: map[string]*pane{}}
+	restored.viewed.Store(new(string))
+	restored.restore()
+	if len(restored.sessions) != 1 || restored.sessions[0].followed != "/somewhere" {
+		t.Fatalf("restored %+v", restored.sessions)
+	}
+}
+
+// project.close with Empty leaves a project that holds a session, and
+// the session.
+func TestProjectCloseEmpty(t *testing.T) {
+	d := testDaemon(t)
+	d.projects = append(d.projects, proto.Project{ID: "p2", Name: "empty"})
+	if _, err := d.create(proto.CreateParams{Project: "pr", URL: "localhost:3000"}); err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []string{"pr", "p2"} {
+		raw, _ := json.Marshal(proto.CloseProjectParams{ID: id, Empty: true})
+		if _, err := d.call(nil, "project.close", raw); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(d.projects) != 1 || d.projects[0].ID != "pr" || len(d.sessions) != 1 {
+		t.Fatalf("projects %+v, %d sessions: want pr and its session", d.projects, len(d.sessions))
 	}
 }
 

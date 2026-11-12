@@ -486,7 +486,7 @@ func (d *Daemon) call(c *controlConn, method string, raw json.RawMessage) (any, 
 				return existing, nil
 			}
 			pr := proto.Project{ID: newID(), Name: name, Dir: dir}
-			d.projects = append(d.projects, pr)
+			d.addProject(pr)
 			d.mu.Unlock()
 			d.changed()
 			return pr, nil
@@ -529,7 +529,7 @@ func (d *Daemon) call(c *controlConn, method string, raw json.RawMessage) (any, 
 		return true, nil
 
 	case "project.close":
-		var p proto.IDParams
+		var p proto.CloseProjectParams
 		if err := decode(&p); err != nil {
 			return nil, err
 		}
@@ -540,7 +540,12 @@ func (d *Daemon) call(c *controlConn, method string, raw json.RawMessage) (any, 
 				ids = append(ids, s.id)
 			}
 		}
+		if p.Empty && len(ids) > 0 {
+			d.mu.Unlock()
+			return false, nil
+		}
 		d.projects = slices.DeleteFunc(d.projects, func(pr proto.Project) bool { return pr.ID == p.ID })
+		delete(d.fresh, p.ID)
 		d.mu.Unlock()
 		for _, id := range ids {
 			d.removeSession(id)

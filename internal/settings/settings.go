@@ -25,6 +25,7 @@ type Settings struct {
 	// General
 	NewSessionDir     string `json:"newSessionDir"`     // "current", "project", "home" or "custom", NewSessionPath
 	NewSessionPath    string `json:"newSessionPath"`    // the folder new sessions start in when NewSessionDir is "custom", as ~/… or absolute
+	SessionsFollowDir bool   `json:"sessionsFollowDir"` // a session goes in the project of its pane's folder as it changes
 	SessionName       string `json:"sessionName"`       // what names an unnamed session: proto.NameFocused, NameLead or NameFolder
 	SidebarRows       string `json:"sidebarRows"`       // "detailed", two lines a session, or "compact", one
 	SidebarCount      bool   `json:"sidebarCount"`      // a project's header shows how many sessions it holds
