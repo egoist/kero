@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"kero/internal/proto"
+	"kero/internal/settings"
 )
 
 // session is a row of the sidebar: a task's panes, in a layout. d.mu
@@ -23,9 +24,34 @@ type session struct {
 	layout            *proto.Layout
 	focus, zoomed     string
 	worktree          *proto.Worktree // made for it (proto.Session.Worktree)
-	// followed is the folder whose project the session was last put in
-	// by sessions-follow-directory (Daemon.follow).
+	// followed is the folder sessions-follow-directory last sorted the
+	// session by (Daemon.follow), "" while it has not: it outlives kerod.
 	followed string
+}
+
+// wentTo returns the folder the session's project is now to follow, ""
+// for none: that of a terminal pane that went to another folder since
+// follow last looked, of the focused one when several did; or, for a
+// session not sorted yet, of the pane it shows. A pane seen for the
+// first time, as one just split off, went nowhere. d.mu is held.
+func (s *session) wentTo() string {
+	dir := ""
+	for _, p := range s.panes {
+		p.mu.Lock()
+		term, cur := !p.info.Browser(), p.info.Dir
+		p.mu.Unlock()
+		if !term || cur == "" || cur == p.followed {
+			continue
+		}
+		if p.followed != "" && (dir == "" || p.info.ID == s.focus) {
+			dir = cur
+		}
+		p.followed = cur
+	}
+	if dir == "" && s.followed == "" {
+		dir = s.shownDir()
+	}
+	return dir
 }
 
 // shownDir is the folder of the terminal pane the session shows, its
@@ -299,12 +325,23 @@ func (d *Daemon) create(p proto.CreateParams) (proto.Session, error) {
 	if err != nil {
 		return proto.Session{}, err
 	}
+	// With sessions-follow-directory, a session that starts in a folder
+	// starts in that folder's project, as it would follow there.
+	follow, root := settings.Load().SessionsFollowDir, ""
+	if follow && dir != "" {
+		root = repoRoot(dir)
+	}
 	d.mu.Lock()
-	project := d.projectFor(p.Project, dir)
-	if dir == "" {
-		for _, pr := range d.projects {
-			if pr.ID == project {
-				dir = pr.Dir
+	var project string
+	if root != "" {
+		project = d.folderProject(root)
+	} else {
+		project = d.projectFor(p.Project, dir)
+		if dir == "" {
+			for _, pr := range d.projects {
+				if pr.ID == project {
+					dir = pr.Dir
+				}
 			}
 		}
 	}
@@ -324,6 +361,10 @@ func (d *Daemon) create(p proto.CreateParams) (proto.Session, error) {
 		return proto.Session{}, err
 	}
 	s.panes, s.focus = []*pane{pn}, pn.info.ID
+	if follow {
+		// Sorted: it stays until its pane goes elsewhere.
+		s.followed = pn.info.Dir
+	}
 	d.mu.Lock()
 	i := len(d.sessions)
 	if p.After != "" {

@@ -1463,7 +1463,7 @@ func (a *App) sweepProjects() {
 			continue
 		}
 		for _, id := range a.emptyProjects(h) {
-			a.callOn(h, "project.close", proto.IDParams{ID: id}, nil)
+			a.callOn(h, "project.close", proto.CloseProjectParams{ID: id, Empty: true}, nil)
 			n++
 		}
 	}

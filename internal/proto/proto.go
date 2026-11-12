@@ -150,6 +150,10 @@ type Project struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
 	Dir  string `json:"dir,omitempty"`
+	// Auto tells that sessions-follow-directory made the project for a
+	// session's folder: it goes again when its last session follows its
+	// folder elsewhere, until the user names it.
+	Auto bool `json:"auto,omitempty"`
 }
 
 // Pane is a terminal the daemon keeps running: a shell in a
@@ -909,6 +913,13 @@ type (
 	MoveProjectParams struct {
 		ID    string `json:"id"`
 		Index int    `json:"index"`
+	}
+	// CloseProjectParams closes a project and its sessions; with Empty,
+	// only when it holds none, so that a session that came into it since
+	// the app looked stays.
+	CloseProjectParams struct {
+		ID    string `json:"id"`
+		Empty bool   `json:"empty,omitempty"`
 	}
 	ReadResult struct {
 		Text string `json:"text"`

@@ -213,7 +213,7 @@
   "setNewSessionFolderDetail": "其他主机上的会话从其主目录开始；文件夹不存在时也从主目录开始。",
   "setChooseFolder": "选择…",
   "setSessionsFollowDir": "自动将会话归入项目",
-  "setSessionsFollowDirDetail": "会话所在的文件夹改变时（例如 cd），把它移到该文件夹自己的项目：在 git 仓库中时为仓库根目录，否则为该文件夹本身；没有这样的项目时新建一个。",
+  "setSessionsFollowDirDetail": "会话启动时，以及其中的窗格切换文件夹时（例如 cd），把会话归入该文件夹自己的项目：在 git 仓库中时为该仓库，否则为该文件夹本身。为此自动创建的项目，在最后一个会话离开后会自动移除。",
   "setSessionName": "会话名称取自",
   "setSessionNameDetail": "在你或智能体为会话命名之前。选择“当前窗格”时，只运行着 Shell 的窗格会沿用最需要你的窗格的名称。",
   "setNameFocused": "当前窗格",

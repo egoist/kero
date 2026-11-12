@@ -2190,11 +2190,11 @@ func (msgs Messages) SetSessionsFollowDir() string {
 	return Catalog.Format(msgs.locale, "setSessionsFollowDir", nil)
 }
 
-// SetSessionsFollowDirDetail says "When a session's folder changes, as with cd, move it to that folder's own project: its git repository's root, or else…"
+// SetSessionsFollowDirDetail says "Put a session in its folder’s own project, when it starts and whenever a pane of it changes folder, as with cd: its…"
 // in the language the app shows.
 func SetSessionsFollowDirDetail() string { return In(i18n.Locale()).SetSessionsFollowDirDetail() }
 
-// SetSessionsFollowDirDetail says "When a session's folder changes, as with cd, move it to that folder's own project: its git repository's root, or else…"
+// SetSessionsFollowDirDetail says "Put a session in its folder’s own project, when it starts and whenever a pane of it changes folder, as with cd: its…"
 // in the language of msgs.
 func (msgs Messages) SetSessionsFollowDirDetail() string {
 	return Catalog.Format(msgs.locale, "setSessionsFollowDirDetail", nil)

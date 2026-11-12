@@ -31,6 +31,9 @@ const idleHold = 700 * time.Millisecond
 type pane struct {
 	d   *Daemon
 	sid string // the session's it belongs to
+	// followed is the folder Daemon.follow last saw the pane in, "" before
+	// it saw it; d.mu guards it.
+	followed string
 
 	// mu guards the fields below, and orders the output the emulator and
 	// the clients get with clients attaching. The emulator's callbacks

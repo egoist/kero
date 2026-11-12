@@ -504,7 +504,8 @@ func (d *Daemon) call(c *controlConn, method string, raw json.RawMessage) (any, 
 		d.mu.Lock()
 		for i := range d.projects {
 			if d.projects[i].ID == p.ID {
-				d.projects[i].Name = name
+				// Named by the user, it is theirs to close.
+				d.projects[i].Name, d.projects[i].Auto = name, false
 			}
 		}
 		d.mu.Unlock()
@@ -529,7 +530,7 @@ func (d *Daemon) call(c *controlConn, method string, raw json.RawMessage) (any, 
 		return true, nil
 
 	case "project.close":
-		var p proto.IDParams
+		var p proto.CloseProjectParams
 		if err := decode(&p); err != nil {
 			return nil, err
 		}
@@ -539,6 +540,10 @@ func (d *Daemon) call(c *controlConn, method string, raw json.RawMessage) (any, 
 			if s.project == p.ID {
 				ids = append(ids, s.id)
 			}
+		}
+		if p.Empty && len(ids) > 0 {
+			d.mu.Unlock()
+			return false, nil
 		}
 		d.projects = slices.DeleteFunc(d.projects, func(pr proto.Project) bool { return pr.ID == p.ID })
 		d.mu.Unlock()

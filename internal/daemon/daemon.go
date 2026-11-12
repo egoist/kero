@@ -385,7 +385,6 @@ func (d *Daemon) tickLoop() {
 		}
 		if settings.Load().SessionsFollowDir && d.follow() {
 			changed = true
-			d.save()
 		}
 		if changed {
 			d.changed()
@@ -438,57 +437,105 @@ func (d *Daemon) projectFor(ref, dir string) string {
 	if best != "" {
 		return best
 	}
-	return d.newProject(repoRoot(dir))
+	return d.newProject(repoRoot(dir), false)
 }
 
-// newProject adds a project for dir and returns its ID. d.mu is held.
-func (d *Daemon) newProject(dir string) string {
+// newProject adds a project for dir and returns its ID; auto tells that
+// sessions-follow-directory makes it (proto.Project.Auto). d.mu is held.
+func (d *Daemon) newProject(dir string, auto bool) string {
 	name := filepath.Base(dir)
 	if dir == proto.Home() {
 		name = "Home"
 	}
-	p := proto.Project{ID: newID(), Name: name, Dir: dir}
+	p := proto.Project{ID: newID(), Name: name, Dir: dir, Auto: auto}
 	d.projects = append(d.projects, p)
 	return p.ID
 }
 
-// folderProject returns the project of dir's own folder: its repository's
-// root when it is in one, else dir itself. That is the project whose
-// directory is that folder, not one above it, or a new one. d.mu is held.
-func (d *Daemon) folderProject(dir string) string {
-	root := filepath.Clean(repoRoot(dir))
+// folderProject returns the project of a folder, root: the one whose
+// directory is that folder, not one above it, or a new one. Root is a
+// session's folder's repoRoot, which the caller finds before it takes
+// d.mu: looking for a repository reads the disk, and a share can be slow.
+// d.mu is held.
+func (d *Daemon) folderProject(root string) string {
+	root = filepath.Clean(root)
 	for _, p := range d.projects {
-		if p.Dir == "" {
-			continue
-		}
-		if pd := filepath.Clean(p.Dir); len(pd) == len(root) && proto.Within(root, pd) {
+		if p.Dir != "" && sameDir(filepath.Clean(p.Dir), root) {
 			return p.ID
 		}
 	}
-	return d.newProject(root)
+	return d.newProject(root, true)
 }
 
-// follow puts each session in the project of its folder, as
-// sessions-follow-directory asks: the folder of the terminal pane it
-// shows, when that is another than the one it last followed. A session
-// moved by hand stays where it was put until its pane goes elsewhere.
-// It reports whether one moved.
+// sameDir reports whether two clean paths name the same folder. Windows'
+// paths are of any case.
+func sameDir(a, b string) bool {
+	if runtime.GOOS == "windows" {
+		return strings.EqualFold(a, b)
+	}
+	return a == b
+}
+
+// follow puts sessions in the projects of their folders, as
+// sessions-follow-directory asks: a session whose terminal pane went to
+// another folder, as with cd, and one it has not sorted yet, by the pane
+// it shows. The project is that of the folder's repository, else of the
+// folder itself (folderProject). Showing another pane moves nothing, so a
+// session of panes in several folders stays put, and so does one moved by
+// hand, until a pane of it goes elsewhere. A project follow made, and
+// then emptied, goes with the session. It reports whether anything
+// changed.
 func (d *Daemon) follow() bool {
+	type move struct {
+		s         *session
+		dir, root string
+	}
 	d.mu.Lock()
-	defer d.mu.Unlock()
-	moved := false
+	var moves []move
 	for _, s := range d.sessions {
-		dir := s.shownDir()
-		if dir == "" || dir == s.followed {
-			continue
-		}
-		s.followed = dir
-		if pr := d.folderProject(dir); pr != s.project {
-			s.project = pr
-			moved = true
+		if dir := s.wentTo(); dir != "" {
+			moves = append(moves, move{s: s, dir: dir})
 		}
 	}
-	return moved
+	d.mu.Unlock()
+	if len(moves) == 0 {
+		return false
+	}
+	for i := range moves {
+		moves[i].root = repoRoot(moves[i].dir)
+	}
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	changed := false
+	for _, m := range moves {
+		if !slices.Contains(d.sessions, m.s) {
+			continue
+		}
+		m.s.followed = m.dir
+		from, to := m.s.project, d.folderProject(m.root)
+		if to == from {
+			continue
+		}
+		m.s.project = to
+		d.dropLeft(from)
+		changed = true
+	}
+	return changed
+}
+
+// dropLeft closes the project a session followed its folder out of, when
+// follow made it and no session is left in it. d.mu is held.
+func (d *Daemon) dropLeft(id string) {
+	i := slices.IndexFunc(d.projects, func(p proto.Project) bool { return p.ID == id })
+	if i < 0 || !d.projects[i].Auto {
+		return
+	}
+	for _, s := range d.sessions {
+		if s.project == id {
+			return
+		}
+	}
+	d.projects = slices.Delete(d.projects, i, i+1)
 }
 
 // repoRoot returns the root of the git repository holding dir, or dir. A
@@ -500,8 +547,12 @@ func repoRoot(dir string) string {
 				if main := worktreeMain(d); main != "" {
 					return main
 				}
+				return d
 			}
-			return d
+			// A repository's, not a folder that only has the name.
+			if _, err := os.Stat(filepath.Join(d, ".git", "HEAD")); err == nil {
+				return d
+			}
 		}
 		parent := filepath.Dir(d)
 		if parent == d || d == proto.Home() {
