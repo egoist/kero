@@ -4616,6 +4616,26 @@ func (msgs Messages) ChangesSplit() string {
 	return Catalog.Format(msgs.locale, "changesSplit", nil)
 }
 
+// ViewerSource says "Source"
+// in the language the app shows.
+func ViewerSource() string { return In(i18n.Locale()).ViewerSource() }
+
+// ViewerSource says "Source"
+// in the language of msgs.
+func (msgs Messages) ViewerSource() string {
+	return Catalog.Format(msgs.locale, "viewerSource", nil)
+}
+
+// ViewerPreview says "Preview"
+// in the language the app shows.
+func ViewerPreview() string { return In(i18n.Locale()).ViewerPreview() }
+
+// ViewerPreview says "Preview"
+// in the language of msgs.
+func (msgs Messages) ViewerPreview() string {
+	return Catalog.Format(msgs.locale, "viewerPreview", nil)
+}
+
 // ViewerWrap says "Wrap Lines"
 // in the language the app shows.
 func ViewerWrap() string { return In(i18n.Locale()).ViewerWrap() }

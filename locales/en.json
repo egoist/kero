@@ -616,6 +616,8 @@
   "changesOpenFile": "Open File",
   "changesUnified": "Unified",
   "changesSplit": "Side by Side",
+  "viewerSource": "Source",
+  "viewerPreview": "Preview",
   "viewerWrap": "Wrap Lines",
   "viewerNoWrap": "Don't Wrap Lines",
   "changesCollapseFiles": "Collapse All",

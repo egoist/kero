@@ -454,6 +454,8 @@
   "changesOpenFile": "ファイルを開く",
   "changesUnified": "統合表示",
   "changesSplit": "左右に並べて表示",
+  "viewerSource": "ソース",
+  "viewerPreview": "プレビュー",
   "viewerWrap": "行を折り返す",
   "viewerNoWrap": "行を折り返さない",
   "changesCollapseFiles": "すべて折りたたむ",
