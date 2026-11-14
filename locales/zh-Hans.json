@@ -454,6 +454,8 @@
   "changesOpenFile": "打开文件",
   "changesUnified": "合并",
   "changesSplit": "并排",
+  "viewerSource": "源码",
+  "viewerPreview": "预览",
   "viewerWrap": "自动换行",
   "viewerNoWrap": "不自动换行",
   "changesCollapseFiles": "全部折叠",

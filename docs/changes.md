@@ -44,6 +44,16 @@ Press <kbd>⌥</kbd> <kbd>⌘</kbd> <kbd>E</kbd> for the Files tab: the folder o
 
 The buttons above the tree make a new file or folder at its top, and a file's or folder's menu (right-click) makes one in its folder, renames it, or deletes it. Type the name where it will show, and press <kbd>Return</kbd>: a name like `docs/notes.md` makes the folders in it too, and a new file opens beside the panes. Delete asks first, and moves what you delete to the Trash. On a remote host, which has no Trash to move it to, it's deleted for good.
 
+The file viewer opens text files up to 4 MiB in size.
+
+### Markdown preview
+
+Files ending in `.md` or `.markdown` (case-insensitive) open in **Source** mode, where you can edit the Markdown text. Choose **Preview** in the file card's header to read the formatted Markdown, including unsaved edits. Switching does not save or reread the file; returning to Source preserves the text, undo history, selection and editor scroll position. Save with Cmd/Ctrl+S in either mode. See [Editing](#editing) for saving, external updates and conflicts.
+
+The preview supports headings and anchors, lists and task lists, tables, emphasis, quotes, highlighted code with a copy button, and text selection and copying. Long code lines and wide tables scroll horizontally.
+
+Images show descriptions only: no local or network images are loaded. Safe external links open normally; relative links do not navigate to project files. HTML is not executed as a web page, and math is shown as text.
+
 ## Editing
 
 A file you open from Files, and the new side of a diff in Changes, edit as in VS Code or Zed. Press <kbd>⌘</kbd> <kbd>S</kbd> to save the file you're in. Until you do, a dot takes the place of the card's <kbd>×</kbd>, and of a diff's file name. Closing the card, or opening another file in its place, asks whether to save your changes first. Quitting Kero doesn't: your unsaved changes are still there, unsaved, when you open it again, with the files they're in.

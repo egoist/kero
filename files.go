@@ -74,6 +74,7 @@ type fileView struct {
 	path  string // on the host
 	rel   string // in the Files' root, which its header shows
 	st    *editor.State
+	md    fileMarkdown
 	hash  string // of the file as its text shows it (git.Hash)
 	edits edited
 	err   string
@@ -355,7 +356,14 @@ func (a *App) fileViewer(c *ui.Context, pal *palette, s *proto.Session, fv *file
 			ui.Text(c, dir).FontSize(13).TextColor(pal.textFaint).SingleLine().Ellipsis("…").Shrink(2).MinWidth(0).Tooltip(fv.path)
 		}
 	}, func() {
-		a.wrapButton(c, pal)
+		if fv.markdown() && fv.st != nil && !fv.gone && !fv.large && !fv.binary {
+			a.markdownButtons(c, pal, fv)
+		}
+		// Keep the wrap control in place in both modes. Disabling its
+		// scope dims the icon and prevents clicks and keyboard focus.
+		ui.Box(c.Key("wrap-slot")).Size(28, 26).Disabled(fv.markdown() && fv.md.preview).Children(func() {
+			a.wrapButton(c, pal)
+		})
 		if !h.remote() && !fv.gone {
 			full := fv.path
 			iconButton(c, "open", openFileIcon, locales.ChangesOpenFile(), pal, func() { openPath(full) })
@@ -372,12 +380,14 @@ func (a *App) fileViewer(c *ui.Context, pal *palette, s *proto.Session, fv *file
 		a.sideMessage(c, pal, locales.FilesCantReadFile(), fv.err)
 	case fv.st == nil:
 		ui.Column(c).Grow(1).Center().Children(func() { ui.Spinner(c) })
+	case fv.markdown() && fv.md.preview:
+		a.markdownPreview(c, pal, fv)
 	default:
 		fv.st.Font = ui.Font{Family: a.termFamily(), Size: max(a.set.FontSize-1, 10)}
 		fv.st.Theme = a.codeTheme(c, pal)
 		fv.st.NoScrollPastEnd = true
 		fv.st.SoftWrap = a.set.WrapLines
-		editor.View(c.Key("text-"+fv.path), fv.st).Grow(1).FillWidth().MinHeight(0)
+		editor.View(c.Key(&fv.md.editor), fv.st).Bind(&fv.md.editor).Grow(1).FillWidth().MinHeight(0)
 	}
 }
 
