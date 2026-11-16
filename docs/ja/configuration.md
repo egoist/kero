@@ -80,6 +80,7 @@ kero config check             # 不明なキー、不正な値、agents.toml の
 | `cursor-style-blink`  | `true`     | カーソルを点滅させる                                                     |
 | `macos-option-as-alt` | `false`    | Option でプログラムに Alt（メタ）を送る                                  |
 | `copy-on-select`      | `false`    | 選択したものをクリップボードにコピーする                                 |
+| `font-zoom`           | `true`     | Command を押しながらのホイールと Command+= / - で文字サイズを変える      |
 | `clipboard-read`      | `ask`      | プログラムによるクリップボードの読み取り（OSC 52）: `ask`、`allow`、`deny` |
 | `right-click-action`  | `context-menu` | `context-menu`、`paste`、`copy-or-paste`                             |
 | `mouse-scroll-multiplier` | `precision:1,discrete:3` | スクロールの量。Ghostty と同じく、`precision:` はトラックパッドのスクロールの倍率、`discrete:` はマウスホイール 1 ノッチでスクロールする行数（Windows では 3 行設定のときの 1 ノッチ）。数値を 1 つだけ書くと両方に適用。`0.01` から `10000` |

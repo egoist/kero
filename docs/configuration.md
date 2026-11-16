@@ -80,6 +80,7 @@ kero config check             # report unknown keys and bad values, and agents.t
 | `cursor-style-blink`  | `true`  | Blink the cursor                                                         |
 | `macos-option-as-alt` | `false` | Option sends Alt (Meta) to programs                                      |
 | `copy-on-select`      | `false` | Copy what you select to the clipboard                                    |
+| `font-zoom`           | `true`  | The wheel with Command held and Command+= / - change the font size       |
 | `clipboard-read`      | `ask`   | Programs reading the clipboard (OSC 52): `ask`, `allow` or `deny`        |
 | `right-click-action`  | `context-menu` | `context-menu`, `paste` or `copy-or-paste`                        |
 | `mouse-scroll-multiplier` | `precision:1,discrete:3` | How far scrolling goes, as in Ghostty: `precision:` scales a touchpad's, `discrete:` is the rows a notch of a mouse wheel scrolls (on Windows, a notch at its 3-line setting); one number sets both, from `0.01` to `10000` |

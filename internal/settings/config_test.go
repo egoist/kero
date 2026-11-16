@@ -370,3 +370,16 @@ func TestNewSessionDirectoryFolder(t *testing.T) {
 		t.Errorf("custom with no folder kept as %q", bad.NewSessionDir)
 	}
 }
+
+func TestFontZoom(t *testing.T) {
+	if s, _ := parse(""); !s.FontZoom {
+		t.Fatal("font-zoom is off without the key")
+	}
+	s, probs := parse("font-zoom = false\n")
+	if len(probs) != 0 || s.FontZoom {
+		t.Fatalf("font-zoom = false: %v, %v", s.FontZoom, probs)
+	}
+	if out := format(s, ""); !strings.Contains(out, "font-zoom = false\n") {
+		t.Errorf("font-zoom = false is not written back: %q", out)
+	}
+}

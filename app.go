@@ -892,6 +892,9 @@ func (a *App) termOptions(id string, conn *gated) terminal.Options {
 // zoom makes every terminal's text bigger or smaller, which Settings
 // remembers as the font's size.
 func (a *App) zoom(steps int, reset bool) {
+	if !a.set.FontZoom {
+		return
+	}
 	s := a.set
 	s.FontSize = min(max(s.FontSize+float32(steps), 8), 36)
 	if reset {
