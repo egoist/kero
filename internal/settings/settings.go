@@ -63,6 +63,7 @@ type Settings struct {
 	DarkTheme    string   `json:"darkTheme"`
 	OptionAsAlt  bool     `json:"optionAsAlt"`
 	CopyOnSelect bool     `json:"copyOnSelect"`
+	FontZoom     bool     `json:"fontZoom"`
 	Clipboard    string   `json:"clipboard"`  // programs reading it: "ask", "allow" or "deny"
 	RightClick   string   `json:"rightClick"` // "menu", "paste" or "copyOrPaste"
 	// ScrollPrecision scales a touchpad's scrolling, and ScrollDiscrete is
@@ -168,6 +169,7 @@ func Default() Settings {
 		CellWidth:       1,
 		FontWeight:      400,
 		Ligatures:       true,
+		FontZoom:        true,
 		MinContrast:     3,
 		PaddingColor:    "extend",
 		Cursor:          "block",

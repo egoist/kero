@@ -225,6 +225,7 @@ var keys = []key{
 	boolKey("cursor-style-blink", "", func(s *Settings) *bool { return &s.CursorBlink }),
 	boolKey("macos-option-as-alt", "Option sends Alt (Meta) to programs", func(s *Settings) *bool { return &s.OptionAsAlt }),
 	boolKey("copy-on-select", "what you select goes to the clipboard", func(s *Settings) *bool { return &s.CopyOnSelect }),
+	boolKey("font-zoom", "the wheel with Command (Control elsewhere) held and the Bigger and Smaller shortcuts change the font size", func(s *Settings) *bool { return &s.FontZoom }),
 	choiceKey("clipboard-read", "programs reading the clipboard (OSC 52)", func(s *Settings) *string { return &s.Clipboard }, "ask", "allow", "deny"),
 	mapChoice("right-click-action", "", func(s *Settings) *string { return &s.RightClick },
 		[]string{"context-menu", "paste", "copy-or-paste"}, []string{"menu", "paste", "copyOrPaste"}),
