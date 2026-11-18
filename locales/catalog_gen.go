@@ -4208,6 +4208,46 @@ func (msgs Messages) FilesOpenDefault() string {
 	return Catalog.Format(msgs.locale, "filesOpenDefault", nil)
 }
 
+// FilesRevealIn says "Reveal in {app}"
+// in the language the app shows.
+func FilesRevealIn(app string) string { return In(i18n.Locale()).FilesRevealIn(app) }
+
+// FilesRevealIn says "Reveal in {app}"
+// in the language of msgs.
+func (msgs Messages) FilesRevealIn(app string) string {
+	return Catalog.Format(msgs.locale, "filesRevealIn", map[string]any{"app": app})
+}
+
+// FilesCopyPath says "Copy Path"
+// in the language the app shows.
+func FilesCopyPath() string { return In(i18n.Locale()).FilesCopyPath() }
+
+// FilesCopyPath says "Copy Path"
+// in the language of msgs.
+func (msgs Messages) FilesCopyPath() string {
+	return Catalog.Format(msgs.locale, "filesCopyPath", nil)
+}
+
+// FilesCopyRelPath says "Copy Relative Path"
+// in the language the app shows.
+func FilesCopyRelPath() string { return In(i18n.Locale()).FilesCopyRelPath() }
+
+// FilesCopyRelPath says "Copy Relative Path"
+// in the language of msgs.
+func (msgs Messages) FilesCopyRelPath() string {
+	return Catalog.Format(msgs.locale, "filesCopyRelPath", nil)
+}
+
+// FilesSendToAgent says "Send to the Agent"
+// in the language the app shows.
+func FilesSendToAgent() string { return In(i18n.Locale()).FilesSendToAgent() }
+
+// FilesSendToAgent says "Send to the Agent"
+// in the language of msgs.
+func (msgs Messages) FilesSendToAgent() string {
+	return Catalog.Format(msgs.locale, "filesSendToAgent", nil)
+}
+
 // FilesNewFile says "New File…"
 // in the language the app shows.
 func FilesNewFile() string { return In(i18n.Locale()).FilesNewFile() }

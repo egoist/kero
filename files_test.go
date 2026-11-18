@@ -1052,3 +1052,74 @@ func TestDragFileIntoPane(t *testing.T) {
 		t.Errorf("the drag opened %q", v.file.path)
 	}
 }
+
+// A row's menu sends its path to the agent in the pane, as dragging the
+// row there does, and copies it, in full and as the tree shows it.
+func TestFilesRowMenu(t *testing.T) {
+	a, sink, _ := pasteApp(t)
+	s := &a.st.Sessions[0]
+	g := &proto.GitInfo{Root: "/tmp/demo", Branch: "main", Default: "main"}
+	s.Panes[0].Git = g
+	a.prefs.Side = sideFiles
+	h := a.hostOf(s.ID)
+	a.side.files.dirs = map[string]*dirList{
+		filesKey(h, "/tmp/demo"): {entries: []proto.FSEntry{{Name: "my notes.md"}, {Name: "main.go"}}},
+	}
+	tt := ui.NewTester(a.view, 1280, 720)
+	tt.Frame()
+	tt.Advance(time.Second)
+	tt.Frame()
+	if _, ok := tt.Find("main.go"); !ok {
+		t.Fatalf("no row; texts %q", tt.Texts())
+	}
+
+	// The menu holds the row's own items beside the ones the tree has.
+	if err := tt.RightClick("main.go"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	menu := tt.Menu()
+	for _, want := range []string{locales.FilesOpenDefault(), locales.FilesRevealIn(fileManager()),
+		locales.FilesCopyPath(), locales.FilesCopyRelPath(), locales.FilesSendToAgent(),
+		locales.FilesNewFile(), locales.FilesRename(), locales.FilesDeleteItem()} {
+		if !slices.Contains(menu, want) {
+			t.Errorf("the menu has no %q: %q", want, menu)
+		}
+	}
+
+	// Sending the path types it into the pane, as the drag does, without
+	// pressing Enter.
+	if err := tt.ChooseMenuItem(locales.FilesSendToAgent()); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	tt.Frame()
+	if got := sink.written(t); got != "/tmp/demo/main.go" {
+		t.Errorf("pane a got %q", got)
+	}
+	if s.Focus != "a" {
+		t.Errorf("the keyboard is in %q", s.Focus)
+	}
+
+	// The tree's own path is what the agent and a diff would name; the
+	// full one is the host's, which another machine's folder has as that
+	// machine names it.
+	for _, copy := range []struct {
+		item, want string
+	}{
+		{locales.FilesCopyRelPath(), "main.go"},
+		{locales.FilesCopyPath(), "/tmp/demo/main.go"},
+	} {
+		if err := tt.RightClick("main.go"); err != nil {
+			t.Fatal(err)
+		}
+		tt.Frame()
+		if err := tt.ChooseMenuItem(copy.item); err != nil {
+			t.Fatal(err)
+		}
+		tt.Frame()
+		if got := tt.Clipboard(); got != copy.want {
+			t.Errorf("%s put %q on the clipboard, want %q", copy.item, got, copy.want)
+		}
+	}
+}
