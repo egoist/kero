@@ -9,6 +9,12 @@ import (
 	"kero/internal/proto"
 )
 
+// streamOver is a stream reading the frames of r, as AttachVia makes one:
+// over the same bufio.Reader a handshake leaves on the connection.
+func streamOver(r io.Reader) *Stream {
+	return &Stream{frames: proto.NewFrameReader(bufio.NewReaderSize(r, 64<<10)), Gone: make(chan struct{})}
+}
+
 // A stream hands over FrameResized where it is in the output: after the
 // output before it is read, before the output after it.
 func TestStreamResizedInOrder(t *testing.T) {
@@ -16,7 +22,7 @@ func TestStreamResizedInOrder(t *testing.T) {
 	proto.WriteFrame(&wire, proto.FrameOutput, []byte("before"))
 	proto.WriteFrame(&wire, proto.FrameResized, proto.ResizePayload(100, 30))
 	proto.WriteFrame(&wire, proto.FrameOutput, []byte("after"))
-	s := &Stream{r: bufio.NewReader(&wire), Gone: make(chan struct{})}
+	s := streamOver(&wire)
 	var log []string
 	s.OnResized = func(cols, rows int) {
 		if cols != 100 || rows != 30 {
@@ -58,7 +64,7 @@ func TestStreamLargeOutput(t *testing.T) {
 	if frames < 5 {
 		t.Errorf("%d frames", frames)
 	}
-	s := &Stream{r: bufio.NewReader(bytes.NewReader(proto.AppendFrames(nil, proto.FrameOutput, out))), Gone: make(chan struct{})}
+	s := streamOver(bytes.NewReader(proto.AppendFrames(nil, proto.FrameOutput, out)))
 	got, _ := io.ReadAll(s)
 	if !bytes.Equal(got, out) {
 		t.Errorf("read %d bytes, not the %d written", len(got), len(out))

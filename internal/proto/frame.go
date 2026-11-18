@@ -98,18 +98,62 @@ func AppendFrames(dst []byte, kind byte, payload []byte) []byte {
 // ReadFrame reads one frame.
 func ReadFrame(r io.Reader) (kind byte, payload []byte, err error) {
 	var hdr [5]byte
+	kind, payload, _, err = readFrame(r, &hdr, nil)
+	return
+}
+
+// frameKeep is what a FrameReader's buffer grows to and no further: a
+// screen's worth of output, as a session sends as it works. A frame past
+// it, as a terminal's with the pixels of an image, takes a buffer of its
+// own, as ReadFrame makes one for every frame: keeping a buffer for the
+// largest frame there is would hold it for the connection's life.
+const frameKeep = 128 << 10
+
+// A FrameReader reads the frames of a connection into one buffer it keeps,
+// as ReadFrame reads one frame into a buffer of its own. Reading a frame
+// costs no allocation until a frame carries more than the buffer holds,
+// and the payload of the frame a Read gives is good until the next Read,
+// once its reader has read all of it.
+type FrameReader struct {
+	r   io.Reader
+	hdr [5]byte
+	buf []byte
+}
+
+// NewFrameReader reads the frames of r.
+func NewFrameReader(r io.Reader) *FrameReader { return &FrameReader{r: r} }
+
+// Read reads one frame.
+func (f *FrameReader) Read() (kind byte, payload []byte, err error) {
+	kind, payload, f.buf, err = readFrame(f.r, &f.hdr, f.buf)
+	return
+}
+
+// readFrame reads one frame's header into hdr and its payload into buf,
+// growing buf to what the frame carries and no further than frameKeep, and
+// gives the buffer to keep reading into. A frame past frameKeep takes a
+// buffer of its own, which comes back with nothing to keep.
+func readFrame(r io.Reader, hdr *[5]byte, buf []byte) (kind byte, payload, grown []byte, err error) {
 	if _, err = io.ReadFull(r, hdr[:]); err != nil {
-		return 0, nil, err
+		return 0, nil, buf, err
 	}
-	n := binary.BigEndian.Uint32(hdr[1:])
-	if n > maxFrame {
-		return 0, nil, errors.New("proto: frame too large")
+	size := binary.BigEndian.Uint32(hdr[1:])
+	if size > maxFrame {
+		return 0, nil, buf, errors.New("proto: frame too large")
 	}
-	payload = make([]byte, n)
+	n := int(size)
+	if n > frameKeep {
+		payload = make([]byte, n)
+	} else {
+		if cap(buf) < n {
+			buf = make([]byte, n, min(max(n, 2*cap(buf)), frameKeep))
+		}
+		payload = buf[:n]
+	}
 	if _, err = io.ReadFull(r, payload); err != nil {
-		return 0, nil, err
+		return 0, nil, buf, err
 	}
-	return hdr[0], payload, nil
+	return hdr[0], payload, buf, nil
 }
 
 // ResizePayload encodes a size for FrameResized.
