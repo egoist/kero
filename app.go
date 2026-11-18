@@ -372,7 +372,7 @@ func (a *App) showNotification(id, title, body string) {
 // notify tells about sessions that came to need the user, or finished,
 // while the user was elsewhere: a notification, and the Dock's badge.
 func (a *App) notify(first bool) {
-	waiting := 0
+	waiting, unread := 0, 0
 	for i := range a.st.Sessions {
 		s := &a.st.Sessions[i]
 		// A host the app lost shows its sessions as they were: what they
@@ -382,8 +382,13 @@ func (a *App) notify(first bool) {
 		}
 		prev, seen := a.statuses[s.ID]
 		a.statuses[s.ID] = s.Status
-		if s.Status == proto.Waiting {
+		switch {
+		case s.Status == proto.Waiting:
 			waiting++
+		case s.Unread:
+			// One that finished unseen, and one that needs the user is
+			// unread as well, so each session counts once.
+			unread++
 		}
 		if first || !seen || prev == s.Status || a.watching(s.ID) {
 			continue
@@ -418,7 +423,11 @@ func (a *App) notify(first bool) {
 			delete(a.statuses, id)
 		}
 	}
-	if !a.set.DockBadge {
+	switch a.set.DockBadge {
+	case settings.DockBadgeWaitingUnread:
+		// What finished while the user was away counts as what needs them.
+		waiting += unread
+	case settings.DockBadgeOff:
 		waiting = 0
 	}
 	mygo.App.SetBadgeCount(waiting)

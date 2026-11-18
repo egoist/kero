@@ -3514,14 +3514,44 @@ func (msgs Messages) SetDockBadge() string {
 	return Catalog.Format(msgs.locale, "setDockBadge", nil)
 }
 
-// SetDockBadgeDetail says "With the number of sessions that need you."
+// SetDockBadgeDetail says "With the number of sessions that need you, or those and the finished ones you haven’t seen."
 // in the language the app shows.
 func SetDockBadgeDetail() string { return In(i18n.Locale()).SetDockBadgeDetail() }
 
-// SetDockBadgeDetail says "With the number of sessions that need you."
+// SetDockBadgeDetail says "With the number of sessions that need you, or those and the finished ones you haven’t seen."
 // in the language of msgs.
 func (msgs Messages) SetDockBadgeDetail() string {
 	return Catalog.Format(msgs.locale, "setDockBadgeDetail", nil)
+}
+
+// SetDockBadgeWaiting says "Sessions needing you"
+// in the language the app shows.
+func SetDockBadgeWaiting() string { return In(i18n.Locale()).SetDockBadgeWaiting() }
+
+// SetDockBadgeWaiting says "Sessions needing you"
+// in the language of msgs.
+func (msgs Messages) SetDockBadgeWaiting() string {
+	return Catalog.Format(msgs.locale, "setDockBadgeWaiting", nil)
+}
+
+// SetDockBadgeUnread says "Those and finished ones"
+// in the language the app shows.
+func SetDockBadgeUnread() string { return In(i18n.Locale()).SetDockBadgeUnread() }
+
+// SetDockBadgeUnread says "Those and finished ones"
+// in the language of msgs.
+func (msgs Messages) SetDockBadgeUnread() string {
+	return Catalog.Format(msgs.locale, "setDockBadgeUnread", nil)
+}
+
+// SetDockBadgeOff says "Off"
+// in the language the app shows.
+func SetDockBadgeOff() string { return In(i18n.Locale()).SetDockBadgeOff() }
+
+// SetDockBadgeOff says "Off"
+// in the language of msgs.
+func (msgs Messages) SetDockBadgeOff() string {
+	return Catalog.Format(msgs.locale, "setDockBadgeOff", nil)
 }
 
 // SetDockBounce says "Bounce the Dock icon"

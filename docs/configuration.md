@@ -111,7 +111,7 @@ terminal, such as Powerlevel10k's, would leave a copy behind at each width.
 | `notify-on-done`    | `true`  | When an agent finishes                         |
 | `notify-on-error`   | `true`  | When a program reports it failed               |
 | `notify-sound`      | `false` | Play a sound with notifications                |
-| `dock-badge`        | `true`  | Show how many sessions need you on the Dock icon |
+| `dock-badge`        | `waiting` | What the Dock icon's badge counts: `waiting`, `waiting-and-unread` or `off` |
 | `dock-bounce`       | `false` | Bounce the Dock icon once when a session comes to need you |
 
 ## Agents
