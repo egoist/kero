@@ -27,7 +27,7 @@ Kero は、コーディングエージェントの状態を画面の表示から
 
 ## 独自のエージェント
 
-Kero は Claude Code、Codex、Gemini、OpenCode、Amp、Cursor、Droid、Qwen、Copilot、Kiro、Cline、Kimi、Pi の画面を、[herdr](https://github.com/ogulcancelik/herdr) から借りたルールで読み取ります。[設定ファイル](./configuration.md)の隣の `agents.toml` に書くと、ほかのエージェントを教えたり、画面が変わったエージェントのルールを直したりできます。各エージェントは herdr のマニフェストと同じルールを持つ `[[agents]]` テーブルです：
+Kero は Claude Code、Codex、CodeBuddy Code、Gemini、OpenCode、Amp、Cursor、Droid、Qwen、Copilot、Kiro、Cline、Kimi、Pi の画面を、[herdr](https://github.com/ogulcancelik/herdr) から借りたルールで読み取ります。[設定ファイル](./configuration.md)の隣の `agents.toml` に書くと、ほかのエージェントを教えたり、画面が変わったエージェントのルールを直したりできます。各エージェントは herdr のマニフェストと同じルールを持つ `[[agents]]` テーブルです：
 
 ```toml
 # ~/.config/kero/agents.toml
