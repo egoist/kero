@@ -300,7 +300,7 @@ func (c *Client) Go(method string, params any, fn func(error)) {
 // with its size and its colors.
 type Stream struct {
 	conn    net.Conn
-	r       *bufio.Reader
+	frames  *proto.FrameReader
 	Welcome proto.Welcome
 
 	wmu    sync.Mutex
@@ -332,12 +332,12 @@ func AttachVia(d Dialer, id string) (*Stream, error) {
 		conn.Close()
 		return nil, err
 	}
-	return &Stream{conn: conn, r: r, Welcome: w, closed: make(chan struct{}), Gone: make(chan struct{})}, nil
+	return &Stream{conn: conn, frames: proto.NewFrameReader(r), Welcome: w, closed: make(chan struct{}), Gone: make(chan struct{})}, nil
 }
 
 func (s *Stream) Read(p []byte) (int, error) {
 	for len(s.buf) == 0 {
-		kind, payload, err := proto.ReadFrame(s.r)
+		kind, payload, err := s.frames.Read()
 		if err != nil {
 			return 0, io.EOF
 		}
