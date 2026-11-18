@@ -133,3 +133,46 @@ func TestOMPHook(t *testing.T) {
 		t.Errorf("skill %q", dir)
 	}
 }
+
+// CodeBuddy Code's hook goes in the settings file of its own config
+// root, CODEBUDDY_CONFIG_DIR (default ~/.codebuddy), as Claude Code's
+// does, and its skill is left out when CodeBuddy Code is not installed.
+func TestCodeBuddyHook(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("KERO_HOME", filepath.Join(home, "kero"))
+	t.Setenv("CODEBUDDY_CONFIG_DIR", filepath.Join(home, ".codebuddy"))
+	settings := filepath.Join(home, ".codebuddy", "settings.json")
+	os.MkdirAll(filepath.Dir(settings), 0o755)
+
+	var hook agentHook
+	for _, it := range agentHooks("codebuddy") {
+		if h, ok := it.(agentHook); ok && h.agent == "codebuddy" {
+			hook = h
+		}
+	}
+	if hook.file != settings {
+		t.Fatalf("file %q, want %q", hook.file, settings)
+	}
+	if err := hook.install(); err != nil {
+		t.Fatal(err)
+	}
+	got := read(t, settings)
+	if !strings.Contains(got, "hook codebuddy") {
+		t.Errorf("no CodeBuddy Code hook in:\n%s", got)
+	}
+	if hook.state() != "current" {
+		t.Errorf("state %s", hook.state())
+	}
+	if dir := skillDirs("codebuddy")["codebuddy"]; dir != filepath.Join(home, ".codebuddy", "skills", "kero") {
+		t.Errorf("skill %q", dir)
+	}
+	// Its skill goes nowhere when CodeBuddy Code is not installed.
+	if _, ok := skillDirs("")["codebuddy"]; !ok {
+		t.Error("no skill for CodeBuddy Code though it is installed")
+	}
+	os.RemoveAll(filepath.Join(home, ".codebuddy"))
+	if _, ok := skillDirs("")["codebuddy"]; ok {
+		t.Error("a skill dir for CodeBuddy Code it is not installed")
+	}
+}

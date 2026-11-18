@@ -208,7 +208,7 @@ func skillCmd(args []string) error {
 		}
 		return nil
 	}
-	return usageErr("kero skill setup|show|status|remove [--agent claude|codex|pi|omp|opencode|agents] [--dry-run]")
+	return usageErr("kero skill setup|show|status|remove [--agent claude|codebuddy|codex|pi|omp|opencode|agents] [--dry-run]")
 }
 
 func sortedKeys(m map[string]string) []string {
@@ -299,27 +299,35 @@ func SyncSkill() {
 // from a development build or one of another $KERO_HOME.
 var adoptCopies = func() bool { return proto.Name() == "kero" && os.Getenv("KERO_HOME") == "" }
 
-// hooksFor returns the hooks that go with an --agent: Codex's, Pi's, OMP's
-// and OpenCode's with the skill they share.
+// hooksFor returns the hooks that go with an --agent: Claude Code's and
+// CodeBuddy Code's, and Codex's, Pi's, OMP's and OpenCode's with the
+// skill they share.
 func hooksFor(agent string) []integration {
 	switch agent {
-	case "", "claude", "codex", "pi", "omp", "opencode", "agents":
+	case "", "claude", "codebuddy", "codex", "pi", "omp", "opencode", "agents":
 		return agentHooks(agent)
 	}
 	return nil
 }
 
-// skillDirs returns where agents read skills: Claude Code's, and the
-// shared one of Codex, OpenCode and others.
+// skillDirs returns where agents read skills: Claude Code's, CodeBuddy
+// Code's, and the shared one of Codex, OpenCode and others. CodeBuddy
+// Code's is left out when CodeBuddy Code is not installed, so that Kero
+// makes no directory of its own for it.
 func skillDirs(agent string) map[string]string {
 	home := proto.Home()
 	claude := os.Getenv("CLAUDE_CONFIG_DIR")
 	if claude == "" {
 		claude = filepath.Join(home, ".claude")
 	}
+	codebuddy := os.Getenv("CODEBUDDY_CONFIG_DIR")
+	if codebuddy == "" {
+		codebuddy = filepath.Join(home, ".codebuddy")
+	}
 	all := map[string]string{
-		"claude": filepath.Join(claude, "skills", "kero"),
-		"agents": filepath.Join(home, ".agents", "skills", "kero"),
+		"claude":    filepath.Join(claude, "skills", "kero"),
+		"codebuddy": filepath.Join(codebuddy, "skills", "kero"),
+		"agents":    filepath.Join(home, ".agents", "skills", "kero"),
 	}
 	if agent = strings.ToLower(agent); agent != "" {
 		if d, ok := all[agent]; ok {
@@ -329,13 +337,16 @@ func skillDirs(agent string) map[string]string {
 			return map[string]string{"agents": all["agents"]}
 		}
 	}
+	if st, err := os.Stat(codebuddy); err != nil || !st.IsDir() {
+		delete(all, "codebuddy")
+	}
 	return all
 }
 
 // SkillState is where a skill for agents is, and whether it is current,
 // with the hooks that go with it.
 type SkillState struct {
-	Agent string // "claude", or "agents" (Codex, OpenCode, Pi…)
+	Agent string // "claude", "codebuddy", or "agents" (Codex, OpenCode, Pi…)
 	Dir   string
 	State string // "current", "outdated" (or partly installed) or "missing"
 }
@@ -344,8 +355,11 @@ type SkillState struct {
 // of agent.
 func SkillStates() []SkillState {
 	var out []SkillState
-	for _, agent := range []string{"claude", "agents"} {
-		dir := skillDirs(agent)[agent]
+	for _, agent := range []string{"claude", "codebuddy", "agents"} {
+		dir := skillDirs("")[agent]
+		if dir == "" {
+			continue // not installed
+		}
 		states := []string{skillState(dir)}
 		for _, h := range hooksFor(agent) {
 			states = append(states, h.state())

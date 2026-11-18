@@ -1,0 +1,45 @@
+id = "codebuddy"
+version = "2026.11.18.1"
+min_engine_version = 3
+updated_at = "2026-11-18T00:00:00Z"
+
+# CodeBuddy Code asks to run a tool with a dialog of its own, at the
+# bottom of the screen, where it asks the user: "Do you want to
+# proceed?" for a command, "Do you want to create …?" for a file, with a
+# numbered list of choices under it.
+
+[[rules]]
+id = "permission_prompt"
+state = "blocked"
+priority = 1200
+region = "bottom_non_empty_lines(12)"
+visible_blocker = true
+# The choices the dialog offers, the first of which is the one it takes.
+contains = ["1. yes"]
+any = [
+  { contains = ["do you want to proceed"] },
+  { contains = ["do you want to create"] },
+  { contains = ["do you want to make this edit to"] },
+  { contains = ["do you want to multi edit"] },
+  { contains = ["do you want to allow"] },
+  { contains = ["would you like to proceed"] },
+  { contains = ["wants to enter plan mode"] },
+]
+
+[[rules]]
+id = "osc_title_working"
+state = "working"
+priority = 1100
+region = "osc_title"
+visible_working = true
+# The spinner it puts before the title while it works.
+regex = ['^[\x{2800}-\x{28FF}] ']
+
+[[rules]]
+id = "osc_title_idle"
+state = "idle"
+priority = 250
+region = "osc_title"
+visible_idle = true
+# The mark it puts before the title when it waits for the user.
+regex = ['^\x{2733} ']

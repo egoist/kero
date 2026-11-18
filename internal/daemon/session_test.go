@@ -199,6 +199,7 @@ func TestResumeCommand(t *testing.T) {
 		agent, id, want string
 	}{
 		{"claude", "13b997c3-f8b3-4b3e-bb8a-ca1b5d1b9787", "claude --resume 13b997c3-f8b3-4b3e-bb8a-ca1b5d1b9787"},
+		{"codebuddy", "13b997c3-f8b3-4b3e-bb8a-ca1b5d1b9787", "codebuddy --resume 13b997c3-f8b3-4b3e-bb8a-ca1b5d1b9787"},
 		{"codex", "019a2b3c-4d5e", "codex resume 019a2b3c-4d5e"},
 		{"pi", "0f3c2a1b-8e9d", "pi --session 0f3c2a1b-8e9d"},
 		{"omp", "01a1a1cc-d32d", "omp --session 01a1a1cc-d32d"},

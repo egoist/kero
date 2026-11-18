@@ -27,7 +27,7 @@ Each session's row in the sidebar starts with the icon of the program in the pan
 
 ## Your own agents
 
-Kero knows the screens of Claude Code, Codex, Gemini, OpenCode, Amp, Cursor, Droid, Qwen, Copilot, Kiro, Cline, Kimi and Pi, from rules it borrows from [herdr](https://github.com/ogulcancelik/herdr). You can teach it another agent, or fix the rules of one whose screen changed, in `agents.toml` beside the [configuration file](./configuration.md). Each agent there is an `[[agents]]` table with its rules, as herdr's manifests have them:
+Kero knows the screens of Claude Code, Codex, CodeBuddy Code, Gemini, OpenCode, Amp, Cursor, Droid, Qwen, Copilot, Kiro, Cline, Kimi and Pi, from rules it borrows from [herdr](https://github.com/ogulcancelik/herdr). You can teach it another agent, or fix the rules of one whose screen changed, in `agents.toml` beside the [configuration file](./configuration.md). Each agent there is an `[[agents]]` table with its rules, as herdr's manifests have them:
 
 ```toml
 # ~/.config/kero/agents.toml
