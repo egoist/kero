@@ -65,6 +65,22 @@ func awakeModeIn(msgs locales.Messages, mode string) string {
 	return msgs.AwakeOff()
 }
 
+// dockBadgeName names a mode of Badge the Dock icon.
+func dockBadgeName(mode settings.DockBadge) string {
+	return dockBadgeIn(locales.In(i18n.Locale()), mode)
+}
+
+// dockBadgeIn names a mode of Badge the Dock icon in the language of msgs.
+func dockBadgeIn(msgs locales.Messages, mode settings.DockBadge) string {
+	switch mode {
+	case settings.DockBadgeWaitingUnread:
+		return msgs.SetDockBadgeUnread()
+	case settings.DockBadgeOff:
+		return msgs.SetDockBadgeOff()
+	}
+	return msgs.SetDockBadgeWaiting()
+}
+
 // setKeepAwake chooses a mode of Keep computer awake, and saves it.
 func (a *App) setKeepAwake(mode string) {
 	s := a.set

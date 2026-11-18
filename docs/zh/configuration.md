@@ -105,7 +105,7 @@ kero config check             # 报告未知的配置项、无效的值和agents
 | `notify-on-done`    | `true`  | 智能体完成时                                   |
 | `notify-on-error`   | `true`  | 程序报告失败时                                 |
 | `notify-sound`      | `false` | 通知时播放提示音                               |
-| `dock-badge`        | `true`  | 在 Dock 图标上显示有多少会话需要你             |
+| `dock-badge`        | `waiting` | Dock 图标标记统计什么: `waiting`、`waiting-and-unread` 或 `off` |
 | `dock-bounce`       | `false` | 有会话开始需要你时，Dock 图标跳动一次          |
 
 ## 智能体

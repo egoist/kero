@@ -76,7 +76,7 @@ func settingsIndex() []searchEntry {
 		{"notifications", locales.SetNotifyDone(), "notify-on-done done complete"},
 		{"notifications", locales.SetNotifyFailed(), "notify-on-error error"},
 		{"notifications", locales.SetPlaySound(), "notify-sound audio"},
-		{"notifications", locales.SetDockBadge(), "dock-badge count"},
+		{"notifications", locales.SetDockBadge(), "dock-badge count badge waiting unread done finished unseen"},
 		{"notifications", locales.SetDockBounce(), "dock-bounce attention"},
 
 		{"agents", locales.SetRemoteControlRow(), "remote-control kero do focus browser automation"},

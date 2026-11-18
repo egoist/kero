@@ -1201,7 +1201,7 @@ func (a *App) notificationsPage(c *ui.Context, pal *palette) {
 	})
 	settingsGroup(c, pal, locales.SetHow(), "", func() {
 		settingRow(c, pal, locales.SetPlaySound(), "", func() { toggle(c.Key("ns"), &s.NotifySound, pal) })
-		settingRow(c, pal, locales.SetDockBadge(), locales.SetDockBadgeDetail(), func() { toggle(c.Key("nb"), &s.DockBadge, pal) })
+		settingRow(c, pal, locales.SetDockBadge(), locales.SetDockBadgeDetail(), func() { popup(c, "dock-badge", &s.DockBadge, settings.DockBadgeModes, dockBadgeName, 180, pal) })
 		settingRow(c, pal, locales.SetDockBounce(), locales.SetDockBounceDetail(), func() { toggle(c.Key("nbo"), &s.BounceDock, pal) })
 	})
 	if button(c, "test-notif", locales.SetTestNotification(), "", false, pal) {
