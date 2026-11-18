@@ -33,6 +33,8 @@ type savedSession struct {
 	Focus      string          `json:"focus,omitempty"`
 	Panes      []savedPane     `json:"panes"`
 	Worktree   *proto.Worktree `json:"worktree,omitempty"`
+	// Followed is the folder sessions-follow-directory last sorted it by.
+	Followed string `json:"followed,omitempty"`
 }
 
 type savedPane struct {
@@ -81,6 +83,7 @@ func (d *Daemon) saveState() {
 	st := savedState{Version: 2, Projects: d.projects, Saved: time.Now().UnixMilli()}
 	for _, s := range d.sessions {
 		ss := savedSession{ID: s.id, Project: s.project, Name: s.name, AgentNamed: s.agentNamed, Created: s.created, Layout: s.layout, Focus: s.focus, Worktree: s.worktree}
+		ss.Followed = s.followed
 		for _, p := range s.panes {
 			p.mu.Lock()
 			sp := savedPane{ID: p.info.ID, Dir: p.info.Dir, Command: p.info.Command, URL: p.info.URL,
@@ -146,6 +149,7 @@ func (d *Daemon) restore() {
 	when := time.UnixMilli(st.Saved).Format("Mon Jan 2 15:04")
 	for _, ss := range st.Sessions {
 		s := &session{id: ss.ID, project: ss.Project, name: ss.Name, agentNamed: ss.AgentNamed, created: ss.Created, restored: true, focus: ss.Focus, worktree: ss.Worktree}
+		s.followed = ss.Followed
 		for _, sp := range ss.Panes {
 			if p := d.restorePane(s.id, sp, when, set.ResumeAgents); p != nil {
 				s.panes = append(s.panes, p)

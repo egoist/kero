@@ -156,6 +156,16 @@
   "sidebarOtherProject": "Other",
   "sidebarHide": "Hide Sidebar",
   "sidebarShow": "Show Sidebar",
+  "sidebarSweep": "Remove Empty Projects",
+  "sidebarSwept": "{count, plural, one {Removed # empty project} other {Removed # empty projects}}",
+  "@sidebarSwept": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "sidebarNothingToSweep": "No empty projects",
   "sidebarNoSessions": "No sessions",
   "sidebarCollapse": "Collapse",
   "sidebarExpand": "Expand",
@@ -357,6 +367,8 @@
   "setDirCustom": "Custom…",
   "setNewSessionFolderDetail": "Sessions on other hosts start in their home, as they do here when the folder is gone.",
   "setChooseFolder": "Choose…",
+  "setSessionsFollowDir": "Sort sessions into projects",
+  "setSessionsFollowDirDetail": "Put a session in its folder’s own project, when it starts and whenever a pane of it changes folder, as with cd: its git repository’s, or else the folder’s itself. A project is removed once it holds no session.",
   "setSessionName": "Name sessions after",
   "setSessionNameDetail": "Until you or an agent name one. With Pane You’re In, a pane running only its shell defers to the pane that needs you most.",
   "setNameFocused": "Pane You’re In",

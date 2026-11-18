@@ -534,6 +534,9 @@ func (a *App) generalPage(c *ui.Context, pal *palette) {
 				}
 			})
 		}
+		settingRow(c, pal, locales.SetSessionsFollowDir(), locales.SetSessionsFollowDirDetail(), func() {
+			toggle(c.Key("follow-dir"), &s.SessionsFollowDir, pal)
+		})
 		settingRow(c, pal, locales.SetSessionName(), locales.SetSessionNameDetail(), func() {
 			segmented(c, "sessionname", &s.SessionName, []string{proto.NameFocused, proto.NameLead, proto.NameFolder},
 				[]string{locales.SetNameFocused(), locales.SetNameLead(), locales.SetNameFolder()})

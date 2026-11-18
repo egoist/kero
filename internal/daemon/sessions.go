@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"kero/internal/proto"
+	"kero/internal/settings"
 )
 
 // session is a row of the sidebar: a task's panes, in a layout. d.mu
@@ -23,6 +24,57 @@ type session struct {
 	layout            *proto.Layout
 	focus, zoomed     string
 	worktree          *proto.Worktree // made for it (proto.Session.Worktree)
+	// followed is the folder sessions-follow-directory last sorted the
+	// session by (Daemon.follow), "" while it has not: it outlives kerod.
+	followed string
+}
+
+// wentTo returns the folder the session's project is now to follow, ""
+// for none: that of a terminal pane that went to another folder since
+// follow last looked, of the focused one when several did; or, for a
+// session not sorted yet, of the pane it shows. A pane seen for the
+// first time, as one just split off, went nowhere. d.mu is held.
+func (s *session) wentTo() string {
+	dir := ""
+	for _, p := range s.panes {
+		p.mu.Lock()
+		term, cur := !p.info.Browser(), p.info.Dir
+		p.mu.Unlock()
+		if !term || cur == "" || cur == p.followed {
+			continue
+		}
+		if p.followed != "" && (dir == "" || p.info.ID == s.focus) {
+			dir = cur
+		}
+		p.followed = cur
+	}
+	if dir == "" && s.followed == "" {
+		dir = s.shownDir()
+	}
+	return dir
+}
+
+// shownDir is the folder of the terminal pane the session shows, its
+// focused one, else its first terminal's; d.mu is held.
+func (s *session) shownDir() string {
+	var shown *pane
+	for _, p := range s.panes {
+		p.mu.Lock()
+		term := !p.info.Browser()
+		p.mu.Unlock()
+		if !term {
+			continue
+		}
+		if shown == nil || p.info.ID == s.focus {
+			shown = p
+		}
+	}
+	if shown == nil {
+		return ""
+	}
+	shown.mu.Lock()
+	defer shown.mu.Unlock()
+	return shown.info.Dir
 }
 
 // state returns what the subscribers see.
@@ -273,31 +325,57 @@ func (d *Daemon) create(p proto.CreateParams) (proto.Session, error) {
 	if err != nil {
 		return proto.Session{}, err
 	}
+	// With sessions-follow-directory, a session that starts in a folder
+	// starts in that folder's project, as it would follow there.
+	follow, root := settings.Load().SessionsFollowDir, ""
+	if follow && dir != "" {
+		root = repoRoot(dir)
+	}
 	d.mu.Lock()
-	project := d.projectFor(p.Project, dir)
-	if dir == "" {
-		for _, pr := range d.projects {
-			if pr.ID == project {
-				dir = pr.Dir
+	var project string
+	had := len(d.projects)
+	if root != "" {
+		project = d.folderProject(root)
+	} else {
+		project = d.projectFor(p.Project, dir)
+		if dir == "" {
+			for _, pr := range d.projects {
+				if pr.ID == project {
+					dir = pr.Dir
+				}
 			}
 		}
 	}
+	made := len(d.projects) > had
 	d.mu.Unlock()
+	// The project made for a session that did not start waits for none.
+	failed := func(err error) (proto.Session, error) {
+		if made {
+			d.mu.Lock()
+			delete(d.fresh, project)
+			d.mu.Unlock()
+		}
+		return proto.Session{}, err
+	}
 	var wt *proto.Worktree
 	if p.Worktree != "" {
 		// In the project of the repository, where the sidebar shows it
 		// under its branch's name.
 		if wt, err = d.addWorktree(dir, p.Worktree, p.Base); err != nil {
-			return proto.Session{}, err
+			return failed(err)
 		}
 		dir = wt.Path
 	}
 	s := &session{id: newID(), project: project, name: strings.TrimSpace(p.Name), created: time.Now().UnixMilli(), worktree: wt}
 	pn, err := d.startPane(s.id, p, dir)
 	if err != nil {
-		return proto.Session{}, err
+		return failed(err)
 	}
 	s.panes, s.focus = []*pane{pn}, pn.info.ID
+	if follow {
+		// Sorted: it stays until its pane goes elsewhere.
+		s.followed = pn.info.Dir
+	}
 	d.mu.Lock()
 	i := len(d.sessions)
 	if p.After != "" {
@@ -306,6 +384,7 @@ func (d *Daemon) create(p proto.CreateParams) (proto.Session, error) {
 		}
 	}
 	d.sessions = slices.Insert(d.sessions, i, s)
+	delete(d.fresh, s.project)
 	d.panes[pn.info.ID] = pn
 	info := d.sessionInfo(s)
 	d.mu.Unlock()
@@ -449,6 +528,7 @@ func (d *Daemon) move(p proto.MoveParams) error {
 	}
 	if p.Project != "" {
 		s.project = d.projectFor(p.Project, "")
+		delete(d.fresh, s.project)
 	}
 	i := slices.Index(d.sessions, s)
 	d.sessions = slices.Delete(d.sessions, i, i+1)

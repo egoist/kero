@@ -249,6 +249,21 @@ func TestTermScrollback(t *testing.T) {
 	}
 }
 
+// The sweep takes the projects with no session, not those with one, nor
+// any before the host's state came.
+func TestEmptyProjects(t *testing.T) {
+	a := testApp(t)
+	a.st.Projects = append(a.st.Projects, proto.Project{ID: "p2", Name: "empty", Dir: "/tmp/empty"}, proto.Project{ID: "p3", Name: "also", Dir: "/tmp/also"})
+	h := a.local()
+	if got := a.emptyProjects(h); !slices.Equal(got, []string{"p2", "p3"}) {
+		t.Fatalf("emptyProjects = %v, want [p2 p3]", got)
+	}
+	h.loaded = false
+	if got := a.emptyProjects(h); got != nil {
+		t.Fatalf("emptyProjects before the state came = %v, want none", got)
+	}
+}
+
 // font-feature reaches the terminals after font-ligatures, and wins over
 // it for the tags it names.
 func TestTermFontFeatures(t *testing.T) {
