@@ -234,11 +234,25 @@ var ErrLineTooLong = errors.New("proto: line too long")
 
 // ReadLine reads a line of at most max bytes, its newline included, so
 // that the other side of a connection, as a host far away, cannot make
-// this one hold a line without end.
+// this one hold a line without end. A line that fits in the reader's
+// buffer comes back as it lies there, good only until the next read on r:
+// a caller that keeps it copies it, as json's decoders do for the strings
+// and RawMessages they take. A line longer than the buffer is assembled
+// into one of its own.
 func ReadLine(r *bufio.Reader, max int) ([]byte, error) {
-	var line []byte
+	chunk, err := r.ReadSlice('\n')
+	if err == nil {
+		if len(chunk) > max {
+			return nil, ErrLineTooLong
+		}
+		return chunk, nil
+	}
+	if err != bufio.ErrBufferFull {
+		return chunk, err
+	}
+	line := append([]byte(nil), chunk...)
 	for {
-		chunk, err := r.ReadSlice('\n')
+		chunk, err = r.ReadSlice('\n')
 		if len(line)+len(chunk) > max {
 			return nil, ErrLineTooLong
 		}

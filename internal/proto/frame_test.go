@@ -1,7 +1,9 @@
 package proto
 
 import (
+	"bufio"
 	"bytes"
+	"errors"
 	"io"
 	"testing"
 )
@@ -147,5 +149,64 @@ func TestFrameTooLarge(t *testing.T) {
 	}
 	if _, _, err := ReadFrame(bytes.NewReader(wire.Bytes())); err == nil {
 		t.Errorf("ReadFrame took a frame of %d bytes", len(big))
+	}
+}
+
+// A line that fits in the reader's buffer comes back without a copy of
+// its own, one that doesn't is assembled into a buffer of its own, and a
+// line past max is refused either way.
+func TestReadLine(t *testing.T) {
+	// Fast path: the whole line in one fill of the buffer, which comes
+	// back without a copy of its own.
+	r := bufio.NewReaderSize(bytes.NewReader(bytes.Repeat([]byte("first\n"), 16)), 64)
+	got, err := ReadLine(r, 100)
+	if err != nil || string(got) != "first\n" {
+		t.Errorf("first line %q, %v", got, err)
+	}
+	if n := testing.AllocsPerRun(5, func() {
+		if _, err := ReadLine(r, 100); err != nil {
+			t.Error(err)
+		}
+	}); n != 0 {
+		t.Errorf("a line in the buffer took %v allocations, want none", n)
+	}
+	// Slow path: a line longer than the reader's buffer.
+	r = bufio.NewReaderSize(bytes.NewReader([]byte("0123456789abcdefghij\n")), 8)
+	got, err = ReadLine(r, 100)
+	if err != nil || string(got) != "0123456789abcdefghij\n" {
+		t.Errorf("long line %q, %v", got, err)
+	}
+	// A line past max is refused, in the buffer and across it.
+	for _, c := range []struct {
+		data string
+		max  int
+	}{
+		{"toolong\n", 4},
+		{"0123456789abcdefghij\n", 10},
+	} {
+		r = bufio.NewReaderSize(bytes.NewReader([]byte(c.data)), 8)
+		if _, err := ReadLine(r, c.max); !errors.Is(err, ErrLineTooLong) {
+			t.Errorf("line of %q past %d: %v, want ErrLineTooLong", c.data, c.max, err)
+		}
+	}
+	// A last line without its newline ends in EOF, as its reader does.
+	r = bufio.NewReader(bytes.NewReader([]byte("no newline")))
+	if got, err := ReadLine(r, 100); err != io.EOF || string(got) != "no newline" {
+		t.Errorf("line at the end %q, %v; want it and EOF", got, err)
+	}
+}
+
+// Reading a line of the size a state broadcast is, as every control
+// connection does for every message.
+func BenchmarkReadLine(b *testing.B) {
+	line := append(bytes.Repeat([]byte("x"), 17<<10), '\n')
+	b.SetBytes(int64(len(line)))
+	b.ReportAllocs()
+	r := bufio.NewReaderSize(nil, 64<<10)
+	for b.Loop() {
+		r.Reset(bytes.NewReader(line))
+		if _, err := ReadLine(r, MaxLine); err != nil {
+			b.Fatal(err)
+		}
 	}
 }
