@@ -222,24 +222,23 @@ func (c *Client) read(r *bufio.Reader) {
 		if err != nil {
 			return
 		}
+		// One pass over the line: a response keeps its result as the
+		// bytes it came in, for its call to decode, while an event's
+		// fields come typed out of the Message embedded here, whose
+		// Result the outer one shadows.
 		var m struct {
-			ID     int64           `json:"id"`
+			proto.Message
 			Result json.RawMessage `json:"result"`
-			Error  string          `json:"error"`
-			Event  string          `json:"event"`
 		}
 		if json.Unmarshal(line, &m) != nil {
 			continue
 		}
 		if m.Event != "" {
-			var ev proto.Message
-			if json.Unmarshal(line, &ev) == nil {
-				c.mu.Lock()
-				fn := c.onEvent
-				c.mu.Unlock()
-				if fn != nil {
-					fn(ev)
-				}
+			c.mu.Lock()
+			fn := c.onEvent
+			c.mu.Unlock()
+			if fn != nil {
+				fn(m.Message)
 			}
 			continue
 		}
