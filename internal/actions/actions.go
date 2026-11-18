@@ -45,6 +45,7 @@ var All = []Action{
 	{ID: "find.open", Title: "Find…", Menu: "Edit", Keys: "CmdOrCtrl+F"},
 	{ID: "find.next", Title: "Find Next", Menu: "Edit", Keys: "CmdOrCtrl+G"},
 	{ID: "find.previous", Title: "Find Previous", Menu: "Edit", Keys: "CmdOrCtrl+Shift+G"},
+	{ID: "search.panes", Title: "Search All Panes…", Menu: "Edit", Keys: "CmdOrCtrl+Shift+F", Remote: true},
 
 	{ID: "pane.split.right", Title: "Split Right", Menu: "Pane", Keys: "CmdOrCtrl+D", Remote: true},
 	{ID: "pane.split.down", Title: "Split Down", Menu: "Pane", Keys: "CmdOrCtrl+Shift+D", Remote: true},
@@ -93,6 +94,7 @@ var pcKeys = map[string]string{
 	"find.open":           "Ctrl+Shift+F",
 	"find.next":           "",
 	"find.previous":       "",
+	"search.panes":        "Alt+Shift+F",
 	"pane.split.right":    "Alt+Shift+=",
 	"pane.split.down":     "Alt+Shift+-",
 	"pane.browser":        "Alt+Shift+B",

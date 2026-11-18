@@ -63,6 +63,14 @@ Usage:
                                 stops working, then print its screen
   kero read [target] [-a] [-n lines]
                                 print the screen (-a with the scrollback)
+  kero search <query> [-p project] [-n count] [--json]
+                                find text in every pane's scrollback, as a
+                                pane's find does (the case of ASCII letters
+                                doesn't count): print each match's pane and
+                                line, newest first, panes with recent
+                                output first; 50 at most, unless -n says
+      -a, --all                   on this machine and every host of kero
+                                  hosts, saying why any was skipped
   kero wait [target] [--for idle,waiting,error,exited] [--timeout 10m]
                                 wait until the pane stops working (or
                                 reaches one of the statuses), print it
@@ -173,7 +181,7 @@ ambiguous one), 4 kerod unreachable.
 `
 
 // Commands lists the subcommands, which main sends here.
-var Commands = []string{"ls", "list", "new", "split", "send", "key", "prompt", "read", "capture", "wait", "events", "status", "diff",
+var Commands = []string{"ls", "list", "new", "split", "send", "key", "prompt", "read", "capture", "search", "wait", "events", "status", "diff",
 	"history", "resume", "rename", "focus", "close", "kill", "restart", "notify", "report", "projects", "skill", "hook", "daemon", "do", "actions", "config",
 	"browser", "hosts", "clients", "__bridge", "-H", "--host", "help", "--help", "-h", "version", "--version"}
 
@@ -324,6 +332,15 @@ func run(args []string, host string) error {
 			return listAll(f.set["json"])
 		}
 	}
+	if cmd == "search" {
+		f, p, err := searchFlags(args)
+		if err != nil {
+			return err
+		}
+		if f.set["all"] {
+			return searchAll(f, p)
+		}
+	}
 	c, done, err := connect(host)
 	if err != nil {
 		if errors.Is(err, client.ErrVersion) {
@@ -337,6 +354,9 @@ func run(args []string, host string) error {
 	defer done()
 	if cmd == "clients" {
 		return clientsCmd(c, args)
+	}
+	if cmd == "search" {
+		return searchCmd(c, args, host)
 	}
 	var st proto.State
 	if err := c.Call("state", nil, &st); err != nil {

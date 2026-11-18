@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/egoist/mygo/plugins/terminal"
@@ -168,6 +169,9 @@ type Client struct {
 	onEvent func(proto.Message)
 	closed  chan struct{}
 	err     error
+	// searches are the functions of the searches going (Search), by number.
+	searches   sync.Map
+	lastSearch atomic.Int64
 }
 
 type response struct {
@@ -234,6 +238,10 @@ func (c *Client) read(r *bufio.Reader) {
 		if m.Event != "" {
 			var ev proto.Message
 			if json.Unmarshal(line, &ev) == nil {
+				if ev.Search != nil {
+					c.searchBatch(ev.Search)
+					continue
+				}
 				c.mu.Lock()
 				fn := c.onEvent
 				c.mu.Unlock()

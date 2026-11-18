@@ -255,6 +255,21 @@ func (d *Daemon) call(c *controlConn, method string, raw json.RawMessage) (any, 
 		}
 		return proto.ReadResult{Text: pn.readText(p.Scrollback, p.Lines)}, nil
 
+	case "search":
+		var p proto.SearchParams
+		if err := decode(&p); err != nil {
+			return nil, err
+		}
+		return d.search(c, p)
+
+	case "search.cancel":
+		var p proto.SearchCancel
+		if err := decode(&p); err != nil {
+			return nil, err
+		}
+		c.cancelSearch(p.Req)
+		return true, nil
+
 	case "view":
 		var p proto.ViewParams
 		if err := decode(&p); err != nil {

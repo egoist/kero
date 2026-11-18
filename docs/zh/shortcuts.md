@@ -27,6 +27,7 @@ description: Kero 的默认键盘快捷键，以及用于重新绑定的操作 i
 | 打开项目…                   | <kbd>⌘</kbd> <kbd>O</kbd>              | <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>O</kbd> | `project.open`      |
 | 前往会话…                   | <kbd>⌘</kbd> <kbd>P</kbd>              | <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>P</kbd> | `palette.open`      |
 | 恢复对话…                   | <kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>O</kbd> | –                                             | `conversation.resume` |
+| 搜索所有窗格…               | <kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>F</kbd> | <kbd>Alt</kbd> <kbd>Shift</kbd> <kbd>F</kbd> | `search.panes` |
 | 跳到需要你的会话            | <kbd>⌘</kbd> <kbd>J</kbd>              | <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>J</kbd> | `session.attention` |
 | 下一个会话                  | <kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>]</kbd> | <kbd>Ctrl</kbd> <kbd>PgDn</kbd>               | `session.next`      |
 | 上一个会话                  | <kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>[</kbd> | <kbd>Ctrl</kbd> <kbd>PgUp</kbd>               | `session.previous`  |

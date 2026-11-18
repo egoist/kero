@@ -136,6 +136,7 @@ var actionWords = map[string]string{
 	"find.open":           "search look up text grep",
 	"find.next":           "search again",
 	"find.previous":       "search again back",
+	"search.panes":        "find grep scrollback output everywhere sessions hosts history",
 	"pane.split.right":    "vertical horizontal side by side new pane",
 	"pane.split.down":     "horizontal vertical below new pane",
 	"pane.browser":        "browser web page url preview localhost open",

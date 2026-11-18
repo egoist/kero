@@ -31,6 +31,10 @@ type paletteState struct {
 	convs []hostConversation
 	only  bool
 	gen   int
+	// search has the palette search every pane's text (panesearch.go): run
+	// is the search going, and shown the one whose hits it lists.
+	search     bool
+	run, shown *paneSearch
 }
 
 // hostConversation is a conversation a host's kerod remembers.
@@ -47,6 +51,8 @@ const recentConversations = 5
 type paletteItem struct {
 	session *proto.Session
 	conv    *hostConversation
+	hit     *searchHit
+	pane    *proto.Pane // a hit's
 	title   string
 	detail  string
 	keys    string
@@ -54,9 +60,11 @@ type paletteItem struct {
 	score   int
 	words   string // what finds it besides its title and detail, unshown
 	top     bool   // what the query asks for outright, before any match
+	last    bool   // what any query offers, after every match
 }
 
 func (a *App) openPalette() {
+	a.stopPaneSearch()
 	a.pal = paletteState{open: true, reveal: true, gen: a.pal.gen + 1}
 	a.loadConversations()
 }
@@ -164,6 +172,9 @@ func (a *App) paletteItems() []paletteItem {
 	if a.pal.only {
 		return a.conversationItems()
 	}
+	if a.pal.search {
+		return a.searchItems()
+	}
 	var items []paletteItem
 	names := map[string]string{}
 	for _, p := range a.st.Projects {
@@ -191,6 +202,10 @@ func (a *App) paletteItems() []paletteItem {
 	if q := strings.TrimSpace(a.pal.query); proto.IsAddress(q) && a.session(a.selected) != nil {
 		cmds = append(cmds, paletteItem{title: locales.PaletteOpenInBrowser(), detail: proto.BrowserURL(q), top: true,
 			run: func() { a.openBrowser(q) }})
+	}
+	// What no session or command names may be in what a pane has shown.
+	if q := a.pal.query; strings.TrimSpace(q) != "" {
+		cmds = append(cmds, paletteItem{title: locales.PaletteSearchFor(q), last: true, run: func() { a.openPaneSearch(q) }})
 	}
 	for _, act := range actions.All {
 		id := act.ID
@@ -232,6 +247,7 @@ const (
 	paletteSession = iota
 	paletteConversation
 	paletteCommand
+	paletteHit
 )
 
 func (it *paletteItem) kind() int {
@@ -240,6 +256,8 @@ func (it *paletteItem) kind() int {
 		return paletteSession
 	case it.conv != nil:
 		return paletteConversation
+	case it.hit != nil:
+		return paletteHit
 	}
 	return paletteCommand
 }
@@ -306,6 +324,15 @@ func (a *App) paletteView(c *ui.Context, pal *palette) {
 	}
 	var items []paletteItem
 	for _, it := range a.paletteItems() {
+		if a.pal.search {
+			items = append(items, it)
+			continue
+		}
+		if it.last {
+			it.score = math.MinInt32
+			items = append(items, it)
+			continue
+		}
 		sc := fuzzy(a.pal.query, it.title+" "+it.detail)
 		sc = max(sc, keywords(a.pal.query, it.words))
 		if t := fuzzy(a.pal.query, it.title); t >= 0 {
@@ -320,7 +347,7 @@ func (a *App) paletteView(c *ui.Context, pal *palette) {
 		it.score = sc
 		items = append(items, it)
 	}
-	if a.pal.query != "" {
+	if a.pal.query != "" && !a.pal.search {
 		slices.SortStableFunc(items, func(x, y paletteItem) int { return y.score - x.score })
 	}
 	a.pal.index = min(max(a.pal.index, 0), max(len(items)-1, 0))
@@ -333,6 +360,15 @@ func (a *App) paletteView(c *ui.Context, pal *palette) {
 			none = locales.PaletteNoConversations()
 		}
 	}
+	if a.pal.search {
+		label, placeholder = locales.PaletteSearchLabel(), locales.PaletteSearchPlaceholder()
+		switch {
+		case strings.TrimSpace(a.pal.query) == "":
+			none = locales.PaletteSearchHint()
+		case a.searching():
+			none = locales.PaletteSearching()
+		}
+	}
 	ui.DialogBase(c.Key("palette"), &a.pal.open, func(backdrop, panel ui.Element) {
 		backdrop.Background(pal.overlay).Justify(ui.Start).Padding(84, 0, 0, 0)
 		floating(panel.Width(600).MaxHeight(460).Radius(14).Background(pal.popover), pal).Clip().
@@ -341,7 +377,11 @@ func (a *App) paletteView(c *ui.Context, pal *palette) {
 			ui.Icon(c, searchIcon).Size(16, 16).TextColor(pal.textMuted)
 			in := ui.TextInputBase(c.Key("q"), &a.pal.query).Grow(1).FontSize(15).Placeholder(placeholder).AutoFocus()
 			if in.Changed() {
-				a.pal.index, a.pal.reveal = 0, true
+				if a.pal.search {
+					a.paneSearchChanged()
+				} else {
+					a.pal.index, a.pal.reveal = 0, true
+				}
 			}
 			if c.Shortcut(0, ui.KeyDown) || c.Shortcut(ui.Ctrl, ui.KeyN) {
 				a.pal.index, a.pal.reveal = min(a.pal.index+1, len(items)-1), true
@@ -365,7 +405,7 @@ func (a *App) paletteView(c *ui.Context, pal *palette) {
 				kind := it.kind()
 				// Conversations head their group even first, as with no
 				// sessions, or they would read as sessions.
-				if (i > 0 || kind == paletteConversation) && kind != lastKind && a.pal.query == "" && !a.pal.only {
+				if (i > 0 || kind == paletteConversation) && kind != lastKind && a.pal.query == "" && !a.pal.only && !a.pal.search {
 					title := locales.PaletteCommands()
 					if kind == paletteConversation {
 						title = locales.PaletteConversations()
@@ -373,7 +413,11 @@ func (a *App) paletteView(c *ui.Context, pal *palette) {
 					ui.Text(c, title).FontSize(11.5).FontWeight(600).TextColor(pal.textFaint).Padding(10, 10, 4, 10)
 				}
 				lastKind = kind
-				row := ui.Row(c.Key(i)).Height(38).Padding(0, 10).Gap(10).AlignItems(ui.Center).Radius(8)
+				height := float32(38)
+				if kind == paletteHit {
+					height = 52
+				}
+				row := ui.Row(c.Key(i)).Height(height).Padding(0, 10).Gap(10).AlignItems(ui.Center).Radius(8)
 				if i == a.pal.index {
 					row.Background(pal.accent.Alpha(0.12))
 					if reveal {
@@ -386,6 +430,10 @@ func (a *App) paletteView(c *ui.Context, pal *palette) {
 					chosen = it.run
 				}
 				row.Children(func() {
+					if kind == paletteHit {
+						a.hitRow(c, pal, &it)
+						return
+					}
 					switch kind {
 					case paletteSession:
 						statusIcon(c, pal, it.session.Status, it.session.Unread, 14)
@@ -401,11 +449,17 @@ func (a *App) paletteView(c *ui.Context, pal *palette) {
 					}
 				})
 			}
+			if a.pal.search {
+				a.searchNotes(c, pal)
+			}
 		})
 	})
 	if chosen != nil {
 		a.pal.open = false
 		chosen()
+	}
+	if !a.pal.open {
+		a.stopPaneSearch()
 	}
 	if !a.pal.open && chosen == nil {
 		a.focusTerminal()
