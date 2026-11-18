@@ -176,3 +176,40 @@ func TestCodeBuddyHook(t *testing.T) {
 		t.Error("a skill dir for CodeBuddy Code it is not installed")
 	}
 }
+
+// PiG's extension goes under its own config root, PIG_HOME (default
+// ~/.pig), and its hook names PiG, so Kero resumes it with `pig --session`.
+func TestPiGHook(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("KERO_HOME", filepath.Join(home, "kero"))
+	t.Setenv("PIG_HOME", filepath.Join(home, "pig"))
+	ts := filepath.Join(home, "pig", "agent", "extensions", "kero.ts")
+	os.MkdirAll(filepath.Dir(ts), 0o755)
+	var plugin agentPlugin
+	for _, it := range agentHooks("pig") {
+		if p, ok := it.(agentPlugin); ok && p.agent == "pig" {
+			plugin = p
+		}
+	}
+	if plugin.dir != filepath.Dir(ts) {
+		t.Fatalf("dir %q, want %q", plugin.dir, filepath.Dir(ts))
+	}
+	if err := plugin.install(); err != nil {
+		t.Fatal(err)
+	}
+	if got := read(t, ts); !strings.Contains(got, `const AGENT = "pig"`) || !strings.Contains(got, `["hook", AGENT]`) {
+		t.Errorf("no PiG hook in:\n%s", got)
+	}
+	if plugin.state() != "current" {
+		t.Errorf("state %s", plugin.state())
+	}
+	if dir := skillDirs("pig")["agents"]; dir != filepath.Join(home, ".agents", "skills", "kero") {
+		t.Errorf("skill %q", dir)
+	}
+	// PiG reads neither Pi's directory nor Pi's environment.
+	t.Setenv("PI_CODING_AGENT_DIR", filepath.Join(home, "pi", "agent"))
+	if dir := agentHooks("pig")[0].(agentPlugin).dir; dir != filepath.Dir(ts) {
+		t.Errorf("dir %q, want %q", dir, filepath.Dir(ts))
+	}
+}

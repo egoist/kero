@@ -203,6 +203,7 @@ func TestResumeCommand(t *testing.T) {
 		{"codex", "019a2b3c-4d5e", "codex resume 019a2b3c-4d5e"},
 		{"pi", "0f3c2a1b-8e9d", "pi --session 0f3c2a1b-8e9d"},
 		{"omp", "01a1a1cc-d32d", "omp --session 01a1a1cc-d32d"},
+		{"pig", "02b2b2dd-e43e", "pig --session 02b2b2dd-e43e"},
 		{"opencode", "ses_ea7b9b964ffemfrVYxK9yw55Gz", "opencode --session ses_ea7b9b964ffemfrVYxK9yw55Gz"},
 		{"claude", "x; rm -rf ~", ""},
 		{"claude", "", ""},

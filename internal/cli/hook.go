@@ -454,8 +454,8 @@ func (p agentPlugin) remove() error {
 }
 
 // agentHooks returns what kero installs to hook agents into Kero: for
-// Claude Code and CodeBuddy Code, and for Codex, Pi, OMP and OpenCode
-// when they are installed (or named).
+// Claude Code and CodeBuddy Code, and for Codex, Pi, OMP, PiG and
+// OpenCode when they are installed (or named).
 func agentHooks(agent string) []integration {
 	home := proto.Home()
 	dirOf := func(env string, def ...string) string {
@@ -479,6 +479,18 @@ func agentHooks(agent string) []integration {
 		ompRoot = filepath.Join(home, ".omp")
 	}
 	omp := filepath.Join(ompRoot, "agent")
+	// PiG, a Go port of Pi, keeps its config under PIG_HOME (default
+	// ~/.pig), with the agent directory in agent/ there, which
+	// PIG_CODING_AGENT_DIR names. It reads neither ~/.pi nor Pi's
+	// environment, so its extension goes in its own directory.
+	pigRoot := os.Getenv("PIG_HOME")
+	if pigRoot == "" {
+		pigRoot = filepath.Join(home, ".pig")
+	}
+	pig := os.Getenv("PIG_CODING_AGENT_DIR")
+	if pig == "" {
+		pig = filepath.Join(pigRoot, "agent")
+	}
 	opencode := filepath.Join(dirOf("XDG_CONFIG_HOME", ".config"), "opencode")
 	installed := func(dir string) bool {
 		st, err := os.Stat(dir)
@@ -493,6 +505,7 @@ func agentHooks(agent string) []integration {
 		{"codex", codex, agentHook{"codex", filepath.Join(codex, "hooks.json")}},
 		{"pi", pi, agentPlugin{agent: "pi", dir: filepath.Join(pi, "extensions"), files: map[string]string{"kero.ts": "agents/pi.ts"}}},
 		{"omp", omp, agentPlugin{agent: "omp", dir: filepath.Join(omp, "extensions"), files: map[string]string{"kero.ts": "agents/pi.ts"}}},
+		{"pig", pig, agentPlugin{agent: "pig", dir: filepath.Join(pig, "extensions"), files: map[string]string{"kero.ts": "agents/pi.ts"}}},
 		{"opencode", opencode, agentPlugin{agent: "opencode", dir: filepath.Join(opencode, "plugins", "kero"), own: true, files: map[string]string{
 			"package.json": "agents/opencode/package.json", "index.js": "agents/opencode/index.js", "tui.js": "agents/opencode/tui.js",
 		}}},

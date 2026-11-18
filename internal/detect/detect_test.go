@@ -14,7 +14,7 @@ func TestManifestsCompile(t *testing.T) {
 	if err := Load(); err != nil {
 		t.Fatal(err)
 	}
-	for _, a := range []string{"claude", "codex", "codebuddy", "gemini", "opencode", "amp", "cursor-agent", "droid", "qwen", "copilot", "kiro-cli", "cline", "kimi", "pi"} {
+	for _, a := range []string{"claude", "codex", "codebuddy", "gemini", "opencode", "amp", "cursor-agent", "droid", "qwen", "copilot", "kiro-cli", "cline", "kimi", "pi", "pig"} {
 		if !Known(a) {
 			t.Errorf("no rules for %s", a)
 		}
@@ -99,6 +99,22 @@ func TestCodeBuddy(t *testing.T) {
 	for _, c := range cases {
 		if got := Detect("codebuddy", c.in); got.State != c.state {
 			t.Errorf("%s: %s (rule %q), want %s", c.name, got.State, got.Rule, c.state)
+		}
+	}
+}
+
+// PiG is Pi, a Go port of it, and shows the screen Pi shows.
+func TestPiG(t *testing.T) {
+	for _, c := range []struct {
+		screen string
+		state  State
+	}{
+		{"⠋ Working\n", Working},
+		{"Working...\n", Working},
+		{"› \n", Idle},
+	} {
+		if got := Detect("pig", Input{Screen: c.screen}); got.State != c.state {
+			t.Errorf("%q: %s (rule %q), want %s", c.screen, got.State, got.Rule, c.state)
 		}
 	}
 }
