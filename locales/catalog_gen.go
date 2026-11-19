@@ -3034,14 +3034,14 @@ func (msgs Messages) SetColors() string {
 	return Catalog.Format(msgs.locale, "setColors", nil)
 }
 
-// SetColorsDetail says "One of Ghostty’s themes, or your own in ~/.config/ghostty/themes, colors the window, its panes and terminals in pla…"
+// SetColorsDetail says "One of Ghostty’s themes, or your own in {path}, colors the window, its panes and terminals in pla…"
 // in the language the app shows.
-func SetColorsDetail() string { return In(i18n.Locale()).SetColorsDetail() }
+func SetColorsDetail(path string) string { return In(i18n.Locale()).SetColorsDetail(path) }
 
-// SetColorsDetail says "One of Ghostty’s themes, or your own in ~/.config/ghostty/themes, colors the window, its panes and terminals in pla…"
+// SetColorsDetail says "One of Ghostty’s themes, or your own in {path}, colors the window, its panes and terminals in pla…"
 // in the language of msgs.
-func (msgs Messages) SetColorsDetail() string {
-	return Catalog.Format(msgs.locale, "setColorsDetail", nil)
+func (msgs Messages) SetColorsDetail(path string) string {
+	return Catalog.Format(msgs.locale, "setColorsDetail", map[string]any{"path": path})
 }
 
 // SetLightWindows says "Light windows"

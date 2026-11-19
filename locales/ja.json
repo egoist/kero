@@ -297,7 +297,7 @@
   "setThicken": "テキストを太くする",
   "setThickenDetail": "Ghostty の font-thicken のように、線を太くします。",
   "setColors": "Ghostty のテーマ",
-  "setColorsDetail": "Ghostty のテーマ、または ~/.config/ghostty/themes にある独自のテーマが、上のテーマの代わりにウインドウ、ペイン、ターミナルを彩ります。",
+  "setColorsDetail": "Ghostty のテーマ、または {path} にある独自のテーマが、上のテーマの代わりにウインドウ、ペイン、ターミナルを彩ります。",
   "setLightWindows": "ライトのウインドウ",
   "setDarkWindows": "ダークのウインドウ",
   "setThemeNone": "なし",
