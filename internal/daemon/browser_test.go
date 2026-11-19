@@ -58,7 +58,7 @@ func TestBrowserPane(t *testing.T) {
 	if err := p.setPage("http://localhost:3000/docs", "Docs"); err != nil {
 		t.Fatal(err)
 	}
-	if got := p.readText(false, 0); got != "Docs\nhttp://localhost:3000/docs\n" {
+	if got := p.read(proto.ReadParams{}).Text; got != "Docs\nhttp://localhost:3000/docs\n" {
 		t.Errorf("read %q", got)
 	}
 	d.saveState()
