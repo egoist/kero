@@ -42,19 +42,22 @@ func (a *App) modalOpen() bool {
 }
 
 func (a *App) setSidebarHidden(hidden bool) {
-	if a.prefs.SidebarHidden == hidden {
-		return
+	if a.prefs.SidebarHidden != hidden {
+		a.toggleSidebar()
 	}
-	a.prefs.SidebarHidden = hidden
-	a.savePrefs()
 }
 
 // handleSidebarSwipe treats horizontal trackpad swipes anywhere over the main
 // window as hiding (swipe left, positive DX) or showing (swipe right, negative
-// DX) the left sidebar, while leaving vertical scrolls and modifier-held
-// scrolls alone.
+// DX) the left sidebar. A view under the pointer that takes the scroll, such
+// as a diff or a program reading the mouse, sees it first. A sideways scroll
+// over the viewer stays with that content, including a wide table. Vertical
+// scrolls and modifier-held scrolls are left alone.
 func (a *App) handleSidebarSwipe(ev ui.InputEvent) bool {
 	if ev.Kind != ui.InputScroll || !a.set.TrackpadGestures || a.modalOpen() || !ev.Precise || ev.Mods != 0 {
+		return false
+	}
+	if a.overViewer(ev.X, ev.Y) {
 		return false
 	}
 	g := &a.gestures
@@ -97,6 +100,11 @@ func (a *App) handleSidebarSwipe(ev ui.InputEvent) bool {
 		g.swipeFired = true
 	}
 	return true
+}
+
+// overViewer reports whether x, y, in the window, is on the viewer.
+func (a *App) overViewer(x, y float32) bool {
+	return a.side.viewer.Contains(x, y)
 }
 
 // handlePanePinch zooms the pane under the pointer when spreading two fingers

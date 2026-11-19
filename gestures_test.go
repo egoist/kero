@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"image"
 	"slices"
 	"strings"
 	"testing"
@@ -8,12 +10,16 @@ import (
 
 	"github.com/egoist/mygo/plugins/terminal"
 	"github.com/egoist/mygo/ui"
+	"github.com/egoist/mygo/ui/editor"
 
+	"kero/internal/git"
+	"kero/internal/proto"
 	"kero/locales"
 )
 
 func TestSidebarSwipeGesture(t *testing.T) {
 	a := testApp(t)
+	a.set.TrackpadGestures = true
 	tt := ui.NewTester(a.view, 1100, 640)
 	tt.Frame()
 	tt.Advance(time.Second)
@@ -114,6 +120,7 @@ func TestSidebarSwipeGesture(t *testing.T) {
 
 func TestPanePinchZoomGesture(t *testing.T) {
 	a := testApp(t)
+	a.set.TrackpadGestures = true
 	s := &a.st.Sessions[0]
 	tt := ui.NewTester(a.view, 1100, 640)
 	tt.Frame()
@@ -207,6 +214,7 @@ func TestGesturesOverLiveTerminal(t *testing.T) {
 		t.Fatal(err)
 	}
 	a := testApp(t)
+	a.set.TrackpadGestures = true
 	var scrollRows []int
 	termA, err := terminal.New(terminal.Options{
 		Conn:     idleConn{make(chan struct{})},
@@ -293,5 +301,162 @@ func TestTrackpadGesturesSettingsSearch(t *testing.T) {
 	found := searchResults("trackpad-gestures", nil)
 	if hits := found["general"]; !slices.Contains(hits, locales.SetTrackpadGestures()) {
 		t.Fatalf("search for trackpad-gestures = %v, want %q in general", found, locales.SetTrackpadGestures())
+	}
+}
+
+func TestSidebarSwipeDoesNotStealHorizontalScroll(t *testing.T) {
+	longLine := "const veryLongIdentifier = " + strings.Repeat("abcdefghij", 40)
+	t.Run("diff", func(t *testing.T) {
+		a, tt, card := changesViewer(t, longLine+"\n", "unified")
+		// Below the viewer's header and the file's sticky header, on the line.
+		assertSidewaysScroll(t, a, tt, card.X+160, card.Y+headerH+stickyH+16)
+	})
+	t.Run("split diff", func(t *testing.T) {
+		a, tt, card := changesViewer(t, longLine+"\n", "split")
+		// The new side of a side-by-side diff, past the divider.
+		assertSidewaysScroll(t, a, tt, card.X+card.W*0.75, card.Y+headerH+stickyH+16)
+	})
+	t.Run("wide table in file", func(t *testing.T) {
+		a := testApp(t)
+		a.set.TrackpadGestures = true
+		a.set.WrapLines = false
+		s := &a.st.Sessions[0]
+		// A markdown table wider than the viewer. Soft wrap is off, so the
+		// row scrolls sideways instead of the sidebar taking the swipe.
+		row := "| name | " + strings.Repeat("column ", 40) + "|"
+		fv := &fileView{pane: "a", path: "/tmp/demo/table.md", rel: "table.md", fetched: time.Now()}
+		a.showFile(fv, []byte(row+"\n"+row+"\n"))
+		a.openView(s, sideFiles, fv)
+		a.prefs.Side = sideFiles
+		tt, card := viewerTester(t, a)
+		assertSidewaysScroll(t, a, tt, card.X+80, card.Y+headerH+24)
+	})
+}
+
+// changesViewer opens the Changes viewer on one file whose new side is text,
+// laid out as layout ("unified" or "split").
+func changesViewer(t *testing.T, text, layout string) (*App, *ui.Tester, ui.Rect) {
+	t.Helper()
+	a := testApp(t)
+	a.set.TrackpadGestures = true
+	a.set.WrapLines = false
+	a.set.DiffLayout = layout
+	s := &a.st.Sessions[0]
+	g := &proto.GitInfo{Root: "/tmp/demo", Branch: "main", Default: "main", Files: 1, Added: 1}
+	s.Panes[0].Git, s.Panes[1].Git = g, g
+	a.toggleSide(sideChanges)
+	ch := &a.side.changes
+	ch.base, ch.scope, ch.stamp = git.BaseHead, changesScope(&s.Panes[0], git.BaseHead), gitStamp(g)
+	ch.res = &proto.GitChanges{Root: "/tmp/demo", Files: []proto.GitFile{{Path: "f.go", Status: "modified", Added: 1}}}
+	ch.fetched = time.Now()
+	ch.files = map[string]*sideFile{
+		ch.scope + "|f.go": {
+			pane: s.Panes[0].ID,
+			base: git.BaseHead,
+			root: "/tmp/demo",
+			f:    proto.GitFile{Path: "f.go", Status: "modified", Added: 1},
+			d:    &editor.DiffState{Old: editor.NewBuffer(""), New: editor.NewBuffer(text)},
+		},
+	}
+	tt, card := viewerTester(t, a)
+	return a, tt, card
+}
+
+func viewerTester(t *testing.T, a *App) (*ui.Tester, ui.Rect) {
+	t.Helper()
+	var card ui.Rect
+	tt := ui.NewTester(func(c *ui.Context) {
+		a.view(c)
+		card = a.paneRef("side-card").Bounds(c)
+	}, 1280, 720)
+	tt.Frame()
+	tt.Advance(time.Second)
+	tt.Frame()
+	if card.W < 100 || card.H < 100 {
+		t.Fatalf("viewer card %+v", card)
+	}
+	return tt, card
+}
+
+// assertSidewaysScroll scrolls sideways at x, y by more than a sidebar swipe
+// and fails unless that content moves and the sidebar stays put.
+func assertSidewaysScroll(t *testing.T, a *App, tt *ui.Tester, x, y float32) {
+	t.Helper()
+	before, ok := pixelRect(tt.Image(), int(x)-20, int(y)-4, 80, 16)
+	if !ok {
+		t.Fatalf("sample at %v,%v outside the window", x, y)
+	}
+	tt.Scroll(x, y, 80, 0)
+	tt.Frame()
+	if a.prefs.SidebarHidden {
+		t.Fatal("horizontal scroll hid the sidebar")
+	}
+	after, ok := pixelRect(tt.Image(), int(x)-20, int(y)-4, 80, 16)
+	if !ok || bytes.Equal(before, after) {
+		t.Fatal("horizontal scroll did not move the view under the pointer")
+	}
+}
+
+func pixelRect(img *image.RGBA, x, y, w, h int) ([]byte, bool) {
+	if img == nil || x < 0 || y < 0 || x+w > img.Bounds().Dx() || y+h > img.Bounds().Dy() {
+		return nil, false
+	}
+	out := make([]byte, 0, w*h*4)
+	for py := y; py < y+h; py++ {
+		o := img.PixOffset(x, py)
+		out = append(out, img.Pix[o:o+w*4]...)
+	}
+	return out, true
+}
+
+// A wide table under the side panel keeps a sideways trackpad scroll: the
+// columns move, and the sidebar stays. The same scroll away from that panel
+// still hides the sidebar.
+func TestWideTableKeepsHorizontalScroll(t *testing.T) {
+	a := testApp(t)
+	a.set.TrackpadGestures = true
+	s := ui.ListState{}
+	cols := []ui.TableColumn{
+		{Title: "Name", Width: 220},
+		{Title: "Kind", Width: 220},
+		{Title: "Size", Width: 220},
+	}
+	tt := ui.NewTester(func(c *ui.Context) {
+		ui.Row(c).Fill().HandleInput(a.handleSidebarSwipe).Children(func() {
+			ui.Table(c, &s, cols, 6, func(row, col int) {
+				ui.Text(c, []string{"wide.go", "file", "1 KB"}[col]).SingleLine()
+			}).Size(380, 240)
+		})
+	}, 800, 400)
+	tt.Frame()
+
+	cell, ok := tt.Find("wide.go")
+	if !ok {
+		t.Fatal("table cell was not built")
+	}
+	sizeBefore, ok := tt.Find("Size")
+	if !ok {
+		t.Fatal("Size column was not built")
+	}
+	atX, atY := cell.X+cell.W/2, cell.Y+cell.H/2
+	// The table sits where the viewer is, so the gesture leaves the scroll.
+	a.side.viewer = ui.Rect{X: 0, Y: 0, W: 800, H: 400}
+	tt.Scroll(atX, atY, 160, 0)
+	tt.Frame()
+	if a.prefs.SidebarHidden {
+		t.Fatal("horizontal scroll over a wide table hid the sidebar")
+	}
+	sizeAfter, ok := tt.Find("Size")
+	if !ok || sizeAfter.X >= sizeBefore.X-1 {
+		t.Fatalf("wide table did not scroll: Size at %v, was %v", sizeAfter.X, sizeBefore.X)
+	}
+
+	// Off the side panel, the same scroll is the sidebar gesture.
+	a.side.viewer = ui.Rect{}
+	a.gestures = gestureState{}
+	tt.Scroll(atX, atY, 160, 0)
+	tt.Frame()
+	if !a.prefs.SidebarHidden {
+		t.Fatal("horizontal scroll outside the side panel did not hide the sidebar")
 	}
 }

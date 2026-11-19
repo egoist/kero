@@ -160,7 +160,7 @@ func Default() Settings {
 		SessionName:      proto.NameFocused,
 		SidebarRows:      "detailed",
 		SidebarCount:     true,
-		TrackpadGestures: true,
+		TrackpadGestures: false,
 		ConfirmClose:     true,
 		RestoreSessions:  true,
 		ResumeAgents:     true,

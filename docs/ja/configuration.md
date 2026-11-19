@@ -46,7 +46,7 @@ kero config check             # 不明なキー、不正な値、agents.toml の
 | `sidebar-rows`          | `detailed` | サイドバーでのセッションの表示: `detailed` はステータスメッセージ、なければブランチと変更を 2 行目に表示、`compact` は 1 行で表示 |
 | `sidebar-session-count` | `true`    | サイドバーのプロジェクト名の横に、含まれるセッションの数を表示 |
 | `focus-follows-mouse`   | `false`    | ポインタが入ったペインにフォーカスを移す                      |
-| `trackpad-gestures`     | `true`     | 2 本指の左右スワイプでサイドバーを表示・非表示にし（Option/Alt を押しながらで横スクロール）、ペイン上でピンチアウト・ピンチインして拡大・復元する |
+| `trackpad-gestures`     | `false`    | 2 本指の左右スワイプでサイドバーを表示・非表示にし（Option/Alt を押しながらで横スクロール）、ペイン上でピンチアウト・ピンチインして拡大・復元する |
 | `confirm-close`         | `true`     | プログラムが実行中のペインを閉じる前に確認する                |
 | `quit-ends-sessions`     | `false`    | 終了時にこのマシンのセッションをすべて終え、kerod を停止する  |
 | `restore-sessions`      | `true`     | 再起動のあとなど kerod が再起動したら、セッションを再び開始する |

@@ -44,6 +44,9 @@ type sideState struct {
 	drag    float32 // the viewer's width as a drag of its edge began, 0 while none
 	barDrag float32 // the sidebar's, as a drag of its edge began
 	barW    float32 // the sidebar's width as it shows this frame, 0 while hidden
+	// viewer is the viewer's box in the last frame, in window DIPs. A
+	// sideways scroll over it stays with the diff, the file, or a wide table.
+	viewer ui.Rect
 	// crowded tells that the window is too narrow for the sidebar beside
 	// the cards (minCards), which it then leaves to them, shown as it is,
 	// unless the user shows it anyway, forced, until the window widens.
