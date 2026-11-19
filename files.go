@@ -68,16 +68,21 @@ type fileItem struct {
 // types its path there (insertPath).
 type fileDrag struct{ host, path string }
 
-// fileView is a file the viewer shows, as its text.
+// fileView owns a file's editable text and optional preview.
 type fileView struct {
 	pane  string // a pane of the host it is on
 	path  string // on the host
 	rel   string // in the Files' root, which its header shows
 	st    *editor.State
-	md    fileMarkdown
 	hash  string // of the file as its text shows it (git.Hash)
 	edits edited
 	err   string
+	// Presentation never takes ownership of the editor or its buffer.
+	editor        ui.Handle
+	preview       bool
+	renderer      filePreview
+	anchor        string
+	anchorVersion uint64
 	// gone, large and binary say why it shows no text: there is no file
 	// there any more, or one too large, or one that isn't text.
 	gone, large, binary bool
@@ -350,18 +355,20 @@ func (a *App) fileViewer(c *ui.Context, pal *palette, s *proto.Session, fv *file
 		a.loadFile(h.cl, fv, stamp)
 	}
 
+	renderer := fv.previewer()
 	dir, name := path.Split(fv.rel)
 	a.viewerHeader(c, pal, s, fileIcon, name, editing, func() {
 		if dir = strings.TrimSuffix(dir, "/"); dir != "" {
 			ui.Text(c, dir).FontSize(13).TextColor(pal.textFaint).SingleLine().Ellipsis("…").Shrink(2).MinWidth(0).Tooltip(fv.path)
 		}
 	}, func() {
-		if fv.markdown() && fv.st != nil && !fv.gone && !fv.large && !fv.binary {
-			a.markdownButtons(c, pal, fv)
+		if renderer != nil && fv.st != nil && !fv.gone && !fv.large && !fv.binary {
+			a.previewButtons(c, pal, fv)
 		}
 		// Keep the wrap control in place in both modes. Disabling its
 		// scope dims the icon and prevents clicks and keyboard focus.
-		ui.Box(c.Key("wrap-slot")).Size(28, 26).Disabled(fv.markdown() && fv.md.preview).Children(func() {
+		ui.Box(c.Key("wrap-slot")).Size(28, 26).
+			Disabled(renderer != nil && fv.preview).Children(func() {
 			a.wrapButton(c, pal)
 		})
 		if !h.remote() && !fv.gone {
@@ -380,14 +387,14 @@ func (a *App) fileViewer(c *ui.Context, pal *palette, s *proto.Session, fv *file
 		a.sideMessage(c, pal, locales.FilesCantReadFile(), fv.err)
 	case fv.st == nil:
 		ui.Column(c).Grow(1).Center().Children(func() { ui.Spinner(c) })
-	case fv.markdown() && fv.md.preview:
-		a.markdownPreview(c, pal, fv)
+	case renderer != nil && fv.preview:
+		renderer.view(c, pal, a, fv)
 	default:
 		fv.st.Font = ui.Font{Family: a.termFamily(), Size: max(a.set.FontSize-1, 10)}
 		fv.st.Theme = a.codeTheme(c, pal)
 		fv.st.NoScrollPastEnd = true
 		fv.st.SoftWrap = a.set.WrapLines
-		editor.View(c.Key(&fv.md.editor), fv.st).Bind(&fv.md.editor).Grow(1).FillWidth().MinHeight(0)
+		editor.View(c.Key(&fv.editor), fv.st).Bind(&fv.editor).Grow(1).FillWidth().MinHeight(0)
 	}
 }
 
