@@ -214,6 +214,6 @@ host = ubuntu=wsl://Ubuntu
 
 ## Limits
 
-- The server build is for Linux, with glibc 2.28 or later, macOS and Windows 10 (1809) or later, on x86-64 and ARM64. A machine with the Kero app needs no server build.
+- The server build is for Linux, with glibc 2.28 or later, macOS and Windows 10 (1809) or later, on x86-64 and ARM64. A machine with the Kero app needs no server build. On a Linux host with an older glibc, install-server.sh says so and installs nothing.
 - Dragging files onto a remote pane pastes your computer's paths. Paste them instead.
 - One host has one account. Login servers, where several people reach their own accounts on one machine, are planned.

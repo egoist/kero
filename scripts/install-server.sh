@@ -56,6 +56,42 @@ sha256() {
 	fi
 }
 
+# glibcVersion is this host's glibc, or nothing on a host that tells no
+# GNU libc's version, as musl's does not.
+glibcVersion() {
+	v="$(getconf GNU_LIBC_VERSION 2>/dev/null | cut -d' ' -f2)"
+	if [ -n "$v" ]; then
+		echo "$v"
+		return 0
+	fi
+	ldd --version 2>/dev/null | sed -n 's/.*(GNU libc) \([0-9][0-9.]*\)$/\1/p'
+}
+
+# glibcAtLeast reports whether version is at least major.minor, or true
+# when version is no version to compare.
+glibcAtLeast() { # version major minor
+	major="${1%%.*}"
+	minor=0
+	case "$1" in
+	*.*)
+		minor="${1#*.}"
+		minor="${minor%%.*}"
+		;;
+	esac
+	[ -n "$major" ] || return 0
+	[ -n "$minor" ] || minor=0
+	case "$major$minor" in
+	*[!0-9]*) return 0 ;;
+	esac
+	if [ "$major" -gt "$2" ]; then
+		return 0
+	fi
+	if [ "$major" -lt "$2" ]; then
+		return 1
+	fi
+	[ "$minor" -ge "$3" ]
+}
+
 # ours reports whether a path is a link to this install's kero.
 ours() {
 	[ -L "$1" ] && [ "$(readlink "$1")" = "$lib/kero" ]
@@ -118,6 +154,16 @@ main() {
 	aarch64 | arm64) arch=arm64 ;;
 	*) fail "Kero is not made for $(uname -m)" ;;
 	esac
+	# libghostty-vt, the terminal the sessions run in, is built for glibc
+	# 2.28 (docs/remote.md#limits): a host before that takes a server
+	# whose sessions fail to start with GLIBC_2.27 not found. A host that
+	# tells no version, as musl's does not, is left to its sessions.
+	if [ "$os" = linux ]; then
+		v="$(glibcVersion)"
+		if [ -n "$v" ] && ! glibcAtLeast "$v" 2 28; then
+			fail "this host's glibc is $v: the server build of Kero needs 2.28 or later (docs/remote.md#limits)"
+		fi
+	fi
 	case "$version" in
 	@*) # This script, run from the repository: the latest release.
 		version="$(fetch "https://api.github.com/repos/$repo/releases/latest" | sed -n 's/.*"tag_name": *"v\{0,1\}\([^"]*\)".*/\1/p' | head -n 1)"
