@@ -763,10 +763,21 @@ type (
 		ID   string `json:"id"`
 		Data string `json:"data"`
 	}
+	// ReadParams ask a pane for its text: the screen, or with the
+	// scrollback; the newest lines, or the ones before them (Offset);
+	// plain, or as the terminal wrote them, with their colors (Styled).
 	ReadParams struct {
 		ID         string `json:"id"`
 		Scrollback bool   `json:"scrollback,omitempty"`
 		Lines      int    `json:"lines,omitempty"`
+		// Offset is how many lines back from the newest the window
+		// ends: the lines before it are older, for a client that pages
+		// through the history. The pane's output moves on meanwhile, so
+		// the window is of the output as it is when the read is served.
+		Offset int `json:"offset,omitempty"`
+		// Styled asks for the lines as the terminal wrote them, with
+		// their colors, in VT, instead of plain text.
+		Styled bool `json:"styled,omitempty"`
 	}
 	ViewParams struct {
 		ID string `json:"id"` // "" when no window shows a session
@@ -910,8 +921,15 @@ type (
 		ID    string `json:"id"`
 		Index int    `json:"index"`
 	}
+	// ReadResult is what a read of a pane's text answered: the lines
+	// (Text, or VT when they were asked for as the terminal wrote
+	// them), how many lines the pane has (Total), and whether older
+	// lines are left out (More).
 	ReadResult struct {
-		Text string `json:"text"`
+		Text  string `json:"text"`
+		VT    string `json:"vt,omitempty"`
+		More  bool   `json:"more,omitempty"`
+		Total int    `json:"total,omitempty"`
 	}
 
 	// GitParams ask about a pane's worktree, since a base: "turn" (its
