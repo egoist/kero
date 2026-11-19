@@ -1154,6 +1154,18 @@ func (a *App) shellPage(c *ui.Context, pal *palette) {
 				return strconv.Itoa(mb) + " MB"
 			}, 130, pal)
 		})
+		settingRow(c, pal, locales.SetImageLimit(), locales.SetImageLimitDetail(), func() {
+			sizes := []int{0, 64, 256, 1024}
+			if !slices.Contains(sizes, s.ImageLimit) {
+				sizes = append(sizes, s.ImageLimit)
+			}
+			popup(c, "il", &s.ImageLimit, sizes, func(mb int) string {
+				if mb == 0 {
+					return locales.CommonUnlimited()
+				}
+				return strconv.Itoa(mb) + " MB"
+			}, 130, pal)
+		})
 	})
 	settingsGroup(c, pal, locales.SetEnvironment(), locales.SetEnvironmentDetail(), func() {
 		for i, kv := range s.Env {

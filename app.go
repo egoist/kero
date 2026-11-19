@@ -834,6 +834,10 @@ func (a *App) termOptions(id string, conn *gated) terminal.Options {
 		// The scrollback-limit kerod's copy keeps, never the terminal's
 		// default, 10 MB, which would keep more here than there.
 		Scrollback: a.set.ScrollbackBytes(),
+		// The image-storage-limit both copies keep, as scrollback's: an
+		// image is drawn here from kerod's frames, and each copy holds
+		// what it takes of it.
+		ImageLimit: a.set.ImageLimitBytes(),
 		// Every terminal zooms together, and the size is remembered.
 		OnZoom: func(z terminal.Zoom) bool {
 			a.zoom(z.Steps, z.Reset)

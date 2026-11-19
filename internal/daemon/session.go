@@ -120,6 +120,10 @@ func newPane(d *Daemon, sid string, info proto.Pane) (*pane, error) {
 	term, err := terminal.New(terminal.Options{
 		Conn:       &headless{s: s, closed: make(chan struct{})},
 		Scrollback: settings.Load().ScrollbackBytes(),
+		// The image-storage-limit the app's copy keeps too, as
+		// scrollback's: kerod's terminal is the session's, and an image
+		// it takes is drawn again in the app's.
+		ImageLimit: settings.Load().ImageLimitBytes(),
 		// Programs' reads of the clipboard go on to the clients, whose
 		// terminals answer them, asking the user as they would.
 		ClipboardRead: terminal.ClipboardForward,
