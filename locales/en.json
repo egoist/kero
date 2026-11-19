@@ -1213,5 +1213,9 @@
   "setShortcutGlobal": "Works in every app",
   "commonUnlimited": "Unlimited",
   "setImageLimit": "Image Limit",
-  "setImageLimitDetail": "The most the images programs show take in a pane."
+  "setImageLimitDetail": "The most the images programs show take in a pane.",
+  "setDefaultTerminal": "Default Terminal",
+  "setDefaultTerminalDetail": "The app that runs .command files and shell scripts when they are opened.",
+  "setDefaultTerminalMake": "Make Kero Default",
+  "setDefaultTerminalRestore": "Use Terminal.app"
 }

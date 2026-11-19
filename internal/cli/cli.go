@@ -139,6 +139,10 @@ Usage:
                                 the configuration file: where it is, every
                                 key with its value (--defaults: as kero
                                 comes), open it in $EDITOR, check it
+  kero default-terminal [status|set|restore]
+                                which app runs scripts opened with Kero,
+                                make Kero it, or put Terminal.app back
+                                (macOS)
   kero projects [--json]        list projects, in the sidebar's order
   kero projects move <project> <position|top|bottom|up|down>
                                 move a project in that order (1 is the
@@ -177,7 +181,7 @@ ambiguous one), 4 kerod unreachable.
 // Commands lists the subcommands, which main sends here.
 var Commands = []string{"ls", "list", "new", "split", "send", "key", "prompt", "read", "capture", "wait", "events", "status", "diff",
 	"history", "resume", "rename", "focus", "close", "kill", "restart", "notify", "report", "projects", "skill", "hook", "daemon", "do", "actions", "config",
-	"browser", "hosts", "clients", "__bridge", "-H", "--host", "help", "--help", "-h", "version", "--version"}
+	"default-terminal", "browser", "hosts", "clients", "__bridge", "-H", "--host", "help", "--help", "-h", "version", "--version"}
 
 // IsCommand reports whether an argument starts a command of the CLI, as
 // main tells them from the app's.
@@ -316,6 +320,8 @@ func run(args []string, host string) error {
 		return hookCmd(args)
 	case "config":
 		return configCmd(args)
+	case "default-terminal":
+		return defaultTerminalCmd(args)
 	}
 	if cmd == "ls" || cmd == "list" {
 		f, err := parse(args, nil, map[string]string{"json": "json", "j": "json", "all": "all", "a": "all"})

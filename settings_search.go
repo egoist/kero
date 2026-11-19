@@ -83,6 +83,7 @@ func settingsIndex() []searchEntry {
 
 		{"agents", locales.SetRemoteControlRow(), "remote-control kero do focus browser automation"},
 		{"agents", locales.SetCliRow(), "cli command line tool install path"},
+		{"agents", locales.SetDefaultTerminal(), "default terminal launchservices open command script .command shell"},
 		{"agents", "Claude Code", "skill agents install"},
 		{"agents", "Codex, OpenCode, Pi", "skill agents install"},
 		{"agents", locales.SetProgramStatus(), "osc 7501 report progress"},

@@ -6,6 +6,7 @@ import (
 	"io"
 	"math"
 	"net"
+	"os"
 	"path/filepath"
 	"slices"
 	"sync"
@@ -262,6 +263,50 @@ func TestTermImageLimit(t *testing.T) {
 		if got := a.termOptions("a", nil).ImageLimit; got != c.want {
 			t.Errorf("image-storage-limit %d: the terminal takes %d, want %d", c.mb, got, c.want)
 		}
+	}
+}
+
+// A file opened with the app runs itself, in its own directory; a
+// folder, a path that isn't there and nothing at all run nothing.
+func TestScriptSession(t *testing.T) {
+	dir := t.TempDir()
+	script := filepath.Join(dir, "probe.command")
+	if err := os.WriteFile(script, []byte("#!/bin/sh\necho probe\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	p, ok := scriptSession(script)
+	if !ok {
+		t.Fatalf("the script %q does not run", script)
+	}
+	if p.Dir != dir || len(p.Command) != 1 || p.Command[0] != script {
+		t.Errorf("the script runs as %+v, want it in %q as its own command", p, dir)
+	}
+	for _, path := range []string{dir, filepath.Join(dir, "missing"), ""} {
+		if _, ok := scriptSession(path); ok {
+			t.Errorf("%q runs, want only files that are there", path)
+		}
+	}
+}
+
+// A file opened before the app's connection to kerod waits for it, to
+// run once connected takes it up; a folder waits for nothing.
+func TestOpenFileWaitsForTheConnection(t *testing.T) {
+	a := testApp(t)
+	if a.local().cl != nil {
+		t.Fatal("the harness has a connection")
+	}
+	dir := t.TempDir()
+	script := filepath.Join(dir, "probe.command")
+	if err := os.WriteFile(script, []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	a.openFile(script)
+	if len(a.pendingScripts) != 1 {
+		t.Fatalf("pendingScripts holds %d, want the script waiting", len(a.pendingScripts))
+	}
+	a.openFile(dir)
+	if len(a.pendingScripts) != 1 {
+		t.Errorf("a folder waited too: %+v", a.pendingScripts)
 	}
 }
 

@@ -26,6 +26,7 @@ import (
 	"kero/internal/adblock"
 	"kero/internal/cli"
 	"kero/internal/client"
+	"kero/internal/defterm"
 	"kero/internal/proto"
 	"kero/internal/settings"
 	"kero/internal/shell"
@@ -79,6 +80,7 @@ type settingsState struct {
 	loginOpen       bool // open at login, as the system says
 	updates         updatePrefs
 	cliPath         string
+	defTerm         string // the app that runs scripts opened, as last asked
 	service         string // kerod, as last asked
 	notice          string // a line under the keyboard page, as of a conflict
 	toast           string
@@ -123,6 +125,7 @@ func (a *App) openSettings(page string) {
 	})
 	a.ss.draft = map[string]string{}
 	a.refreshAgents()
+	a.refreshDefaultTerminal()
 	a.refreshService()
 	a.setWin = mygo.NewWindow(framed(mygo.WindowOptions{
 		Title: locales.SettingsTitle(), Width: 820, Height: 620, MinWidth: 700, MinHeight: 480,
@@ -163,6 +166,21 @@ func (a *App) refreshUpdates() {
 
 func (a *App) refreshAgents() {
 	a.ss.cliPath = cliInstalled()
+}
+
+// refreshDefaultTerminal asks LaunchServices which app runs the scripts
+// opened with it, as of the Settings window's opening. A machine with
+// none keeps the last answer, which is nothing: the row shows it as no
+// default.
+func (a *App) refreshDefaultTerminal() {
+	if runtime.GOOS != "darwin" {
+		return
+	}
+	path, err := defterm.Status()
+	if err != nil {
+		path = ""
+	}
+	a.ss.defTerm = path
 }
 
 // refreshService asks kerod how it is, off the main thread.
@@ -1297,6 +1315,32 @@ func (a *App) agentsPage(c *ui.Context, pal *palette) {
 			}
 		})
 	})
+	// The default terminal for scripts the system opens, which only
+	// macOS's LaunchServices answer for.
+	if runtime.GOOS == "darwin" {
+		settingsGroup(c, pal, locales.SetDefaultTerminal(), locales.SetDefaultTerminalDetail(), func() {
+			what := locales.CommonNone()
+			if a.ss.defTerm != "" {
+				what = filepath.Base(a.ss.defTerm)
+			}
+			settingRow(c, pal, what, "", func() {
+				if button(c, "defterm-set", locales.SetDefaultTerminalMake(), "", false, pal) {
+					if err := defterm.Set(); err != nil {
+						a.toastIn(c, err.Error())
+					} else {
+						a.refreshDefaultTerminal()
+					}
+				}
+				if button(c, "defterm-restore", locales.SetDefaultTerminalRestore(), "", false, pal) {
+					if err := defterm.Restore(); err != nil {
+						a.toastIn(c, err.Error())
+					} else {
+						a.refreshDefaultTerminal()
+					}
+				}
+			})
+		})
+	}
 	settingsGroup(c, pal, locales.SetSkills(), locales.SetSkillsDetail(), func() {
 		for _, st := range cli.SkillStates() {
 			name := map[string]string{"claude": "Claude Code", "codebuddy": "CodeBuddy Code", "agents": "Codex, OpenCode, Pi"}[st.Agent]

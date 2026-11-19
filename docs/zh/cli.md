@@ -203,6 +203,9 @@ kero daemon status|stop|restart  # 管理 kerod
 kero daemon install-service      # 让 kerod 随系统启动（systemd、launchd）
 kero daemon serve                # 在前台运行 kerod，供服务管理器使用
 kero clients                     # 查看谁连接着 kerod
+kero default-terminal status|set|restore  # 打开脚本时使用的应用
+                                # （macOS）：查看、将 Kero 设为默认，
+                                # 或改回 Terminal.app
 ```
 
 ## 其他机器

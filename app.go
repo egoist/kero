@@ -104,6 +104,9 @@ type App struct {
 	owner  map[string]*host
 	st     proto.State
 	loaded bool // a state came
+	// pendingScripts are files opened with the app before its connection
+	// to kerod was there, waiting for it to run them (openFile).
+	pendingScripts []proto.CreateParams
 
 	prefs      prefs
 	set        settings.Settings // the user's settings: Settings' controls edit it
@@ -1287,6 +1290,37 @@ func expandHomeForOS(p, home, goos string) string {
 func isDir(p string) bool {
 	st, err := os.Stat(p)
 	return err == nil && st.IsDir()
+}
+
+// scriptSession is what a file opened with the app runs: itself, in its
+// own directory, as a session's command runs in the pane's shell.
+func scriptSession(path string) (proto.CreateParams, bool) {
+	if path == "" {
+		return proto.CreateParams{}, false
+	}
+	st, err := os.Stat(path)
+	if err != nil || st.IsDir() {
+		return proto.CreateParams{}, false
+	}
+	return proto.CreateParams{Dir: filepath.Dir(path), Command: []string{path}}, true
+}
+
+// openFile runs a file the system opened with the app — a script or an
+// executable LaunchServices sent, a file dropped on the Dock — in a
+// session of this machine's, in the file's directory, as a terminal
+// does with a .command. One opened as the app starts waits for the
+// connection to kerod, which connected takes it up.
+func (a *App) openFile(path string) {
+	p, ok := scriptSession(path)
+	if !ok {
+		return
+	}
+	a.showWindow()
+	if h := a.local(); h.cl != nil {
+		a.create(h, p, "")
+		return
+	}
+	a.pendingScripts = append(a.pendingScripts, p)
 }
 
 // create starts a session on a host, and shows it, opening the project
