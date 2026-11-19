@@ -445,7 +445,7 @@
   "setThicken": "Thicken text",
   "setThickenDetail": "A heavier stroke, as Ghostty’s font-thicken.",
   "setColors": "Ghostty themes",
-  "setColorsDetail": "One of Ghostty’s themes, or your own in ~/.config/ghostty/themes, colors the window, its panes and terminals in place of the theme above.",
+  "setColorsDetail": "One of Ghostty’s themes, or your own in {path}, colors the window, its panes and terminals in place of the theme above.",
   "setLightWindows": "Light windows",
   "setDarkWindows": "Dark windows",
   "setThemeNone": "None",
