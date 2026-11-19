@@ -774,6 +774,10 @@ type (
 		// ends: the lines before it are older, for a client that pages
 		// through the history. The pane's output moves on meanwhile, so
 		// the window is of the output as it is when the read is served.
+		// A line counts as the read answers it: one per wrapped line
+		// when Styled, one per screen row without it, so the same
+		// history paged in the two modes lines up differently — a
+		// client should not mix them in one paging sequence.
 		Offset int `json:"offset,omitempty"`
 		// Styled asks for the lines as the terminal wrote them, with
 		// their colors, in VT, instead of plain text.
@@ -924,7 +928,10 @@ type (
 	// ReadResult is what a read of a pane's text answered: the lines
 	// (Text, or VT when they were asked for as the terminal wrote
 	// them), how many lines the pane has (Total), and whether older
-	// lines are left out (More).
+	// lines are left out (More). Total counts lines as Offset does —
+	// one per wrapped line when Styled, one per screen row without
+	// it — so the two modes of the same history count differently.
+	// Only a pane's read fills them in; git.diff answers with Text.
 	ReadResult struct {
 		Text  string `json:"text"`
 		VT    string `json:"vt,omitempty"`

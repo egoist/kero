@@ -15,24 +15,35 @@ const (
 
 // read answers a read of the pane's text: the screen, or with the
 // scrollback; the newest lines, or the ones before them; plain, or as
-// the terminal wrote them, with their colors.
+// the terminal wrote them, with their colors. The pane's own lock is
+// held only to take what the read is of: on a long history, windowing
+// it outside the lock keeps the pane's output flowing meanwhile.
 func (s *pane) read(req proto.ReadParams) proto.ReadResult {
 	s.mu.Lock()
-	defer s.mu.Unlock()
+	// A browser pane runs no shell: its page is its title and URL, and
+	// its read answers them whole, as it always did.
 	if s.term == nil {
-		// A browser pane's page: its title and URL.
-		lines := textLines(strings.TrimSpace(s.info.Title + "\n" + s.info.URL))
-		start, end, more := readWindow(len(lines), req, s.info.Rows)
-		return proto.ReadResult{Text: joinLines(lines[start:end]), More: more, Total: len(lines)}
+		page := strings.TrimSpace(s.info.Title + "\n" + s.info.URL)
+		s.mu.Unlock()
+		lines := textLines(page)
+		return proto.ReadResult{Text: joinLines(lines), Total: len(lines)}
+	}
+	text, history := "", []byte(nil)
+	if req.Styled {
+		history = s.term.History()
+	} else {
+		text = s.term.Text()
 	}
 	rows := s.info.Rows
+	s.mu.Unlock()
+
 	if req.Styled {
-		lines := vtLines(string(s.term.History()))
+		lines := vtLines(string(history))
 		start, end, more := readWindow(len(lines), req, rows)
 		start, dropped := fitWindow(lines, start, end, maxReadBytes)
 		return proto.ReadResult{VT: strings.Join(lines[start:end], "\r\n"), More: more || dropped, Total: len(lines)}
 	}
-	lines := textLines(s.term.Text())
+	lines := textLines(text)
 	start, end, more := readWindow(len(lines), req, rows)
 	start, dropped := fitWindow(lines, start, end, maxReadBytes)
 	return proto.ReadResult{Text: joinLines(lines[start:end]), More: more || dropped, Total: len(lines)}
@@ -109,10 +120,7 @@ func vtLines(vt string) []string {
 }
 
 // joinLines are lines as the text of a read: one after another, a
-// newline each.
+// newline each. No lines is a lone newline, as a read always answered.
 func joinLines(lines []string) string {
-	if len(lines) == 0 {
-		return ""
-	}
 	return strings.Join(lines, "\n") + "\n"
 }
