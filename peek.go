@@ -51,6 +51,10 @@ func filePeekPath(link string, windows bool) (string, bool) {
 	if u.Host != "" && !local {
 		return "", false
 	}
+	if windows && len(p) >= 2 && (p[0] == '/' || p[0] == '\\') && (p[1] == '/' || p[1] == '\\') {
+		// An empty or localhost authority can still leave a UNC path.
+		return "", false
+	}
 	if windows && len(p) >= 3 && p[0] == '/' && p[2] == ':' &&
 		('a' <= p[1] && p[1] <= 'z' || 'A' <= p[1] && p[1] <= 'Z') {
 		// file:///C:/… has a URI slash, not part of the drive path.
