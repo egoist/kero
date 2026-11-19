@@ -47,6 +47,7 @@ kero config check             # 不明なキー、不正な値、agents.toml の
 | `sidebar-session-count` | `true`    | サイドバーのプロジェクト名の横に、含まれるセッションの数を表示 |
 | `focus-follows-mouse`   | `false`    | ポインタが入ったペインにフォーカスを移す                      |
 | `confirm-close`         | `true`     | プログラムが実行中のペインを閉じる前に確認する                |
+| `quit-ends-sessions`     | `false`    | 終了時にこのマシンのセッションをすべて終え、kerod を停止する  |
 | `restore-sessions`      | `true`     | 再起動のあとなど kerod が再起動したら、セッションを再び開始する |
 | `resume-agents`         | `true`     | セッションの再開時に、各ペインで動いていたエージェントの会話を再開する |
 | `session-history`       | `false`    | 終了したエージェントの会話をサイドバーに一覧し、再開やアーカイブができるようにする（[詳細](./sessions.md#ended-sessions)） |

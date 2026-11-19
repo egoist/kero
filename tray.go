@@ -103,7 +103,7 @@ func (a *App) trayMenu() *mygo.Menu {
 		}},
 		check,
 		mygo.Separator(),
-		{Label: locales.MenuQuitApp(mygo.App.Name()), Click: func(*mygo.MenuItem, *mygo.Window) { mygo.App.Quit() }},
+		{Label: locales.MenuQuitApp(mygo.App.Name()), Click: func(*mygo.MenuItem, *mygo.Window) { a.quit() }},
 	})
 }
 
@@ -142,6 +142,6 @@ func (a *App) windowClosed() {
 // without a tray has no icon.
 func (a *App) lastWindowClosed() {
 	if a.tray == nil {
-		mygo.App.Quit()
+		a.quit()
 	}
 }

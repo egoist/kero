@@ -410,6 +410,23 @@ func TestFontZoom(t *testing.T) {
 	}
 }
 
+// quit-ends-sessions is off without the key, and on as written.
+func TestQuitEndsSessions(t *testing.T) {
+	if Default().QuitEndsSessions {
+		t.Fatal("quit-ends-sessions is on by default")
+	}
+	if s, _ := parse(""); s.QuitEndsSessions {
+		t.Fatal("quit-ends-sessions is on without the key")
+	}
+	s, probs := parse("quit-ends-sessions = true\n")
+	if len(probs) != 0 || !s.QuitEndsSessions {
+		t.Fatalf("quit-ends-sessions = true: %v, %v", s.QuitEndsSessions, probs)
+	}
+	if out := format(s, ""); !strings.Contains(out, "quit-ends-sessions = true\n") {
+		t.Errorf("quit-ends-sessions = true is not written back: %q", out)
+	}
+}
+
 // dock-badge takes what the badge counts, and the true and false it had
 // before it took modes.
 func TestDockBadgeModes(t *testing.T) {

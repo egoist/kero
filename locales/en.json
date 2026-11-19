@@ -372,6 +372,8 @@
   "setFocusFollowsMouseDetail": "A pane takes the focus when the pointer moves into it, without a click.",
   "setAskBeforeClosing": "Ask before closing a running program",
   "setAskBeforeClosingDetail": "When a pane or session you close has a program other than the shell running.",
+  "setQuitEndsSessions": "End sessions when Kero quits",
+  "setQuitEndsSessionsDetail": "Quitting also ends this machine's sessions and stops kerod. It asks first while a program still runs.",
   "setRestoreSessions": "Restore sessions after a restart",
   "setRestoreSessionsDetail": "If the background service stops, as when the Mac restarts, sessions start again in their folders, under their history.",
   "setResumeAgents": "Resume agents",
