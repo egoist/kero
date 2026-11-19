@@ -1206,5 +1206,8 @@
   "endedSetUpSkill": "Set up Kero's skill for your agents to list their ended conversations here",
   "actionQuickTerminal": "Quick Terminal",
   "toastGlobalShortcutFailed": "Couldn’t use {keys} for the quick terminal: {error}",
-  "setShortcutGlobal": "Works in every app"
+  "setShortcutGlobal": "Works in every app",
+  "commonUnlimited": "Unlimited",
+  "setImageLimit": "Image Limit",
+  "setImageLimitDetail": "The most the images programs show take in a pane."
 }

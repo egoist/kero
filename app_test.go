@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"math"
 	"net"
 	"path/filepath"
 	"slices"
@@ -245,6 +246,21 @@ func TestTermScrollback(t *testing.T) {
 		a.set.Scrollback = c.mb
 		if got := a.termOptions("a", nil).Scrollback; got != c.want {
 			t.Errorf("scrollback-limit %d: the terminal keeps %d, want %d", c.mb, got, c.want)
+		}
+	}
+}
+
+// The app's copy of a pane keeps the image-storage-limit, as kerod's
+// does, not the terminal's default of 320 MB.
+func TestTermImageLimit(t *testing.T) {
+	a := testApp(t)
+	for _, c := range []struct {
+		mb   int
+		want int64
+	}{{64, 64 << 20}, {256, 256 << 20}, {1024, 1024 << 20}, {0, math.MaxInt64}} {
+		a.set.ImageLimit = c.mb
+		if got := a.termOptions("a", nil).ImageLimit; got != c.want {
+			t.Errorf("image-storage-limit %d: the terminal takes %d, want %d", c.mb, got, c.want)
 		}
 	}
 }

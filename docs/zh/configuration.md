@@ -96,6 +96,7 @@ kero config check             # 报告未知的配置项、无效的值和agents
 | `command`          |         | 新窗格使用的 shell；留空则使用你的登录 shell                    |
 | `env`              |         | 以 `NAME=value` 形式加入每个窗格的环境变量；可重复多行          |
 | `scrollback-limit` | `4`     | 每个窗格保留的回滚缓冲大小，单位 MB；`0` 表示不保留             |
+| `image-storage-limit` | `64` | 每个窗格中程序显示的图片最多占用多少，单位 MB；`0` 表示无限制   |
 
 ## 通知
 

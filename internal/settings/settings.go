@@ -7,6 +7,7 @@ package settings
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"slices"
@@ -76,6 +77,9 @@ type Settings struct {
 	Shell      string   `json:"shell"` // "" the account's login shell
 	Env        []string `json:"env"`   // "KEY=value", added to every pane's
 	Scrollback int      `json:"scrollback"`
+	// ImageLimit is the most bytes the images a pane's programs show take,
+	// in megabytes; 0 for no limit.
+	ImageLimit int `json:"imageLimit"`
 
 	// Notifications
 	NotifyWaiting bool      `json:"notifyWaiting"` // a session needs you
@@ -181,6 +185,7 @@ func Default() Settings {
 		ScrollPrecision: 1,
 		ScrollDiscrete:  3,
 		Scrollback:      4,
+		ImageLimit:      64,
 		NotifyWaiting:   true,
 		NotifyDone:      true,
 		NotifyFailed:    true,
@@ -416,6 +421,17 @@ func (s Settings) ScrollbackBytes() int {
 	return s.Scrollback << 20
 }
 
+// ImageLimitBytes is a terminal's terminal.Options.ImageLimit for the
+// image-storage-limit, the same in kerod's copy of a pane and the app's:
+// no limit is the most a terminal can take, as 0 would take the
+// terminal's own 320 MB.
+func (s Settings) ImageLimitBytes() int64 {
+	if s.ImageLimit == 0 {
+		return math.MaxInt64
+	}
+	return int64(s.ImageLimit) << 20
+}
+
 func clone(s Settings) Settings {
 	s.Env = append([]string(nil), s.Env...)
 	s.FontFeatures = slices.Clone(s.FontFeatures)
@@ -522,6 +538,9 @@ func (s *Settings) normalize() {
 	}
 	if s.Scrollback < 0 || s.Scrollback > 256 {
 		s.Scrollback = d.Scrollback
+	}
+	if s.ImageLimit < 0 || s.ImageLimit > 1024 {
+		s.ImageLimit = d.ImageLimit
 	}
 	s.LightTheme, s.DarkTheme = keroTheme(s.LightTheme, d.LightTheme), keroTheme(s.DarkTheme, d.DarkTheme)
 }

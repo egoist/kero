@@ -6503,3 +6503,33 @@ func SetShortcutGlobal() string { return In(i18n.Locale()).SetShortcutGlobal() }
 func (msgs Messages) SetShortcutGlobal() string {
 	return Catalog.Format(msgs.locale, "setShortcutGlobal", nil)
 }
+
+// CommonUnlimited says "Unlimited"
+// in the language the app shows.
+func CommonUnlimited() string { return In(i18n.Locale()).CommonUnlimited() }
+
+// CommonUnlimited says "Unlimited"
+// in the language of msgs.
+func (msgs Messages) CommonUnlimited() string {
+	return Catalog.Format(msgs.locale, "commonUnlimited", nil)
+}
+
+// SetImageLimit says "Image Limit"
+// in the language the app shows.
+func SetImageLimit() string { return In(i18n.Locale()).SetImageLimit() }
+
+// SetImageLimit says "Image Limit"
+// in the language of msgs.
+func (msgs Messages) SetImageLimit() string {
+	return Catalog.Format(msgs.locale, "setImageLimit", nil)
+}
+
+// SetImageLimitDetail says "The most the images programs show take in a pane."
+// in the language the app shows.
+func SetImageLimitDetail() string { return In(i18n.Locale()).SetImageLimitDetail() }
+
+// SetImageLimitDetail says "The most the images programs show take in a pane."
+// in the language of msgs.
+func (msgs Messages) SetImageLimitDetail() string {
+	return Catalog.Format(msgs.locale, "setImageLimitDetail", nil)
+}

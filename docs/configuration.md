@@ -96,6 +96,7 @@ values close together can look the same or differ by a pixel.
 | `command`          |         | The shell of new panes; empty for your login shell             |
 | `env`              |         | Added to every pane's environment as `NAME=value`; repeat it   |
 | `scrollback-limit` | `4`     | The output each pane keeps, in megabytes; `0` for none         |
+| `image-storage-limit` | `64` | The most the images a pane's programs show take, in megabytes; `0` for no limit |
 
 zsh starts with a `.zshenv` of Kero's, which sets `ZDOTDIR` back to yours (or
 unsets it) and runs your startup files as zsh would. It then marks where each

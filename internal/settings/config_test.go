@@ -151,6 +151,31 @@ func TestCellWidthBounds(t *testing.T) {
 	}
 }
 
+// image-storage-limit takes 0 to 1024 megabytes, and anything else keeps
+// the default.
+func TestImageStorageLimitBounds(t *testing.T) {
+	for _, tt := range []struct {
+		value string
+		want  int
+	}{
+		{"0", 0},
+		{"64", 64},
+		{"1024", 1024},
+		{"1025", Default().ImageLimit},
+		{"-1", Default().ImageLimit},
+		{"NaN", Default().ImageLimit},
+		{"+Inf", Default().ImageLimit},
+		{"-Inf", Default().ImageLimit},
+	} {
+		t.Run(tt.value, func(t *testing.T) {
+			s, _ := parse("image-storage-limit = " + tt.value + "\n")
+			if s.ImageLimit != tt.want {
+				t.Errorf("image-storage-limit = %v, want %v", s.ImageLimit, tt.want)
+			}
+		})
+	}
+}
+
 // Kero elsewhere updates the app here only once the user lets it.
 func TestRemoteUpdatesOptIn(t *testing.T) {
 	if Default().RemoteUpdates {
