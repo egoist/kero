@@ -20,7 +20,28 @@
     "infoPlist": {
       "NSMicrophoneUsageDescription": "A program running in Kero would like to use the microphone.",
       "NSCameraUsageDescription": "A program running in Kero would like to use the camera.",
-      "NSAppleEventsUsageDescription": "A program running in Kero would like to control another app."
+      "NSAppleEventsUsageDescription": "A program running in Kero would like to control another app.",
+      "CFBundleDocumentTypes": [
+        {
+          "CFBundleTypeName": "Shell Script",
+          "CFBundleTypeRole": "Shell",
+          "LSHandlerRank": "Default",
+          "LSItemContentTypes": ["com.apple.terminal.shell-script"],
+          "CFBundleTypeExtensions": ["command"]
+        },
+        {
+          "CFBundleTypeName": "Shell Script",
+          "CFBundleTypeRole": "Shell",
+          "LSHandlerRank": "Default",
+          "LSItemContentTypes": ["public.shell-script"]
+        },
+        {
+          "CFBundleTypeName": "Unix Executable",
+          "CFBundleTypeRole": "Shell",
+          "LSHandlerRank": "Default",
+          "LSItemContentTypes": ["public.unix-executable"]
+        }
+      ]
     }
   }
 }

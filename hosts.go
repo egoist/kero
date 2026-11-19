@@ -391,6 +391,15 @@ func (a *App) connected(h *host, gen int, rc *remote.Conn, cl *client.Client, er
 	}
 	cl.OnEvent(func(m proto.Message) { a.update(func() { a.event(h, cl, m) }) })
 	cl.Go("subscribe", nil, nil)
+	// Files opened with the app before its connection was there run now
+	// that it is (openFile): this machine's, which LaunchServices opens
+	// them on.
+	if !h.remote() && len(a.pendingScripts) > 0 {
+		for _, p := range a.pendingScripts {
+			a.create(h, p, "")
+		}
+		a.pendingScripts = nil
+	}
 	h.viewSent = nil
 	a.reportView()
 	go func() {

@@ -204,6 +204,9 @@ kero daemon status|stop|restart  # kerod を管理
 kero daemon install-service      # マシンの起動とともに kerod を実行（systemd、launchd）
 kero daemon serve                # サービスマネージャ向けに kerod をフォアグラウンドで実行
 kero clients                     # kerod に接続しているもの
+kero default-terminal status|set|restore  # 開いたスクリプトを実行する
+                                # アプリ（macOS）: 確認、Kero をデフォルトに、
+                                # または Terminal.app に戻す
 ```
 
 ## ほかのマシン

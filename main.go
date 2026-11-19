@@ -100,6 +100,9 @@ func runApp() {
 		})
 	})
 	mygo.App.OnSecondInstance(func([]string, string) { a.showWindow() })
+	// A script or executable opened with the app — from the Finder, the
+	// Dock, or `open` — runs in a session (openFile).
+	mygo.App.OnOpenFile(a.openFile)
 	mygo.App.OnDidBecomeActive(func() {
 		mygo.ClearNotifications()
 		a.update(func() { a.active = true; a.reportView() })
