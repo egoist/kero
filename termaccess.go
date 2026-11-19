@@ -42,6 +42,9 @@ func (s *screenRead) of(t *terminal.Terminal) string {
 
 // lastLines returns the last n lines of text, without the blank lines
 // after them. A new pane's screen is still blank, so the text can be empty.
+// The lines are copied: the text a terminal gives holds its whole
+// scrollback, and a slice of it would keep that whole buffer alive as
+// long as the app holds the screen.
 func lastLines(text string, n int) string {
 	text = strings.TrimRight(text, " \n")
 	if text == "" || n <= 0 {
@@ -51,8 +54,8 @@ func lastLines(text string, n int) string {
 	for ; n > 0 && i > 0; n-- {
 		i = strings.LastIndexByte(text[:i], '\n')
 		if i < 0 {
-			return text
+			return strings.Clone(text)
 		}
 	}
-	return text[i+1:]
+	return strings.Clone(text[i+1:])
 }
