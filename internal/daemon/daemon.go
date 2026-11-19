@@ -797,8 +797,17 @@ func (d *Daemon) serveAttach(conn net.Conn, r *bufio.Reader, hello proto.Hello, 
 		return
 	}
 	go a.write()
+	d.serveFrames(s, a, proto.NewFrameReader(r))
+}
+
+// serveFrames reads the frames a client sends a session and does with them
+// what the session does with what a client asks. The frames are read into
+// the one buffer the reader keeps, so that a frame costs no allocation: a
+// client sends a frame for every keystroke, every resize and every mouse
+// report.
+func (d *Daemon) serveFrames(s *pane, a *attachment, frames *proto.FrameReader) {
 	for {
-		kind, payload, err := proto.ReadFrame(r)
+		kind, payload, err := frames.Read()
 		if err != nil {
 			return
 		}
