@@ -166,11 +166,13 @@ func TestFitWindow(t *testing.T) {
 }
 
 // A read of a pane with nothing in it, of a browser's page, and of a
-// pane whose terminal is gone.
+// pane whose terminal is gone. Each answers as it always did: no lines
+// at all is a lone newline, and a browser's page comes whole, past any
+// screen of rows.
 func TestReadEdges(t *testing.T) {
 	s := testPane(t)
 	r := s.read(proto.ReadParams{Scrollback: true})
-	if r.Text != "" || r.Total != 0 || r.More {
+	if r.Text != "\n" || r.Total != 0 || r.More {
 		t.Errorf("an empty pane: %+v", r)
 	}
 
@@ -183,14 +185,25 @@ func TestReadEdges(t *testing.T) {
 	if err := p.setPage("http://localhost:3000/docs", "Docs"); err != nil {
 		t.Fatal(err)
 	}
+	// One row of screen would drop the URL if a page went through the
+	// rows limit: it never did, and never does.
+	p.info.Rows = 1
 	r = p.read(proto.ReadParams{})
-	if r.Text != "Docs\nhttp://localhost:3000/docs\n" || r.Total != 2 {
+	if r.Text != "Docs\nhttp://localhost:3000/docs\n" || r.Total != 2 || r.More {
 		t.Errorf("a browser's page: %+v", r)
+	}
+
+	// A browser with no page of its own.
+	if err := p.setPage("", ""); err != nil {
+		t.Fatal(err)
+	}
+	if r = p.read(proto.ReadParams{}); r.Text != "\n" {
+		t.Errorf("a browser's empty page: %+v", r)
 	}
 
 	s.term.Close()
 	r = s.read(proto.ReadParams{Scrollback: true})
-	if r.Text != "" || r.Total != 0 {
+	if r.Text != "\n" || r.Total != 0 {
 		t.Errorf("a closed terminal: %+v", r)
 	}
 }
