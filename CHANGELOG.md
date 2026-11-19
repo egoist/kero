@@ -1,10 +1,5 @@
 # Changelog
 
-## Unreleased
-
-- <kbd>⌘</kbd>-hovering a `file://` hyperlink to an image previews it,
-  as hovering its plain path does, on this computer and remote hosts.
-
 ## 2.1.36
 
 - **New sessions start in** in Settings › General takes a folder of your

@@ -26,7 +26,7 @@ func TestFilePeekPath(t *testing.T) {
 		{"localhost", "file://localhost/tmp/shot.png", "/tmp/shot.png", false, true},
 		{"windows drive", "file:///C:/Users/me/shot.png", "C:/Users/me/shot.png", true, true},
 		{"windows lowercase drive", "file:///c:/Users/me/shot.png", "c:/Users/me/shot.png", true, true},
-		{"windows UNC", "file://server/share/%E5%9B%BE%20shot.png", "//server/share/图 shot.png", true, true},
+		{"windows UNC rejected", "file://server/share/%E5%9B%BE%20shot.png", "", true, false},
 		{"windows localhost", "file://localhost/C:/Users/me/shot.png", "C:/Users/me/shot.png", true, true},
 		{"http", "https://example.com/shot.png", "", false, false},
 		{"non-local unix authority", "file://server/share/shot.png", "", false, false},

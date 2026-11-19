@@ -48,18 +48,13 @@ func filePeekPath(link string, windows bool) (string, bool) {
 		return "", false
 	}
 	p, local := u.Path, strings.EqualFold(u.Host, "localhost")
-	if windows {
-		switch {
-		case u.Host != "" && !local:
-			// A file URI's authority is a Windows share's server.
-			p = "//" + u.Host + p
-		case len(p) >= 3 && p[0] == '/' && p[2] == ':' &&
-			('a' <= p[1] && p[1] <= 'z' || 'A' <= p[1] && p[1] <= 'Z'):
-			// file:///C:/… has a URI slash, not part of the drive path.
-			p = p[1:]
-		}
-	} else if u.Host != "" && !local {
+	if u.Host != "" && !local {
 		return "", false
+	}
+	if windows && len(p) >= 3 && p[0] == '/' && p[2] == ':' &&
+		('a' <= p[1] && p[1] <= 'z' || 'A' <= p[1] && p[1] <= 'Z') {
+		// file:///C:/… has a URI slash, not part of the drive path.
+		p = p[1:]
 	}
 	return p, p != ""
 }
