@@ -862,13 +862,15 @@ func newAttachment(conn net.Conn) *attachment {
 }
 
 func (a *attachment) send(kind byte, payload []byte) {
-	f := proto.AppendFrames(nil, kind, payload)
+	f := proto.AppendFrames(proto.GetFrame(5+len(payload)), kind, payload)
 	select {
 	case a.out <- f:
 	case <-a.done:
+		proto.PutFrame(f)
 	default:
 		// Too far behind: drop it, and it attaches again, from a first
 		// frame.
+		proto.PutFrame(f)
 		a.finish()
 	}
 }
@@ -889,6 +891,7 @@ func (a *attachment) write() {
 				a.finish()
 				return
 			}
+			proto.PutFrame(f)
 		case <-a.done:
 			a.conn.SetWriteDeadline(time.Now().Add(time.Second))
 			for {
@@ -897,6 +900,7 @@ func (a *attachment) write() {
 					if _, err := a.conn.Write(f); err != nil {
 						return
 					}
+					proto.PutFrame(f)
 				default:
 					return
 				}
