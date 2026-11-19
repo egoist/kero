@@ -28,6 +28,7 @@ func settingsIndex() []searchEntry {
 		{"general", locales.SetSidebarRows(), "sidebar-rows compact detailed status message branch two lines"},
 		{"general", locales.SetSidebarCount(), "sidebar-session-count project sessions number count header"},
 		{"general", locales.SetFocusFollowsMouse(), "focus-follows-mouse hover pointer niri hyprland sloppy"},
+		{"general", locales.SetTrackpadGestures(), "trackpad-gestures gesture gestures swipe pinch spread zoom sidebar touchpad"},
 		{"general", locales.SetAskBeforeClosing(), "confirm-close quit kill"},
 		{"general", locales.SetQuitEndsSessions(), "quit-ends-sessions quit end all sessions stop exit"},
 		{"general", locales.SetRestoreSessions(), "restore-sessions reboot persist"},

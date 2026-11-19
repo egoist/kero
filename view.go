@@ -95,7 +95,7 @@ func (a *App) view(c *ui.Context) {
 	a.shortcuts(c)
 
 	bar := c.TitleBar()
-	row := ui.Row(c).Fill().AlignItems(ui.Stretch)
+	row := ui.Row(c).Fill().AlignItems(ui.Stretch).HandleInput(a.handleSidebarSwipe)
 	backdrop(c, row)
 	// A curve, not a spring: a spring's long tail crawls under a pixel a
 	// frame, which whole pixels turn into hops and holds, a shake as it

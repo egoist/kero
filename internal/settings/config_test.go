@@ -494,3 +494,20 @@ func TestDockBadgeModes(t *testing.T) {
 		}
 	}
 }
+
+func TestTrackpadGesturesSetting(t *testing.T) {
+	if !Default().TrackpadGestures {
+		t.Fatal("default trackpad-gestures is false, want true")
+	}
+	s, probs := parse("trackpad-gestures = false\n")
+	if len(probs) != 0 || s.TrackpadGestures {
+		t.Fatalf("trackpad-gestures = false: %v, %v", s.TrackpadGestures, probs)
+	}
+	if out := format(s, ""); !strings.Contains(out, "trackpad-gestures = false\n") {
+		t.Errorf("trackpad-gestures = false not written back: %q", out)
+	}
+	s, probs = parse("trackpad-gestures = maybe\n")
+	if !s.TrackpadGestures || len(probs) != 1 || !strings.Contains(probs[0], "trackpad-gestures") {
+		t.Fatalf("bad trackpad-gestures: %v, %v", s.TrackpadGestures, probs)
+	}
+}
