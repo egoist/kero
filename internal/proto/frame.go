@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"io"
+	"sync"
 )
 
 // Frames of an attach connection: a kind, the length of the payload as a
@@ -93,6 +94,34 @@ func AppendFrames(dst []byte, kind byte, payload []byte) []byte {
 			return dst
 		}
 	}
+}
+
+// framePoolKeep is the largest buffer the pool of frames keeps: a frame
+// of output is at most maxOutput, and one past it takes a buffer of its
+// own, as a FrameReader's does past frameKeep.
+const framePoolKeep = maxOutput
+
+// framePool keeps the buffers frames are written into.
+var framePool sync.Pool
+
+// GetFrame gives a buffer to write a frame of size bytes into. A session
+// sends every client attached what its terminal shows, and each frame
+// took a buffer of its own, which AppendFrames grew as it filled it.
+func GetFrame(size int) []byte {
+	if b, ok := framePool.Get().([]byte); ok && cap(b) >= size {
+		return b[:0]
+	}
+	return make([]byte, 0, size)
+}
+
+// PutFrame gives a buffer back, for the next frame. A buffer past
+// framePoolKeep is dropped: the frames that large are rare, and holding
+// one would hold it for the pool's life.
+func PutFrame(b []byte) {
+	if cap(b) > framePoolKeep {
+		return
+	}
+	framePool.Put(b[:0])
 }
 
 // ReadFrame reads one frame.

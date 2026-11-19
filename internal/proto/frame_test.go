@@ -59,6 +59,66 @@ func BenchmarkFrameReader(b *testing.B) {
 	}
 }
 
+// A frame goes into a buffer made for it, whatever its size, and takes
+// none of its own: the buffer the pool keeps comes back, or one at least
+// as large.
+func TestFrameBuffers(t *testing.T) {
+	payload := bytes.Repeat([]byte("x"), 16<<10)
+	for _, size := range []int{5, 6, 5 + len(payload), 5 + maxOutput, 5 + maxOutput + 1} {
+		buf := GetFrame(size)
+		if cap(buf) < size {
+			t.Errorf("a buffer for a frame of %d bytes has %d", size, cap(buf))
+		}
+		PutFrame(buf)
+		if again := GetFrame(size); cap(again) < size {
+			t.Errorf("a buffer that came back has %d bytes, want %d", cap(again), size)
+		}
+	}
+	buf := GetFrame(5 + len(payload))
+	if n := testing.AllocsPerRun(10, func() {
+		buf = AppendFrames(buf[:0], FrameOutput, payload)
+	}); n != 0 {
+		t.Errorf("a frame into a buffer made for it took %v allocations", n)
+	}
+	PutFrame(buf)
+}
+
+// A frame of output goes into a buffer of its own, which AppendFrames
+// grows as it fills it, as a session's frames did.
+func BenchmarkAppendFrames(b *testing.B) {
+	payload := bytes.Repeat([]byte("output"), 4096/6+1)[:4096]
+	b.SetBytes(int64(len(payload)))
+	b.ReportAllocs()
+	for b.Loop() {
+		AppendFrames(nil, FrameOutput, payload)
+	}
+}
+
+// A frame of output goes into a buffer made for it, which takes none of
+// its own.
+func BenchmarkAppendFramesSized(b *testing.B) {
+	payload := bytes.Repeat([]byte("output"), 4096/6+1)[:4096]
+	b.SetBytes(int64(len(payload)))
+	b.ReportAllocs()
+	size := 5 + len(payload)
+	buf := make([]byte, 0, size)
+	for b.Loop() {
+		buf = AppendFrames(buf[:0], FrameOutput, payload)
+	}
+}
+
+// A frame of output goes into a buffer the pool keeps, which comes back
+// once the connection has taken it.
+func BenchmarkFrameBuffers(b *testing.B) {
+	payload := bytes.Repeat([]byte("output"), 4096/6+1)[:4096]
+	b.SetBytes(int64(len(payload)))
+	b.ReportAllocs()
+	size := 5 + len(payload)
+	for b.Loop() {
+		PutFrame(AppendFrames(GetFrame(size), FrameOutput, payload))
+	}
+}
+
 type frame struct {
 	kind    byte
 	payload []byte
