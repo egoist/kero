@@ -179,6 +179,7 @@ var keys = []key{
 	boolKey("sidebar-session-count", "show, beside a project's name in the sidebar, how many sessions it holds", func(s *Settings) *bool { return &s.SidebarCount }),
 	boolKey("focus-follows-mouse", "focus the pane the pointer moves into", func(s *Settings) *bool { return &s.FocusFollowsMouse }),
 	boolKey("confirm-close", "ask before closing a pane a program runs in", func(s *Settings) *bool { return &s.ConfirmClose }),
+	boolKey("quit-ends-sessions", "end this machine's sessions and stop kerod when Kero quits, asking first while a program still runs", func(s *Settings) *bool { return &s.QuitEndsSessions }),
 	boolKey("restore-sessions", "start sessions again after kerod restarts, as after a reboot", func(s *Settings) *bool { return &s.RestoreSessions }),
 	boolKey("resume-agents", "as sessions start again, resume the conversation of the coding agent each pane ran", func(s *Settings) *bool { return &s.ResumeAgents }),
 	boolKey("session-history", "list the coding agents' ended conversations in the sidebar, to resume or archive", func(s *Settings) *bool { return &s.SessionHistory }),

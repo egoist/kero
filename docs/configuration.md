@@ -47,6 +47,7 @@ kero config check             # report unknown keys and bad values, and agents.t
 | `sidebar-session-count` | `true`    | Show, beside a project's name in the sidebar, how many sessions it holds |
 | `focus-follows-mouse`   | `false`   | Focus the pane the pointer moves into                         |
 | `confirm-close`         | `true`    | Ask before closing a pane that a program is running in        |
+| `quit-ends-sessions`     | `false`   | End this machine's sessions and stop kerod when Kero quits    |
 | `restore-sessions`      | `true`    | Start sessions again after kerod restarts, as after a reboot  |
 | `resume-agents`         | `true`    | As sessions start again, resume the conversation of the agent each pane ran |
 | `session-history`       | `false`   | List the agents' ended conversations in the sidebar, to resume or archive ([more](./sessions.md#ended-sessions)) |

@@ -47,6 +47,7 @@ kero config check             # 报告未知的配置项、无效的值和agents
 | `sidebar-session-count` | `true`    | 在侧边栏的项目名称旁显示其包含的会话数量 |
 | `focus-follows-mouse`   | `false`   | 指针移入哪个窗格，就聚焦哪个窗格                              |
 | `confirm-close`         | `true`    | 关闭仍有程序在运行的窗格前先确认                              |
+| `quit-ends-sessions`     | `false`   | 退出 Kero 时也结束本机的全部会话并停止 kerod                  |
 | `restore-sessions`      | `true`    | kerod 重启后（例如开机后）重新启动之前的会话                   |
 | `resume-agents`         | `true`    | 会话重新启动时，恢复每个窗格中智能体的对话                    |
 | `session-history`       | `false`   | 在侧边栏中列出智能体已结束的对话，可恢复或归档（[详情](./sessions.md#ended-sessions)） |

@@ -239,14 +239,14 @@ func (a *App) items(menu string, groups ...[]string) []*mygo.MenuItem {
 func (a *App) menu() *mygo.Menu {
 	appMenu := []*mygo.MenuItem{{Role: mygo.RoleAbout}, updater.MenuItem(), mygo.Separator(), a.item("settings.open"), a.item("cli.install"),
 		mygo.Separator(), {Role: mygo.RoleHide}, {Role: mygo.RoleHideOthers}, {Role: mygo.RoleUnhide}, mygo.Separator(),
-		{Label: locales.MenuQuitApp(mygo.App.Name()), Accelerator: quitKeys, ToolTip: locales.MenuQuitTip(), Click: func(*mygo.MenuItem, *mygo.Window) { mygo.App.Quit() }},
+		{Label: locales.MenuQuitApp(mygo.App.Name()), Accelerator: quitKeys, ToolTip: locales.MenuQuitTip(), Click: func(*mygo.MenuItem, *mygo.Window) { a.quit() }},
 		a.item("app.quitAll")}
 	// The app menu is macOS's: MyGo leaves it out elsewhere, with its items'
 	// shortcuts, so they go in a menu of Kero's there, without macOS's own.
 	kero := &mygo.MenuItem{Role: mygo.RoleAppMenu, Submenu: appMenu}
 	if runtime.GOOS != "darwin" {
 		kero = &mygo.MenuItem{Label: "Kero", Submenu: []*mygo.MenuItem{a.item("settings.open"), a.item("cli.install"), updater.MenuItem(), mygo.Separator(),
-			{Label: locales.MenuQuit(), Accelerator: quitKeys, ToolTip: locales.MenuQuitTip(), Click: func(*mygo.MenuItem, *mygo.Window) { mygo.App.Quit() }},
+			{Label: locales.MenuQuit(), Accelerator: quitKeys, ToolTip: locales.MenuQuitTip(), Click: func(*mygo.MenuItem, *mygo.Window) { a.quit() }},
 			a.item("app.quitAll")}}
 	}
 	view := append(a.items("View", []string{"sidebar.toggle", "rightSidebar.toggle", "changes.toggle", "files.toggle"}, []string{"text.bigger", "text.smaller", "text.reset"}, []string{"theme.toggle"}, []string{quickAction}),

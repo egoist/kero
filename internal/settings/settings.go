@@ -35,6 +35,7 @@ type Settings struct {
 	ResumeAgents      bool   `json:"resumeAgents"`      // as it restores sessions: the agents' own
 	SessionHistory    bool   `json:"sessionHistory"`    // the sidebar lists the agents' ended conversations
 	QuitConfirm       bool   `json:"quitConfirm"`       // tell, the first time, that quitting keeps sessions
+	QuitEndsSessions  bool   `json:"quitEndsSessions"`  // quitting ends this machine's sessions and kerod, as Quit and End All does
 	AppIcon           string `json:"appIcon"`           // macOS: AppIcons; elsewhere the icon is always in the notification area
 	KeepAwake         string `json:"keepAwake"`         // one of KeepAwakeModes: while the computer is kept from sleeping
 
