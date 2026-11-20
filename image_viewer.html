@@ -1,0 +1,133 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{{.Name}}</title>
+<style>
+:root { color-scheme: light dark; {{.Light}} }
+@media (prefers-color-scheme: dark) { :root { {{.Dark}} } }
+* { box-sizing: border-box }
+body { margin: 0; height: 100vh; display: flex; flex-direction: column; background: var(--card); color: var(--text); font: 13px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif }
+header { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; padding: 5px 8px; border-bottom: 1px solid var(--divider) }
+.meta { display: flex; align-items: baseline; gap: 8px; min-width: 0; flex: 1 1 140px }
+strong { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+small { color: var(--muted); white-space: nowrap; font-size: 11px; font-variant-numeric: tabular-nums }
+.controls, .segments { display: flex; align-items: center; gap: 2px }
+.controls { flex-wrap: wrap; margin-left: auto }
+button { appearance: none; display: grid; place-items: center; font: inherit; color: var(--muted); background: transparent; border: 0; border-radius: 6px; padding: 0 7px; height: 26px; cursor: pointer }
+button:hover { background: var(--hover); color: var(--text) }
+button:active { background: var(--press) }
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px }
+.arrow { width: 28px; padding: 0 }
+.arrow svg { width: 15px; height: 15px }
+#sync[aria-pressed="true"] { color: var(--accent); background: var(--track) }
+.segments { gap: 1px; height: 24px; padding: 2px; margin-left: 4px; border-radius: 7px; background: var(--track) }
+.segments button { height: 20px; padding: 0 10px; border-radius: 5px; color: var(--text); font-size: 12.5px }
+.segments button[aria-pressed="true"] { background: var(--thumb); box-shadow: var(--shadow) }
+main { flex: 1; min-height: 0; position: relative; overflow: hidden; touch-action: none; user-select: none; cursor: grab }
+main:active { cursor: grabbing }
+img { position: absolute; left: 50%; top: 50%; transform-origin: 0 0; pointer-events: none }
+</style></head><body>
+<header>
+  <div class="meta"><strong title="{{.Name}}">{{.Name}}</strong><small>{{.Width}} × {{.Height}}</small></div>
+  <div class="controls" role="group" aria-label="Image controls">
+    <button class="arrow" id="prev" aria-label="Previous image" title="Previous image">{{.Previous}}</button>
+    <button class="arrow" id="next" aria-label="Next image" title="Next image">{{.Next}}</button>
+    <button id="sync" aria-pressed="false" title="Synchronize image panes">Sync</button>
+    <div class="segments" role="group" aria-label="Image scale">
+      <button id="fit" aria-pressed="true" title="Fit image to pane">Fit</button>
+      <button id="actual" aria-pressed="false" title="Show actual size">1:1</button>
+    </div>
+  </div>
+</header>
+<main><img alt="{{.Name}}" width="{{.Width}}" height="{{.Height}}" draggable="false" src="{{.Src}}"></main>
+<script>
+const img = document.querySelector('img'), main = document.querySelector('main');
+const generation = window.__keroViewerGeneration = {{.Generation}};
+const byID = id => document.getElementById(id);
+let sync = false, zoom = 1, panX = 0, panY = 0, mode = 'fit';
+let drag, sequence = 0, frame = 0;
+function fitScale() {
+  return Math.min(main.clientWidth / img.width, main.clientHeight / img.height, 1) || 1;
+}
+function draw() {
+  const scale = zoom * fitScale();
+  img.style.transform = 'scale(' + scale + ') translate(' + ((panX - .5) * 100) + '%,' + ((panY - .5) * 100) + '%)';
+  byID('fit').setAttribute('aria-pressed', mode === 'fit');
+  byID('actual').setAttribute('aria-pressed', mode === 'actual');
+  byID('sync').setAttribute('aria-pressed', sync);
+}
+function publishZoom() {
+  document.title = 'kero-zoom:' + generation + ':' + (++sequence) + ':' + JSON.stringify({enabled:sync, zoom, panX, panY});
+}
+function updateView() {
+  draw();
+  if (sync && !frame) frame = requestAnimationFrame(() => { frame = 0; publishZoom() });
+}
+window.__keroApplyZoom = state => {
+  cancelAnimationFrame(frame); frame = 0;
+  sync = state.enabled;
+  if (sync) {
+    ({zoom, panX, panY} = state);
+    mode = zoom === 1 ? 'fit' : Math.abs(zoom * fitScale() - 1) < .00001 ? 'actual' : '';
+  }
+  draw();
+};
+function navigate(direction) {
+  document.title = 'kero-nav:' + generation + ':' + (++sequence) + ':' + direction;
+}
+// A horizontal trackpad gesture turns one page, including its inertial tail.
+let swipe = 0, swipeTimer;
+main.addEventListener('wheel', e => {
+  e.preventDefault();
+  const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? main.clientHeight : 1;
+  if (!e.ctrlKey && Math.abs(e.deltaX) > Math.abs(e.deltaY) * 1.5) {
+    clearTimeout(swipeTimer);
+    swipe += e.deltaX * unit;
+    swipeTimer = setTimeout(() => {
+      if (Math.abs(swipe) >= 48) navigate(swipe > 0 ? 'next' : 'prev');
+      swipe = 0;
+    }, 160);
+    return;
+  }
+  const r = img.getBoundingClientRect();
+  if (!r.width || !r.height) return;
+  const next = Math.max(.05, Math.min(Math.max(20, 1 / fitScale()), zoom * Math.exp(-e.deltaY * unit * .002)));
+  const viewport = main.getBoundingClientRect();
+  panX += (e.clientX - viewport.left - viewport.width / 2) / r.width * (zoom / next - 1);
+  panY += (e.clientY - viewport.top - viewport.height / 2) / r.height * (zoom / next - 1);
+  zoom = next; mode = ''; updateView();
+}, {passive:false});
+main.addEventListener('pointerdown', e => {
+  if (e.button !== 0 || drag) return;
+  drag = {id:e.pointerId, x:e.clientX, y:e.clientY};
+  if (main.hasPointerCapture(e.pointerId) || e.isTrusted) main.setPointerCapture(e.pointerId);
+  e.preventDefault();
+});
+main.addEventListener('pointermove', e => {
+  if (!drag || drag.id !== e.pointerId) return;
+  const r = img.getBoundingClientRect();
+  if (!r.width || !r.height) return;
+  panX += (e.clientX - drag.x) / r.width;
+  panY += (e.clientY - drag.y) / r.height;
+  drag.x = e.clientX; drag.y = e.clientY; updateView();
+});
+function endDrag(e) { if (drag && drag.id === e.pointerId) drag = null }
+main.addEventListener('pointerup', endDrag);
+main.addEventListener('pointercancel', endDrag);
+main.addEventListener('lostpointercapture', endDrag);
+function reset(to) {
+  mode = to; zoom = mode === 'actual' ? 1 / fitScale() : 1;
+  panX = panY = 0; updateView();
+}
+byID('fit').onclick = () => reset('fit');
+byID('actual').onclick = () => reset('actual');
+byID('sync').onclick = () => {
+  cancelAnimationFrame(frame); frame = 0;
+  sync = !sync; draw(); publishZoom();
+};
+byID('prev').onclick = () => navigate('prev');
+byID('next').onclick = () => navigate('next');
+new ResizeObserver(() => {
+  if (mode === 'actual' && !sync) zoom = 1 / fitScale();
+  draw();
+}).observe(main);
+draw();
+</script></body></html>

@@ -701,14 +701,17 @@ func (a *App) split(s *proto.Session, p proto.CreateParams) {
 			p.Cols = max(p.Cols/2, 10)
 		}
 	}
+	key := [2]string{s.ID, h.imageKey(p.URL)}
 	cl := h.cl
 	if cl == nil {
+		delete(a.viewerPending, key)
 		return
 	}
 	go func() {
 		var ns proto.Session
 		err := cl.Call("split", p, &ns)
 		a.update(func() {
+			delete(a.viewerPending, key)
 			if err != nil {
 				a.toast(err.Error())
 				return

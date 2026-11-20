@@ -18,11 +18,16 @@ import (
 // place and page, the app the page itself, which it loads where kerod
 // last had it and tells kerod of as the user goes to others.
 type webEntry struct {
-	app  *App
-	id   string
-	nav  uint64
-	view *mygo.WebView
-	err  string
+	app *App
+	id  string
+	nav uint64
+	// viewerURL identifies the HTML Kero supplied for this navigation.
+	viewerURL     string
+	viewerReady   bool
+	viewerPalette *palette
+	viewerSeq     uint64
+	view          *mygo.WebView
+	err           string
 	// url and title are the page's, as it last committed; told is what
 	// kerod was last told.
 	url, title string
@@ -92,6 +97,9 @@ func (a *App) ensureWeb(p *proto.Pane) *webEntry {
 			if a.webs[id] != e {
 				return
 			}
+			if url != e.viewerURL {
+				e.viewerURL, e.viewerReady = "", false
+			}
 			e.url, e.err, e.iconURL = url, "", ""
 			if !e.editing {
 				e.address = url
@@ -103,6 +111,9 @@ func (a *App) ensureWeb(p *proto.Pane) *webEntry {
 	page.OnPageTitleUpdated(func(t *mygo.TitleEvent) {
 		a.update(func() {
 			if a.webs[id] != e {
+				return
+			}
+			if a.imageViewerTitle(e, page.URL(), t.Title) {
 				return
 			}
 			e.title = t.Title
@@ -122,9 +133,22 @@ func (a *App) ensureWeb(p *proto.Pane) *webEntry {
 	})
 	page.OnDidFinishLoad(func() {
 		a.update(func() {
+			if a.webs[id] != e {
+				return
+			}
 			e.syncNav()
 			e.loadEnded(nil)
-			a.findFavicon(e)
+			if e.viewerURL != "" && e.viewerURL == page.URL() {
+				e.viewerReady = true
+				e.viewerPalette = nil
+				if s := a.sessionOfPane(id); s != nil {
+					if group := a.viewerGroups[s.ID]; group != nil && group.zoom.Enabled {
+						e.sendViewerZoom(group.zoom)
+					}
+				}
+			} else {
+				a.findFavicon(e)
+			}
 		})
 	})
 	page.OnDidFailLoad(func(err *mygo.LoadError) {
@@ -157,6 +181,7 @@ func (e *webEntry) syncNav() {
 // load goes to what the user typed, as a URL or a search.
 func (e *webEntry) load(text string) {
 	e.nav++
+	e.viewerURL, e.viewerReady, e.viewerSeq = "", false, 0
 	if e.app.loadImageEntry(e, text) {
 		return
 	}
@@ -246,6 +271,7 @@ func (a *App) focusAddress() {
 // its page; it reports whether the pane is being dragged by its toolbar.
 func (a *App) paneBrowser(c *ui.Context, pal *palette, bar ui.TitleBar, shown float32, s *proto.Session, p *proto.Pane, top, left, right, multi, focused, hovered bool) (dragging bool) {
 	e := a.ensureWeb(p)
+	e.updateViewerPalette(pal)
 	ref := a.paneRef(p.ID)
 	// What the page was as the build began: the address bar, which holds
 	// the pane's handle while there is no page, may go to one as it

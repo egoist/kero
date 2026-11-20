@@ -43,66 +43,177 @@ func TestImageViewerURL(t *testing.T) {
 }
 
 func TestOpenImagePane(t *testing.T) {
-	for _, hyperlink := range []bool{false, true} {
-		name := "plain path"
-		if hyperlink {
-			name = "file hyperlink"
+	a := testApp(t)
+	dir := t.TempDir()
+	a.st.Sessions[0].Panes[0].Dir = dir
+	file := filepath.Join(dir, "图 + shot.png")
+	if err := os.WriteFile(file, []byte("image"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	splits := make(chan proto.CreateParams, 4)
+	cl, _ := projectClient(t, func(method string, raw json.RawMessage) (any, error) {
+		var p proto.CreateParams
+		if method != "split" {
+			t.Errorf("unexpected method %q", method)
 		}
-		t.Run(name, func(t *testing.T) {
-			a := testApp(t)
-			dir := t.TempDir()
-			a.st.Sessions[0].Panes[0].Dir = dir
-			path := filepath.Join(dir, "shot.png")
-			if err := os.WriteFile(path, []byte("image"), 0o600); err != nil {
-				t.Fatal(err)
+		if err := json.Unmarshal(raw, &p); err != nil {
+			return nil, err
+		}
+		splits <- p
+		return proto.Session{}, nil
+	})
+	// The no-client failure is synchronous and the next click must retry.
+	if !a.openImagePane("a", file) || len(a.viewerPending) != 0 {
+		t.Fatal("disconnected split kept a pending viewer")
+	}
+	a.local().cl = cl
+	if !a.openImagePane("a", filepath.Base(file)) {
+		t.Fatal("relative file did not open a viewer")
+	}
+	select {
+	case got := <-splits:
+		host, path, base, ok := imageViewerQuery(got.URL)
+		if got.Split != "a" || got.Direction != "right" || !ok || host != "" || path != file || base != dir {
+			t.Fatalf("split = %+v", got)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("no split")
+	}
+	key := [2]string{"s1", a.local().imageKey(imageViewerURL("", file, dir))}
+	// An attempted split without a client clears the key. Its survival is a
+	// deterministic assertion that even the synchronous split entry was skipped.
+	a.local().cl = nil
+	for _, link := range []string{file, (&url.URL{Scheme: "file", Path: file}).String()} {
+		if !a.openImagePane("b", link) || !a.viewerPending[key] || len(a.viewerPending) != 1 {
+			t.Fatalf("duplicate %q changed pending splits: %v", link, a.viewerPending)
+		}
+	}
+	a.st.Sessions = append(a.st.Sessions, proto.Session{ID: "s2", Panes: []proto.Pane{{ID: "c", Dir: dir}}})
+	a.local().cl = cl
+	if !a.openImagePane("c", file) {
+		t.Fatal("second session failed to open its own viewer")
+	}
+	select {
+	case got := <-splits:
+		if got.Split != "c" {
+			t.Fatalf("second split = %+v", got)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("no split in second session")
+	}
+	if a.openImagePane("a", filepath.Join(dir, "notes.txt")) {
+		t.Fatal("non-image opened a viewer")
+	}
+}
+
+func TestOpenImagePaneFocusesExisting(t *testing.T) {
+	a := testApp(t)
+	dir := t.TempDir()
+	file := filepath.Join(dir, "shot.png")
+	if err := os.WriteFile(file, []byte("image"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	s := &a.st.Sessions[0]
+	s.Panes = append(s.Panes, proto.Pane{ID: "viewer", URL: imageViewerURL("", file, "/another-directory")})
+	focused := make(chan struct{}, 1)
+	cl, _ := projectClient(t, func(method string, raw json.RawMessage) (any, error) {
+		switch method {
+		case "focus":
+			focused <- struct{}{}
+		case "view": // selecting the session also records its visit
+		default:
+			t.Errorf("unexpected RPC on reuse: %q", method)
+		}
+		return nil, nil
+	})
+	a.local().cl = cl
+	if !a.openImagePane("a", file) || a.focus[s.ID] != "viewer" || len(a.viewerPending) != 0 {
+		t.Fatal("existing pane was not reused")
+	}
+	select {
+	case <-focused:
+	case <-time.After(time.Second):
+		t.Fatal("missing focus RPC")
+	}
+}
+
+func TestImageViewerTitle(t *testing.T) {
+	a := testApp(t)
+	u := imageViewerURL("", "/image.png", "")
+	e := &webEntry{id: "a", app: a, nav: 1, url: u, viewerURL: u, viewerReady: true}
+	a.webs[e.id] = e
+	a.st.Sessions = append(a.st.Sessions, proto.Session{ID: "s2", Panes: []proto.Pane{{ID: "other", URL: u}}})
+	const first = `kero-zoom:1:1:{"enabled":true,"zoom":2,"panX":0.2,"panY":-0.4}`
+	if a.imageViewerTitle(e, "https://example.org/", first) || len(a.viewerGroups) != 0 {
+		t.Fatal("ordinary web title was intercepted")
+	}
+	if !a.imageViewerTitle(e, u, first) || a.viewerGroup("s1").zoom != (viewerZoomState{true, 2, 0.2, -0.4}) || a.viewerGroups["s2"] != nil {
+		t.Fatalf("groups = %+v", a.viewerGroups)
+	}
+	for _, title := range []string{`kero-zoom:1:1:{"enabled":true,"zoom":9}`, `kero-zoom:2:2:{"enabled":true,"zoom":9}`} {
+		if !a.imageViewerTitle(e, u, title) || a.viewerGroup("s1").zoom.Zoom != 2 {
+			t.Fatal("duplicate/stale title changed zoom")
+		}
+	}
+	a.imageViewerTitle(e, u, `kero-zoom:1:2:{"enabled":false,"zoom":2}`)
+	a.imageViewerTitle(e, u, `kero-zoom:1:3:{"enabled":false,"zoom":9}`)
+	if st := a.viewerGroup("s1").zoom; st.Enabled || st.Zoom != 2 {
+		t.Fatalf("independent zoom recorded: %+v", st)
+	}
+	e.load(u)
+	if e.viewerReady || e.viewerSeq != 0 || e.viewerURL != "" {
+		t.Fatal("new navigation retained old document state")
+	}
+}
+
+func TestNavigateViewer(t *testing.T) {
+	a := testApp(t)
+	s := &a.st.Sessions[0]
+	urls := []string{imageViewerURL("", "/a.png", ""), imageViewerURL("", "/b.png", ""), imageViewerURL("", "/c.png", "")}
+	s.Panes = []proto.Pane{{ID: "a", URL: urls[0]}, {ID: "b", URL: urls[1]}, {ID: "c", URL: urls[2]}}
+	for _, p := range s.Panes {
+		a.webs[p.ID] = &webEntry{id: p.ID, app: a, url: p.URL}
+	}
+	assertURLs := func(indices ...int) {
+		t.Helper()
+		for i, n := range indices {
+			if got := a.webs[s.Panes[i].ID].url; got != urls[n] {
+				t.Fatalf("pane %s = %s, want %s", s.Panes[i].ID, got, urls[n])
 			}
-			splits := make(chan proto.CreateParams, 1)
-			cl, _ := projectClient(t, func(method string, raw json.RawMessage) (any, error) {
-				if method != "split" {
-					t.Errorf("unexpected method %q", method)
-				}
-				var p proto.CreateParams
-				if err := json.Unmarshal(raw, &p); err != nil {
-					return nil, err
-				}
-				splits <- p
-				return proto.Session{}, nil
-			})
-			a.local().cl = cl
-			link := path
-			if hyperlink {
-				link = (&url.URL{Scheme: "file", Path: path}).String()
-			}
-			if !a.openImagePane("a", link) {
-				t.Fatal("image did not open a viewer")
-			}
-			select {
-			case got := <-splits:
-				if got.Split != "a" || got.Direction != "right" {
-					t.Errorf("split = %+v", got)
-				}
-				host, path, base, ok := imageViewerQuery(got.URL)
-				if !ok || host != "" || path != path || base != dir {
-					t.Errorf("viewer URL = %q; host %q path %q base %q", got.URL, host, path, base)
-				}
-			case <-time.After(time.Second):
-				t.Fatal("no viewer split")
-			}
-			if a.openImagePane("a", filepath.Join(dir, "notes.txt")) {
-				t.Error("non-image opened a viewer")
-			}
-		})
+		}
+	}
+	from := a.webs["a"]
+	a.navigateViewer(s, from, "next")
+	assertURLs(1, 1, 2)
+	for i := range s.Panes {
+		s.Panes[i].URL = a.webs[s.Panes[i].ID].url
+	}
+	a.navigateViewer(s, from, "prev")
+	assertURLs(0, 1, 2)
+	a.viewerGroup(s.ID).zoom.Enabled = true
+	for _, order := range [][]int{{1, 2, 0}, {2, 0, 1}, {0, 1, 2}} {
+		a.navigateViewer(s, from, "next")
+		assertURLs(order...)
+	}
+	a.navigateViewer(s, from, "prev")
+	assertURLs(2, 0, 1)
+}
+
+func TestReadImageHostMismatch(t *testing.T) {
+	for _, hosts := range [][2]string{{"", "remote"}, {"remote", ""}, {"remote", "other"}} {
+		if _, _, _, _, _, err := readImage(imageViewerURL(hosts[0], "/tmp/shot.png", ""), hosts[1], nil); err == nil || !strings.Contains(err.Error(), "differs") {
+			t.Fatalf("hosts %q: %v", hosts, err)
+		}
 	}
 }
 
 func TestReadImageLocal(t *testing.T) {
-	a := testApp(t)
 	path := filepath.Join(t.TempDir(), "图 shot.png")
 	want := viewerPNG(t, 2, 3, color.RGBA{R: 10, G: 20, B: 30, A: 255})
 	if err := os.WriteFile(path, want, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	data, name, w, h, mime, err := a.readImage(imageViewerURL("", path, ""))
+	data, name, w, h, mime, err := readImage(imageViewerURL("", path, ""), "", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -142,7 +253,7 @@ func TestReadImageRemote(t *testing.T) {
 		}
 	})
 	h.cl = cl
-	data, name, w, height, mime, err := a.readImage(imageViewerURL(h.name, remotePath, "/home/me/api"))
+	data, name, w, height, mime, err := readImage(imageViewerURL(h.name, remotePath, "/home/me/api"), h.name, cl)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -158,7 +269,6 @@ func TestReadImageRemote(t *testing.T) {
 }
 
 func TestReadImageRejectsLargeFile(t *testing.T) {
-	a := testApp(t)
 	path := filepath.Join(t.TempDir(), "large.png")
 	if err := os.WriteFile(path, nil, 0o600); err != nil {
 		t.Fatal(err)
@@ -166,7 +276,7 @@ func TestReadImageRejectsLargeFile(t *testing.T) {
 	if err := os.Truncate(path, maxViewerBytes+1); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, _, _, _, err := a.readImage(imageViewerURL("", path, "")); err == nil {
+	if _, _, _, _, _, err := readImage(imageViewerURL("", path, ""), "", nil); err == nil {
 		t.Fatal("oversize image was accepted")
 	}
 }
@@ -184,7 +294,7 @@ func TestLoadImageEntryUnavailable(t *testing.T) {
 }
 
 func TestImageViewerHTML(t *testing.T) {
-	page := imageViewerHTML(`x<svg onload=alert(1)>.png`, 2, 3, "image/png", []byte{1, 2})
+	page := imageViewerHTML(`x<svg onload=alert(1)>.png`, 2, 3, "image/png", []byte{1, 2}, 1)
 	if strings.Contains(page, "<svg onload") || !strings.Contains(page, "x&lt;svg") {
 		t.Error("filename was not escaped")
 	}

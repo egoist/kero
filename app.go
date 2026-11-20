@@ -105,20 +105,22 @@ type App struct {
 	st     proto.State
 	loaded bool // a state came
 
-	prefs      prefs
-	set        settings.Settings // the user's settings: Settings' controls edit it
-	applied    settings.Settings // set, as last applied and saved
-	setWin     *mygo.Window      // the Settings window, while open
-	ss         settingsState
-	selected   string
-	terms      map[string]*termEntry
-	webs       map[string]*webEntry // browser panes' pages, by pane
-	ads        adBlock              // what their pages block
-	icons      favicons             // and the icons they show
-	lru        []string
-	refs       map[string]*ui.Handle // panes' terminals, and splits, by id
-	focus      map[string]string     // the pane the user is in, by session
-	layoutDrag struct {              // the split whose divider is dragged
+	prefs         prefs
+	set           settings.Settings // the user's settings: Settings' controls edit it
+	applied       settings.Settings // set, as last applied and saved
+	setWin        *mygo.Window      // the Settings window, while open
+	ss            settingsState
+	selected      string
+	terms         map[string]*termEntry
+	webs          map[string]*webEntry    // browser panes' pages, by pane
+	viewerPending map[[2]string]bool      // session and image identity, while split is in flight
+	viewerGroups  map[string]*viewerGroup // comparison state of each session
+	ads           adBlock                 // what their pages block
+	icons         favicons                // and the icons they show
+	lru           []string
+	refs          map[string]*ui.Handle // panes' terminals, and splits, by id
+	focus         map[string]string     // the pane the user is in, by session
+	layoutDrag    struct {              // the split whose divider is dragged
 		session, split string
 		ratio          float64 // where the pointer puts it, past its bounds
 	}
@@ -344,6 +346,12 @@ func (a *App) setState(h *host, st proto.State) {
 	for id := range a.webs {
 		if !live[id] {
 			a.dropWeb(id)
+		}
+	}
+	for id := range a.viewerGroups {
+		s := a.session(id)
+		if s == nil || !a.hasViewer(s) {
+			delete(a.viewerGroups, id)
 		}
 	}
 	a.quickChanged()
