@@ -167,8 +167,13 @@ type App struct {
 	previewSince time.Time
 	previewShown bool
 	arrived      map[string]bool
-	copyText     string
-	peek         peek // the image a path Command hovers shows
+	// carryPane is the pane being dragged onto a session, carryFrom the
+	// session that was on screen when that drag began, to come back if
+	// the pane is let go before it lands.
+	carryPane string
+	carryFrom string
+	copyText  string
+	peek      peek // the image a path Command hovers shows
 	// from is the host whose program asked for the action being run (kero
 	// do), nil for the user's.
 	from   *host
@@ -548,6 +553,8 @@ func (a *App) selectSession(id string) {
 	if a.session(id) == nil {
 		return
 	}
+	// A click chooses a session. A drag that was only glancing at one is over.
+	a.carryPane, a.carryFrom = "", ""
 	changed := a.selected != id
 	a.selected = id
 	s := a.session(id)
@@ -1517,6 +1524,139 @@ func (a *App) commitProjectRename() {
 		}
 	}
 	a.focusTerminal()
+}
+
+// otherSession reports whether s's host has another session, one a pane
+// of s can be dragged onto.
+func (a *App) otherSession(s *proto.Session) bool {
+	if s == nil {
+		return false
+	}
+	for _, o := range a.sessionsOf(a.hostOf(s.ID)) {
+		if o.ID != s.ID {
+			return true
+		}
+	}
+	return false
+}
+
+// glanceSession shows a session while a pane is dragged over its row,
+// without taking the keyboard: the drag still owns the pointer.
+func (a *App) glanceSession(id string) {
+	if a.selected == id || a.session(id) == nil {
+		return
+	}
+	a.selected = id
+	s := a.session(id)
+	for _, p := range s.Panes {
+		a.ensureTerm(p.ID)
+	}
+	a.reportView()
+	a.updateTitle()
+	a.savePrefs()
+}
+
+// canExtract reports whether a dragged pane can leave its session and
+// become one of its own: it shares that session with another pane.
+func (a *App) canExtract(d paneDrag) bool {
+	s := a.session(d.session)
+	return s != nil && len(s.Panes) > 1 && s.PaneByID(d.pane) != nil
+}
+
+// extractPane makes a pane a session of its own. The one it leaves keeps
+// its name, and the program keeps running.
+func (a *App) extractPane(pane string) {
+	s := a.sessionOfPane(pane)
+	if s == nil || len(s.Panes) < 2 {
+		return
+	}
+	h := a.hostOf(pane)
+	a.placed(h, s.ID, pane, func(cl *client.Client) (proto.PlaceResult, error) {
+		var res proto.PlaceResult
+		err := cl.Call("extract", proto.IDParams{ID: pane}, &res)
+		return res, err
+	})
+}
+
+// placePane moves a pane into another session, beside target or into its
+// place, as zone says. The program keeps running.
+func (a *App) placePane(pane, into, target string, zone dropZone) {
+	if zone == zoneNone || pane == "" || into == "" || target == "" {
+		return
+	}
+	h := a.hostOf(pane)
+	if h != a.hostOf(into) {
+		return
+	}
+	side := "swap"
+	if zone != zoneSwap {
+		side = zone.side()
+	}
+	from := ""
+	if s := a.sessionOfPane(pane); s != nil {
+		from = s.ID
+	}
+	a.placed(h, from, pane, func(cl *client.Client) (proto.PlaceResult, error) {
+		var res proto.PlaceResult
+		err := cl.Call("place", proto.PlaceParams{Pane: pane, Into: into, Target: target, Side: side}, &res)
+		return res, err
+	})
+}
+
+// placed asks kerod to move a pane, then shows where it landed. from is
+// the session it left, so a failure puts that session back on screen.
+func (a *App) placed(h *host, from, pane string, call func(*client.Client) (proto.PlaceResult, error)) {
+	if h == nil || h.cl == nil {
+		return
+	}
+	a.carryPane, a.carryFrom = "", ""
+	cl := h.cl
+	go func() {
+		res, err := call(cl)
+		a.update(func() {
+			if err != nil {
+				a.toast(err.Error())
+				if from != "" {
+					a.selectSession(from)
+				}
+				return
+			}
+			a.showPlaced(h, from, pane, res)
+		})
+	}()
+}
+
+// showPlaced shows the session a pane landed in, and the one it left. A
+// session just made sits after the one the pane left, where kerod put it.
+func (a *App) showPlaced(h *host, from, pane string, res proto.PlaceResult) {
+	if res.From.ID == "" {
+		a.st.Sessions = slices.DeleteFunc(a.st.Sessions, func(s proto.Session) bool { return s.ID == from })
+		delete(a.prefs.Expanded, from)
+	} else {
+		a.replaceSession(h, res.From)
+	}
+	if a.session(res.Into.ID) == nil {
+		a.own(h, res.Into)
+		at := len(a.st.Sessions)
+		for i := range a.st.Sessions {
+			if a.st.Sessions[i].ID == from {
+				at = i + 1
+				break
+			}
+		}
+		a.st.Sessions = slices.Insert(a.st.Sessions, at, res.Into)
+	} else {
+		a.replaceSession(h, res.Into)
+	}
+	if a.arrived == nil {
+		a.arrived = map[string]bool{}
+	}
+	a.arrived[pane] = true
+	if a.focus == nil {
+		a.focus = map[string]string{}
+	}
+	a.focus[res.Into.ID] = res.Into.Focus
+	a.selectSession(res.Into.ID)
 }
 
 func (a *App) moveSession(id, project string) {

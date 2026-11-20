@@ -19,6 +19,8 @@ Split a session to run things side by side: an agent on the left, its dev server
 
 **Zoom** fills the session with one pane; press it again to bring the others back.
 
+To move a pane into a session that is already running, drag its title onto that session in the sidebar. The session comes on screen; drop the pane on a side of one of its panes, where the highlight shows. The program keeps running, and the session it lands in keeps its name. Dragging a session's last pane takes its row with it. Letting go on the session's row, before a side, puts back the session you were in. Drop it on the empty part of the sidebar and it becomes a session of its own; the one it leaves keeps its name. A pane that is already alone stays put. Sessions on different machines stay apart.
+
 In the sidebar, a split session's row shows how many panes it has, after its name. Click the count to list the panes under the row, each with its program, its name, its branch or folder when it differs, and its status; it tells which pane needs you. Click a pane there to go to it, or right-click it to zoom or close it. Click the count again to fold them back.
 
 When a pane's program exits, the pane stays so you can read its output. **Restart Pane** starts its shell again in the same directory.

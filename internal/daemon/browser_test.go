@@ -6,6 +6,7 @@ import (
 	"log"
 	"net"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -277,5 +278,180 @@ func TestWatcherBehind(t *testing.T) {
 	w.watchEvent(proto.Message{Event: "notice"})
 	if _, err := ours.Write([]byte{0}); err == nil {
 		t.Fatal("a watcher behind is still connected")
+	}
+}
+
+// A pane dragged onto another session lands beside the pane it was dropped
+// on. The session it left goes when it was the last pane, and the program
+// keeps running.
+func TestPlacePane(t *testing.T) {
+	d := testDaemon(t)
+	home, err := d.create(proto.CreateParams{URL: "http://home.example", Name: "alpha"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	guest, err := d.create(proto.CreateParams{URL: "http://guest.example", Name: "beta"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	d.mu.Lock()
+	d.findSessionLocked(home.ID).zoomed = home.Focus
+	d.findSessionLocked(guest.ID).worktree = &proto.Worktree{Path: "/tmp/beta", Branch: "beta"}
+	d.mu.Unlock()
+
+	got, err := d.place(proto.PlaceParams{Pane: guest.Panes[0].ID, Into: home.ID, Target: home.Panes[0].ID, Side: "right"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(d.sessions) != 1 || got.Into.ID != home.ID || got.From.ID != "" || got.Into.Name != "alpha" {
+		t.Fatalf("into %+v from %q, %d sessions", got.Into.ID, got.From.ID, len(d.sessions))
+	}
+	if got.Into.Zoomed != "" || got.Into.Focus != home.Panes[0].ID {
+		t.Fatalf("zoom %q focus %q", got.Into.Zoomed, got.Into.Focus)
+	}
+	if got.Into.Worktree == nil || got.Into.Worktree.Path != "/tmp/beta" {
+		t.Fatalf("worktree %+v", got.Into.Worktree)
+	}
+	if !slices.Equal(got.Into.Former, []string{guest.ID}) {
+		t.Fatalf("former %v", got.Into.Former)
+	}
+	l := got.Into.Layout
+	if l == nil || !l.Row || l.Ratio != 0.5 || l.A.Pane != home.Panes[0].ID || l.B.Pane != guest.Panes[0].ID {
+		t.Fatalf("layout %+v", l)
+	}
+	d.mu.Lock()
+	if p := d.panes[guest.Panes[0].ID]; p == nil || p.sid != home.ID {
+		t.Fatalf("pane moved: %+v", p)
+	}
+	if s := d.findSessionLocked(guest.ID); s == nil || s.id != home.ID {
+		t.Fatal("the old id names nothing")
+	}
+	d.mu.Unlock()
+
+	if _, err := d.place(proto.PlaceParams{Pane: "missing", Into: home.ID, Target: home.Panes[0].ID, Side: "right"}); err == nil {
+		t.Fatal("placed a pane that is not there")
+	}
+	if _, err := d.place(proto.PlaceParams{Pane: home.Panes[0].ID, Into: home.ID, Target: guest.Panes[0].ID, Side: "left"}); err == nil {
+		t.Fatal("placed a pane into its own session")
+	}
+
+	d.saveState()
+	r := testDaemon(t)
+	r.dir = d.dir
+	r.restore()
+	if len(r.sessions) != 1 || !slices.Contains(r.sessions[0].former, guest.ID) {
+		t.Fatalf("restored former %v", r.sessions[0].former)
+	}
+}
+
+// One pane of a split leaves; the session keeps the other. The session
+// that stays keeps its own name and worktree. Swapping exchanges the two
+// panes' places.
+func TestPlaceKeepsWhatStays(t *testing.T) {
+	d := testDaemon(t)
+	home, err := d.create(proto.CreateParams{URL: "http://home.example", Name: "home"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	home, err = d.split(proto.CreateParams{Split: home.ID, URL: "http://home2.example", Direction: "down"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	guest, err := d.create(proto.CreateParams{URL: "http://guest.example"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	d.mu.Lock()
+	d.findSessionLocked(home.ID).worktree = &proto.Worktree{Path: "/tmp/home", Branch: "home"}
+	d.mu.Unlock()
+
+	moved := home.Panes[1].ID
+	got, err := d.place(proto.PlaceParams{Pane: moved, Into: guest.ID, Target: guest.Panes[0].ID, Side: "down"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.From.ID != home.ID || len(got.From.Panes) != 1 || got.From.Panes[0].ID == moved {
+		t.Fatalf("left behind %+v", got.From.Panes)
+	}
+	if got.Into.Name != "" || got.Into.Worktree != nil || got.Into.Focus != guest.Panes[0].ID {
+		t.Fatalf("into name %q worktree %+v focus %q", got.Into.Name, got.Into.Worktree, got.Into.Focus)
+	}
+	if got.From.Worktree == nil || got.From.Worktree.Path != "/tmp/home" {
+		t.Fatalf("worktree left %+v", got.From.Worktree)
+	}
+
+	// The session dropped on keeps its name. The one the pane left does
+	// not come with it, even a name the user gave.
+	named, err := d.create(proto.CreateParams{URL: "http://named.example", Name: "kero1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	plain, err := d.create(proto.CreateParams{URL: "http://plain.example", Name: "kero2"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err = d.place(proto.PlaceParams{Pane: named.Panes[0].ID, Into: plain.ID, Target: plain.Panes[0].ID, Side: "right"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Into.Name != "kero2" || got.Into.Focus != plain.Panes[0].ID {
+		t.Fatalf("name %q focus %q", got.Into.Name, got.Into.Focus)
+	}
+}
+
+// A pane dropped on the empty sidebar becomes a session of its own. The
+// one it leaves keeps its name, and a pane that is already alone stays.
+func TestExtractPane(t *testing.T) {
+	d := testDaemon(t)
+	s, err := d.create(proto.CreateParams{URL: "http://kept.example", Name: "kept"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s, err = d.split(proto.CreateParams{Split: s.ID, URL: "http://out.example", Direction: "right"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := s.Panes[1].ID
+	got, err := d.extract(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.From.ID != s.ID || got.From.Name != "kept" || len(got.From.Panes) != 1 || got.From.Panes[0].ID == out {
+		t.Fatalf("left behind %+v", got.From)
+	}
+	if got.Into.Name != "" || len(got.Into.Panes) != 1 || got.Into.Panes[0].ID != out || got.Into.Focus != out {
+		t.Fatalf("extracted %+v", got.Into)
+	}
+	if len(d.sessions) != 2 || d.sessions[0].id != s.ID || d.sessions[1].id != got.Into.ID {
+		t.Fatalf("order %v", []string{d.sessions[0].id, d.sessions[1].id})
+	}
+	if p := d.panes[out]; p == nil || p.sid != got.Into.ID {
+		t.Fatalf("pane %+v", p)
+	}
+	if _, err := d.extract(out); err == nil {
+		t.Fatal("extracted a pane that is already its own session")
+	}
+
+	// Swap exchanges the places and leaves both sessions.
+	a, err := d.create(proto.CreateParams{URL: "http://a.example", Name: "a"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := d.create(proto.CreateParams{URL: "http://b.example", Name: "b"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err = d.place(proto.PlaceParams{Pane: a.Panes[0].ID, Into: b.ID, Target: b.Panes[0].ID, Side: "swap"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.From.ID != a.ID || got.Into.ID != b.ID {
+		t.Fatalf("from %s into %s", got.From.ID, got.Into.ID)
+	}
+	if len(got.From.Panes) != 1 || got.From.Panes[0].URL != "http://b.example" {
+		t.Fatalf("a kept %+v", got.From.Panes)
+	}
+	if len(got.Into.Panes) != 1 || got.Into.Panes[0].URL != "http://a.example" || got.Into.Focus != a.Panes[0].ID {
+		t.Fatalf("b kept %+v focus %q", got.Into.Panes, got.Into.Focus)
 	}
 }

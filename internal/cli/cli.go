@@ -409,7 +409,7 @@ func run(args []string, host string) error {
 		var s proto.Session
 		if err := c.Call("create", proto.CreateParams{
 			Project: f.vals["project"], Name: f.vals["name"], Dir: dir, Command: command, URL: f.vals["url"],
-			After: os.Getenv("KERO_SESSION"), Worktree: f.vals["worktree"], Base: f.vals["base"],
+			After: current(), Worktree: f.vals["worktree"], Base: f.vals["base"],
 		}, &s); err != nil {
 			return err
 		}
@@ -722,7 +722,7 @@ func run(args []string, host string) error {
 			return err
 		}
 		var s proto.Session
-		if err := c.Call("conversation.resume", proto.ConversationParams{Agent: conv.Agent, ID: conv.ID, After: os.Getenv("KERO_SESSION")}, &s); err != nil {
+		if err := c.Call("conversation.resume", proto.ConversationParams{Agent: conv.Agent, ID: conv.ID, After: current()}, &s); err != nil {
 			return err
 		}
 		if f.set["focus"] {
@@ -856,6 +856,12 @@ func find(st proto.State, ref string) (target, error) {
 			if p.ID == ref {
 				return target{s: s, pane: p.ID}, nil
 			}
+		}
+	}
+	// A session joined into another is gone; commands still name it.
+	for _, s := range st.Sessions {
+		if slices.Contains(s.Former, ref) {
+			return target{s: s}, nil
 		}
 	}
 	var matches []target

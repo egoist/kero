@@ -71,6 +71,18 @@ func TestBrowserTarget(t *testing.T) {
 	}
 }
 
+// A session joined into another is gone. A command that still names it
+// reaches the one that kept its panes.
+func TestFindJoinedSession(t *testing.T) {
+	st := proto.State{Sessions: []proto.Session{{
+		ID: "s", Former: []string{"old"}, Focus: "p", Panes: []proto.Pane{{ID: "p"}},
+	}}}
+	tg, err := find(st, "old")
+	if err != nil || tg.s.ID != "s" || tg.pane != "" {
+		t.Fatalf("%+v %v", tg, err)
+	}
+}
+
 // Cookies come from a storage state, a list of its cookies, or a
 // cookies.txt, and go back to one as they came.
 func TestCookieFiles(t *testing.T) {

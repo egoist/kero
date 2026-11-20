@@ -376,7 +376,7 @@ func (a *App) addressBar(c *ui.Context, pal *palette, s *proto.Session, p *proto
 	var in ui.Element
 	frame.Children(func() {
 		grip := ui.Row(c.Key("grip")).Size(22, 22).Radius(6).Center().Shrink(0).TextColor(pal.textFaint)
-		if multi {
+		if multi || a.otherSession(s) {
 			grip.Drag(paneDrag{s.ID, p.ID}).Tooltip(locales.PaneDragTip())
 			dragging = grip.Dragging()
 			switch {

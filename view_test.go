@@ -73,6 +73,89 @@ func shot(t *testing.T, tt *ui.Tester, name string) {
 	png.Encode(f, tt.Image())
 }
 
+// A pane torn out of a session sits after that session, not at the end
+// of the sidebar.
+func TestShowPlacedInsertsAfterSource(t *testing.T) {
+	a := testApp(t)
+	tail := proto.Session{ID: "s2", Project: "p1", Name: "tail", Focus: "c",
+		Panes: []proto.Pane{{ID: "c", Shell: "fish", Dir: "/tmp", Status: proto.Idle, Progress: -1}}}
+	a.st.Sessions = append(a.st.Sessions, tail)
+	a.showPlaced(a.local(), "s1", "b", proto.PlaceResult{
+		From: proto.Session{ID: "s1", Project: "p1", Name: "demo", Focus: "a",
+			Panes: []proto.Pane{{ID: "a", Shell: "fish", Dir: "/tmp", Status: proto.Idle, Progress: -1}}},
+		Into: proto.Session{ID: "s3", Project: "p1", Focus: "b",
+			Panes: []proto.Pane{{ID: "b", Shell: "zsh", Dir: "/tmp", Status: proto.Idle, Progress: -1}}},
+	})
+	var ids []string
+	for _, s := range a.st.Sessions {
+		ids = append(ids, s.ID)
+	}
+	if !slices.Equal(ids, []string{"s1", "s3", "s2"}) {
+		t.Fatalf("order %v", ids)
+	}
+}
+
+// Dropping a pane on empty sidebar offers a new session. Dropping it on
+// another session's row, before a side, goes back to the session it left.
+func TestPaneDropTarget(t *testing.T) {
+	a := testApp(t)
+	other := a.st.Sessions[0]
+	other.ID, other.Name = "s2", "other"
+	other.Panes = []proto.Pane{{ID: "c", Shell: "fish", Dir: "/tmp", Status: proto.Idle, Progress: -1}}
+	other.Layout, other.Focus = nil, "c"
+	a.st.Sessions = append(a.st.Sessions, other)
+	tt := ui.NewTester(a.view, 1100, 640)
+	tt.Frame()
+	src, ok := tt.Find("zsh")
+	if !ok {
+		t.Fatalf("no pane title; texts %q", tt.Texts())
+	}
+	row, ok := tt.Find("other")
+	if !ok {
+		t.Fatalf("no other session; texts %q", tt.Texts())
+	}
+	emptyX, emptyY := row.X+row.W/2, row.Y+row.H+80
+	dragPane(tt, src.X+src.W/2, src.Y+src.H/2, emptyX, emptyY)
+	if _, ok := tt.Find(locales.ActionNewSession()); !ok {
+		t.Fatalf("empty sidebar did not offer a new session; texts %q", tt.Texts())
+	}
+	tt.Release(emptyX, emptyY)
+	tt.Frame()
+	if _, ok := tt.Find(locales.ActionNewSession()); ok {
+		t.Fatal("the offer stayed after the drop")
+	}
+
+	src, ok = tt.Find("zsh")
+	if !ok {
+		t.Fatalf("pane title gone; texts %q", tt.Texts())
+	}
+	row, ok = tt.Find("other")
+	if !ok {
+		t.Fatal("other session gone")
+	}
+	dragPane(tt, src.X+src.W/2, src.Y+src.H/2, row.X+row.W/2, row.Y+row.H/2)
+	tt.Release(row.X+row.W/2, row.Y+row.H/2)
+	tt.Frame()
+	if a.selected != "s1" {
+		t.Fatalf("dropping on the row stayed on %s", a.selected)
+	}
+	if s := a.sessionOfPane("b"); s == nil || s.ID != "s1" {
+		t.Fatalf("pane b left s1: %+v", s)
+	}
+}
+
+// dragPane presses at from and moves to to, far enough to drag, without
+// releasing.
+func dragPane(tt *ui.Tester, x0, y0, x1, y1 float32) {
+	tt.Press(x0, y0)
+	tt.Frame()
+	for k := 1; k <= 6; k++ {
+		f := float32(k) / 6
+		tt.Move(x0+(x1-x0)*f, y0+(y1-y0)*f)
+		tt.Frame()
+	}
+}
+
 func TestSessionHoverClose(t *testing.T) {
 	for _, mode := range []string{"compact", "detailed"} {
 		for _, selected := range []bool{false, true} {
