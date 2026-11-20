@@ -765,7 +765,8 @@ type (
 	// PlaceParams moves a pane into a session, beside one of its panes
 	// (Side: left, right, up or down) or into its place (swap). The
 	// program keeps running. The session it leaves goes when it was the
-	// last pane.
+	// last pane. That move is refused when both sessions have a worktree:
+	// the one left behind would no longer be tracked.
 	PlaceParams struct {
 		Pane   string `json:"pane"`
 		Into   string `json:"into"`

@@ -387,7 +387,8 @@ func (d *Daemon) split(p proto.CreateParams) (proto.Session, error) {
 // it does not become the pane that session is named from. The session it
 // leaves goes when it was the last pane. Its worktree, when the one it
 // joins has none, stays with that session. A worktree is never deleted
-// by the move.
+// by the move. When both have one and this is the last pane, the move
+// is refused: the worktree left behind would no longer be tracked.
 func (d *Daemon) place(p proto.PlaceParams) (proto.PlaceResult, error) {
 	d.mu.Lock()
 	pn := d.findPaneLocked(p.Pane)
@@ -411,6 +412,10 @@ func (d *Daemon) place(p proto.PlaceParams) (proto.PlaceResult, error) {
 	}
 	switch p.Side {
 	case "left", "right", "up", "down":
+		if len(src.panes) == 1 && src.worktree != nil && dst.worktree != nil {
+			d.mu.Unlock()
+			return proto.PlaceResult{}, errors.New("moving its last pane would leave this session's worktree behind")
+		}
 		d.givePaneLocked(src, dst, pn)
 		if dst.layout == nil {
 			dst.layout = &proto.Layout{Pane: target.info.ID}
@@ -422,7 +427,11 @@ func (d *Daemon) place(p proto.PlaceParams) (proto.PlaceResult, error) {
 		d.mu.Unlock()
 		return proto.PlaceResult{}, fmt.Errorf("no side %q", p.Side)
 	}
-	dst.zoomed = ""
+	// A side changes the layout, so the session opens out. A swap keeps
+	// each session's zoom on the pane now in that place.
+	if p.Side != "swap" {
+		dst.zoomed = ""
+	}
 	// The pane already there keeps the keyboard, so an unnamed session
 	// stays named from its own pane. A swap puts the arriving pane where
 	// the one that left was.
@@ -518,6 +527,9 @@ func (d *Daemon) swapPanesLocked(src, dst *session, pn, target *pane) {
 	}
 	if src.zoomed == pn.info.ID {
 		src.zoomed = target.info.ID
+	}
+	if dst.zoomed == target.info.ID {
+		dst.zoomed = pn.info.ID
 	}
 }
 

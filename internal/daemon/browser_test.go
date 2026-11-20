@@ -441,6 +441,10 @@ func TestExtractPane(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	d.mu.Lock()
+	d.findSessionLocked(a.ID).zoomed = a.Panes[0].ID
+	d.findSessionLocked(b.ID).zoomed = b.Panes[0].ID
+	d.mu.Unlock()
 	got, err = d.place(proto.PlaceParams{Pane: a.Panes[0].ID, Into: b.ID, Target: b.Panes[0].ID, Side: "swap"})
 	if err != nil {
 		t.Fatal(err)
@@ -451,7 +455,60 @@ func TestExtractPane(t *testing.T) {
 	if len(got.From.Panes) != 1 || got.From.Panes[0].URL != "http://b.example" {
 		t.Fatalf("a kept %+v", got.From.Panes)
 	}
+	if got.From.Zoomed != b.Panes[0].ID || got.Into.Zoomed != a.Panes[0].ID {
+		t.Fatalf("zoom from %q into %q", got.From.Zoomed, got.Into.Zoomed)
+	}
 	if len(got.Into.Panes) != 1 || got.Into.Panes[0].URL != "http://a.example" || got.Into.Focus != a.Panes[0].ID {
 		t.Fatalf("b kept %+v focus %q", got.Into.Panes, got.Into.Focus)
 	}
+}
+
+// The last pane of a session that has a worktree cannot join a session
+// that already has one: the worktree would be left with no session. A
+// pane that leaves a session which still has another stays movable, and
+// each session keeps its own worktree.
+func TestPlaceTwoWorktrees(t *testing.T) {
+	d := testDaemon(t)
+	home, err := d.create(proto.CreateParams{URL: "http://home.example"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	home, err = d.split(proto.CreateParams{Split: home.ID, URL: "http://home2.example", Direction: "right"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	guest, err := d.create(proto.CreateParams{URL: "http://guest.example"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	d.mu.Lock()
+	d.findSessionLocked(home.ID).worktree = &proto.Worktree{Path: "/tmp/home", Branch: "home"}
+	d.findSessionLocked(guest.ID).worktree = &proto.Worktree{Path: "/tmp/guest", Branch: "guest"}
+	d.mu.Unlock()
+
+	moved := home.Panes[1].ID
+	got, err := d.place(proto.PlaceParams{Pane: moved, Into: guest.ID, Target: guest.Panes[0].ID, Side: "right"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.From.Worktree == nil || got.From.Worktree.Path != "/tmp/home" || len(got.From.Panes) != 1 {
+		t.Fatalf("home kept %+v", got.From)
+	}
+	if got.Into.Worktree == nil || got.Into.Worktree.Path != "/tmp/guest" {
+		t.Fatalf("guest worktree %+v", got.Into.Worktree)
+	}
+
+	_, err = d.place(proto.PlaceParams{Pane: got.From.Panes[0].ID, Into: guest.ID, Target: guest.Panes[0].ID, Side: "right"})
+	if err == nil || !strings.Contains(err.Error(), "worktree") {
+		t.Fatalf("last pane moved: %v", err)
+	}
+	if len(d.sessions) != 2 {
+		t.Fatalf("sessions %d", len(d.sessions))
+	}
+	d.mu.Lock()
+	left := d.findSessionLocked(home.ID)
+	if left == nil || len(left.panes) != 1 || left.worktree == nil || left.worktree.Path != "/tmp/home" {
+		t.Fatalf("home after refuse %+v", left)
+	}
+	d.mu.Unlock()
 }
