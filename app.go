@@ -1118,6 +1118,9 @@ var lineSuffix = regexp.MustCompile(`(:\d+){1,2}$`)
 // file paths printed in the session, relative to its directory, in the
 // app that opens them.
 func (a *App) openLink(id, link string) bool {
+	if a.openImagePane(id, link) {
+		return true
+	}
 	if h := a.hostOf(id); h.remote() {
 		// A link another machine's program printed opens here only as a
 		// web page; a file:// one, and any path, are the host's; any other,

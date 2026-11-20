@@ -18,6 +18,9 @@ import (
 // place and page, the app the page itself, which it loads where kerod
 // last had it and tells kerod of as the user goes to others.
 type webEntry struct {
+	app  *App
+	id   string
+	nav  uint64
 	view *mygo.WebView
 	err  string
 	// url and title are the page's, as it last committed; told is what
@@ -64,7 +67,7 @@ func (a *App) ensureWeb(p *proto.Pane) *webEntry {
 	if e := a.webs[p.ID]; e != nil {
 		return e
 	}
-	e := &webEntry{url: p.URL, title: p.Title, address: p.URL, told: [2]string{p.URL, p.Title}}
+	e := &webEntry{id: p.ID, app: a, url: p.URL, title: p.Title, address: p.URL, told: [2]string{p.URL, p.Title}}
 	if p.URL == proto.BlankURL {
 		e.address, e.focusAddress = "", true
 	}
@@ -153,6 +156,10 @@ func (e *webEntry) syncNav() {
 
 // load goes to what the user typed, as a URL or a search.
 func (e *webEntry) load(text string) {
+	e.nav++
+	if e.app.loadImageEntry(e, text) {
+		return
+	}
 	url := proto.BrowserURL(text)
 	e.url, e.address, e.err = url, url, ""
 	if e.view == nil {
@@ -181,6 +188,7 @@ func (a *App) tellPage(id string, e *webEntry) {
 
 func (a *App) dropWeb(id string) {
 	if e := a.webs[id]; e != nil {
+		e.nav++
 		if e.view != nil {
 			e.view.Destroy()
 		}
