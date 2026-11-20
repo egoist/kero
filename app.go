@@ -624,6 +624,7 @@ func (a *App) dropTerm(id string) {
 	}
 	if a.find.pane == id {
 		a.find.pane = ""
+		a.stopHist()
 	}
 	a.lru = slices.DeleteFunc(a.lru, func(x string) bool { return x == id })
 }
@@ -841,9 +842,10 @@ func (a *App) termOptions(id string, conn *gated) terminal.Options {
 		// theme's light grays on a light one, stays legible.
 		MinimumContrast:  a.set.MinContrast,
 		ScrollMultiplier: terminal.ScrollMultiplier{Precision: a.set.ScrollPrecision, Discrete: a.set.ScrollDiscrete},
-		// The scrollback-limit kerod's copy keeps, never the terminal's
-		// default, 10 MB, which would keep more here than there.
-		Scrollback: a.set.ScrollbackBytes(),
+		// A little of the scrollback kerod keeps. Searching past it
+		// reads the rest from kerod (history.go). Never the terminal's
+		// own default, 10 MB, which would keep more here than there.
+		Scrollback: appScrollback(a.set.ScrollbackBytes()),
 		// The image-storage-limit both copies keep, as scrollback's: an
 		// image is drawn here from kerod's frames, and each copy holds
 		// what it takes of it.

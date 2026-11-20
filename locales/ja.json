@@ -402,6 +402,7 @@
   "findCount": "{total} 件中 {selected} 件目",
   "findNoMatches": "一致なし",
   "findClose": "検索バーを閉じる",
+  "findHistory": "履歴",
   "actionToggleChanges": "変更の切り替え",
   "sideChanges": "変更",
   "sideClose": "閉じる",

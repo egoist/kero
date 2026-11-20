@@ -4088,6 +4088,16 @@ func (msgs Messages) FindClose() string {
 	return Catalog.Format(msgs.locale, "findClose", nil)
 }
 
+// FindHistory says "History"
+// in the language the app shows.
+func FindHistory() string { return In(i18n.Locale()).FindHistory() }
+
+// FindHistory says "History"
+// in the language of msgs.
+func (msgs Messages) FindHistory() string {
+	return Catalog.Format(msgs.locale, "findHistory", nil)
+}
+
 // ActionToggleChanges says "Toggle Changes"
 // in the language the app shows.
 func ActionToggleChanges() string { return In(i18n.Locale()).ActionToggleChanges() }

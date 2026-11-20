@@ -71,6 +71,30 @@ func TestReadPages(t *testing.T) {
 	}
 }
 
+// A wrapped line counts as one line whether or not the read asks for
+// the colors, so a match found in the plain text is that line of the
+// styled history.
+func TestReadModesAlign(t *testing.T) {
+	s := testPane(t)
+	long := strings.Repeat("m", 200)
+	s.output([]byte(long + "\r\n"))
+	feed(s, 5)
+
+	plain := s.read(proto.ReadParams{Scrollback: true})
+	styled := s.read(proto.ReadParams{Scrollback: true, Styled: true})
+	if plain.Total != styled.Total {
+		t.Fatalf("plain total %d, styled total %d", plain.Total, styled.Total)
+	}
+	pl := readLines(plain.Text)
+	sl := strings.Split(strings.TrimSuffix(styled.VT, "\r\n"), "\r\n")
+	if len(pl) != plain.Total || len(sl) != styled.Total {
+		t.Fatalf("plain lines %d of %d, styled lines %d of %d", len(pl), plain.Total, len(sl), styled.Total)
+	}
+	if !strings.Contains(pl[0], long) {
+		t.Fatalf("the wrapped line was split in the plain read: %q", pl[0])
+	}
+}
+
 // Without the scrollback a read gives the screen's rows, the newest of
 // the history, and says that older ones are left out.
 func TestReadScreenOnly(t *testing.T) {

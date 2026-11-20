@@ -557,6 +557,7 @@
   "findCount": "{selected} of {total}",
   "findNoMatches": "No matches",
   "findClose": "Close Find Bar",
+  "findHistory": "History",
   "actionToggleChanges": "Toggle Changes",
   "sideChanges": "Changes",
   "sideClose": "Close",

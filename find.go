@@ -21,6 +21,9 @@ type findState struct {
 	// bar opens.
 	focus bool
 	input ui.Handle
+	// hist is the matches beyond what the pane's own terminal holds,
+	// and the page of history shown for one of them.
+	hist histSearch
 }
 
 // openFind opens the find bar over the pane the user is in, or gives the
@@ -38,6 +41,7 @@ func (a *App) openFind() {
 		if t := a.findTerm(); t != nil {
 			t.EndSearch()
 		}
+		a.stopHist()
 	}
 	a.find.pane, a.find.focus = id, true
 }
@@ -57,11 +61,7 @@ func (a *App) findStep(back bool) {
 	if t == nil {
 		return
 	}
-	if back {
-		t.SearchPrevious()
-	} else {
-		t.SearchNext()
-	}
+	a.stepTermFind(t, back)
 }
 
 // closeFind closes the find bar, its highlights going, and gives the
@@ -70,6 +70,7 @@ func (a *App) closeFind() {
 	if t := a.findTerm(); t != nil {
 		t.EndSearch()
 	}
+	a.stopHist()
 	pane := a.find.pane
 	if e := a.webs[pane]; e != nil && e.view != nil {
 		e.findText, e.found = "", mygo.FindResult{}
@@ -110,25 +111,43 @@ func (a *App) findBar(c *ui.Context, pal *palette, p *proto.Pane, t *terminal.Te
 		if in.Changed() {
 			t.Search(f.query)
 		}
+		// After the field, so a query typed this frame is the one searched.
+		// What this terminal holds is its own find; the rest is kerod's.
+		a.searchHist(t)
 		switch {
 		case in.Submitted() && c.Modifiers()&ui.Shift != 0:
-			t.SearchPrevious()
+			a.findStep(true)
 		case in.Submitted():
-			t.SearchNext()
+			a.findStep(false)
 		}
 		st := t.SearchStatus()
+		if f.query != "" && st.Total == 0 && !st.Searching {
+			a.considerHist()
+		}
+		h := &f.hist
+		total := st.Total + len(h.hits)
+		selected := st.Selected
+		if h.in && h.deep < len(h.hits) {
+			selected = st.Total + h.deep + 1
+		}
+		searching := st.Searching || h.searching
 		count := ""
 		switch {
 		case f.query == "":
-		case st.Total == 0 && !st.Searching:
+		case total == 0 && !searching && h.err == "":
 			count = locales.FindNoMatches()
-		case st.Total > 0:
-			count = locales.FindCount(itoa(st.Selected), itoa(st.Total))
+		case total > 0:
+			n := itoa(total)
+			if h.clipped {
+				n += "+"
+			}
+			count = locales.FindCount(itoa(selected), n)
 		}
 		ui.Text(c, count).FontSize(12).FontFeatures("tnum").TextColor(pal.textFaint).SingleLine().MinWidth(56).TextAlign(ui.End).Margin(0, 4, 0, 0)
 		// Up goes back through the output, as Enter does, as in Ghostty.
-		iconButton(c, "next", chevronUpIcon, a.tip(locales.ActionFindNext(), "find.next"), pal, t.SearchNext)
-		iconButton(c, "previous", chevronDownIcon, a.tip(locales.ActionFindPrevious(), "find.previous"), pal, t.SearchPrevious)
+		// Past what this terminal holds, that is the older history.
+		iconButton(c, "next", chevronUpIcon, a.tip(locales.ActionFindNext(), "find.next"), pal, func() { a.findStep(false) })
+		iconButton(c, "previous", chevronDownIcon, a.tip(locales.ActionFindPrevious(), "find.previous"), pal, func() { a.findStep(true) })
 		iconButton(c, "close", closeIcon, locales.FindClose(), pal, func() { a.defer_(a.closeFind) })
 	})
 	// Escape closes it from its field and its buttons alike.
