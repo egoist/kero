@@ -636,6 +636,8 @@ func (a *App) paneTerminal(c *ui.Context, pal *palette, s *proto.Session, p *pro
 			termAccess(terminal.View(c.Key("term"), e.term).Fill().Bind(ref), e.term, ref.Focused(c))
 			if link, isPath, at := e.term.HoveredLink(); isPath {
 				a.imagePeek(p.ID, link, at, ref.Bounds(c))
+			} else if path, ok := filePeekPath(link, a.hostOf(p.ID).windows()); ok {
+				a.imagePeek(p.ID, path, at, ref.Bounds(c))
 			}
 			if ref.Focused(c) && a.focusOf(s) != p.ID {
 				a.setFocus(s, p.ID)

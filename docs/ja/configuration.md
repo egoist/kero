@@ -47,6 +47,7 @@ kero config check             # 不明なキー、不正な値、agents.toml の
 | `sidebar-session-count` | `true`    | サイドバーのプロジェクト名の横に、含まれるセッションの数を表示 |
 | `focus-follows-mouse`   | `false`    | ポインタが入ったペインにフォーカスを移す                      |
 | `confirm-close`         | `true`     | プログラムが実行中のペインを閉じる前に確認する                |
+| `quit-ends-sessions`     | `false`    | 終了時にこのマシンのセッションをすべて終え、kerod を停止する  |
 | `restore-sessions`      | `true`     | 再起動のあとなど kerod が再起動したら、セッションを再び開始する |
 | `resume-agents`         | `true`     | セッションの再開時に、各ペインで動いていたエージェントの会話を再開する |
 | `session-history`       | `false`    | 終了したエージェントの会話をサイドバーに一覧し、再開やアーカイブができるようにする（[詳細](./sessions.md#ended-sessions)） |
@@ -80,6 +81,7 @@ kero config check             # 不明なキー、不正な値、agents.toml の
 | `cursor-style-blink`  | `true`     | カーソルを点滅させる                                                     |
 | `macos-option-as-alt` | `false`    | Option でプログラムに Alt（メタ）を送る                                  |
 | `copy-on-select`      | `false`    | 選択したものをクリップボードにコピーする                                 |
+| `font-zoom`           | `true`     | Command を押しながらのホイールと Command+= / - で文字サイズを変える      |
 | `clipboard-read`      | `ask`      | プログラムによるクリップボードの読み取り（OSC 52）: `ask`、`allow`、`deny` |
 | `right-click-action`  | `context-menu` | `context-menu`、`paste`、`copy-or-paste`                             |
 | `mouse-scroll-multiplier` | `precision:1,discrete:3` | スクロールの量。Ghostty と同じく、`precision:` はトラックパッドのスクロールの倍率、`discrete:` はマウスホイール 1 ノッチでスクロールする行数（Windows では 3 行設定のときの 1 ノッチ）。数値を 1 つだけ書くと両方に適用。`0.01` から `10000` |
@@ -95,6 +97,7 @@ kero config check             # 不明なキー、不正な値、agents.toml の
 | `command`          |            | 新しいペインのシェル。空欄ならログインシェル                   |
 | `env`              |            | `NAME=value` として、すべてのペインの環境変数に追加する。繰り返して指定する |
 | `scrollback-limit` | `4`        | 各ペインが保持する出力（メガバイト単位）。`0` で保持しない     |
+| `image-storage-limit` | `64`   | 各ペインでプログラムが表示する画像が占める最大量（メガバイト単位）。`0` で無制限 |
 
 ## 通知
 
@@ -104,7 +107,7 @@ kero config check             # 不明なキー、不正な値、agents.toml の
 | `notify-on-done`    | `true`     | エージェントが完了したとき                     |
 | `notify-on-error`   | `true`     | プログラムが失敗を報告したとき                 |
 | `notify-sound`      | `false`    | 通知とともにサウンドを再生する                 |
-| `dock-badge`        | `true`     | 対応が必要なセッションの数を Dock アイコンに表示する |
+| `dock-badge`        | `waiting` | Dock アイコンのバッジに何を数えるか: `waiting`、`waiting-and-unread`、`off` |
 | `dock-bounce`       | `false`    | セッションが対応を求めたときに Dock アイコンを 1 回弾ませる |
 
 ## エージェント

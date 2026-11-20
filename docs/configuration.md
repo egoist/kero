@@ -47,6 +47,7 @@ kero config check             # report unknown keys and bad values, and agents.t
 | `sidebar-session-count` | `true`    | Show, beside a project's name in the sidebar, how many sessions it holds |
 | `focus-follows-mouse`   | `false`   | Focus the pane the pointer moves into                         |
 | `confirm-close`         | `true`    | Ask before closing a pane that a program is running in        |
+| `quit-ends-sessions`     | `false`   | End this machine's sessions and stop kerod when Kero quits    |
 | `restore-sessions`      | `true`    | Start sessions again after kerod restarts, as after a reboot  |
 | `resume-agents`         | `true`    | As sessions start again, resume the conversation of the agent each pane ran |
 | `session-history`       | `false`   | List the agents' ended conversations in the sidebar, to resume or archive ([more](./sessions.md#ended-sessions)) |
@@ -80,6 +81,7 @@ kero config check             # report unknown keys and bad values, and agents.t
 | `cursor-style-blink`  | `true`  | Blink the cursor                                                         |
 | `macos-option-as-alt` | `false` | Option sends Alt (Meta) to programs                                      |
 | `copy-on-select`      | `false` | Copy what you select to the clipboard                                    |
+| `font-zoom`           | `true`  | The wheel with Command held and Command+= / - change the font size       |
 | `clipboard-read`      | `ask`   | Programs reading the clipboard (OSC 52): `ask`, `allow` or `deny`        |
 | `right-click-action`  | `context-menu` | `context-menu`, `paste` or `copy-or-paste`                        |
 | `mouse-scroll-multiplier` | `precision:1,discrete:3` | How far scrolling goes, as in Ghostty: `precision:` scales a touchpad's, `discrete:` is the rows a notch of a mouse wheel scrolls (on Windows, a notch at its 3-line setting); one number sets both, from `0.01` to `10000` |
@@ -95,6 +97,7 @@ values close together can look the same or differ by a pixel.
 | `command`          |         | The shell of new panes; empty for your login shell             |
 | `env`              |         | Added to every pane's environment as `NAME=value`; repeat it   |
 | `scrollback-limit` | `4`     | The output each pane keeps, in megabytes; `0` for none         |
+| `image-storage-limit` | `64` | The most the images a pane's programs show take, in megabytes; `0` for no limit |
 
 zsh starts with a `.zshenv` of Kero's, which sets `ZDOTDIR` back to yours (or
 unsets it) and runs your startup files as zsh would. It then marks where each
@@ -110,7 +113,7 @@ terminal, such as Powerlevel10k's, would leave a copy behind at each width.
 | `notify-on-done`    | `true`  | When an agent finishes                         |
 | `notify-on-error`   | `true`  | When a program reports it failed               |
 | `notify-sound`      | `false` | Play a sound with notifications                |
-| `dock-badge`        | `true`  | Show how many sessions need you on the Dock icon |
+| `dock-badge`        | `waiting` | What the Dock icon's badge counts: `waiting`, `waiting-and-unread` or `off` |
 | `dock-bounce`       | `false` | Bounce the Dock icon once when a session comes to need you |
 
 ## Agents

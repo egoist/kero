@@ -24,6 +24,7 @@ import (
 	"kero/internal/cli"
 	"kero/internal/clilink"
 	"kero/internal/daemon"
+	"kero/internal/heapdump"
 	"kero/internal/proto"
 
 	"kero/locales"
@@ -76,6 +77,7 @@ func runApp() {
 	if !mygo.App.RequestSingleInstanceLock() {
 		return
 	}
+	heapdump.Enable()
 	cli.SyncSkill()
 	// Updates from Kero's GitHub releases, in a window of native UI.
 	mygo.Use(native.Plugin)
@@ -138,7 +140,9 @@ func runApp() {
 		a.syncHosts()
 		go a.watchConfig()
 	})
-	if err := mygo.App.Run(); err != nil {
+	err := mygo.App.Run()
+	heapdump.Dump()
+	if err != nil {
 		log.Fatal(err)
 	}
 }

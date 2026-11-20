@@ -133,3 +133,83 @@ func TestOMPHook(t *testing.T) {
 		t.Errorf("skill %q", dir)
 	}
 }
+
+// CodeBuddy Code's hook goes in the settings file of its own config
+// root, CODEBUDDY_CONFIG_DIR (default ~/.codebuddy), as Claude Code's
+// does, and its skill is left out when CodeBuddy Code is not installed.
+func TestCodeBuddyHook(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("KERO_HOME", filepath.Join(home, "kero"))
+	t.Setenv("CODEBUDDY_CONFIG_DIR", filepath.Join(home, ".codebuddy"))
+	settings := filepath.Join(home, ".codebuddy", "settings.json")
+	os.MkdirAll(filepath.Dir(settings), 0o755)
+
+	var hook agentHook
+	for _, it := range agentHooks("codebuddy") {
+		if h, ok := it.(agentHook); ok && h.agent == "codebuddy" {
+			hook = h
+		}
+	}
+	if hook.file != settings {
+		t.Fatalf("file %q, want %q", hook.file, settings)
+	}
+	if err := hook.install(); err != nil {
+		t.Fatal(err)
+	}
+	got := read(t, settings)
+	if !strings.Contains(got, "hook codebuddy") {
+		t.Errorf("no CodeBuddy Code hook in:\n%s", got)
+	}
+	if hook.state() != "current" {
+		t.Errorf("state %s", hook.state())
+	}
+	if dir := skillDirs("codebuddy")["codebuddy"]; dir != filepath.Join(home, ".codebuddy", "skills", "kero") {
+		t.Errorf("skill %q", dir)
+	}
+	// Its skill goes nowhere when CodeBuddy Code is not installed.
+	if _, ok := skillDirs("")["codebuddy"]; !ok {
+		t.Error("no skill for CodeBuddy Code though it is installed")
+	}
+	os.RemoveAll(filepath.Join(home, ".codebuddy"))
+	if _, ok := skillDirs("")["codebuddy"]; ok {
+		t.Error("a skill dir for CodeBuddy Code it is not installed")
+	}
+}
+
+// PiG's extension goes under its own config root, PIG_HOME (default
+// ~/.pig), and its hook names PiG, so Kero resumes it with `pig --session`.
+func TestPiGHook(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("KERO_HOME", filepath.Join(home, "kero"))
+	t.Setenv("PIG_HOME", filepath.Join(home, "pig"))
+	ts := filepath.Join(home, "pig", "agent", "extensions", "kero.ts")
+	os.MkdirAll(filepath.Dir(ts), 0o755)
+	var plugin agentPlugin
+	for _, it := range agentHooks("pig") {
+		if p, ok := it.(agentPlugin); ok && p.agent == "pig" {
+			plugin = p
+		}
+	}
+	if plugin.dir != filepath.Dir(ts) {
+		t.Fatalf("dir %q, want %q", plugin.dir, filepath.Dir(ts))
+	}
+	if err := plugin.install(); err != nil {
+		t.Fatal(err)
+	}
+	if got := read(t, ts); !strings.Contains(got, `const AGENT = "pig"`) || !strings.Contains(got, `["hook", AGENT]`) {
+		t.Errorf("no PiG hook in:\n%s", got)
+	}
+	if plugin.state() != "current" {
+		t.Errorf("state %s", plugin.state())
+	}
+	if dir := skillDirs("pig")["agents"]; dir != filepath.Join(home, ".agents", "skills", "kero") {
+		t.Errorf("skill %q", dir)
+	}
+	// PiG reads neither Pi's directory nor Pi's environment.
+	t.Setenv("PI_CODING_AGENT_DIR", filepath.Join(home, "pi", "agent"))
+	if dir := agentHooks("pig")[0].(agentPlugin).dir; dir != filepath.Dir(ts) {
+		t.Errorf("dir %q, want %q", dir, filepath.Dir(ts))
+	}
+}

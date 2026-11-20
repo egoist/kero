@@ -16,22 +16,24 @@ kero skill setup
 
 这会安装两样东西：
 
-- 一个**技能**，教智能体使用命令行。Claude Code 从 `~/.claude/skills/kero` 读取；Codex、OpenCode 等智能体从 `~/.agents/skills/kero` 读取。
+- 一个**技能**，教智能体使用命令行。Claude Code 从 `~/.claude/skills/kero` 读取，CodeBuddy Code 从 `~/.codebuddy/skills/kero` 读取；Codex、OpenCode 等智能体从 `~/.agents/skills/kero` 读取。
 - 一个**钩子**，在智能体开始会话时运行。它告诉智能体自己位于哪个 Kero 会话和窗格，省得它花时间去查；如果会话还没有名字，就让智能体按任务给它命名，例如 `fix-login-redirect`，不用你动手。它还会把智能体自己的会话告诉 Kero，这样 kerod 重启后（比如电脑重启之后），智能体就能[接上之前的对话](./sessions.md#kerod)。
 
 对于你已安装的智能体，钩子会放在各自查找钩子的位置：
 
-| 智能体      | 钩子位置                                              |
-| ----------- | ----------------------------------------------------- |
-| Claude Code | `~/.claude/settings.json` 中的 `SessionStart` 钩子     |
-| Codex       | `~/.codex/hooks.json` 中的 `SessionStart` 钩子         |
-| Pi          | 扩展 `~/.pi/agent/extensions/kero.ts`                  |
-| OMP         | 扩展 `~/.omp/agent/extensions/kero.ts`                 |
-| OpenCode    | 插件 `~/.config/opencode/plugins/kero`                 |
+| 智能体         | 钩子位置                                              |
+| -------------- | ----------------------------------------------------- |
+| Claude Code    | `~/.claude/settings.json` 中的 `SessionStart` 钩子    |
+| CodeBuddy Code | `~/.codebuddy/settings.json` 中的 `SessionStart` 钩子 |
+| Codex          | `~/.codex/hooks.json` 中的 `SessionStart` 钩子        |
+| Pi             | 扩展 `~/.pi/agent/extensions/kero.ts`                 |
+| OMP            | 扩展 `~/.omp/agent/extensions/kero.ts`                |
+| PiG            | 扩展 `~/.pig/agent/extensions/kero.ts`                |
+| OpenCode       | 插件 `~/.config/opencode/plugins/kero`                |
 
-如果 `CLAUDE_CONFIG_DIR`、`CODEX_HOME`、`PI_CODING_AGENT_DIR`、`PI_CONFIG_DIR` 或 `XDG_CONFIG_HOME` 改变了智能体文件的位置，Kero 会跟着走，并且不会改动各设置文件里的其他内容。
+如果 `CLAUDE_CONFIG_DIR`、`CODEBUDDY_CONFIG_DIR`、`CODEX_HOME`、`PI_CODING_AGENT_DIR`、`PI_CONFIG_DIR`、`PIG_CODING_AGENT_DIR`、`PIG_HOME` 或 `XDG_CONFIG_HOME` 改变了智能体文件的位置，Kero 会跟着走，并且不会改动各设置文件里的其他内容。
 
-传入 `--agent` 并指定 `claude`、`codex`、`pi`、`omp` 或 `opencode`，可以只为一个智能体安装。只需安装一次：技能是指向 Kero 自己那份副本的链接，会随 Kero 更新而更新；Pi、OMP 和 OpenCode 的插件，Kero 也会保持为最新。`kero skill status` 会告诉你各部分是否为最新。
+传入 `--agent` 并指定 `claude`、`codebuddy`、`codex`、`pi`、`omp`、`pig` 或 `opencode`，可以只为一个智能体安装。只需安装一次：技能是指向 Kero 自己那份副本的链接，会随 Kero 更新而更新；Pi、OMP、PiG 和 OpenCode 的插件，Kero 也会保持为最新。`kero skill status` 会告诉你各部分是否为最新。
 
 ```sh
 kero skill status    # 已安装什么，是否为最新

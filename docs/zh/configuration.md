@@ -47,6 +47,7 @@ kero config check             # 报告未知的配置项、无效的值和agents
 | `sidebar-session-count` | `true`    | 在侧边栏的项目名称旁显示其包含的会话数量 |
 | `focus-follows-mouse`   | `false`   | 指针移入哪个窗格，就聚焦哪个窗格                              |
 | `confirm-close`         | `true`    | 关闭仍有程序在运行的窗格前先确认                              |
+| `quit-ends-sessions`     | `false`   | 退出 Kero 时也结束本机的全部会话并停止 kerod                  |
 | `restore-sessions`      | `true`    | kerod 重启后（例如开机后）重新启动之前的会话                   |
 | `resume-agents`         | `true`    | 会话重新启动时，恢复每个窗格中智能体的对话                    |
 | `session-history`       | `false`   | 在侧边栏中列出智能体已结束的对话，可恢复或归档（[详情](./sessions.md#ended-sessions)） |
@@ -80,6 +81,7 @@ kero config check             # 报告未知的配置项、无效的值和agents
 | `cursor-style-blink`  | `true`  | 光标闪烁                                                                 |
 | `macos-option-as-alt` | `false` | Option 键向程序发送 Alt（Meta）                                          |
 | `copy-on-select`      | `false` | 选中内容即复制到剪贴板                                                   |
+| `font-zoom`           | `true`  | 按住 Command 滚动滚轮、Command+= / - 调整字号                            |
 | `clipboard-read`      | `ask`   | 程序读取剪贴板（OSC 52）时：`ask`、`allow` 或 `deny`                     |
 | `right-click-action`  | `context-menu` | `context-menu`、`paste` 或 `copy-or-paste`                        |
 | `mouse-scroll-multiplier` | `precision:1,discrete:3` | 滚动的幅度，同 Ghostty：`precision:` 是触控板滚动的倍数，`discrete:` 是鼠标滚轮每一格滚动的行数（Windows 上指系统设为 3 行时的一格）；只写一个数字则同时设置两者，范围 `0.01` 到 `10000` |
@@ -95,6 +97,7 @@ kero config check             # 报告未知的配置项、无效的值和agents
 | `command`          |         | 新窗格使用的 shell；留空则使用你的登录 shell                    |
 | `env`              |         | 以 `NAME=value` 形式加入每个窗格的环境变量；可重复多行          |
 | `scrollback-limit` | `4`     | 每个窗格保留的回滚缓冲大小，单位 MB；`0` 表示不保留             |
+| `image-storage-limit` | `64` | 每个窗格中程序显示的图片最多占用多少，单位 MB；`0` 表示无限制   |
 
 ## 通知
 
@@ -104,7 +107,7 @@ kero config check             # 报告未知的配置项、无效的值和agents
 | `notify-on-done`    | `true`  | 智能体完成时                                   |
 | `notify-on-error`   | `true`  | 程序报告失败时                                 |
 | `notify-sound`      | `false` | 通知时播放提示音                               |
-| `dock-badge`        | `true`  | 在 Dock 图标上显示有多少会话需要你             |
+| `dock-badge`        | `waiting` | Dock 图标标记统计什么: `waiting`、`waiting-and-unread` 或 `off` |
 | `dock-bounce`       | `false` | 有会话开始需要你时，Dock 图标跳动一次          |
 
 ## 智能体

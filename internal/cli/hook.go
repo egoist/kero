@@ -170,7 +170,7 @@ type integration interface {
 // agentHook is a hook kero installs in an agent's settings: a SessionStart
 // command running `kero hook <agent>`.
 type agentHook struct {
-	agent string // as `kero hook` takes it: "claude", "codex"
+	agent string // as `kero hook` takes it: "claude", "codebuddy", "codex"
 	file  string // the JSON file holding the agent's hooks
 }
 
@@ -454,8 +454,8 @@ func (p agentPlugin) remove() error {
 }
 
 // agentHooks returns what kero installs to hook agents into Kero: for
-// Claude Code, and for Codex, Pi, OMP and OpenCode when they are installed
-// (or named).
+// Claude Code and CodeBuddy Code, and for Codex, Pi, OMP, PiG and
+// OpenCode when they are installed (or named).
 func agentHooks(agent string) []integration {
 	home := proto.Home()
 	dirOf := func(env string, def ...string) string {
@@ -466,6 +466,9 @@ func agentHooks(agent string) []integration {
 	}
 	claude := dirOf("CLAUDE_CONFIG_DIR", ".claude")
 	codex := dirOf("CODEX_HOME", ".codex")
+	// CodeBuddy Code keeps its config under CODEBUDDY_CONFIG_DIR (default
+	// ~/.codebuddy), and reads its hooks from the settings file there.
+	codebuddy := dirOf("CODEBUDDY_CONFIG_DIR", ".codebuddy")
 	pi := dirOf("PI_CODING_AGENT_DIR", ".pi", "agent")
 	// OMP keeps its config under PI_CONFIG_DIR (default ~/.omp), with the
 	// agent directory in agent/ there. It honors PI_CODING_AGENT_DIR at
@@ -476,6 +479,18 @@ func agentHooks(agent string) []integration {
 		ompRoot = filepath.Join(home, ".omp")
 	}
 	omp := filepath.Join(ompRoot, "agent")
+	// PiG, a Go port of Pi, keeps its config under PIG_HOME (default
+	// ~/.pig), with the agent directory in agent/ there, which
+	// PIG_CODING_AGENT_DIR names. It reads neither ~/.pi nor Pi's
+	// environment, so its extension goes in its own directory.
+	pigRoot := os.Getenv("PIG_HOME")
+	if pigRoot == "" {
+		pigRoot = filepath.Join(home, ".pig")
+	}
+	pig := os.Getenv("PIG_CODING_AGENT_DIR")
+	if pig == "" {
+		pig = filepath.Join(pigRoot, "agent")
+	}
 	opencode := filepath.Join(dirOf("XDG_CONFIG_HOME", ".config"), "opencode")
 	installed := func(dir string) bool {
 		st, err := os.Stat(dir)
@@ -486,9 +501,11 @@ func agentHooks(agent string) []integration {
 		it         integration
 	}{
 		{"claude", claude, agentHook{"claude", filepath.Join(claude, "settings.json")}},
+		{"codebuddy", codebuddy, agentHook{"codebuddy", filepath.Join(codebuddy, "settings.json")}},
 		{"codex", codex, agentHook{"codex", filepath.Join(codex, "hooks.json")}},
 		{"pi", pi, agentPlugin{agent: "pi", dir: filepath.Join(pi, "extensions"), files: map[string]string{"kero.ts": "agents/pi.ts"}}},
 		{"omp", omp, agentPlugin{agent: "omp", dir: filepath.Join(omp, "extensions"), files: map[string]string{"kero.ts": "agents/pi.ts"}}},
+		{"pig", pig, agentPlugin{agent: "pig", dir: filepath.Join(pig, "extensions"), files: map[string]string{"kero.ts": "agents/pi.ts"}}},
 		{"opencode", opencode, agentPlugin{agent: "opencode", dir: filepath.Join(opencode, "plugins", "kero"), own: true, files: map[string]string{
 			"package.json": "agents/opencode/package.json", "index.js": "agents/opencode/index.js", "tui.js": "agents/opencode/tui.js",
 		}}},

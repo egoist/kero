@@ -120,6 +120,10 @@ func newPane(d *Daemon, sid string, info proto.Pane) (*pane, error) {
 	term, err := terminal.New(terminal.Options{
 		Conn:       &headless{s: s, closed: make(chan struct{})},
 		Scrollback: settings.Load().ScrollbackBytes(),
+		// The image-storage-limit the app's copy keeps too, as
+		// scrollback's: kerod's terminal is the session's, and an image
+		// it takes is drawn again in the app's.
+		ImageLimit: settings.Load().ImageLimitBytes(),
 		// Programs' reads of the clipboard go on to the clients, whose
 		// terminals answer them, asking the user as they would.
 		ClipboardRead: terminal.ClipboardForward,
@@ -862,13 +866,15 @@ func newAttachment(conn net.Conn) *attachment {
 }
 
 func (a *attachment) send(kind byte, payload []byte) {
-	f := proto.AppendFrames(nil, kind, payload)
+	f := proto.AppendFrames(proto.GetFrame(5+len(payload)), kind, payload)
 	select {
 	case a.out <- f:
 	case <-a.done:
+		proto.PutFrame(f)
 	default:
 		// Too far behind: drop it, and it attaches again, from a first
 		// frame.
+		proto.PutFrame(f)
 		a.finish()
 	}
 }
@@ -889,6 +895,7 @@ func (a *attachment) write() {
 				a.finish()
 				return
 			}
+			proto.PutFrame(f)
 		case <-a.done:
 			a.conn.SetWriteDeadline(time.Now().Add(time.Second))
 			for {
@@ -897,6 +904,7 @@ func (a *attachment) write() {
 					if _, err := a.conn.Write(f); err != nil {
 						return
 					}
+					proto.PutFrame(f)
 				default:
 					return
 				}

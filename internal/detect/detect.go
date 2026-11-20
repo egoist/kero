@@ -66,6 +66,8 @@ var manifests = map[string]string{
 	"cursor-agent": "cursor",
 	"copilot":      "github-copilot",
 	"kiro-cli":     "kiro",
+	// PiG is Pi, a Go port of it, and shows the screen Pi shows.
+	"pig": "pi",
 }
 
 // engine is the version of herdr's rules this package reads, which a

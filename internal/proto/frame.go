@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"io"
+	"sync"
 )
 
 // Frames of an attach connection: a kind, the length of the payload as a
@@ -95,21 +96,93 @@ func AppendFrames(dst []byte, kind byte, payload []byte) []byte {
 	}
 }
 
+// framePoolKeep is the largest buffer the pool of frames keeps: a frame
+// of output is at most maxOutput, and one past it takes a buffer of its
+// own, as a FrameReader's does past frameKeep.
+const framePoolKeep = maxOutput
+
+// framePool keeps the buffers frames are written into.
+var framePool sync.Pool
+
+// GetFrame gives a buffer to write a frame of size bytes into. A session
+// sends every client attached what its terminal shows, and each frame
+// took a buffer of its own, which AppendFrames grew as it filled it.
+func GetFrame(size int) []byte {
+	if b, ok := framePool.Get().([]byte); ok && cap(b) >= size {
+		return b[:0]
+	}
+	return make([]byte, 0, size)
+}
+
+// PutFrame gives a buffer back, for the next frame. A buffer past
+// framePoolKeep is dropped: the frames that large are rare, and holding
+// one would hold it for the pool's life.
+func PutFrame(b []byte) {
+	if cap(b) > framePoolKeep {
+		return
+	}
+	framePool.Put(b[:0])
+}
+
 // ReadFrame reads one frame.
 func ReadFrame(r io.Reader) (kind byte, payload []byte, err error) {
 	var hdr [5]byte
+	kind, payload, _, err = readFrame(r, &hdr, nil)
+	return
+}
+
+// frameKeep is what a FrameReader's buffer grows to and no further: a
+// screen's worth of output, as a session sends as it works. A frame past
+// it, as a terminal's with the pixels of an image, takes a buffer of its
+// own, as ReadFrame makes one for every frame: keeping a buffer for the
+// largest frame there is would hold it for the connection's life.
+const frameKeep = 128 << 10
+
+// A FrameReader reads the frames of a connection into one buffer it keeps,
+// as ReadFrame reads one frame into a buffer of its own. Reading a frame
+// costs no allocation until a frame carries more than the buffer holds,
+// and the payload of the frame a Read gives is good until the next Read,
+// once its reader has read all of it.
+type FrameReader struct {
+	r   io.Reader
+	hdr [5]byte
+	buf []byte
+}
+
+// NewFrameReader reads the frames of r.
+func NewFrameReader(r io.Reader) *FrameReader { return &FrameReader{r: r} }
+
+// Read reads one frame.
+func (f *FrameReader) Read() (kind byte, payload []byte, err error) {
+	kind, payload, f.buf, err = readFrame(f.r, &f.hdr, f.buf)
+	return
+}
+
+// readFrame reads one frame's header into hdr and its payload into buf,
+// growing buf to what the frame carries and no further than frameKeep, and
+// gives the buffer to keep reading into. A frame past frameKeep takes a
+// buffer of its own, which comes back with nothing to keep.
+func readFrame(r io.Reader, hdr *[5]byte, buf []byte) (kind byte, payload, grown []byte, err error) {
 	if _, err = io.ReadFull(r, hdr[:]); err != nil {
-		return 0, nil, err
+		return 0, nil, buf, err
 	}
-	n := binary.BigEndian.Uint32(hdr[1:])
-	if n > maxFrame {
-		return 0, nil, errors.New("proto: frame too large")
+	size := binary.BigEndian.Uint32(hdr[1:])
+	if size > maxFrame {
+		return 0, nil, buf, errors.New("proto: frame too large")
 	}
-	payload = make([]byte, n)
+	n := int(size)
+	if n > frameKeep {
+		payload = make([]byte, n)
+	} else {
+		if cap(buf) < n {
+			buf = make([]byte, n, min(max(n, 2*cap(buf)), frameKeep))
+		}
+		payload = buf[:n]
+	}
 	if _, err = io.ReadFull(r, payload); err != nil {
-		return 0, nil, err
+		return 0, nil, buf, err
 	}
-	return hdr[0], payload, nil
+	return hdr[0], payload, buf, nil
 }
 
 // ResizePayload encodes a size for FrameResized.
@@ -190,11 +263,25 @@ var ErrLineTooLong = errors.New("proto: line too long")
 
 // ReadLine reads a line of at most max bytes, its newline included, so
 // that the other side of a connection, as a host far away, cannot make
-// this one hold a line without end.
+// this one hold a line without end. A line that fits in the reader's
+// buffer comes back as it lies there, good only until the next read on r:
+// a caller that keeps it copies it, as json's decoders do for the strings
+// and RawMessages they take. A line longer than the buffer is assembled
+// into one of its own.
 func ReadLine(r *bufio.Reader, max int) ([]byte, error) {
-	var line []byte
+	chunk, err := r.ReadSlice('\n')
+	if err == nil {
+		if len(chunk) > max {
+			return nil, ErrLineTooLong
+		}
+		return chunk, nil
+	}
+	if err != bufio.ErrBufferFull {
+		return chunk, err
+	}
+	line := append([]byte(nil), chunk...)
 	for {
-		chunk, err := r.ReadSlice('\n')
+		chunk, err = r.ReadSlice('\n')
 		if len(line)+len(chunk) > max {
 			return nil, ErrLineTooLong
 		}

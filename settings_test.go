@@ -2,8 +2,10 @@ package main
 
 import (
 	"fmt"
+	"path/filepath"
 	"runtime"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -765,5 +767,51 @@ func TestNewSessionFolderRow(t *testing.T) {
 	tt.Frame()
 	if tt.HasText("Choose…") {
 		t.Error("the folder row shows with home")
+	}
+}
+
+// The Colors row names the directory mygo reads the user's Ghostty
+// themes from: $XDG_CONFIG_HOME, on Windows %LOCALAPPDATA% when that is
+// unset, else the home's .config, as Ghostty finds them.
+func TestThemesDir(t *testing.T) {
+	home, win := filepath.Join("/home", "me"), filepath.Join("C:", "Users", "me")
+	themes := func(dir string) string {
+		if dir == "" {
+			return ""
+		}
+		return filepath.Join(dir, "ghostty", "themes")
+	}
+	// atHome is a path under home, shown from it.
+	atHome := func(dir string) string { return "~" + strings.TrimPrefix(themes(dir), home) }
+	for _, tt := range []struct {
+		name                    string
+		goos                    string
+		xdg, localappdata, home string
+		want                    string
+	}{
+		{"XDG_CONFIG_HOME", "linux", "/etc/xdg", win, home, themes("/etc/xdg")},
+		{"XDG_CONFIG_HOME on Windows", "windows", "/etc/xdg", win, win, themes("/etc/xdg")},
+		{"no XDG_CONFIG_HOME", "linux", "", win, home, atHome(filepath.Join(home, ".config"))},
+		{"no XDG_CONFIG_HOME on macOS", "darwin", "", win, home, atHome(filepath.Join(home, ".config"))},
+		{"LOCALAPPDATA on Windows", "windows", "", win, win, "~" + strings.TrimPrefix(themes(win), win)},
+		{"LOCALAPPDATA unset on Windows", "windows", "", "", win, "~" + strings.TrimPrefix(themes(filepath.Join(win, ".config")), win)},
+		{"no home", "linux", "", "", "", ""},
+		{"no home on Windows", "windows", "", "", "", ""},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := themesDirFor(tt.goos, tt.xdg, tt.localappdata, tt.home); got != tt.want {
+				t.Errorf("themes dir = %q, want %q", got, tt.want)
+			}
+		})
+	}
+	// themesDir takes the machine's own: its environment and its home.
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join("/etc", "xdg"))
+	if got, want := themesDir(), themes(filepath.Join("/etc", "xdg")); got != want {
+		t.Errorf("with XDG_CONFIG_HOME: %q, want %q", got, want)
+	}
+	t.Setenv("XDG_CONFIG_HOME", "")
+	t.Setenv("HOME", home)
+	if got, want := themesDir(), atHome(filepath.Join(home, ".config")); got != want {
+		t.Errorf("without XDG_CONFIG_HOME: %q, want %q", got, want)
 	}
 }

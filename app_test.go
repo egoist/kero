@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"math"
 	"net"
 	"path/filepath"
 	"slices"
@@ -249,6 +250,21 @@ func TestTermScrollback(t *testing.T) {
 	}
 }
 
+// The app's copy of a pane keeps the image-storage-limit, as kerod's
+// does, not the terminal's default of 320 MB.
+func TestTermImageLimit(t *testing.T) {
+	a := testApp(t)
+	for _, c := range []struct {
+		mb   int
+		want int64
+	}{{64, 64 << 20}, {256, 256 << 20}, {1024, 1024 << 20}, {0, math.MaxInt64}} {
+		a.set.ImageLimit = c.mb
+		if got := a.termOptions("a", nil).ImageLimit; got != c.want {
+			t.Errorf("image-storage-limit %d: the terminal takes %d, want %d", c.mb, got, c.want)
+		}
+	}
+}
+
 // font-feature reaches the terminals after font-ligatures, and wins over
 // it for the tags it names.
 func TestTermFontFeatures(t *testing.T) {
@@ -270,4 +286,102 @@ func TestTermFontFeatures(t *testing.T) {
 			t.Errorf("ligatures %v, font-feature %q: the terminal has %q, want %q", c.liga, c.user, got, c.want)
 		}
 	}
+}
+
+// quit-ends-sessions off quits as Kero always did; on, it ends this
+// machine's sessions and kerod first, asking while a program runs, and
+// asks once: a quit after it began asks nothing.
+func TestQuitEndsSessions(t *testing.T) {
+	oldQuit := quitApp
+	defer func() { quitApp = oldQuit }()
+	quits := make(chan struct{}, 4)
+	quitApp = func() { quits <- struct{}{} }
+	waitQuit := func(t *testing.T) {
+		t.Helper()
+		select {
+		case <-quits:
+		case <-time.After(2 * time.Second):
+			t.Fatal("the app did not quit")
+		}
+	}
+	// shutdowns are the shutdowns kerod was asked for, over a fake.
+	shutdowns := make(chan struct{}, 4)
+	withKerod := func(t *testing.T) *App {
+		t.Helper()
+		a := testApp(t)
+		cl, _ := projectClient(t, func(method string, raw json.RawMessage) (any, error) {
+			if method == "shutdown" {
+				shutdowns <- struct{}{}
+				return nil, nil
+			}
+			return nil, errors.New("unexpected method " + method)
+		})
+		a.local().cl = cl
+		return a
+	}
+
+	t.Run("off", func(t *testing.T) {
+		a := testApp(t)
+		a.quit()
+		waitQuit(t)
+		if a.confirm != nil && a.confirm.open {
+			t.Error("quit-ends-sessions is off: quit asked first")
+		}
+		if a.ending {
+			t.Error("quit-ends-sessions is off: quit ended sessions")
+		}
+	})
+
+	t.Run("on with nothing running", func(t *testing.T) {
+		a := withKerod(t)
+		a.set.QuitEndsSessions = true
+		a.quit()
+		waitQuit(t)
+		select {
+		case <-shutdowns:
+		default:
+			t.Error("quit did not stop kerod")
+		}
+		if a.confirm != nil && a.confirm.open {
+			t.Error("nothing ran: quit asked first")
+		}
+	})
+
+	t.Run("on with a program running", func(t *testing.T) {
+		a := withKerod(t)
+		a.set.QuitEndsSessions = true
+		a.st.Sessions[0].Process = "claude"
+		// The last window's close is what quits, and it is closed: the
+		// ask goes to a window made anew, which the harness has none of.
+		a.winOpen = false
+		a.quit()
+		if a.confirm == nil || !a.confirm.open || a.confirm.run == nil {
+			t.Fatalf("a program runs: quit asked nothing: %+v", a.confirm)
+		}
+		select {
+		case <-quits:
+			t.Fatal("quit before the answer")
+		default:
+		}
+		a.confirm.run()
+		waitQuit(t)
+		select {
+		case <-shutdowns:
+		default:
+			t.Error("quit did not stop kerod")
+		}
+		// The teardown runs: a quit asked again asks nothing and stops
+		// kerod no more.
+		a.quit()
+		select {
+		case <-quits:
+			t.Error("quit twice")
+		default:
+		}
+		select {
+		case <-shutdowns:
+			t.Error("shut kerod down twice")
+		default:
+		}
+	})
 }

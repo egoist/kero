@@ -1,5 +1,43 @@
 # Changelog
 
+## 2.1.36
+
+- **New sessions start in** in Settings › General takes a folder of your
+  own (Custom…), as `new-session-directory = ~/Developer` does, besides
+  current, project and home. A folder that is gone starts sessions in
+  home, as do other hosts.
+- Drag a file or folder from the Files tab onto a pane to type its path,
+  quoted for the pane's shell. A row's menu also has Reveal in Finder,
+  Copy Path, Copy Relative Path and Send to the Agent, which types the
+  path without pressing Return. Thanks @joei4cm
+- Files and folders dropped from Finder or Explorer on the Files tab are
+  copied into the folder they land on, asking before replacing a name
+  already there. This works on this computer only, for now.
+- Double-click the sidebar's empty space to start a session, as
+  <kbd>⌘</kbd><kbd>T</kbd> does.
+- **Badge the Dock icon** in Settings › Notifications can also count the
+  finished sessions you haven't looked at yet (`dock-badge =
+  waiting-and-unread`), or be turned off. `dock-badge = true` and
+  `false` keep working. Thanks @joei4cm
+- `font-zoom = false` stops <kbd>⌘</kbd>-scroll, <kbd>⌘</kbd><kbd>=</kbd>,
+  <kbd>⌘</kbd><kbd>-</kbd>, <kbd>⌘</kbd><kbd>0</kbd> and the View menu
+  from changing the font size. Thanks @bwangll
+- Kero knows **CodeBuddy Code** and **PiG** as agents: the sidebar shows
+  when they work, wait or need you, `kero skill setup` installs their
+  hook, and their conversations resume after kerod restarts.
+  Thanks @joei4cm
+- A wide zsh prompt, such as Powerlevel10k's, no longer leaves copies of
+  itself behind when the window is resized.
+- <kbd>⌘</kbd>-clicking a link that wraps onto the next row opens the
+  whole link.
+- On a Linux host with glibc older than 2.28, installing the server
+  build stops with a message that says so, rather than installing a
+  server whose sessions fail to start. Thanks @joei4cm
+- Streaming sessions allocate less memory in the app and in kerod, and
+  `KERO_HEAP_PROFILE=1` writes heap profiles to the temporary directory,
+  at exit and on `kill -USR1`, for reports of high memory use.
+  Thanks @joei4cm
+
 ## 2.1.35
 
 - **Wrap long lines** in the viewer's diffs and files, from the Wrap

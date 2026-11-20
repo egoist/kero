@@ -31,6 +31,7 @@ import (
 	"kero/internal/clilink"
 	"kero/internal/detach"
 	"kero/internal/detect"
+	"kero/internal/heapdump"
 	"kero/internal/proto"
 	"kero/internal/settings"
 	"kero/internal/shell"
@@ -197,6 +198,7 @@ func Run(opts Options) error {
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGTERM, syscall.SIGINT)
 	notifyStop(sigs)
+	heapdump.Enable()
 	go func() {
 		s := <-sigs
 		lg.Printf("%v: saving and exiting", s)
@@ -237,6 +239,7 @@ func Run(opts Options) error {
 	if d.restarting {
 		d.successor()
 	}
+	heapdump.Dump()
 	return nil
 }
 
@@ -601,6 +604,7 @@ func expandHome(p string) string {
 var agents = []string{
 	"claude", "codex", "gemini", "opencode", "amp", "aider", "cursor-agent", "droid",
 	"qwen", "goose", "crush", "copilot", "kiro-cli", "cline", "auggie", "kimi", "pi", "omp",
+	"codebuddy", "pig",
 }
 
 func detectAgent(name string, args []string) string {
@@ -793,8 +797,17 @@ func (d *Daemon) serveAttach(conn net.Conn, r *bufio.Reader, hello proto.Hello, 
 		return
 	}
 	go a.write()
+	d.serveFrames(s, a, proto.NewFrameReader(r))
+}
+
+// serveFrames reads the frames a client sends a session and does with them
+// what the session does with what a client asks. The frames are read into
+// the one buffer the reader keeps, so that a frame costs no allocation: a
+// client sends a frame for every keystroke, every resize and every mouse
+// report.
+func (d *Daemon) serveFrames(s *pane, a *attachment, frames *proto.FrameReader) {
 	for {
-		kind, payload, err := proto.ReadFrame(r)
+		kind, payload, err := frames.Read()
 		if err != nil {
 			return
 		}

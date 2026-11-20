@@ -7,6 +7,7 @@ package settings
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"slices"
@@ -34,6 +35,7 @@ type Settings struct {
 	ResumeAgents      bool   `json:"resumeAgents"`      // as it restores sessions: the agents' own
 	SessionHistory    bool   `json:"sessionHistory"`    // the sidebar lists the agents' ended conversations
 	QuitConfirm       bool   `json:"quitConfirm"`       // tell, the first time, that quitting keeps sessions
+	QuitEndsSessions  bool   `json:"quitEndsSessions"`  // quitting ends this machine's sessions and kerod, as Quit and End All does
 	AppIcon           string `json:"appIcon"`           // macOS: AppIcons; elsewhere the icon is always in the notification area
 	KeepAwake         string `json:"keepAwake"`         // one of KeepAwakeModes: while the computer is kept from sleeping
 
@@ -63,6 +65,7 @@ type Settings struct {
 	DarkTheme    string   `json:"darkTheme"`
 	OptionAsAlt  bool     `json:"optionAsAlt"`
 	CopyOnSelect bool     `json:"copyOnSelect"`
+	FontZoom     bool     `json:"fontZoom"`
 	Clipboard    string   `json:"clipboard"`  // programs reading it: "ask", "allow" or "deny"
 	RightClick   string   `json:"rightClick"` // "menu", "paste" or "copyOrPaste"
 	// ScrollPrecision scales a touchpad's scrolling, and ScrollDiscrete is
@@ -75,14 +78,17 @@ type Settings struct {
 	Shell      string   `json:"shell"` // "" the account's login shell
 	Env        []string `json:"env"`   // "KEY=value", added to every pane's
 	Scrollback int      `json:"scrollback"`
+	// ImageLimit is the most bytes the images a pane's programs show take,
+	// in megabytes; 0 for no limit.
+	ImageLimit int `json:"imageLimit"`
 
 	// Notifications
-	NotifyWaiting bool `json:"notifyWaiting"` // a session needs you
-	NotifyDone    bool `json:"notifyDone"`    // an agent finished
-	NotifyFailed  bool `json:"notifyFailed"`  // a program reported it failed
-	NotifySound   bool `json:"notifySound"`
-	DockBadge     bool `json:"dockBadge"`
-	BounceDock    bool `json:"bounceDock"`
+	NotifyWaiting bool      `json:"notifyWaiting"` // a session needs you
+	NotifyDone    bool      `json:"notifyDone"`    // an agent finished
+	NotifyFailed  bool      `json:"notifyFailed"`  // a program reported it failed
+	NotifySound   bool      `json:"notifySound"`
+	DockBadge     DockBadge `json:"dockBadge"` // one of DockBadgeModes: what the badge counts
+	BounceDock    bool      `json:"bounceDock"`
 
 	// Agents
 	RemoteControl bool `json:"remoteControl"` // kero focus and kero do drive the app
@@ -168,6 +174,7 @@ func Default() Settings {
 		CellWidth:       1,
 		FontWeight:      400,
 		Ligatures:       true,
+		FontZoom:        true,
 		MinContrast:     3,
 		PaddingColor:    "extend",
 		Cursor:          "block",
@@ -179,10 +186,11 @@ func Default() Settings {
 		ScrollPrecision: 1,
 		ScrollDiscrete:  3,
 		Scrollback:      4,
+		ImageLimit:      64,
 		NotifyWaiting:   true,
 		NotifyDone:      true,
 		NotifyFailed:    true,
-		DockBadge:       true,
+		DockBadge:       DockBadgeWaiting,
 		RemoteControl:   true,
 		GitStatus:       true,
 		DiffLayout:      "auto",
@@ -216,6 +224,41 @@ var PaddingColors = []string{"background", "extend", "extend-always"}
 // KeepAwakeModes are when Kero keeps the computer from sleeping: never,
 // as long as it runs, or while an agent on this machine works.
 var KeepAwakeModes = []string{"off", "on", "agents"}
+
+// DockBadge is what the Dock's badge counts, one of DockBadgeModes.
+type DockBadge string
+
+// The modes of DockBadge (DockBadgeModes): the sessions that need you,
+// those and the finished ones you haven't seen, or nothing.
+const (
+	DockBadgeWaiting       DockBadge = "waiting"
+	DockBadgeWaitingUnread DockBadge = "waiting-and-unread"
+	DockBadgeOff           DockBadge = "off"
+)
+
+// DockBadgeModes are what the Dock's badge counts: the sessions that need
+// you, those and the finished ones you haven't seen yet, or nothing.
+var DockBadgeModes = []DockBadge{DockBadgeWaiting, DockBadgeWaitingUnread, DockBadgeOff}
+
+// UnmarshalJSON reads a mode, and the true and false the setting had
+// before it took modes: what the JSON settings kero kept then held.
+func (d *DockBadge) UnmarshalJSON(b []byte) error {
+	var s string
+	if json.Unmarshal(b, &s) == nil {
+		*d = DockBadge(s)
+		return nil
+	}
+	var v bool
+	if json.Unmarshal(b, &v) != nil {
+		return fmt.Errorf("dockBadge is neither a mode nor true or false")
+	}
+	if v {
+		*d = DockBadgeWaiting
+	} else {
+		*d = DockBadgeOff
+	}
+	return nil
+}
 
 // KeroThemes are kero's themes: the wash each shows under the window's
 // cards, and its name in the configuration.
@@ -379,6 +422,17 @@ func (s Settings) ScrollbackBytes() int {
 	return s.Scrollback << 20
 }
 
+// ImageLimitBytes is a terminal's terminal.Options.ImageLimit for the
+// image-storage-limit, the same in kerod's copy of a pane and the app's:
+// no limit is the most a terminal can take, as 0 would take the
+// terminal's own 320 MB.
+func (s Settings) ImageLimitBytes() int64 {
+	if s.ImageLimit == 0 {
+		return math.MaxInt64
+	}
+	return int64(s.ImageLimit) << 20
+}
+
 func clone(s Settings) Settings {
 	s.Env = append([]string(nil), s.Env...)
 	s.FontFeatures = slices.Clone(s.FontFeatures)
@@ -462,6 +516,9 @@ func (s *Settings) normalize() {
 	oneOf(&s.DiffLayout, d.DiffLayout, "auto", "unified", "split")
 	oneOf(&s.WorktreeBase, d.WorktreeBase, "default", "current")
 	oneOf(&s.AppIcon, d.AppIcon, AppIcons...)
+	if !slices.Contains(DockBadgeModes, s.DockBadge) {
+		s.DockBadge = d.DockBadge
+	}
 	if s.FontSize < 8 || s.FontSize > 36 {
 		s.FontSize = d.FontSize
 	}
@@ -482,6 +539,9 @@ func (s *Settings) normalize() {
 	}
 	if s.Scrollback < 0 || s.Scrollback > 256 {
 		s.Scrollback = d.Scrollback
+	}
+	if s.ImageLimit < 0 || s.ImageLimit > 1024 {
+		s.ImageLimit = d.ImageLimit
 	}
 	s.LightTheme, s.DarkTheme = keroTheme(s.LightTheme, d.LightTheme), keroTheme(s.DarkTheme, d.DarkTheme)
 }

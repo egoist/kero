@@ -17,22 +17,24 @@ kero skill setup
 
 これで 2 つのものがインストールされます:
 
-- エージェントに CLI を教える **スキル**。Claude Code は `~/.claude/skills/kero` から、Codex、OpenCode などのエージェントは `~/.agents/skills/kero` から読み込みます。
+- エージェントに CLI を教える **スキル**。Claude Code は `~/.claude/skills/kero` から、CodeBuddy Code は `~/.codebuddy/skills/kero` から、Codex、OpenCode などのエージェントは `~/.agents/skills/kero` から読み込みます。
 - エージェントがセッションを始めるときに実行される **フック**。エージェントに、どの Kero セッションとペインにいるかを伝えるので、それを調べる手間が省けます。また、名前のないセッションに `fix-login-redirect` のようなタスクにちなんだ名前を付けさせるので、あなたが付ける必要はありません。さらに、エージェント自身のセッションを Kero に伝えるので、再起動のあとなど kerod が再起動したとき、エージェントは[会話を再開](./sessions.md#kerod)します。
 
 フックは、インストールされているエージェントごとに、それぞれが探す場所に置かれます:
 
-| エージェント | フックの場所                                          |
-| ------------ | ----------------------------------------------------- |
-| Claude Code  | `~/.claude/settings.json` の `SessionStart` フック     |
-| Codex        | `~/.codex/hooks.json` の `SessionStart` フック         |
-| Pi           | 拡張機能 `~/.pi/agent/extensions/kero.ts`              |
-| OMP          | 拡張機能 `~/.omp/agent/extensions/kero.ts`             |
-| OpenCode     | プラグイン `~/.config/opencode/plugins/kero`           |
+| エージェント   | フックの場所                                          |
+| -------------- | ----------------------------------------------------- |
+| Claude Code    | `~/.claude/settings.json` の `SessionStart` フック    |
+| CodeBuddy Code | `~/.codebuddy/settings.json` の `SessionStart` フック |
+| Codex          | `~/.codex/hooks.json` の `SessionStart` フック        |
+| Pi             | 拡張機能 `~/.pi/agent/extensions/kero.ts`             |
+| OMP            | 拡張機能 `~/.omp/agent/extensions/kero.ts`            |
+| PiG            | 拡張機能 `~/.pig/agent/extensions/kero.ts`            |
+| OpenCode       | プラグイン `~/.config/opencode/plugins/kero`          |
 
-`CLAUDE_CONFIG_DIR`、`CODEX_HOME`、`PI_CODING_AGENT_DIR`、`PI_CONFIG_DIR`、`XDG_CONFIG_HOME` でエージェントのファイルの場所が変わっている場合、Kero はそれに従い、各設定ファイルのほかの部分はそのままにします。
+`CLAUDE_CONFIG_DIR`、`CODEBUDDY_CONFIG_DIR`、`CODEX_HOME`、`PI_CODING_AGENT_DIR`、`PI_CONFIG_DIR`、`PIG_CODING_AGENT_DIR`、`PIG_HOME`、`XDG_CONFIG_HOME` でエージェントのファイルの場所が変わっている場合、Kero はそれに従い、各設定ファイルのほかの部分はそのままにします。
 
-1 つのエージェントだけをセットアップするには、`--agent` に `claude`、`codex`、`pi`、`omp`、`opencode` のいずれかを渡します。セットアップは一度だけです: スキルは Kero 自身のコピーへのリンクで、Kero のアップデートに合わせて更新されます。Pi、OMP、OpenCode のプラグインも Kero が最新に保ちます。`kero skill status` で、各部分が最新かどうかがわかります。
+1 つのエージェントだけをセットアップするには、`--agent` に `claude`、`codebuddy`、`codex`、`pi`、`omp`、`pig`、`opencode` のいずれかを渡します。セットアップは一度だけです: スキルは Kero 自身のコピーへのリンクで、Kero のアップデートに合わせて更新されます。Pi、OMP、PiG、OpenCode のプラグインも Kero が最新に保ちます。`kero skill status` で、各部分が最新かどうかがわかります。
 
 ```sh
 kero skill status    # インストール済みのものと、それが最新かどうか

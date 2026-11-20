@@ -21,7 +21,7 @@ import (
 // kerodSource is the code of Kero's packages that kerod runs (go list
 // -deps ./internal/daemon), which TestKerodSource keeps whole.
 //
-//go:embed internal/actions internal/adblock internal/build internal/clilink internal/daemon internal/detach internal/detect internal/git internal/proto internal/remote internal/settings internal/shell internal/tailscale internal/update
+//go:embed internal/actions internal/adblock internal/build internal/clilink internal/daemon internal/detach internal/detect internal/git internal/heapdump internal/proto internal/remote internal/settings internal/shell internal/tailscale internal/update
 var kerodSource embed.FS
 
 // kerodModules are the other modules whose code kerod runs, which

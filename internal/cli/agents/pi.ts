@@ -1,6 +1,6 @@
 // Installed by Kero (`kero skill setup`), which replaces it as Kero
-// updates; `kero skill remove` removes it. Inside Kero, it tells Pi or
-// OMP which session and pane it runs in, and tells Kero their session,
+// updates; `kero skill remove` removes it. Inside Kero, it tells Pi, OMP
+// or PiG which session and pane it runs in, and tells Kero their session,
 // to resume it after Kero's background service restarts. Outside Kero it
 // does nothing.
 import { execFile } from "node:child_process";

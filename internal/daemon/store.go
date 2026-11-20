@@ -243,12 +243,12 @@ func resumeCommandWithReason(a *proto.AgentSession) ([]string, string) {
 	switch a.Agent {
 	case "claude":
 		return []string{"claude", "--resume", a.ID}, ""
+	case "codebuddy":
+		return []string{"codebuddy", "--resume", a.ID}, ""
 	case "codex":
 		return []string{"codex", "resume", a.ID}, ""
-	case "pi", "opencode":
+	case "pi", "omp", "opencode", "pig":
 		return []string{a.Agent, "--session", a.ID}, ""
-	case "omp":
-		return []string{"omp", "--session", a.ID}, ""
 	}
 	return nil, "unsupported agent"
 }

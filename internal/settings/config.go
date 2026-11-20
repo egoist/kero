@@ -111,6 +111,34 @@ func mapChoice(name, doc string, f func(*Settings) *string, file, ours []string)
 		}}
 }
 
+// dockBadgeKey reads what the Dock's badge counts, and the true and false
+// the key had before it took modes: the number of sessions that need you,
+// and nothing.
+var dockBadgeKey = key{name: "dock-badge",
+	doc: "what the Dock's badge counts: the sessions that need you, those and the finished ones you haven't seen, or nothing (waiting, waiting-and-unread, off)",
+	get: func(s *Settings) []string { return []string{string(s.DockBadge)} },
+	set: func(s *Settings, v []string) error {
+		switch c := v[len(v)-1]; c {
+		case "waiting":
+			s.DockBadge = DockBadgeWaiting
+		case "waiting-and-unread":
+			s.DockBadge = DockBadgeWaitingUnread
+		case "off":
+			s.DockBadge = DockBadgeOff
+		default:
+			b, err := strconv.ParseBool(c)
+			if err != nil {
+				return fmt.Errorf("%q is none of waiting, waiting-and-unread, off", c)
+			}
+			if b {
+				s.DockBadge = DockBadgeWaiting
+			} else {
+				s.DockBadge = DockBadgeOff
+			}
+		}
+		return nil
+	}}
+
 // newSessionDirKey takes a folder of the user's too, as ~/… or an
 // absolute path, besides the choices.
 var newSessionDirKey = key{name: "new-session-directory",
@@ -151,6 +179,7 @@ var keys = []key{
 	boolKey("sidebar-session-count", "show, beside a project's name in the sidebar, how many sessions it holds", func(s *Settings) *bool { return &s.SidebarCount }),
 	boolKey("focus-follows-mouse", "focus the pane the pointer moves into", func(s *Settings) *bool { return &s.FocusFollowsMouse }),
 	boolKey("confirm-close", "ask before closing a pane a program runs in", func(s *Settings) *bool { return &s.ConfirmClose }),
+	boolKey("quit-ends-sessions", "end this machine's sessions and stop kerod when Kero quits, asking first while a program still runs", func(s *Settings) *bool { return &s.QuitEndsSessions }),
 	boolKey("restore-sessions", "start sessions again after kerod restarts, as after a reboot", func(s *Settings) *bool { return &s.RestoreSessions }),
 	boolKey("resume-agents", "as sessions start again, resume the conversation of the coding agent each pane ran", func(s *Settings) *bool { return &s.ResumeAgents }),
 	boolKey("session-history", "list the coding agents' ended conversations in the sidebar, to resume or archive", func(s *Settings) *bool { return &s.SessionHistory }),
@@ -225,6 +254,7 @@ var keys = []key{
 	boolKey("cursor-style-blink", "", func(s *Settings) *bool { return &s.CursorBlink }),
 	boolKey("macos-option-as-alt", "Option sends Alt (Meta) to programs", func(s *Settings) *bool { return &s.OptionAsAlt }),
 	boolKey("copy-on-select", "what you select goes to the clipboard", func(s *Settings) *bool { return &s.CopyOnSelect }),
+	boolKey("font-zoom", "the wheel with Command (Control elsewhere) held and the Bigger and Smaller shortcuts change the font size", func(s *Settings) *bool { return &s.FontZoom }),
 	choiceKey("clipboard-read", "programs reading the clipboard (OSC 52)", func(s *Settings) *string { return &s.Clipboard }, "ask", "allow", "deny"),
 	mapChoice("right-click-action", "", func(s *Settings) *string { return &s.RightClick },
 		[]string{"context-menu", "paste", "copy-or-paste"}, []string{"menu", "paste", "copyOrPaste"}),
@@ -285,12 +315,13 @@ var keys = []key{
 			return nil
 		}},
 	numberKey("scrollback-limit", "the output each pane keeps, in megabytes; 0 for none", func(s *Settings) float64 { return float64(s.Scrollback) }, func(s *Settings, n float64) { s.Scrollback = int(n) }),
+	numberKey("image-storage-limit", "the most the images a pane's programs show take, in megabytes; 0 for no limit", func(s *Settings) float64 { return float64(s.ImageLimit) }, func(s *Settings, n float64) { s.ImageLimit = int(n) }),
 
 	boolKey("notify-on-waiting", "when a session needs you", func(s *Settings) *bool { return &s.NotifyWaiting }),
 	boolKey("notify-on-done", "when an agent finishes", func(s *Settings) *bool { return &s.NotifyDone }),
 	boolKey("notify-on-error", "when a program reports it failed", func(s *Settings) *bool { return &s.NotifyFailed }),
 	boolKey("notify-sound", "", func(s *Settings) *bool { return &s.NotifySound }),
-	boolKey("dock-badge", "the number of sessions that need you", func(s *Settings) *bool { return &s.DockBadge }),
+	dockBadgeKey,
 	boolKey("dock-bounce", "once, when a session comes to need you", func(s *Settings) *bool { return &s.BounceDock }),
 
 	boolKey("remote-control", "kero do, kero focus and kero browser drive the app", func(s *Settings) *bool { return &s.RemoteControl }),

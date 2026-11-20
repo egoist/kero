@@ -92,6 +92,10 @@ type App struct {
 	winOpen bool
 	tray    *mygo.Tray // the icon in the menu bar or notification area, while it shows
 	awake   awakeHold  // keeps the computer from sleeping, as Keep computer awake asks
+	// ending is set once quit-ends-sessions has begun ending this
+	// machine's sessions: the quit that teardown runs is coming, and a
+	// quit asked while it runs asks nothing.
+	ending bool
 
 	// hosts are the kerods the app shows, this machine's first; st is
 	// what they hold, each host's sessions and projects after the one's
@@ -372,7 +376,7 @@ func (a *App) showNotification(id, title, body string) {
 // notify tells about sessions that came to need the user, or finished,
 // while the user was elsewhere: a notification, and the Dock's badge.
 func (a *App) notify(first bool) {
-	waiting := 0
+	waiting, unread := 0, 0
 	for i := range a.st.Sessions {
 		s := &a.st.Sessions[i]
 		// A host the app lost shows its sessions as they were: what they
@@ -382,8 +386,13 @@ func (a *App) notify(first bool) {
 		}
 		prev, seen := a.statuses[s.ID]
 		a.statuses[s.ID] = s.Status
-		if s.Status == proto.Waiting {
+		switch {
+		case s.Status == proto.Waiting:
 			waiting++
+		case s.Unread:
+			// One that finished unseen, and one that needs the user is
+			// unread as well, so each session counts once.
+			unread++
 		}
 		if first || !seen || prev == s.Status || a.watching(s.ID) {
 			continue
@@ -418,7 +427,11 @@ func (a *App) notify(first bool) {
 			delete(a.statuses, id)
 		}
 	}
-	if !a.set.DockBadge {
+	switch a.set.DockBadge {
+	case settings.DockBadgeWaitingUnread:
+		// What finished while the user was away counts as what needs them.
+		waiting += unread
+	case settings.DockBadgeOff:
 		waiting = 0
 	}
 	mygo.App.SetBadgeCount(waiting)
@@ -825,6 +838,10 @@ func (a *App) termOptions(id string, conn *gated) terminal.Options {
 		// The scrollback-limit kerod's copy keeps, never the terminal's
 		// default, 10 MB, which would keep more here than there.
 		Scrollback: a.set.ScrollbackBytes(),
+		// The image-storage-limit both copies keep, as scrollback's: an
+		// image is drawn here from kerod's frames, and each copy holds
+		// what it takes of it.
+		ImageLimit: a.set.ImageLimitBytes(),
 		// Every terminal zooms together, and the size is remembered.
 		OnZoom: func(z terminal.Zoom) bool {
 			a.zoom(z.Steps, z.Reset)
@@ -892,6 +909,9 @@ func (a *App) termOptions(id string, conn *gated) terminal.Options {
 // zoom makes every terminal's text bigger or smaller, which Settings
 // remembers as the font's size.
 func (a *App) zoom(steps int, reset bool) {
+	if !a.set.FontZoom {
+		return
+	}
 	s := a.set
 	s.FontSize = min(max(s.FontSize+float32(steps), 8), 36)
 	if reset {
@@ -1584,6 +1604,33 @@ func (a *App) toggleProject(id string) {
 	a.savePrefs()
 }
 
+// quitApp quits the app; tests set it.
+var quitApp = func() { mygo.App.Quit() }
+
+// quit quits the app. As it always did when quit-ends-sessions is off;
+// with it on, it ends this machine's sessions and its kerod first, as
+// Quit and End All Sessions does, asking once while a program runs, as
+// confirm-close does.
+func (a *App) quit() {
+	if a.ending {
+		return // the teardown of quit-ends-sessions runs: its quit is coming
+	}
+	if !a.set.QuitEndsSessions {
+		quitApp()
+		return
+	}
+	if a.busyCount(a.local()) == 0 {
+		a.endAndQuit()
+		return
+	}
+	a.quitAndEnd()
+	// The last window's close is what quits, and it is closed: ask in
+	// one made anew, as the tray's Open does.
+	if !a.winOpen {
+		a.showWindow()
+	}
+}
+
 // quitAndEnd ends every session of this machine, and its kerod, then
 // quits: other machines' keep running.
 func (a *App) quitAndEnd() {
@@ -1594,16 +1641,20 @@ func (a *App) quitAndEnd() {
 		detail:  quitAllDetail(n, len(a.hosts) > 1),
 		action:  locales.ConfirmQuitAllAction(),
 		destroy: true,
-		run: func() {
-			cl := a.local().cl
-			go func() {
-				if cl != nil {
-					cl.Call("shutdown", nil, nil)
-				}
-				mygo.App.Quit()
-			}()
-		},
+		run:     a.endAndQuit,
 	}
+}
+
+// endAndQuit ends this machine's sessions and its kerod, then quits.
+func (a *App) endAndQuit() {
+	a.ending = true
+	cl := a.local().cl
+	go func() {
+		if cl != nil {
+			cl.Call("shutdown", nil, nil)
+		}
+		quitApp()
+	}()
 }
 
 // daemonStale reports whether kerod runs another version of Kero than

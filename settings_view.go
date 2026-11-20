@@ -550,6 +550,9 @@ func (a *App) generalPage(c *ui.Context, pal *palette) {
 		settingRow(c, pal, locales.SetAskBeforeClosing(), locales.SetAskBeforeClosingDetail(), func() {
 			toggle(c.Key("confirm"), &s.ConfirmClose, pal)
 		})
+		settingRow(c, pal, locales.SetQuitEndsSessions(), locales.SetQuitEndsSessionsDetail(), func() {
+			toggle(c.Key("quit-ends"), &s.QuitEndsSessions, pal)
+		})
 		settingRow(c, pal, locales.SetRestoreSessions(), locales.SetRestoreSessionsDetail(), func() {
 			toggle(c.Key("restore"), &s.RestoreSessions, pal)
 		})
@@ -740,7 +743,7 @@ func (a *App) appearancePage(c *ui.Context, pal *palette) {
 			choose(v)
 		})
 	}
-	settingsGroup(c, pal, locales.SetColors(), locales.SetColorsDetail(), func() {
+	settingsGroup(c, pal, locales.SetColors(), locales.SetColorsDetail(themesDir()), func() {
 		settingRow(c, pal, locales.SetLightWindows(), "", func() {
 			ghostty("light", s.LightTheme, func(v string) { a.set.LightTheme = v })
 		})
@@ -748,6 +751,38 @@ func (a *App) appearancePage(c *ui.Context, pal *palette) {
 			ghostty("dark", s.DarkTheme, func(v string) { a.set.DarkTheme = v })
 		})
 	})
+}
+
+// themesDir is the directory of the user's Ghostty themes, which the
+// Colors row names: mygo reads them from $XDG_CONFIG_HOME, on Windows
+// from %LOCALAPPDATA% when that is unset, else from ~/.config, as
+// Ghostty finds them. The home goes as ~.
+func themesDir() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		home = ""
+	}
+	return themesDirFor(runtime.GOOS, os.Getenv("XDG_CONFIG_HOME"), os.Getenv("LOCALAPPDATA"), home)
+}
+
+// themesDirFor is themesDir's logic on its own, for a GOOS and the
+// environment of the machine: no home directory gives no directory.
+func themesDirFor(goos, xdg, localappdata, home string) string {
+	dir := xdg
+	if dir == "" && goos == "windows" {
+		dir = localappdata
+	}
+	if dir == "" {
+		if home == "" {
+			return ""
+		}
+		dir = filepath.Join(home, ".config")
+	}
+	path := filepath.Join(dir, "ghostty", "themes")
+	if home != "" && strings.HasPrefix(path, home) {
+		path = "~" + strings.TrimPrefix(path, home)
+	}
+	return path
 }
 
 // languageName names a language in itself, as "简体中文", so that whoever
@@ -1154,6 +1189,18 @@ func (a *App) shellPage(c *ui.Context, pal *palette) {
 				return strconv.Itoa(mb) + " MB"
 			}, 130, pal)
 		})
+		settingRow(c, pal, locales.SetImageLimit(), locales.SetImageLimitDetail(), func() {
+			sizes := []int{0, 64, 256, 1024}
+			if !slices.Contains(sizes, s.ImageLimit) {
+				sizes = append(sizes, s.ImageLimit)
+			}
+			popup(c, "il", &s.ImageLimit, sizes, func(mb int) string {
+				if mb == 0 {
+					return locales.CommonUnlimited()
+				}
+				return strconv.Itoa(mb) + " MB"
+			}, 130, pal)
+		})
 	})
 	settingsGroup(c, pal, locales.SetEnvironment(), locales.SetEnvironmentDetail(), func() {
 		for i, kv := range s.Env {
@@ -1201,7 +1248,7 @@ func (a *App) notificationsPage(c *ui.Context, pal *palette) {
 	})
 	settingsGroup(c, pal, locales.SetHow(), "", func() {
 		settingRow(c, pal, locales.SetPlaySound(), "", func() { toggle(c.Key("ns"), &s.NotifySound, pal) })
-		settingRow(c, pal, locales.SetDockBadge(), locales.SetDockBadgeDetail(), func() { toggle(c.Key("nb"), &s.DockBadge, pal) })
+		settingRow(c, pal, locales.SetDockBadge(), locales.SetDockBadgeDetail(), func() { popup(c, "dock-badge", &s.DockBadge, settings.DockBadgeModes, dockBadgeName, 180, pal) })
 		settingRow(c, pal, locales.SetDockBounce(), locales.SetDockBounceDetail(), func() { toggle(c.Key("nbo"), &s.BounceDock, pal) })
 	})
 	if button(c, "test-notif", locales.SetTestNotification(), "", false, pal) {
@@ -1245,7 +1292,7 @@ func (a *App) agentsPage(c *ui.Context, pal *palette) {
 	})
 	settingsGroup(c, pal, locales.SetSkills(), locales.SetSkillsDetail(), func() {
 		for _, st := range cli.SkillStates() {
-			name := map[string]string{"claude": "Claude Code", "agents": "Codex, OpenCode, Pi"}[st.Agent]
+			name := map[string]string{"claude": "Claude Code", "codebuddy": "CodeBuddy Code", "agents": "Codex, OpenCode, Pi"}[st.Agent]
 			detail := map[string]string{"current": locales.SetSkillInstalled(), "outdated": locales.SetSkillOutdated(), "missing": locales.SetSkillMissing()}[st.State] + " · " + proto.ShortDir(st.Dir)
 			settingRow(c, pal, name, detail, func() {
 				agent := st.Agent

@@ -257,14 +257,30 @@ func (a *App) deleteEntry(h *host, it fileItem) {
 }
 
 // entryMenu is a row's menu: opening it in the app the system opens it
-// with, for one of this machine, a new file or folder in its folder, the
-// folder's own for a folder, and the row's rename and delete.
+// with and showing it in the file manager, for one of this machine,
+// copying its path, sending that path to the agent in the pane, a new
+// file or folder in its folder, the folder's own for a folder, and the
+// row's rename and delete.
 func (a *App) entryMenu(m *ui.Menu, s *proto.Session, pane string, it fileItem) {
-	if !a.hostOf(pane).remote() {
+	h := a.hostOf(pane)
+	if !h.remote() {
 		if m.Item(locales.FilesOpenDefault()).Chosen() {
 			openPath(it.path)
 		}
+		if m.Item(locales.FilesRevealIn(fileManager())).Chosen() {
+			revealPath(it.path)
+		}
 		m.Separator()
+	}
+	if m.Item(locales.FilesCopyPath()).Chosen() {
+		a.copyText = it.path
+	}
+	if m.Item(locales.FilesCopyRelPath()).Chosen() {
+		a.copyText = it.rel
+	}
+	m.Separator()
+	if m.Item(locales.FilesSendToAgent()).Chosen() {
+		a.insertPath(s.ID, pane, fileDrag{host: h.name, path: it.path})
 	}
 	dir, rel := it.parent, it.parentRel
 	if it.Dir {

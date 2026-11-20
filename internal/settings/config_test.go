@@ -1,6 +1,7 @@
 package settings
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -145,6 +146,31 @@ func TestCellWidthBounds(t *testing.T) {
 			s, _ := parse("cell-width = " + tt.value + "\n")
 			if s.CellWidth != tt.want {
 				t.Errorf("cell width = %v, want %v", s.CellWidth, tt.want)
+			}
+		})
+	}
+}
+
+// image-storage-limit takes 0 to 1024 megabytes, and anything else keeps
+// the default.
+func TestImageStorageLimitBounds(t *testing.T) {
+	for _, tt := range []struct {
+		value string
+		want  int
+	}{
+		{"0", 0},
+		{"64", 64},
+		{"1024", 1024},
+		{"1025", Default().ImageLimit},
+		{"-1", Default().ImageLimit},
+		{"NaN", Default().ImageLimit},
+		{"+Inf", Default().ImageLimit},
+		{"-Inf", Default().ImageLimit},
+	} {
+		t.Run(tt.value, func(t *testing.T) {
+			s, _ := parse("image-storage-limit = " + tt.value + "\n")
+			if s.ImageLimit != tt.want {
+				t.Errorf("image-storage-limit = %v, want %v", s.ImageLimit, tt.want)
 			}
 		})
 	}
@@ -368,5 +394,103 @@ func TestNewSessionDirectoryFolder(t *testing.T) {
 	bad.normalize()
 	if bad.NewSessionDir != Default().NewSessionDir {
 		t.Errorf("custom with no folder kept as %q", bad.NewSessionDir)
+	}
+}
+
+func TestFontZoom(t *testing.T) {
+	if s, _ := parse(""); !s.FontZoom {
+		t.Fatal("font-zoom is off without the key")
+	}
+	s, probs := parse("font-zoom = false\n")
+	if len(probs) != 0 || s.FontZoom {
+		t.Fatalf("font-zoom = false: %v, %v", s.FontZoom, probs)
+	}
+	if out := format(s, ""); !strings.Contains(out, "font-zoom = false\n") {
+		t.Errorf("font-zoom = false is not written back: %q", out)
+	}
+}
+
+// quit-ends-sessions is off without the key, and on as written.
+func TestQuitEndsSessions(t *testing.T) {
+	if Default().QuitEndsSessions {
+		t.Fatal("quit-ends-sessions is on by default")
+	}
+	if s, _ := parse(""); s.QuitEndsSessions {
+		t.Fatal("quit-ends-sessions is on without the key")
+	}
+	s, probs := parse("quit-ends-sessions = true\n")
+	if len(probs) != 0 || !s.QuitEndsSessions {
+		t.Fatalf("quit-ends-sessions = true: %v, %v", s.QuitEndsSessions, probs)
+	}
+	if out := format(s, ""); !strings.Contains(out, "quit-ends-sessions = true\n") {
+		t.Errorf("quit-ends-sessions = true is not written back: %q", out)
+	}
+}
+
+// dock-badge takes what the badge counts, and the true and false it had
+// before it took modes.
+func TestDockBadgeModes(t *testing.T) {
+	d := Default()
+	if d.DockBadge != DockBadgeWaiting {
+		t.Errorf("default dock-badge %q", d.DockBadge)
+	}
+	for _, tt := range []struct {
+		in   string
+		want DockBadge
+	}{
+		{"", DockBadgeWaiting},
+		{"dock-badge = waiting\n", DockBadgeWaiting},
+		{"dock-badge = waiting-and-unread\n", DockBadgeWaitingUnread},
+		{"dock-badge = off\n", DockBadgeOff},
+		{"dock-badge = true\n", DockBadgeWaiting},
+		{"dock-badge = FALSE\n", DockBadgeOff},
+	} {
+		s, probs := parse(tt.in)
+		if len(probs) != 0 {
+			t.Errorf("%q: %v", tt.in, probs)
+		}
+		if s.DockBadge != tt.want {
+			t.Errorf("%q: dock-badge %q, want %q", tt.in, s.DockBadge, tt.want)
+		}
+		// A mode that isn't the default is written back as itself, and the
+		// default as nothing at all, as every key is.
+		out := format(s, "")
+		switch tt.want {
+		case DockBadgeWaiting:
+			if strings.Contains(out, "dock-badge") {
+				t.Errorf("%q: the default is written back: %q", tt.in, out)
+			}
+		default:
+			if !strings.Contains(out, "dock-badge = "+string(tt.want)+"\n") {
+				t.Errorf("%q: written back %q", tt.in, out)
+			}
+		}
+	}
+	// A value that is none of them keeps the default, and says why.
+	s, probs := parse("dock-badge = sometimes\n")
+	if s.DockBadge != DockBadgeWaiting {
+		t.Errorf("a bad dock-badge changed the setting: %q", s.DockBadge)
+	}
+	if len(probs) != 1 || !strings.Contains(probs[0], "dock-badge") {
+		t.Errorf("problems %q", probs)
+	}
+	// The JSON settings kero kept before the configuration file hold the
+	// booleans too, as migrate reads them: a whole Settings in one
+	// json.Unmarshal, where a string field given true would fail it.
+	for _, tt := range []struct {
+		in   string
+		want DockBadge
+	}{
+		{`{"dockBadge": true}`, DockBadgeWaiting},
+		{`{"dockBadge": false}`, DockBadgeOff},
+		{`{"dockBadge": "waiting-and-unread"}`, DockBadgeWaitingUnread},
+		{`{}`, DockBadgeWaiting},
+	} {
+		old := struct{ Settings }{Settings: Default()}
+		if err := json.Unmarshal([]byte(tt.in), &old); err != nil {
+			t.Errorf("%s: %s", tt.in, err)
+		} else if old.Settings.DockBadge != tt.want {
+			t.Errorf("%s: dockBadge %q, want %q", tt.in, old.Settings.DockBadge, tt.want)
+		}
 	}
 }

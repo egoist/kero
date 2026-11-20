@@ -29,6 +29,7 @@ func settingsIndex() []searchEntry {
 		{"general", locales.SetSidebarCount(), "sidebar-session-count project sessions number count header"},
 		{"general", locales.SetFocusFollowsMouse(), "focus-follows-mouse hover pointer niri hyprland sloppy"},
 		{"general", locales.SetAskBeforeClosing(), "confirm-close quit kill"},
+		{"general", locales.SetQuitEndsSessions(), "quit-ends-sessions quit end all sessions stop exit"},
 		{"general", locales.SetRestoreSessions(), "restore-sessions reboot persist"},
 		{"general", locales.SetResumeAgents(), "resume-agents claude codex pi opencode conversation restore reboot"},
 		{"general", locales.SetSessionHistory(), "session-history ended sessions archived resume claude codex conversation"},
@@ -68,6 +69,7 @@ func settingsIndex() []searchEntry {
 
 		{"shell", locales.SetShell(), "command fish zsh bash login"},
 		{"shell", locales.SetScrollback(), "scrollback-limit history buffer lines memory"},
+		{"shell", locales.SetImageLimit(), "image-storage-limit image-limit kitty graphics images pictures memory"},
 		{"shell", locales.SetEnvironment(), "env variables path"},
 
 		{"browser", locales.SetBlockAds(), "browser-block-ads browser-filter-list ad blocker adblock trackers filter lists easylist easyprivacy peter lowe fanboy cookie annoyances social china privacy web"},
@@ -76,7 +78,7 @@ func settingsIndex() []searchEntry {
 		{"notifications", locales.SetNotifyDone(), "notify-on-done done complete"},
 		{"notifications", locales.SetNotifyFailed(), "notify-on-error error"},
 		{"notifications", locales.SetPlaySound(), "notify-sound audio"},
-		{"notifications", locales.SetDockBadge(), "dock-badge count"},
+		{"notifications", locales.SetDockBadge(), "dock-badge count badge waiting unread done finished unseen"},
 		{"notifications", locales.SetDockBounce(), "dock-bounce attention"},
 
 		{"agents", locales.SetRemoteControlRow(), "remote-control kero do focus browser automation"},
