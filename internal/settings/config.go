@@ -310,12 +310,24 @@ var keys = []key{
 	{name: "env", doc: "added to every pane's environment, as NAME=value; repeat it", list: true,
 		get: func(s *Settings) []string { return slices.Clone(s.Env) },
 		set: func(s *Settings, v []string) error {
+			// Like the other lists: one bad value is said at the end and
+			// does not cost the ones after it, and an empty line clears
+			// the list.
 			s.Env = nil
+			var bad []string
 			for _, kv := range v {
+				if strings.TrimSpace(kv) == "" {
+					s.Env = nil
+					continue
+				}
 				if !strings.Contains(kv, "=") {
-					return fmt.Errorf("%q is not NAME=value", kv)
+					bad = append(bad, fmt.Sprintf("%q is not NAME=value", kv))
+					continue
 				}
 				s.Env = append(s.Env, kv)
+			}
+			if bad != nil {
+				return fmt.Errorf("%s", strings.Join(bad, "; "))
 			}
 			return nil
 		}},
