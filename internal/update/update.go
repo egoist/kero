@@ -434,7 +434,16 @@ func extract(archive []byte, dir string) error {
 		case tar.TypeDir:
 			err = place(dir, h.Name, true, 0, nil)
 		case tar.TypeReg:
-			err = place(dir, h.Name, false, os.FileMode(h.Mode), tr)
+			mode := os.FileMode(h.Mode)
+			// An archive that records no mode for a file has none to
+			// give it: the file would come out unreadable, and the
+			// server's binary unrunnable, and the archive refused as
+			// none of Kero's. A tar is the unix build, whose files
+			// run.
+			if mode&0o777 == 0 {
+				mode = 0o755
+			}
+			err = place(dir, h.Name, false, mode, tr)
 		}
 		if err != nil {
 			return err
