@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os/exec"
 	"slices"
 	"testing"
 )
@@ -46,5 +47,28 @@ func TestCaffeinateArgs(t *testing.T) {
 	}
 	if got, want := caffeinateArgs(true, 7), []string{"-i", "-s", "-d", "-w", "7"}; !slices.Equal(got, want) {
 		t.Errorf("with the display: %q, want %q", got, want)
+	}
+}
+
+// A caffeinate that does not start leaves the old one holding: the Mac
+// does not sleep between them.
+func TestAwakeHoldKeepsTheOldOne(t *testing.T) {
+	var w awakeHold
+	t.Cleanup(func() { w.hold(false, false) })
+	w.hold(true, false)
+	first := w.cmd
+	if first == nil {
+		t.Fatal("no caffeinate")
+	}
+	// The new one does not start.
+	old := caffeinateCmd
+	caffeinateCmd = func(bool) *exec.Cmd { return exec.Command("/nonexistent/caffeinate") }
+	t.Cleanup(func() { caffeinateCmd = old })
+	w.hold(true, true)
+	if w.cmd != first {
+		t.Errorf("the hold is %v, want the caffeinate that was holding", w.cmd)
+	}
+	if first.ProcessState != nil {
+		t.Error("the caffeinate that was holding was killed")
 	}
 }
