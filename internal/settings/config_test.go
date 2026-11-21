@@ -298,6 +298,59 @@ func TestAdLists(t *testing.T) {
 	}
 }
 
+// A line the file still gets wrong stays a problem after the settings
+// are saved: format keeps the lines kero does not know, so the file is
+// still wrong, and a save that said "no problems" would leave it wrong
+// with nothing to show for it — the next Load takes the cache and does
+// not look again.
+func TestSaveKeepsProblems(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config")
+	if err := os.WriteFile(path, []byte("font-size = 14\nsome-future-key = yes\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("KERO_HOME", dir)
+	t.Setenv("KERO_CONFIG", path)
+	mu.Lock()
+	cache = nil
+	mu.Unlock()
+
+	Load()
+	if got := Problems(); len(got) != 1 || !strings.Contains(got[0], "some-future-key") {
+		t.Fatalf("problems %q", got)
+	}
+	s := Load()
+	s.FontSize = 15
+	if err := Save(s); err != nil {
+		t.Fatal(err)
+	}
+	if got := Problems(); len(got) != 1 || !strings.Contains(got[0], "some-future-key") {
+		t.Errorf("after a save: problems %q, want the unknown key still named", got)
+	}
+	// The next Load takes the cache: it must say the same.
+	if got := Problems(); len(got) != 1 || !strings.Contains(got[0], "some-future-key") {
+		t.Errorf("after Load: problems %q", got)
+	}
+	// And a cold Load says it too: the key is still in the file.
+	mu.Lock()
+	cache = nil
+	mu.Unlock()
+	Load()
+	if got := Problems(); len(got) != 1 || !strings.Contains(got[0], "some-future-key") {
+		t.Errorf("after a fresh Load: problems %q", got)
+	}
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(b), "some-future-key") {
+		t.Errorf("the unknown key left the file:\n%s", b)
+	}
+	if !strings.Contains(string(b), "font-size = 15") {
+		t.Errorf("the saved setting is not in the file:\n%s", b)
+	}
+}
+
 func TestSaveKeepsASymlinkedConfig(t *testing.T) {
 	dir := t.TempDir()
 	dotfiles := filepath.Join(dir, "dotfiles", "kero", "config")
