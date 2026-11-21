@@ -84,6 +84,19 @@ func (d *Daemon) addWorktree(dir, branch, base string) (*proto.Worktree, error) 
 	return &proto.Worktree{Path: path, Branch: branch, Base: from, Main: main}, nil
 }
 
+// removeWorktree removes a worktree that no session holds: the one a
+// session's pane never started in goes with it.
+func (d *Daemon) removeWorktree(wt *proto.Worktree) {
+	if wt == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	if err := git.RemoveWorktree(ctx, wt.Main, wt.Path, wt.Branch, wt.Base); err != nil {
+		d.log.Printf("worktree %s stays: %v", wt.Path, err)
+	}
+}
+
 // worktreePath is where a worktree for branch goes: in the repository's
 // .kero/worktrees, else in dir (the worktree-dir setting) under the
 // repository's name; a branch's slashes become dashes.

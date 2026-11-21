@@ -295,6 +295,10 @@ func (d *Daemon) create(p proto.CreateParams) (proto.Session, error) {
 	s := &session{id: newID(), project: project, name: strings.TrimSpace(p.Name), created: time.Now().UnixMilli(), worktree: wt}
 	pn, err := d.startPane(s.id, p, dir)
 	if err != nil {
+		// The pane never started, so no session holds the worktree: it
+		// goes with the pane, or the next try at the same branch finds
+		// it there already.
+		d.removeWorktree(wt)
 		return proto.Session{}, err
 	}
 	s.panes, s.focus = []*pane{pn}, pn.info.ID
