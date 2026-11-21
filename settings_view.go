@@ -130,6 +130,7 @@ func (a *App) openSettings(page string) {
 		Vibrancy: vibrancyFor(a.set),
 		Content:  ui.View(a.settingsView),
 	}))
+	followWindowCorners(a.setWin)
 	a.setWin.OnClosed(func() {
 		offUpdates()
 		if a.ss.preview != nil {
@@ -216,6 +217,7 @@ func (a *App) settingsView(c *ui.Context) {
 	c.OnShortcut(ui.Cmd, ui.KeyF, func() { a.ss.searchRef.Focus(c) })
 	row := ui.Row(c).Fill().AlignItems(ui.Stretch)
 	backdrop(c, row)
+	roundWindow(c, a.setWin)
 	row.Children(func() {
 		// Under the traffic lights on macOS; elsewhere the search starts
 		// the sidebar, centered on barMid as the page's title and the
