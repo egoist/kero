@@ -912,13 +912,14 @@ func repoPath(root, p string, remote bool) (string, error) {
 		return "", nil
 	}
 	if remote {
+		// A Windows host's worktree root has backslashes, as a path
+		// given of it may: write both as slashes before comparing them.
 		p = strings.ReplaceAll(p, `\`, "/")
-		if strings.HasPrefix(p, "/") {
-			rel, ok := strings.CutPrefix(p, strings.TrimSuffix(root, "/")+"/")
-			if !ok {
-				return "", fmt.Errorf("%s is not in the worktree %s", p, root)
-			}
+		root = strings.ReplaceAll(root, `\`, "/")
+		if rel, ok := strings.CutPrefix(p, strings.TrimSuffix(root, "/")+"/"); ok {
 			p = rel
+		} else if strings.HasPrefix(p, "/") {
+			return "", fmt.Errorf("%s is not in the worktree %s", p, root)
 		}
 		return strings.TrimPrefix(path.Clean("/"+p), "/"), nil
 	}

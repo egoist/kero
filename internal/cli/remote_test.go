@@ -64,6 +64,18 @@ func TestRemoteRepoPath(t *testing.T) {
 	if _, err := repoPath("/srv/app", "/etc/passwd", true); err == nil {
 		t.Error("a path outside the worktree passes")
 	}
+	// A Windows host's worktree root has backslashes, and a path given of
+	// it may be a Windows one.
+	for in, want := range map[string]string{
+		`src\a.go`:            "src/a.go",
+		`C:\srv\app\src\a.go`: "src/a.go",
+		`C:/srv/app/src/a.go`: "src/a.go",
+	} {
+		got, err := repoPath(`C:\srv\app`, in, true)
+		if err != nil || got != want {
+			t.Errorf("repoPath(%q) = %q, %v; want %q", in, got, err, want)
+		}
+	}
 }
 
 // Inside a pane, $KERO_HOST, which a profile may set, gives way to the
