@@ -33,6 +33,7 @@ type editTarget struct {
 	kind   string // sideFiles, or sideChanges for a diff's
 	name   string // as prompts say it
 	pane   string // a pane of the host the file is on
+	scope  string // the list of changes a diff's is: its worktree's, or a turn's
 	path   string // the file, on the host
 	hash   *string
 	buf    *editor.Buffer
@@ -55,8 +56,8 @@ func (a *App) fileTarget(fv *fileView) editTarget {
 
 // diffTarget is the new side of a file's diff.
 func (a *App) diffTarget(sf *sideFile) editTarget {
-	t := editTarget{kind: sideChanges, name: pathBase(sf.f.Path), pane: sf.pane, path: a.hostOf(sf.pane).joinPath(sf.root, sf.f.Path),
-		hash: &sf.hash, edits: &sf.edits, reload: func() { a.fetchFile(sf, "") }}
+	t := editTarget{kind: sideChanges, name: pathBase(sf.f.Path), pane: sf.pane, scope: sf.scope,
+		path: a.hostOf(sf.pane).joinPath(sf.root, sf.f.Path), hash: &sf.hash, edits: &sf.edits, reload: func() { a.fetchFile(sf, "") }}
 	if sf.d != nil && !sf.patch {
 		t.buf = sf.d.New
 	}
