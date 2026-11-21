@@ -1,9 +1,13 @@
 package main
 
 import (
+	"encoding/json"
+	"os"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
 
 	"kero/internal/git"
@@ -81,5 +85,50 @@ func TestBackupSigSteady(t *testing.T) {
 		if got := a.backupSig(); got != sig {
 			t.Fatalf("the signature changed with nothing changed: %q, then %q", sig, got)
 		}
+	}
+}
+
+// A backup that could not be written is tried again a moment on: it was
+// marked written before it was written, so a failure left the edits
+// unbacked until the app quit.
+func TestBackupWriteIsRetried(t *testing.T) {
+	a := testApp(t)
+	s := &a.st.Sessions[0]
+	g := &proto.GitInfo{Root: "/tmp/demo", Branch: "main", Default: "main", Files: 1, Added: 1}
+	s.Panes[0].Git, s.Panes[1].Git = g, g
+	a.prefs.Side = sideFiles
+	disk := []byte("package main\n")
+	fv := &fileView{pane: "a", path: "/tmp/demo/main.go", rel: "main.go", fetched: time.Now(), stamp: gitStamp(g)}
+	a.showFile(fv, disk)
+	a.openView(s, sideFiles, fv)
+	fv.st.Buffer.Edit(editor.Edit{Start: 12, End: 12, Text: "\n\nfunc main() {}"})
+
+	// Nothing can be written where the backup's temp file goes.
+	if err := os.MkdirAll(backupPath()+".tmp", 0o700); err != nil {
+		t.Fatal(err)
+	}
+	tt := ui.NewTester(a.view, 1280, 720)
+	tt.Frame()
+	tt.Advance(2 * time.Second)
+	tt.Frame()
+	if _, err := os.Stat(backupPath()); err == nil {
+		t.Fatal("a backup was written where nothing can be")
+	}
+	if a.side.backup.written == a.side.backup.sig {
+		t.Error("the backup is marked written though nothing was written")
+	}
+
+	// The way is clear again: the edit is backed up without a keystroke.
+	os.RemoveAll(backupPath() + ".tmp")
+	tt.Advance(2 * time.Second)
+	tt.Frame()
+	var vb viewerBackup
+	b, err := os.ReadFile(backupPath())
+	if err != nil {
+		t.Fatalf("the backup was not tried again: %v", err)
+	}
+	json.Unmarshal(b, &vb)
+	if len(vb.Unsaved) != 1 || vb.Unsaved[0].Path != "/tmp/demo/main.go" {
+		t.Errorf("backed up %+v", vb.Unsaved)
 	}
 }
