@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -211,5 +212,38 @@ func TestPiGHook(t *testing.T) {
 	t.Setenv("PI_CODING_AGENT_DIR", filepath.Join(home, "pi", "agent"))
 	if dir := agentHooks("pig")[0].(agentPlugin).dir; dir != filepath.Dir(ts) {
 		t.Errorf("dir %q, want %q", dir, filepath.Dir(ts))
+	}
+}
+
+// An agent --agent doesn't name is a usage error, not every agent's
+// install: skillDirs gives a name it doesn't know every directory, so a
+// typo like `--agent claud` installed the skill for Claude Code and the
+// shared agents alike, with exit 0.
+func TestSkillUnknownAgent(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("KERO_HOME", filepath.Join(home, "kero"))
+	t.Setenv("CLAUDE_CONFIG_DIR", filepath.Join(home, ".claude"))
+	err := skillCmd([]string{"setup", "--agent", "claud"})
+	if err == nil {
+		t.Fatal("setup for an agent it doesn't know: no error")
+	}
+	if !errors.Is(err, errUsage) {
+		t.Errorf("error %v, want a usage error", err)
+	}
+	for _, dir := range []string{
+		filepath.Join(home, ".claude", "skills", "kero"),
+		filepath.Join(home, ".agents", "skills", "kero"),
+	} {
+		if _, err := os.Stat(dir); err == nil {
+			t.Errorf("installed the skill at %s for an agent not asked for", dir)
+		}
+	}
+	// An agent it does know is still accepted.
+	if err := skillCmd([]string{"status", "--agent", "codex"}); err != nil {
+		t.Errorf("codex: %v", err)
+	}
+	if err := skillCmd([]string{"status", "--agent", "claude"}); err != nil {
+		t.Errorf("claude: %v", err)
 	}
 }
