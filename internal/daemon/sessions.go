@@ -332,6 +332,9 @@ func (d *Daemon) split(p proto.CreateParams) (proto.Session, error) {
 		d.mu.Unlock()
 		return proto.Session{}, fmt.Errorf("no session or pane %q", p.Split)
 	}
+	// The pane's own lock: its directory and its size change under it,
+	// as its shell changes directory and the clients resize it.
+	at.mu.Lock()
 	dir := at.info.Dir
 	if p.Cols == 0 {
 		// Half of the pane split, as a start: the view sets the size.
@@ -342,6 +345,7 @@ func (d *Daemon) split(p proto.CreateParams) (proto.Session, error) {
 			p.Cols = max(p.Cols/2, 10)
 		}
 	}
+	at.mu.Unlock()
 	sid, atID := s.id, at.info.ID
 	d.mu.Unlock()
 	if p.Dir != "" {
