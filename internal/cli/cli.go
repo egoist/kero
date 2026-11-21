@@ -1237,7 +1237,7 @@ func findConversation(list []proto.Conversation, ref string) (proto.Conversation
 	case 1:
 		return found[0], nil
 	}
-	return proto.Conversation{}, fmt.Errorf("%q could be %d conversations: give more of its id (see kero history)", ref, len(found))
+	return proto.Conversation{}, fmt.Errorf("%w: %q could be %d conversations: give more of its id (see kero history)", errNotFound, ref, len(found))
 }
 
 func listConversations(st proto.State, list []proto.Conversation) {
