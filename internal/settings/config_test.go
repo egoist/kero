@@ -78,6 +78,32 @@ func TestFormatNewFileHasOnlyChanges(t *testing.T) {
 	}
 }
 
+// A quoted value is unquoted as it is read: quote escapes a backslash,
+// so only stripping the quotes left a doubled one, and a value with a
+// # in it — which quote always escapes — gained a backslash on every
+// save. A quoted value whose escape is none is read as it lies.
+func TestQuotedValueRoundTrip(t *testing.T) {
+	const file = "worktree-dir = C:\\Users\\me\\#work\n" // one backslash each, as the file has them
+	s, probs := parse(file)
+	if len(probs) != 0 || s.WorktreeDir != `C:\Users\me\#work` {
+		t.Fatalf("parsed %q, problems %q", s.WorktreeDir, probs)
+	}
+	// Save after save: the value stands, instead of gaining a
+	// backslash each time.
+	for i := 0; i < 3; i++ {
+		back, _ := parse(format(s, file))
+		if back.WorktreeDir != s.WorktreeDir {
+			t.Fatalf("save %d read back %q, want %q", i+1, back.WorktreeDir, s.WorktreeDir)
+		}
+		s = back
+	}
+	// A hand's own quoting, whose escape is none, is read as it lies.
+	hand, _ := parse(`worktree-dir = "C:\path\to"` + "\n")
+	if hand.WorktreeDir != `C:\path\to` {
+		t.Errorf("a value a hand quoted: %q", hand.WorktreeDir)
+	}
+}
+
 func TestKeybinds(t *testing.T) {
 	s, probs := parse("keybind = cmd+shift+x=pane.split.right\nkeybind = cmd+d=unbind\nkeybind = cmd+==text.bigger\nkeybind = ctrl+q=nope\n")
 	if s.Shortcuts["pane.split.right"] != "CmdOrCtrl+Shift+X" {
