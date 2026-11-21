@@ -1008,7 +1008,7 @@ func (a *App) apply(s settings.Settings, save bool) {
 	if old.DockBadge != s.DockBadge {
 		a.notify(true)
 	}
-	if old.KeepAwake != s.KeepAwake {
+	if old.KeepAwake != s.KeepAwake || old.KeepDisplayOn != s.KeepDisplayOn {
 		a.keepAwake()
 		if a.tray != nil {
 			a.tray.SetMenu(a.trayMenu())

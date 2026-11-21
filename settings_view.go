@@ -581,6 +581,11 @@ func (a *App) generalPage(c *ui.Context, pal *palette) {
 		settingRow(c, pal, locales.AwakeTitle(), locales.AwakeDetail(), func() {
 			popup(c, "keep-awake", &s.KeepAwake, settings.KeepAwakeModes, awakeModeName, 200, pal)
 		})
+		if awakeDisplay && s.KeepAwake != awakeOff {
+			settingRow(c, pal, locales.AwakeDisplay(), locales.AwakeDisplayDetail(), func() {
+				toggle(c.Key("keep-display-on"), &s.KeepDisplayOn, pal)
+			})
+		}
 	})
 	// Windows and Linux always show the icon, in the notification area.
 	if runtime.GOOS == "darwin" {
