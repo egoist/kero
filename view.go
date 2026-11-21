@@ -222,10 +222,11 @@ func (a *App) resizeHandle(c *ui.Context, pal *palette) {
 	} else if a.sideDrag != 0 && !h.Pressed() {
 		a.sideDrag = 0
 		a.savePrefs()
-		// The pane the user is in takes the keyboard back, which the drag
-		// took from it.
-		a.restoreFocus()
 	}
+	// The handle has the pointer, or had it and let it go: the pane the
+	// user is in takes the keyboard back, which the press took from it
+	// (#398).
+	a.handlePress("resize", h)
 	if h.DoubleClicked() {
 		a.prefs.SidebarWidth = defaultSidebar
 		a.savePrefs()

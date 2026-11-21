@@ -111,6 +111,28 @@ func (a *App) restoreFocus() {
 	}
 }
 
+// handlePress tells that a drag handle has the pointer, and gives the pane
+// the user is in its keyboard back when the handle lets it go. A browser's
+// page cannot hold the keyboard while the button is down (#394): the press
+// takes it, and a click without a drag must not take it for good (#398).
+func (a *App) handlePress(key string, h ui.Element) {
+	// The press lasts wherever the pointer goes, so a drag on its way
+	// does not give the keyboard back before it is over.
+	if b, ok := h.PressedButton(); ok && b == 0 {
+		a.pressHandle = key
+		return
+	}
+	if a.pressHandle != key {
+		return
+	}
+	a.pressHandle = ""
+	if !a.keepsFocus() {
+		// The pane the user is in takes the keyboard back, which the
+		// press took from it.
+		a.restoreFocus()
+	}
+}
+
 // panes shows a session's panes in their layout: the zoomed one alone.
 // right tells that they reach the window's right edge, which the side
 // panel takes while it shows.
@@ -210,14 +232,15 @@ func (a *App) divider(c *ui.Context, pal *palette, s *proto.Session, l *proto.La
 		// session would save it every frame of the drag.
 		a.layoutDrag.session, a.layoutDrag.split = "", ""
 		a.call(s.ID, "layout", proto.LayoutParams{Session: s.ID, Layout: s.Layout.Clone()}, nil)
-		// The pane the user is in takes the keyboard back, which the drag
-		// took from it.
-		a.restoreFocus()
 	}
 	if d.DoubleClicked() {
 		l.Ratio = 0.5
 		a.call(s.ID, "layout", proto.LayoutParams{Session: s.ID, Layout: s.Layout.Clone()}, nil)
 	}
+	// The handle has the pointer, or had it and let it go: the pane the
+	// user is in takes the keyboard back, which the press took from it
+	// (#398).
+	a.handlePress(key, d)
 }
 
 // paneCard is a pane: a card with a header and the terminal. top, left and

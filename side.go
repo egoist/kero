@@ -277,10 +277,11 @@ func (a *App) rightHandle(c *ui.Context, right float32) {
 	} else if a.side.barDrag != 0 && !h.Pressed() {
 		a.side.barDrag = 0
 		a.savePrefs()
-		// The pane the user is in takes the keyboard back, which the drag
-		// took from it.
-		a.restoreFocus()
 	}
+	// The handle has the pointer, or had it and let it go: the pane the
+	// user is in takes the keyboard back, which the press took from it
+	// (#398).
+	a.handlePress("resize-right", h)
 	if h.DoubleClicked() {
 		a.prefs.RightWidth = 0
 		a.savePrefs()
