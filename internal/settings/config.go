@@ -644,9 +644,14 @@ func parse(data string) (Settings, []string) {
 	return s, problems
 }
 
+// quote wraps a value the reader would take wrong: one with a # in it,
+// one with spaces at its edges, an empty one. The quotes are
+// delimiters — the reader strips them again — so the value goes in as
+// it lies: strconv.Quote escaped a backslash, which the reader never
+// unescaped, so a value with a # in it gained one on every save.
 func quote(v string) string {
 	if v == "" || strings.ContainsAny(v, "#") || strings.TrimSpace(v) != v {
-		return strconv.Quote(v)
+		return `"` + v + `"`
 	}
 	return v
 }
