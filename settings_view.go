@@ -1583,7 +1583,10 @@ func (a *App) recordKey(act actions.Action, mods ui.Modifiers, key ui.Key) bool 
 	if !ok {
 		return false // a modifier alone, or a key menus can't take
 	}
-	if mods&(ui.Super|ui.Ctrl|ui.Alt) == 0 && !strings.HasPrefix(name, "F") {
+	// A shortcut needs a modifier, unless it is a function key: the
+	// letter F is not one, and a shortcut of it would take the plain F
+	// keypress everywhere, as a menu's accelerator does.
+	if mods&(ui.Super|ui.Ctrl|ui.Alt) == 0 && (key < ui.KeyF1 || key > ui.KeyF12) {
 		a.ss.notice = shortcutNeeds()
 		return true
 	}
