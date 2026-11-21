@@ -214,31 +214,43 @@ func (a *App) backupEdits(c *ui.Context) {
 		c.After(wait)
 		return
 	}
+	if err := writeBackup(a.backupNow()); err != nil {
+		// Nothing was written, so the backup is still owed: another
+		// moment on, and it tries again — not as though it were done.
+		c.After(backupDelay)
+		return
+	}
 	bs.written = sig
-	writeBackup(a.backupNow())
 }
 
 // writeBackup writes the backup: small, the texts the user edited alone,
-// and written as they pause, so at once.
-func writeBackup(vb viewerBackup) {
+// and written as they pause, so at once. It says whether it was written,
+// so that one that was not is tried again.
+func writeBackup(vb viewerBackup) error {
 	path := backupPath()
 	if len(vb.Views) == 0 && len(vb.Unsaved) == 0 {
+		// Nothing of the user's to keep; a file that isn't there is
+		// the answer already.
 		os.Remove(path)
-		return
+		return nil
 	}
 	b, err := json.Marshal(vb)
 	if err != nil {
-		return
+		return err
 	}
 	// Private: it holds what the user typed.
-	os.MkdirAll(proto.Dir(), 0o700)
-	tmp := path + ".tmp"
-	if os.WriteFile(tmp, b, 0o600) == nil {
-		os.Rename(tmp, path)
+	if err := os.MkdirAll(proto.Dir(), 0o700); err != nil {
+		return err
 	}
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, b, 0o600); err != nil {
+		return err
+	}
+	return os.Rename(tmp, path)
 }
 
-// backupOnQuit writes the backup as the app quits.
+// backupOnQuit writes the backup as the app quits: nothing retries this
+// one, and there is nowhere to say it failed.
 func (a *App) backupOnQuit() {
-	writeBackup(a.backupNow())
+	_ = writeBackup(a.backupNow())
 }
