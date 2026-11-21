@@ -42,6 +42,33 @@ func TestRestartSavesConversations(t *testing.T) {
 	}
 }
 
+// A shutdown as the app asks saves the conversations too, as a stop and
+// a restart do: one remembered since the last snapshot would otherwise
+// be left out of conversations.json, and the next kerod's kero history
+// would not show it.
+func TestShutdownSavesConversations(t *testing.T) {
+	d := testDaemon(t)
+	d.quit = make(chan struct{}) // as a kerod running has
+	d.convs.note(proto.Conversation{Agent: "claude", ID: "13b997c3", Dir: "/src/app", Project: "pr"}, time.Now().UnixMilli())
+	if _, err := os.Stat(d.convPath()); err == nil {
+		t.Fatal("the conversations were written before the shutdown")
+	}
+	if _, err := d.call(nil, "shutdown", nil); err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(d.convPath())
+	if err != nil {
+		t.Fatalf("the shutdown left the conversations unwritten: %v", err)
+	}
+	var list []proto.Conversation
+	if err := json.Unmarshal(b, &list); err != nil {
+		t.Fatalf("the conversations written are no list: %v", err)
+	}
+	if len(list) != 1 || list[0].ID != "13b997c3" {
+		t.Errorf("written %+v", list)
+	}
+}
+
 // A conversation is remembered once, the last to run first, with what
 // each sighting tells, and no more of them than kerod keeps.
 func TestConversationNote(t *testing.T) {
