@@ -642,6 +642,11 @@ func (d *Daemon) call(c *controlConn, method string, raw json.RawMessage) (any, 
 			d.removeSession(id)
 		}
 		d.saveState()
+		// The conversations too, as a stop's and a restart's: one
+		// remembered since the last snapshot would otherwise be left
+		// out of conversations.json, and the next kerod's kero history
+		// would not show it.
+		d.saveConversations()
 		go func() {
 			time.Sleep(100 * time.Millisecond)
 			d.stop()
