@@ -63,3 +63,41 @@ func TestDiffOfAPaneGoneIsNotSaved(t *testing.T) {
 		t.Errorf("the texts with edits to save: %+v", ts)
 	}
 }
+
+// The edit of a diff of a pane gone is not saved, but it is still backed
+// up: its file is where it was, on the host it was asked of, and the
+// worktree may show it again.
+func TestEditOfAPaneGoneStaysBackedUp(t *testing.T) {
+	a := testApp(t)
+	box := &host{name: "box"}
+	a.hosts = append(a.hosts, box)
+	a.owner = map[string]*host{"a": box, "s1": box}
+	s := &a.st.Sessions[0]
+	s.Panes[0].Git = &proto.GitInfo{Root: "/srv/app", Branch: "main", Default: "main"}
+	sf := editedDiff(t, a, "/srv/app", "main.go")
+	sf.host = "box"
+	a.side.changes.files = map[string]*sideFile{"/srv/app|head|main.go": sf}
+	if got := a.diffTarget(sf).host; got != "box" {
+		t.Fatalf("the diff is of the host %q", got)
+	}
+
+	// The session ends: no host has its pane.
+	a.owner = map[string]*host{}
+	s.Panes = nil
+	if ts := a.allTargets(); len(ts) != 0 {
+		t.Errorf("the texts with edits to save: %+v", ts)
+	}
+
+	var kept unsavedText
+	for _, u := range a.backupNow().Unsaved {
+		if u.Path == "/srv/app/main.go" {
+			kept = u
+		}
+	}
+	if kept.Text != bufferText(sf.d.New) {
+		t.Errorf("the edit of the pane gone is not backed up: %+v", kept)
+	}
+	if kept.Host != "box" || kept.Scope != sf.scope {
+		t.Errorf("backed up as %q %q, want box %q", kept.Host, kept.Scope, sf.scope)
+	}
+}
