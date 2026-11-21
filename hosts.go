@@ -48,11 +48,13 @@ type host struct {
 	// convs are the conversations the host's kerod remembers, for the
 	// sidebar, as of its count of their changes convGen; convAsked tells
 	// that they're asked for.
-	convs     []proto.Conversation
-	convGen   uint64
-	convKnown bool
-	convAsked bool
-	viewSent  *string
+	convs         []proto.Conversation
+	convGen       uint64
+	convKnown     bool
+	convAsked     bool
+	viewSent      *string
+	dividerSaves  map[string]*dividerSave // session's latest local release
+	layoutWritten chan struct{}           // closed when the last layout RPC returns
 	// busy is what the app does on the host for the user: install, update
 	// or restart.
 	busy string
@@ -268,6 +270,7 @@ func (a *App) syncHosts() {
 // sessions in the sidebar.
 func (a *App) closeHost(h *host) {
 	h.gen++
+	h.dividerSaves, h.layoutWritten = nil, nil
 	a.dropTerms(h)
 	if h.cl != nil {
 		go h.cl.Close()
@@ -456,6 +459,7 @@ func (a *App) disconnected(h *host, cl *client.Client) {
 		return
 	}
 	h.cl = nil
+	h.dividerSaves, h.layoutWritten = nil, nil
 	h.conn = connConnecting
 	a.dropTerms(h)
 	// What changed while the app was away tells nothing new.

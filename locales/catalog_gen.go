@@ -3034,11 +3034,11 @@ func (msgs Messages) SetColors() string {
 	return Catalog.Format(msgs.locale, "setColors", nil)
 }
 
-// SetColorsDetail says "One of Ghostty’s themes, or your own in {path}, colors the window, its panes and terminals in pla…"
+// SetColorsDetail says "One of Ghostty’s themes, or your own in {path}, colors the window, its panes and terminals in place of the theme ab…"
 // in the language the app shows.
 func SetColorsDetail(path string) string { return In(i18n.Locale()).SetColorsDetail(path) }
 
-// SetColorsDetail says "One of Ghostty’s themes, or your own in {path}, colors the window, its panes and terminals in pla…"
+// SetColorsDetail says "One of Ghostty’s themes, or your own in {path}, colors the window, its panes and terminals in place of the theme ab…"
 // in the language of msgs.
 func (msgs Messages) SetColorsDetail(path string) string {
 	return Catalog.Format(msgs.locale, "setColorsDetail", map[string]any{"path": path})
@@ -6224,6 +6224,126 @@ func BrowserAddress() string { return In(i18n.Locale()).BrowserAddress() }
 // in the language of msgs.
 func (msgs Messages) BrowserAddress() string {
 	return Catalog.Format(msgs.locale, "browserAddress", nil)
+}
+
+// ViewerControls says "Image controls"
+// in the language the app shows.
+func ViewerControls() string { return In(i18n.Locale()).ViewerControls() }
+
+// ViewerControls says "Image controls"
+// in the language of msgs.
+func (msgs Messages) ViewerControls() string {
+	return Catalog.Format(msgs.locale, "viewerControls", nil)
+}
+
+// ViewerGallery says "Image gallery"
+// in the language the app shows.
+func ViewerGallery() string { return In(i18n.Locale()).ViewerGallery() }
+
+// ViewerGallery says "Image gallery"
+// in the language of msgs.
+func (msgs Messages) ViewerGallery() string {
+	return Catalog.Format(msgs.locale, "viewerGallery", nil)
+}
+
+// ViewerPrevious says "Previous image"
+// in the language the app shows.
+func ViewerPrevious() string { return In(i18n.Locale()).ViewerPrevious() }
+
+// ViewerPrevious says "Previous image"
+// in the language of msgs.
+func (msgs Messages) ViewerPrevious() string {
+	return Catalog.Format(msgs.locale, "viewerPrevious", nil)
+}
+
+// ViewerNext says "Next image"
+// in the language the app shows.
+func ViewerNext() string { return In(i18n.Locale()).ViewerNext() }
+
+// ViewerNext says "Next image"
+// in the language of msgs.
+func (msgs Messages) ViewerNext() string {
+	return Catalog.Format(msgs.locale, "viewerNext", nil)
+}
+
+// ViewerNewPane says "Open current image in a new preview pane"
+// in the language the app shows.
+func ViewerNewPane() string { return In(i18n.Locale()).ViewerNewPane() }
+
+// ViewerNewPane says "Open current image in a new preview pane"
+// in the language of msgs.
+func (msgs Messages) ViewerNewPane() string {
+	return Catalog.Format(msgs.locale, "viewerNewPane", nil)
+}
+
+// ViewerSync says "Sync zoom and pan"
+// in the language the app shows.
+func ViewerSync() string { return In(i18n.Locale()).ViewerSync() }
+
+// ViewerSync says "Sync zoom and pan"
+// in the language of msgs.
+func (msgs Messages) ViewerSync() string {
+	return Catalog.Format(msgs.locale, "viewerSync", nil)
+}
+
+// ViewerSyncTip says "Sync only zoom and pan across preview panes"
+// in the language the app shows.
+func ViewerSyncTip() string { return In(i18n.Locale()).ViewerSyncTip() }
+
+// ViewerSyncTip says "Sync only zoom and pan across preview panes"
+// in the language of msgs.
+func (msgs Messages) ViewerSyncTip() string {
+	return Catalog.Format(msgs.locale, "viewerSyncTip", nil)
+}
+
+// ViewerScale says "Image scale"
+// in the language the app shows.
+func ViewerScale() string { return In(i18n.Locale()).ViewerScale() }
+
+// ViewerScale says "Image scale"
+// in the language of msgs.
+func (msgs Messages) ViewerScale() string {
+	return Catalog.Format(msgs.locale, "viewerScale", nil)
+}
+
+// ViewerFit says "Fit"
+// in the language the app shows.
+func ViewerFit() string { return In(i18n.Locale()).ViewerFit() }
+
+// ViewerFit says "Fit"
+// in the language of msgs.
+func (msgs Messages) ViewerFit() string {
+	return Catalog.Format(msgs.locale, "viewerFit", nil)
+}
+
+// ViewerFitTip says "Fit image to pane"
+// in the language the app shows.
+func ViewerFitTip() string { return In(i18n.Locale()).ViewerFitTip() }
+
+// ViewerFitTip says "Fit image to pane"
+// in the language of msgs.
+func (msgs Messages) ViewerFitTip() string {
+	return Catalog.Format(msgs.locale, "viewerFitTip", nil)
+}
+
+// ViewerDownload says "Download image to Downloads"
+// in the language the app shows.
+func ViewerDownload() string { return In(i18n.Locale()).ViewerDownload() }
+
+// ViewerDownload says "Download image to Downloads"
+// in the language of msgs.
+func (msgs Messages) ViewerDownload() string {
+	return Catalog.Format(msgs.locale, "viewerDownload", nil)
+}
+
+// ViewerDownloaded says "Saved “{name}” to Downloads"
+// in the language the app shows.
+func ViewerDownloaded(name string) string { return In(i18n.Locale()).ViewerDownloaded(name) }
+
+// ViewerDownloaded says "Saved “{name}” to Downloads"
+// in the language of msgs.
+func (msgs Messages) ViewerDownloaded(name string) string {
+	return Catalog.Format(msgs.locale, "viewerDownloaded", map[string]any{"name": name})
 }
 
 // WorktreeTitle says "New Session in Worktree"

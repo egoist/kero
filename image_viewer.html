@@ -15,68 +15,254 @@ button { appearance: none; display: grid; place-items: center; font: inherit; co
 button:hover { background: var(--hover); color: var(--text) }
 button:active { background: var(--press) }
 button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px }
-.arrow { width: 28px; padding: 0 }
-.arrow svg { width: 15px; height: 15px }
+button { width: 28px; padding: 0 }
+button svg { width: 15px; height: 15px }
 #sync[aria-pressed="true"] { color: var(--accent); background: var(--track) }
 .segments { gap: 1px; height: 24px; padding: 2px; margin-left: 4px; border-radius: 7px; background: var(--track) }
-.segments button { height: 20px; padding: 0 10px; border-radius: 5px; color: var(--text); font-size: 12.5px }
+.segments button { height: 20px; padding: 0; border-radius: 5px; color: var(--text); font-size: 12.5px }
 .segments button[aria-pressed="true"] { background: var(--thumb); box-shadow: var(--shadow) }
 main { flex: 1; min-height: 0; position: relative; overflow: hidden; touch-action: none; user-select: none; cursor: grab }
 main:active { cursor: grabbing }
-img { position: absolute; left: 50%; top: 50%; transform-origin: 0 0; pointer-events: none }
+main > img { position: absolute; left: 50%; top: 50%; transform-origin: 0 0; pointer-events: none }
+[hidden] { display: none !important }
+#position { padding-inline-start: 8px; border-inline-start: 1px solid var(--divider) }
+#gallery { --frame: clamp(30px, 7vh, 44px); border-top: 1px solid var(--divider) }
+#strip { display: flex; align-items: center; gap: 2px; padding: 6px 8px; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: thin }
+.tile { flex: none; width: calc(var(--frame) * .7); height: calc(var(--frame) - 6px); padding: 0; border-radius: 3px; background: var(--track) }
+.tile:first-child { margin-inline-start: auto }
+.tile:last-child { margin-inline-end: auto }
+.tile img { display: block; width: 100%; height: 100%; border-radius: inherit; object-fit: cover }
+.tile img:not([src]) { visibility: hidden }
+.tile[aria-current="true"] { width: clamp(24px, calc(var(--frame) * var(--photo-ratio)), min(144px, 70vw)); height: var(--frame); margin-inline: 4px; box-shadow: 0 0 0 1px var(--card), 0 0 0 2.5px var(--text) }
+.tile[aria-current="true"]:first-child { margin-inline-start: auto }
+.tile[aria-current="true"]:last-child { margin-inline-end: auto }
+.tile[aria-current="true"] img { object-fit: contain }
+.tile:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; z-index: 1 }
 </style></head><body>
 <header>
-  <div class="meta"><strong title="{{.Name}}">{{.Name}}</strong><small>{{.Width}} × {{.Height}}</small></div>
-  <div class="controls" role="group" aria-label="Image controls">
-    <button class="arrow" id="prev" aria-label="Previous image" title="Previous image">{{.Previous}}</button>
-    <button class="arrow" id="next" aria-label="Next image" title="Next image">{{.Next}}</button>
-    <button id="sync" aria-pressed="false" title="Synchronize image panes">Sync</button>
-    <div class="segments" role="group" aria-label="Image scale">
-      <button id="fit" aria-pressed="true" title="Fit image to pane">Fit</button>
-      <button id="actual" aria-pressed="false" title="Show actual size">1:1</button>
+  <div class="meta"><strong title="{{.Name}}">{{.Name}}</strong><small>{{.Width}} × {{.Height}}</small><small id="position" aria-live="polite" hidden></small></div>
+  <div id="controls" class="controls" role="group">
+    <button id="prev" aria-keyshortcuts="ArrowLeft" hidden>{{icon "chevron-left"}}</button>
+    <button id="next" aria-keyshortcuts="ArrowRight" hidden>{{icon "chevron-right"}}</button>
+    <button id="new-pane">{{icon "plus"}}</button>
+    <button id="sync" aria-keyshortcuts="S" aria-pressed="false">{{icon "link"}}</button>
+    <div id="scale" class="segments" role="group">
+      <button id="fit" aria-keyshortcuts="F" aria-pressed="true">{{icon "viewfinder"}}</button>
+      <button id="actual" aria-keyshortcuts="1" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="m2 9 3-3v12m11-9 3-3v12m-7-8v.2m0 4.6v.2"/></svg></button>
     </div>
+    <button id="download" aria-keyshortcuts="D">{{icon "tray-arrow-down"}}</button>
   </div>
 </header>
 <main><img alt="{{.Name}}" width="{{.Width}}" height="{{.Height}}" draggable="false" src="{{.Src}}"></main>
+<div id="gallery" role="group" hidden>
+  <div id="strip"></div>
+</div>
 <script>
-const img = document.querySelector('img'), main = document.querySelector('main');
+const main = document.querySelector('main'), img = main.querySelector('img');
 const generation = window.__keroViewerGeneration = {{.Generation}};
 const byID = id => document.getElementById(id);
+const gallery = byID('gallery'), strip = byID('strip');
+let items = [], current = -1, viewerLabels;
+function keyTip(button, label) {
+  const key = button.getAttribute('aria-keyshortcuts');
+  const glyph = key === 'ArrowLeft' ? '←' : key === 'ArrowRight' ? '→' : key;
+  return glyph ? label + ' (' + glyph + ')' : label;
+}
+function labelNavigation() {
+  for (const [id, label, step] of [['prev', viewerLabels.Previous, -1], ['next', viewerLabels.Next, 1]]) {
+    const button = byID(id);
+    button.hidden = gallery.hidden;
+    const target = gallery.hidden ? null : items[(current + step + items.length) % items.length];
+    const description = target ? label + ' — ' + (target.name || target.path) : label;
+    button.title = keyTip(button, description);
+    button.setAttribute('aria-label', description);
+  }
+}
+window.__keroApplyLabels = labels => {
+  viewerLabels = labels;
+  document.documentElement.lang = labels.Language;
+  byID('controls').setAttribute('aria-label', labels.Controls);
+  byID('scale').setAttribute('aria-label', labels.Scale);
+  gallery.setAttribute('aria-label', labels.Gallery);
+  labelNavigation();
+  byID('new-pane').title = labels.NewPane;
+  byID('new-pane').setAttribute('aria-label', labels.NewPane);
+  byID('download').title = keyTip(byID('download'), labels.Download);
+  byID('download').setAttribute('aria-label', labels.Download);
+  byID('sync').setAttribute('aria-label', labels.Sync);
+  byID('sync').title = keyTip(byID('sync'), labels.SyncTip);
+  byID('fit').setAttribute('aria-label', labels.Fit);
+  byID('fit').title = keyTip(byID('fit'), labels.FitTip);
+  byID('actual').title = keyTip(byID('actual'), labels.Actual);
+  byID('actual').setAttribute('aria-label', '1:1 (' + labels.Actual + ')');
+};
+window.__keroApplyLabels({{.Labels}});
+function createTile(index) {
+  const tile = document.createElement('button');
+  tile.className = 'tile';
+  const thumbnail = document.createElement('img');
+  thumbnail.alt = '';
+  thumbnail.loading = 'lazy';
+  thumbnail.draggable = false;
+  tile.append(thumbnail);
+  tile.onclick = () => navigate('pick-' + index);
+  strip.append(tile);
+  return tile;
+}
+window.__keroApplyGallery = (newItems, index) => {
+  const reveal = gallery.hidden || current !== index;
+  items = newItems;
+  current = index;
+  gallery.hidden = items.length < 2 || !Number.isInteger(current) || current < 0 || current >= items.length;
+  labelNavigation();
+  byID('position').hidden = gallery.hidden;
+  if (gallery.hidden) {
+    strip.replaceChildren();
+    return;
+  }
+  const position = (current + 1) + ' / ' + items.length;
+  if (byID('position').textContent !== position) byID('position').textContent = position;
+  // Reuse the native buttons so thumbnail updates preserve keyboard focus and scrolling.
+  while (strip.childElementCount > items.length) strip.lastElementChild.remove();
+  items.forEach((item, i) => {
+    const tile = strip.children[i] || createTile(i);
+    tile.title = item.path || item.name;
+    tile.setAttribute('aria-label', (item.name || item.path) + ' (' + (i + 1) + ' / ' + items.length + ')');
+    tile.setAttribute('aria-current', i === current ? 'true' : 'false');
+    const thumbnail = tile.firstElementChild;
+    if (!item.thumbnail) thumbnail.removeAttribute('src');
+    else if (thumbnail.getAttribute('src') !== item.thumbnail) thumbnail.src = item.thumbnail;
+  });
+  if (reveal) strip.children[current].scrollIntoView({block: 'nearest', inline: 'center'});
+};
 let sync = false, zoom = 1, panX = 0, panY = 0, mode = 'fit';
 let drag, sequence = 0, frame = 0;
-function fitScale() {
-  return Math.min(main.clientWidth / img.width, main.clientHeight / img.height, 1) || 1;
-}
+const imageWidth = {{.Width}}, imageHeight = {{.Height}};
+gallery.style.setProperty('--photo-ratio', imageWidth / imageHeight);
+let fit = 1, drawnMode, drawnSync, pendingSync;
 function draw() {
-  const scale = zoom * fitScale();
-  img.style.transform = 'scale(' + scale + ') translate(' + ((panX - .5) * 100) + '%,' + ((panY - .5) * 100) + '%)';
-  byID('fit').setAttribute('aria-pressed', mode === 'fit');
-  byID('actual').setAttribute('aria-pressed', mode === 'actual');
-  byID('sync').setAttribute('aria-pressed', sync);
+  const scale = zoom * fit;
+  const x = (panX - .5) * imageWidth * scale, y = (panY - .5) * imageHeight * scale;
+  img.style.transform = 'translate3d(' + x + 'px,' + y + 'px,0) scale(' + scale + ')';
+  if (drawnMode !== mode) {
+    byID('fit').setAttribute('aria-pressed', mode === 'fit');
+    byID('actual').setAttribute('aria-pressed', mode === 'actual');
+    drawnMode = mode;
+  }
+  const pressed = pendingSync ?? sync;
+  if (drawnSync !== pressed) {
+    byID('sync').setAttribute('aria-pressed', pressed);
+    drawnSync = pressed;
+  }
 }
-function publishZoom() {
-  document.title = 'kero-zoom:' + generation + ':' + (++sequence) + ':' + JSON.stringify({enabled:sync, zoom, panX, panY});
+// The native title bridge may deliver only the last title set in a turn.
+let revision = -1, epoch = 0, ack = 0, toggleSeq = 0, viewSeq = 0, lastView;
+let pendingNav = 0, ready = false, live = true;
+function sendZoomTitle() {
+  document.title = 'kero-zoom:' + generation + ':' + viewSeq + ':' + JSON.stringify(lastView);
+}
+function publishZoom(kind = 'move') {
+  if (!live) return;
+  viewSeq = ++sequence;
+  if (kind === 'toggle') toggleSeq = viewSeq;
+  lastView = {kind, enabled:sync, mode, zoom, panX, panY, epoch, toggleSeq};
+  if (!pendingNav) sendZoomTitle();
+}
+let viewPending = false;
+function flushView() {
+  if (!viewPending) return;
+  viewPending = false;
+  draw();
+  if (sync) publishZoom();
+}
+function finishViewFrame() {
+  if (!viewPending) {
+    frame = 0;
+    return;
+  }
+  flushView();
+  frame = requestAnimationFrame(finishViewFrame);
 }
 function updateView() {
-  draw();
-  if (sync && !frame) frame = requestAnimationFrame(() => { frame = 0; publishZoom() });
+  viewPending = true;
+  if (frame) return;
+  // Submit the first input batch before paint. Fold further samples into
+  // the latest position for the next frame, including the last before release.
+  queueMicrotask(flushView);
+  frame = requestAnimationFrame(finishViewFrame);
 }
-window.__keroApplyZoom = state => {
-  cancelAnimationFrame(frame); frame = 0;
+function cancelViewUpdate() {
+  cancelAnimationFrame(frame);
+  frame = 0;
+  viewPending = false;
+}
+window.__keroApplyZoom = (state, initial = false) => {
+  if (!live) return;
+  // The first native reply can repeat the snapshot embedded in this page.
+  if (state.revision < revision || (ready && state.revision === revision && state.ack <= ack)) return;
+  if (!initial) ready = true;
+  revision = state.revision;
+  ack = Math.max(ack, state.ack);
+  if (toggleSeq > ack) return;
+  const ownToggle = toggleSeq !== 0 && state.toggleEpoch === state.epoch;
+  if (!ownToggle && epoch !== state.epoch) {
+    // A peer can unlink and relink before our last toggle is acknowledged.
+    viewSeq = 0;
+    lastView = undefined;
+    cancelViewUpdate();
+  }
+  toggleSeq = 0;
+  epoch = state.epoch;
+  // An echo may arrive between pointer samples or before their paint. Keep
+  // the newer local camera until native has seen it. A group unlink takes
+  // effect immediately and leaves this pane's independent camera in place.
+  if (state.enabled && sync && (viewSeq > ack || viewPending)) return;
+  cancelViewUpdate();
   sync = state.enabled;
   if (sync) {
-    ({zoom, panX, panY} = state);
-    mode = zoom === 1 ? 'fit' : Math.abs(zoom * fitScale() - 1) < .00001 ? 'actual' : '';
+    ({panX, panY, mode} = state);
+    zoom = mode === 'actual' ? 1 / fit : mode === 'fit' ? 1 : state.zoom;
+  }
+  if (ready && pendingSync !== undefined) {
+    const requested = pendingSync;
+    pendingSync = undefined;
+    if (sync !== requested) {
+      sync = requested;
+      publishZoom('toggle');
+    }
   }
   draw();
 };
-function navigate(direction) {
-  document.title = 'kero-nav:' + generation + ':' + (++sequence) + ':' + direction;
-}
-// A horizontal trackpad gesture turns one page, including its inertial tail.
 let swipe = 0, swipeTimer;
+function clearSwipe() {
+  clearTimeout(swipeTimer);
+  swipe = 0;
+}
+function navigate(direction) {
+  clearSwipe();
+  if (!live || !ready || pendingNav) return;
+  if (direction !== 'new-pane' && (gallery.hidden || direction === 'pick-' + current)) return;
+  flushView();
+  pendingNav = ++sequence;
+  const command = {direction};
+  if (viewSeq > ack) Object.assign(command, {viewSeq, view:lastView});
+  document.title = 'kero-nav:' + generation + ':' + pendingNav + ':' + JSON.stringify(command);
+}
+window.__keroAckNav = seq => {
+  if (!live || seq !== pendingNav) return;
+  pendingNav = 0;
+  if (viewSeq > seq) sendZoomTitle();
+};
+window.addEventListener('pagehide', () => {
+  live = false;
+  drag = null;
+  clearSwipe();
+  cancelViewUpdate();
+});
+// A horizontal trackpad gesture turns one page, including its inertial tail.
 main.addEventListener('wheel', e => {
   e.preventDefault();
+  if (!live || !ready) return;
   const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? main.clientHeight : 1;
   if (!e.ctrlKey && Math.abs(e.deltaX) > Math.abs(e.deltaY) * 1.5) {
     clearTimeout(swipeTimer);
@@ -87,47 +273,88 @@ main.addEventListener('wheel', e => {
     }, 160);
     return;
   }
-  const r = img.getBoundingClientRect();
-  if (!r.width || !r.height) return;
-  const next = Math.max(.05, Math.min(Math.max(20, 1 / fitScale()), zoom * Math.exp(-e.deltaY * unit * .002)));
+  clearSwipe();
+  const scale = zoom * fit;
+  const next = Math.max(.05, Math.min(Math.max(20, 1 / fit), zoom * Math.exp(-e.deltaY * unit * .002)));
+  if (next === zoom) return;
   const viewport = main.getBoundingClientRect();
-  panX += (e.clientX - viewport.left - viewport.width / 2) / r.width * (zoom / next - 1);
-  panY += (e.clientY - viewport.top - viewport.height / 2) / r.height * (zoom / next - 1);
-  zoom = next; mode = ''; updateView();
+  // Hold the image point under the pointer: Δpan = offset / size × (1/newScale - 1/oldScale).
+  panX += (e.clientX - viewport.left - viewport.width / 2) / (imageWidth * scale) * (zoom / next - 1);
+  panY += (e.clientY - viewport.top - viewport.height / 2) / (imageHeight * scale) * (zoom / next - 1);
+  zoom = next; mode = 'custom'; updateView();
 }, {passive:false});
 main.addEventListener('pointerdown', e => {
-  if (e.button !== 0 || drag) return;
+  if (!live || !ready || e.button !== 0 || drag) return;
   drag = {id:e.pointerId, x:e.clientX, y:e.clientY};
   if (main.hasPointerCapture(e.pointerId) || e.isTrusted) main.setPointerCapture(e.pointerId);
   e.preventDefault();
 });
-main.addEventListener('pointermove', e => {
-  if (!drag || drag.id !== e.pointerId) return;
-  const r = img.getBoundingClientRect();
-  if (!r.width || !r.height) return;
-  panX += (e.clientX - drag.x) / r.width;
-  panY += (e.clientY - drag.y) / r.height;
+function moveDrag(e) {
+  if (!drag || drag.id !== e.pointerId || (drag.x === e.clientX && drag.y === e.clientY)) return;
+  const scale = zoom * fit;
+  panX += (e.clientX - drag.x) / (imageWidth * scale);
+  panY += (e.clientY - drag.y) / (imageHeight * scale);
   drag.x = e.clientX; drag.y = e.clientY; updateView();
-});
-function endDrag(e) { if (drag && drag.id === e.pointerId) drag = null }
+}
+main.addEventListener('pointermove', moveDrag);
+function endDrag(e) {
+  if (!drag || drag.id !== e.pointerId) return;
+  if (e.type === 'pointerup') moveDrag(e);
+  drag = null;
+  flushView();
+}
 main.addEventListener('pointerup', endDrag);
 main.addEventListener('pointercancel', endDrag);
 main.addEventListener('lostpointercapture', endDrag);
 function reset(to) {
-  mode = to; zoom = mode === 'actual' ? 1 / fitScale() : 1;
+  if (!live || !ready) return;
+  mode = to; zoom = mode === 'actual' ? 1 / fit : 1;
   panX = panY = 0; updateView();
 }
 byID('fit').onclick = () => reset('fit');
 byID('actual').onclick = () => reset('actual');
 byID('sync').onclick = () => {
-  cancelAnimationFrame(frame); frame = 0;
-  sync = !sync; draw(); publishZoom();
+  if (!live) return;
+  if (!ready) {
+    pendingSync = !(pendingSync ?? sync);
+    draw();
+    return;
+  }
+  cancelViewUpdate();
+  sync = !sync; draw(); publishZoom('toggle');
 };
+byID('download').onclick = () => {
+  if (!live || !ready || pendingNav) return;
+  const link = document.createElement('a');
+  link.download = img.alt;
+  link.href = img.src;
+  link.click();
+};
+byID('new-pane').onclick = () => navigate('new-pane');
 byID('prev').onclick = () => navigate('prev');
 byID('next').onclick = () => navigate('next');
-new ResizeObserver(() => {
-  if (mode === 'actual' && !sync) zoom = 1 / fitScale();
+// Local to the image document. Native menu chords and keyboard activation
+// of focused controls keep their usual handlers.
+const shortcutButtons = byID('controls').querySelectorAll('button[aria-keyshortcuts]');
+document.addEventListener('keydown', e => {
+  if (!live || pendingNav || e.defaultPrevented || e.isComposing || e.keyCode === 229 ||
+      e.metaKey || e.ctrlKey || e.altKey || e.shiftKey || e.repeat) return;
+  if (e.target.isContentEditable || e.target.closest?.('input, textarea, select, [role="textbox"]')) return;
+  const key = e.key.length === 1 ? e.key.toUpperCase() : e.key;
+  for (const button of shortcutButtons) {
+    if (button.getAttribute('aria-keyshortcuts') !== key || button.hidden || button.disabled) continue;
+    if (!ready && button.id !== 'sync') return;
+    e.preventDefault();
+    button.click();
+    return;
+  }
+});
+function resize(width, height) {
+  fit = Math.min(width / imageWidth, height / imageHeight, 1) || 1;
+  if (mode === 'actual') zoom = 1 / fit;
   draw();
-}).observe(main);
-draw();
+}
+new ResizeObserver(([entry]) => resize(entry.contentRect.width, entry.contentRect.height)).observe(main);
+resize(main.clientWidth, main.clientHeight);
+{{if .InitialZoom}}window.__keroApplyZoom({{.InitialZoom}}, true);{{end}}
 </script></body></html>

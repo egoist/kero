@@ -2,6 +2,7 @@ package main
 
 import (
 	"math"
+	"reflect"
 	"time"
 
 	"github.com/egoist/mygo/plugins/terminal"
@@ -12,7 +13,7 @@ import (
 	"kero/locales"
 )
 
-const paneGap = 8 // between panes, where the divider is
+const paneGap = 8 // layout space between the cards
 
 // paneRef returns the handle a pane's terminal binds, which its focus
 // follows.
@@ -141,22 +142,44 @@ func (a *App) layoutNode(c *ui.Context, pal *palette, bar ui.TitleBar, shown flo
 // divider is the gap between two panes, which a drag moves.
 func (a *App) divider(c *ui.Context, pal *palette, s *proto.Session, l *proto.Layout, key string) {
 	// A drag leaves the keyboard in the pane the user is in.
-	d := ui.Box(c.Key("div")).Shrink(0).KeepFocus()
+	// Let the handle take the pointer just inside either card's border,
+	// including where a native WebView would otherwise receive the press.
+	overlap := float32(3)
+	if l.A.Leaf() && l.B.Leaf() {
+		left, right := s.PaneByID(l.A.Pane), s.PaneByID(l.B.Pane)
+		if panePansContent(left) && panePansContent(right) {
+			// A near miss on a draggable canvas starts panning its content.
+			// Reserve a 24-point target without changing either pane's layout.
+			overlap = 8
+		}
+	}
+	d := ui.Box(c.Key("div")).Shrink(0).KeepFocus().ZIndex(1)
 	if l.Row {
-		d.Width(paneGap).Cursor(ui.CursorResizeColumn)
+		d.Width(paneGap+2*overlap).Margin(0, -overlap, 0, -overlap).Cursor(ui.CursorResizeColumn)
 	} else {
-		d.Height(paneGap).Cursor(ui.CursorResizeRow)
+		d.Height(paneGap+2*overlap).Margin(-overlap, 0, -overlap, 0).Cursor(ui.CursorResizeRow)
 	}
-	if d.Hovered() || d.Pressed() {
-		// A short grip, so the gap shows it moves.
-		d.Draw(func(p *ui.Painter, r ui.Rect) {
+	grip := pal.textFaint.Alpha(0.42)
+	active := d.Hovered() || d.Pressed()
+	if active {
+		grip = pal.accent
+	}
+	d.Draw(func(p *ui.Painter, r ui.Rect) {
+		if active {
+			line := r
 			if l.Row {
-				p.Fill(ui.Rect{X: r.X + r.W/2 - 1.5, Y: r.Y + r.H/2 - 18, W: 3, H: 36}, pal.textFaint.Alpha(0.7), 1.5)
+				line.X, line.W = r.X+(r.W-2)/2, 2
 			} else {
-				p.Fill(ui.Rect{X: r.X + r.W/2 - 18, Y: r.Y + r.H/2 - 1.5, W: 36, H: 3}, pal.textFaint.Alpha(0.7), 1.5)
+				line.Y, line.H = r.Y+(r.H-2)/2, 2
 			}
-		})
-	}
+			p.Fill(line, pal.accent.Alpha(0.55), 1)
+		}
+		w, h := float32(36), float32(3)
+		if l.Row {
+			w, h = h, w
+		}
+		p.Fill(ui.Rect{X: r.X + (r.W-w)/2, Y: r.Y + (r.H-h)/2, W: w, H: h}, grip, 1.5)
+	})
 	if dx, dy, ok := d.Dragged(); ok {
 		// The ratio shares out the room the panes take, the split's less
 		// the divider's.
@@ -173,6 +196,7 @@ func (a *App) divider(c *ui.Context, pal *palette, s *proto.Session, l *proto.La
 				if r <= 0 || r >= 1 {
 					r = 0.5
 				}
+				a.layoutDrag.before = s.Layout.Clone()
 				a.layoutDrag.session, a.layoutDrag.split, a.layoutDrag.ratio = s.ID, key, r
 			}
 			a.layoutDrag.ratio += float64(delta / size)
@@ -182,11 +206,84 @@ func (a *App) divider(c *ui.Context, pal *palette, s *proto.Session, l *proto.La
 		// Only the divider dragged saves the layout: another of the same
 		// session would save it every frame of the drag.
 		a.layoutDrag.session, a.layoutDrag.split = "", ""
-		a.call(s.ID, "layout", proto.LayoutParams{Session: s.ID, Layout: s.Layout.Clone()}, nil)
+		a.saveDivider(s, a.layoutDrag.before)
+		a.layoutDrag.before = nil
 	}
 	if d.DoubleClicked() {
+		before := s.Layout.Clone()
 		l.Ratio = 0.5
-		a.call(s.ID, "layout", proto.LayoutParams{Session: s.ID, Layout: s.Layout.Clone()}, nil)
+		a.saveDivider(s, before)
+	}
+}
+
+type dividerSave struct {
+	layout, before, observed *proto.Layout
+	written, expired         bool
+}
+
+// State events and RPC replies travel independently. Keep the released ratio
+// until a matching snapshot and reply arrive, allowing one second from release
+// for a busy or disconnected daemon before accepting its last observation.
+func (a *App) saveDivider(s *proto.Session, before *proto.Layout) {
+	h, id := a.hostOf(s.ID), s.ID
+	cl := h.cl
+	if cl == nil {
+		a.toast(locales.HostNotConnected(h.label()))
+		return
+	}
+	if h.dividerSaves == nil {
+		h.dividerSaves = make(map[string]*dividerSave)
+	}
+	if prev := h.dividerSaves[id]; prev != nil {
+		before = prev.before
+		if prev.observed != nil {
+			before = prev.observed
+		}
+	}
+	save := &dividerSave{layout: s.Layout.Clone(), before: before}
+	h.dividerSaves[id] = save
+	previous, done := h.layoutWritten, make(chan struct{})
+	h.layoutWritten = done
+	go func() {
+		// kerod serves concurrent calls. Issue releases in gesture order.
+		if previous != nil {
+			<-previous
+		}
+		err := cl.Call("layout", proto.LayoutParams{Session: id, Layout: save.layout}, nil)
+		close(done)
+		a.update(func() { a.dividerWritten(h, id, save, err) })
+	}()
+	time.AfterFunc(time.Second, func() {
+		a.update(func() { a.expireDivider(h, id, save) })
+	})
+}
+
+func (a *App) dividerWritten(h *host, id string, save *dividerSave, err error) {
+	if h.dividerSaves[id] != save {
+		return
+	}
+	save.written = true
+	if err != nil {
+		a.toast(err.Error())
+		if save.observed == nil {
+			save.observed = save.before
+		}
+		a.expireDivider(h, id, save)
+	} else if save.expired || reflect.DeepEqual(save.observed, save.layout) {
+		delete(h.dividerSaves, id)
+	}
+}
+
+func (a *App) expireDivider(h *host, id string, save *dividerSave) {
+	if h.dividerSaves[id] != save {
+		return
+	}
+	save.expired = true
+	if save.written {
+		delete(h.dividerSaves, id)
+	}
+	if s := a.session(id); s != nil && save.observed != nil && s.Layout.SameShape(save.observed) && a.layoutDrag.session != id {
+		s.Layout = save.observed
 	}
 }
 
@@ -683,13 +780,16 @@ func (a *App) splitPane(s *proto.Session, at, direction string) {
 	if at == "" {
 		at = a.focusOf(s)
 	}
-	a.split(s, proto.CreateParams{Split: at, Direction: direction})
+	a.split(s, proto.CreateParams{Split: at, Direction: direction}, nil)
 }
 
 // split makes a pane beside another, as p asks, on the session's host,
-// and puts the user in it.
-func (a *App) split(s *proto.Session, p proto.CreateParams) {
-	if s == nil {
+// and puts the user in it. done, when set, runs on the UI thread.
+func (a *App) split(s *proto.Session, p proto.CreateParams, done func()) {
+	if s == nil || a.hostOf(s.ID).cl == nil {
+		if done != nil {
+			done()
+		}
 		return
 	}
 	h := a.hostOf(s.ID)
@@ -701,17 +801,14 @@ func (a *App) split(s *proto.Session, p proto.CreateParams) {
 			p.Cols = max(p.Cols/2, 10)
 		}
 	}
-	key := [2]string{s.ID, h.imageKey(p.URL)}
 	cl := h.cl
-	if cl == nil {
-		delete(a.viewerPending, key)
-		return
-	}
 	go func() {
 		var ns proto.Session
 		err := cl.Call("split", p, &ns)
 		a.update(func() {
-			delete(a.viewerPending, key)
+			if done != nil {
+				defer done()
+			}
 			if err != nil {
 				a.toast(err.Error())
 				return

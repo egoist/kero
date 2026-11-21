@@ -105,24 +105,24 @@ type App struct {
 	st     proto.State
 	loaded bool // a state came
 
-	prefs         prefs
-	set           settings.Settings // the user's settings: Settings' controls edit it
-	applied       settings.Settings // set, as last applied and saved
-	setWin        *mygo.Window      // the Settings window, while open
-	ss            settingsState
-	selected      string
-	terms         map[string]*termEntry
-	webs          map[string]*webEntry    // browser panes' pages, by pane
-	viewerPending map[[2]string]bool      // session and image identity, while split is in flight
-	viewerGroups  map[string]*viewerGroup // comparison state of each session
-	ads           adBlock                 // what their pages block
-	icons         favicons                // and the icons they show
-	lru           []string
-	refs          map[string]*ui.Handle // panes' terminals, and splits, by id
-	focus         map[string]string     // the pane the user is in, by session
-	layoutDrag    struct {              // the split whose divider is dragged
+	prefs      prefs
+	set        settings.Settings // the user's settings: Settings' controls edit it
+	applied    settings.Settings // set, as last applied and saved
+	setWin     *mygo.Window      // the Settings window, while open
+	ss         settingsState
+	selected   string
+	terms      map[string]*termEntry
+	webs       map[string]*webEntry // browser panes' pages, by pane
+	images     imageViewers
+	ads        adBlock  // what their pages block
+	icons      favicons // and the icons they show
+	lru        []string
+	refs       map[string]*ui.Handle // panes' terminals, and splits, by id
+	focus      map[string]string     // the pane the user is in, by session
+	layoutDrag struct {              // the split whose divider is dragged
 		session, split string
-		ratio          float64 // where the pointer puts it, past its bounds
+		ratio          float64       // where the pointer puts it, past its bounds
+		before         *proto.Layout // layout before the first drag delta
 	}
 
 	active   bool
@@ -313,6 +313,35 @@ func (a *App) event(h *host, cl *client.Client, m proto.Message) {
 	}
 }
 
+func (a *App) applyLayoutState(h *host, st proto.State) {
+	var dragged *proto.Layout
+	if s := a.session(a.layoutDrag.session); s != nil {
+		dragged = s.Layout
+	}
+	a.mergeState(h, st)
+	for id, save := range h.dividerSaves {
+		s := a.session(id)
+		if s == nil || !s.Layout.SameShape(save.layout) {
+			delete(h.dividerSaves, id)
+			continue
+		}
+		save.observed = s.Layout
+		if save.expired {
+			continue
+		}
+		if save.written && reflect.DeepEqual(s.Layout, save.layout) {
+			delete(h.dividerSaves, id)
+		} else {
+			s.Layout = save.layout.Clone()
+		}
+	}
+	if s := a.session(a.layoutDrag.session); s != nil && s.Layout.SameShape(dragged) {
+		s.Layout = dragged
+	} else {
+		a.layoutDrag.session, a.layoutDrag.split, a.layoutDrag.before = "", "", nil
+	}
+}
+
 // setState takes a host's state.
 func (a *App) setState(h *host, st proto.State) {
 	first, hostFirst := !a.loaded, !h.loaded
@@ -320,17 +349,8 @@ func (a *App) setState(h *host, st proto.State) {
 	if st.Conversations != h.convGen || hostFirst {
 		h.convGen, h.convKnown = st.Conversations, false
 	}
-	// A divider dragged keeps the ratios it set, which the daemon hears of
-	// only once it is let go.
-	var dragged *proto.Layout
-	if s := a.session(a.layoutDrag.session); s != nil {
-		dragged = s.Layout
-	}
-	a.mergeState(h, st)
+	a.applyLayoutState(h, st)
 	a.loaded = true
-	if s := a.session(a.layoutDrag.session); s != nil && s.Layout.SameShape(dragged) {
-		s.Layout = dragged
-	}
 	// Terminals of panes gone go too.
 	live := map[string]bool{}
 	for _, s := range a.st.Sessions {
@@ -348,12 +368,7 @@ func (a *App) setState(h *host, st proto.State) {
 			a.dropWeb(id)
 		}
 	}
-	for id := range a.viewerGroups {
-		s := a.session(id)
-		if s == nil || !a.hasViewer(s) {
-			delete(a.viewerGroups, id)
-		}
-	}
+	a.pruneImageViewers()
 	a.quickChanged()
 	if a.session(a.selected) == nil {
 		a.reselect()
