@@ -818,18 +818,11 @@ func run(args []string, host string) error {
 		if err != nil {
 			return err
 		}
-		ref := f.vals["target"]
-		if ref == "" {
-			ref = current()
-		}
-		if ref == "" {
-			return usageErr("which pane? run it in Kero, or give --session")
-		}
-		t, err := find(st, ref)
+		t, body, err := notifyTarget(st, f)
 		if err != nil {
 			return err
 		}
-		return c.Call("notify", proto.NotifyParams{ID: t.ref(), Title: f.vals["title"], Body: strings.Join(append(f.pos, f.rest...), " ")}, nil)
+		return c.Call("notify", proto.NotifyParams{ID: t.ref(), Title: f.vals["title"], Body: body}, nil)
 	}
 	return usageErr("unknown command %q (see kero help)", cmd)
 }
@@ -956,6 +949,33 @@ func findOrCurrent(st proto.State, pos []string) (target, error) {
 		return find(st, ref)
 	}
 	return target{}, usageErr("which session? (outside kero, name one)")
+}
+
+// notifyTarget is the pane a notification is for, and the message it
+// carries: the target given, or the first word naming a session or a
+// pane, else the pane the command runs in.
+func notifyTarget(st proto.State, f *flags) (target, string, error) {
+	body := strings.Join(append(f.pos, f.rest...), " ")
+	if ref := f.vals["target"]; ref != "" {
+		t, err := find(st, ref)
+		return t, body, err
+	}
+	// A first word naming a session or a pane is the target, as the help
+	// says, and the message is what follows it. A word naming none is
+	// part of the message, as it is with no target at all; so is a word
+	// alone, which would leave the message empty, and which may be a
+	// session's name a message happens to spell.
+	if len(f.pos) > 1 {
+		if t, err := find(st, f.pos[0]); err == nil {
+			return t, strings.Join(append(f.pos[1:], f.rest...), " "), nil
+		}
+	}
+	ref := current()
+	if ref == "" {
+		return target{}, "", usageErr("which pane? run it in Kero, or give --session")
+	}
+	t, err := find(st, ref)
+	return t, body, err
 }
 
 func daemonCmd(args []string, host string) error {
