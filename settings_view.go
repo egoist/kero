@@ -784,7 +784,9 @@ func themesDirFor(goos, xdg, localappdata, home string) string {
 		dir = filepath.Join(home, ".config")
 	}
 	path := filepath.Join(dir, "ghostty", "themes")
-	if home != "" && strings.HasPrefix(path, home) {
+	// The home goes as ~, but only when the path is under it: a sibling
+	// directory that starts with the same letters is not under it.
+	if home != "" && (path == home || strings.HasPrefix(path, home+string(filepath.Separator))) {
 		path = "~" + strings.TrimPrefix(path, home)
 	}
 	return path
