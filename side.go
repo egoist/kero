@@ -522,6 +522,16 @@ func changesScope(p *proto.Pane, base string) string {
 	return p.ID + "|" + base
 }
 
+// changesScopeOn names what the Changes tab lists for a pane on a host: a
+// remote host's name is in it, as two hosts may have a worktree of the
+// same path, and their changes are not each other's.
+func changesScopeOn(host string, p *proto.Pane, base string) string {
+	if host == "" {
+		return changesScope(p, base)
+	}
+	return host + "|" + changesScope(p, base)
+}
+
 // changesPane is the pane whose changes the Changes tab shows for a
 // session: the one the user is in, or the one of its agent's turn.
 func changesPane(here, turn *proto.Pane, base string) *proto.Pane {
@@ -539,7 +549,7 @@ func (a *App) changesScopeOf(s *proto.Session) string {
 	if pane == nil {
 		return ""
 	}
-	return changesScope(pane, a.side.changes.base)
+	return changesScopeOn(a.hostOf(pane.ID).name, pane, a.side.changes.base)
 }
 
 // gitStamp is what of a worktree's status changes its changes.
@@ -614,7 +624,7 @@ func (a *App) changesFrameOf(c *ui.Context, s *proto.Session) *changesFrame {
 	// The list is of a worktree, not of a pane: the panes the user moves
 	// between in one show it as it was, scrolled where it was. A turn's is
 	// of its snapshot.
-	scope := changesScope(pane, ch.base)
+	scope := changesScopeOn(a.hostOf(pane.ID).name, pane, ch.base)
 	stamp := gitStamp(pane.Git)
 	if pane.Turn != nil && ch.base == git.BaseTurn {
 		stamp += "|" + pane.Turn.Tree
@@ -882,7 +892,10 @@ func (a *App) syncFiles(c *ui.Context, scope string, pane *proto.Pane, root stri
 			sf = &sideFile{pane: pane.ID, base: ch.base, scope: scope, f: f}
 			ch.files[key] = sf
 		}
-		sf.root = root
+		// The pane of the list now: the one it was asked for before may
+		// be gone, with the session it was in, and the diff is asked of
+		// the pane that is in the worktree now.
+		sf.pane, sf.root = pane.ID, root
 		if a.fileCollapsed(scope, f) || sf.busy || sf.writing || a.hostOf(pane.ID).cl == nil {
 			continue
 		}
