@@ -78,7 +78,7 @@ func (a *App) closeFind() {
 	}
 	a.find.pane = ""
 	if pane != "" {
-		a.paneRef(pane).Focus()
+		a.focusPane(pane)
 	}
 }
 

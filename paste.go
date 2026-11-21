@@ -431,6 +431,6 @@ func (a *App) insertPath(sid, id string, d fileDrag) {
 	e.term.Paste(q)
 	if s := a.session(sid); s != nil {
 		a.setFocus(s, id)
-		a.paneRef(id).Focus()
+		a.focusPane(id)
 	}
 }

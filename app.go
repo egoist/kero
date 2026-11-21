@@ -119,11 +119,16 @@ type App struct {
 	lru        []string
 	refs       map[string]*ui.Handle // panes' terminals, and splits, by id
 	focus      map[string]string     // the pane the user is in, by session
+	keyPane    string                // the pane that has the keyboard
 	layoutDrag struct {              // the split whose divider is dragged
 		session, split string
 		ratio          float64       // where the pointer puts it, past its bounds
 		before         *proto.Layout // layout before the first drag delta
 	}
+	// pressHandle is the drag handle the pointer is pressing: it took the
+	// keyboard from the pane the user is in, and gives it back when the
+	// pointer lets go (#398).
+	pressHandle string
 
 	active   bool
 	focused  bool
@@ -368,6 +373,7 @@ func (a *App) setState(h *host, st proto.State) {
 			a.dropWeb(id)
 		}
 	}
+	a.focusGone()
 	a.pruneImageViewers()
 	a.quickChanged()
 	if a.session(a.selected) == nil {
@@ -1025,7 +1031,7 @@ func (a *App) apply(s settings.Settings, save bool) {
 	if old.DockBadge != s.DockBadge {
 		a.notify(true)
 	}
-	if old.KeepAwake != s.KeepAwake {
+	if old.KeepAwake != s.KeepAwake || old.KeepDisplayOn != s.KeepDisplayOn {
 		a.keepAwake()
 		if a.tray != nil {
 			a.tray.SetMenu(a.trayMenu())
@@ -1178,10 +1184,7 @@ func (a *App) openLink(id, link string) bool {
 // the directory of the program that printed it, or "" for no such file.
 // id is a pane's, or a session's for its pane in front.
 func (a *App) resolvePath(id, link string) string {
-	path := lineSuffix.ReplaceAllString(link, "")
-	if strings.HasPrefix(path, "~/") || runtime.GOOS == "windows" && strings.HasPrefix(path, `~`) {
-		path = filepath.Join(proto.Home(), path[2:])
-	}
+	path := expandHome(lineSuffix.ReplaceAllString(link, ""))
 	if !filepath.IsAbs(path) {
 		if dir := a.workDir(id); dir != "" {
 			path = filepath.Join(dir, path)
@@ -1292,11 +1295,16 @@ func (a *App) newSessionOn(h *host, projectID string) {
 
 // expandHome makes a path of ~/… this machine's home's.
 func expandHome(p string) string {
+	return expandHomeForOS(p, proto.Home(), runtime.GOOS)
+}
+
+// expandHomeForOS expands a home-relative path using the given home and platform.
+func expandHomeForOS(p, home, goos string) string {
 	if p == "~" {
-		return proto.Home()
+		return home
 	}
-	if strings.HasPrefix(p, "~/") || runtime.GOOS == "windows" && strings.HasPrefix(p, `~\`) {
-		return filepath.Join(proto.Home(), p[2:])
+	if strings.HasPrefix(p, "~/") || goos == "windows" && strings.HasPrefix(p, `~\`) {
+		return filepath.Join(home, p[2:])
 	}
 	return p
 }
