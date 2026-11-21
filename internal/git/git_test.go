@@ -2,6 +2,7 @@ package git
 
 import (
 	"context"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -184,6 +185,71 @@ func TestWrite(t *testing.T) {
 	fi, _ := os.Stat(full)
 	if string(b) != "b\n" || fi.Mode().Perm() != 0o755 {
 		t.Errorf("wrote %q, mode %v", b, fi.Mode())
+	}
+}
+
+// A git that fails is a failure, not a file that is not in the rev: the
+// diff of a file that is there showed the whole file as new, and a file
+// that was clean looked changed, both without an error.
+func TestGitFailureIsNotAFileThatIsNotThere(t *testing.T) {
+	r := repo(t, map[string]string{"a.txt": "one\n"})
+	write(t, filepath.Join(r.Root, "a.txt"), "two\n")
+	// A context that is done: git fails at once, as it does when the
+	// daemon's fifteen seconds are up.
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	text, err := r.FileText(ctx, "HEAD", "a.txt", "")
+	if err == nil {
+		t.Errorf("the text of the file: %+v", text)
+	}
+	changed, err := r.Changed(ctx, "HEAD", "a.txt")
+	if err == nil {
+		t.Errorf("the file looks changed: %v", changed)
+	}
+	// A file that is not in the rev is not a failure: it was added.
+	write(t, filepath.Join(r.Root, "new.txt"), "new\n")
+	text, err = r.FileText(context.Background(), "HEAD", "new.txt", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if text.Old != "" || text.New != "new\n" {
+		t.Errorf("a file that was added: %+v", text)
+	}
+	changed, err = r.Changed(context.Background(), "HEAD", "new.txt")
+	if err != nil || !changed {
+		t.Errorf("a file that was added is changed: %v, %v", changed, err)
+	}
+	// The words that tell a file that is not in the rev are git's English
+	// ones, which the call is given LC_ALL=C for: a git of another locale
+	// says them otherwise, and every file that was added would read as a
+	// failure.
+	t.Setenv("LANG", "de_DE.UTF-8")
+	t.Setenv("LANGUAGE", "de")
+	t.Setenv("LC_MESSAGES", "de_DE.UTF-8")
+	text, err = r.FileText(context.Background(), "HEAD", "new.txt", "")
+	if err != nil {
+		t.Errorf("the text of a file that was added, in another locale: %v", err)
+	}
+	if text.Old != "" || text.New != "new\n" {
+		t.Errorf("a file that was added, in another locale: %+v", text)
+	}
+	changed, err = r.Changed(context.Background(), "HEAD", "new.txt")
+	if err != nil || !changed {
+		t.Errorf("a file that was added, in another locale, is changed: %v, %v", changed, err)
+	}
+	// A failure is a failure there too.
+	ctx2, cancel2 := context.WithCancel(context.Background())
+	cancel2()
+	if _, err := r.FileText(ctx2, "HEAD", "a.txt", ""); err == nil {
+		t.Error("the text of the file, in another locale: no error")
+	}
+	if _, err := r.Changed(ctx2, "HEAD", "a.txt"); err == nil {
+		t.Error("the file looks changed, in another locale: no error")
+	}
+	// A git that says it in its own language says nothing that is read:
+	// the calls are given LC_ALL=C, so that git says it in English.
+	if notInRev(errors.New("git cat-file: fatal: Pfad 'x' existiert nicht in 'HEAD'")) {
+		t.Error("a message of another language reads as a file that is not there")
 	}
 }
 
