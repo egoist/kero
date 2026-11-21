@@ -559,6 +559,25 @@ func (a *App) sessionRow(c *ui.Context, pal *palette, s *proto.Session, n *int) 
 	if row.DoubleClicked() {
 		a.startRename(s.ID)
 	}
+	// A session's row is dragged to another place among the sessions of
+	// its project, as a project's header is dragged among its host's
+	// projects.
+	host := a.hostOf(s.ID)
+	if len(a.groupSessions(host, s.Project)) > 1 {
+		row.Drag(sessionDrag{host, s.ID})
+		if row.Dragging() {
+			a.sessMove.host, a.sessMove.id = host, s.ID
+		}
+	}
+	if a.sessMove.id == s.ID && !row.Dragging() {
+		a.defer_(func() {
+			if a.sessMove.id == s.ID {
+				a.sessMove = sessionMove{at: -1}
+			}
+		})
+	}
+	// The place a session dragged to this row would go to, shown in it.
+	over, before := a.sessionTarget(row, s)
 	expanded := len(s.Panes) > 1 && a.prefs.Expanded[s.ID]
 	tip := a.hostOf(s.ID).shortDir(s.WorkDir())
 	if s.Process != "" {
@@ -574,6 +593,9 @@ func (a *App) sessionRow(c *ui.Context, pal *palette, s *proto.Session, n *int) 
 	pointerTooltip(c, row, "tip-"+s.ID, tip)
 	row.ContextMenu(func(m *ui.Menu) { a.sessionMenu(m, s) })
 	row.Children(func() {
+		if over {
+			a.sessionInsertionLine(c, pal, before)
+		}
 		if a.renaming == s.ID {
 			in := ui.TextInputBase(c.Key("rename"), &a.renameBuf).Grow(1).MinWidth(0).FontSize(13.5).AutoFocus()
 			if in.Submitted() || in.Shortcut(0, ui.KeyEscape) {
@@ -820,6 +842,9 @@ func (a *App) sessionMenu(m *ui.Menu, s *proto.Session) {
 			}
 		}
 	})
+	// A session moves among the sessions of its project, as a project
+	// moves among its host's projects.
+	a.sessionMenuMove(m, s)
 	m.Separator()
 	if m.Item(locales.SessionCopyId()).Chosen() {
 		a.copyText = id
