@@ -80,12 +80,15 @@ const maxOutput = 1 << 20
 
 // AppendFrames appends the frames that carry payload: output past
 // maxOutput, as a terminal's frame with the pixels of images, goes in
-// frames of its own.
+// frames of its own, and any payload past maxFrame goes in frames the
+// reader will take, as a frame past it would end the connection.
 func AppendFrames(dst []byte, kind byte, payload []byte) []byte {
 	for {
 		n := len(payload)
 		if kind == FrameOutput {
 			n = min(n, maxOutput)
+		} else {
+			n = min(n, maxFrame)
 		}
 		dst = append(dst, kind, byte(n>>24), byte(n>>16), byte(n>>8), byte(n))
 		dst = append(dst, payload[:n]...)

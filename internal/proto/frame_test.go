@@ -212,6 +212,30 @@ func TestFrameTooLarge(t *testing.T) {
 	}
 }
 
+// A paste past what a frame carries goes in frames the reader takes: a
+// frame past it would end the connection, and the paste with it.
+func TestBigInputGoesInFrames(t *testing.T) {
+	payload := bytes.Repeat([]byte("x"), maxFrame+1)
+	f := NewFrameReader(bytes.NewReader(AppendFrames(nil, FrameInput, payload)))
+	read := 0
+	for read < len(payload) {
+		kind, p, err := f.Read()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if kind != FrameInput {
+			t.Fatalf("a frame of kind %q", kind)
+		}
+		if !bytes.Equal(p, payload[read:read+len(p)]) {
+			t.Fatalf("the frame of %d bytes is not the paste's", len(p))
+		}
+		read += len(p)
+	}
+	if read != len(payload) {
+		t.Errorf("read %d of %d bytes", read, len(payload))
+	}
+}
+
 // A line that fits in the reader's buffer comes back without a copy of
 // its own, one that doesn't is assembled into a buffer of its own, and a
 // line past max is refused either way.
