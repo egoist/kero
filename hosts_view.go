@@ -493,7 +493,7 @@ func (a *App) openRemotePath(h *host, id, link string) {
 				}
 				// The host's editor, as its shell would run it.
 				p := proto.CreateParams{Split: id, Direction: "down", Command: editorCommand(h, st.Path)}
-				a.split(s, p)
+				a.split(s, p, nil)
 			}
 		})
 	}()

@@ -11,8 +11,6 @@ import (
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
-
-	"kero/internal/proto"
 )
 
 // peek is the image a path printed in a pane shows while Command hovers
@@ -117,7 +115,7 @@ func (a *App) localPeek(paneID, link string) bool {
 		a.peek = peek{path: path, name: filepath.Base(path), mod: fi.ModTime()}
 		mod := fi.ModTime()
 		go func() {
-			data, err := os.ReadFile(path)
+			data, err := (previewSource{}).read(path, "", maxPeekBytes)
 			if err != nil {
 				return
 			}
@@ -145,20 +143,13 @@ func (a *App) remotePeek(h *host, paneID, link string) {
 	}
 	a.closePeek()
 	a.peek = peek{path: key, name: pathpkg.Base(path)}
-	cl := h.cl
-	if cl == nil {
-		return
-	}
+	source := h.previewSource()
 	go func() {
-		var st proto.FSStat
-		if err := cl.Call("fs.stat", proto.FSStatParams{Path: path, Base: base}, &st); err != nil || !st.Exists || st.Dir || st.Size > maxPeekBytes {
+		data, err := source.read(path, base, maxPeekBytes)
+		if err != nil {
 			return
 		}
-		var r proto.FSRead
-		if err := cl.Call("fs.read", proto.FSReadParams{Path: st.Path, Max: maxPeekBytes}, &r); err != nil {
-			return
-		}
-		bm, err := ui.DecodeBitmap(r.Data)
+		bm, err := ui.DecodeBitmap(data)
 		if err != nil {
 			return
 		}

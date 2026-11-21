@@ -18,8 +18,12 @@ import (
 // place and page, the app the page itself, which it loads where kerod
 // last had it and tells kerod of as the user goes to others.
 type webEntry struct {
-	view *mygo.WebView
-	err  string
+	app    *App
+	id     string
+	nav    uint64
+	viewer viewerDocument
+	view   *mygo.WebView
+	err    string
 	// url and title are the page's, as it last committed; told is what
 	// kerod was last told.
 	url, title string
@@ -64,7 +68,7 @@ func (a *App) ensureWeb(p *proto.Pane) *webEntry {
 	if e := a.webs[p.ID]; e != nil {
 		return e
 	}
-	e := &webEntry{url: p.URL, title: p.Title, address: p.URL, told: [2]string{p.URL, p.Title}}
+	e := &webEntry{id: p.ID, app: a, url: p.URL, title: p.Title, address: p.URL, told: [2]string{p.URL, p.Title}}
 	if p.URL == proto.BlankURL {
 		e.address, e.focusAddress = "", true
 	}
@@ -89,6 +93,7 @@ func (a *App) ensureWeb(p *proto.Pane) *webEntry {
 			if a.webs[id] != e {
 				return
 			}
+			e.viewer.navigated(url)
 			e.url, e.err, e.iconURL = url, "", ""
 			if !e.editing {
 				e.address = url
@@ -98,8 +103,14 @@ func (a *App) ensureWeb(p *proto.Pane) *webEntry {
 		})
 	})
 	page.OnPageTitleUpdated(func(t *mygo.TitleEvent) {
+		if e.handleViewerTitle(page, t) {
+			return
+		}
 		a.update(func() {
 			if a.webs[id] != e {
+				return
+			}
+			if a.imageViewerTitle(e, page.URL(), t.Title) {
 				return
 			}
 			e.title = t.Title
@@ -117,11 +128,21 @@ func (a *App) ensureWeb(p *proto.Pane) *webEntry {
 			a.findFavicon(e)
 		})
 	})
+	page.OnDownloadDone(func(d *mygo.Download) {
+		if a.webs[id] == e && e.viewer.ready && e.viewer.url == page.URL() {
+			a.update(func() { a.toast(viewerDownloadMessage(d)) })
+		}
+	})
 	page.OnDidFinishLoad(func() {
 		a.update(func() {
+			if a.webs[id] != e {
+				return
+			}
 			e.syncNav()
 			e.loadEnded(nil)
-			a.findFavicon(e)
+			if !e.finishViewerLoad(page.URL()) {
+				a.findFavicon(e)
+			}
 		})
 	})
 	page.OnDidFailLoad(func(err *mygo.LoadError) {
@@ -153,6 +174,10 @@ func (e *webEntry) syncNav() {
 
 // load goes to what the user typed, as a URL or a search.
 func (e *webEntry) load(text string) {
+	e.nav++
+	if e.app.loadImageEntry(e, text) {
+		return
+	}
 	url := proto.BrowserURL(text)
 	e.url, e.address, e.err = url, url, ""
 	if e.view == nil {
@@ -161,6 +186,17 @@ func (e *webEntry) load(text string) {
 	if err := e.view.Page().LoadURL(url); err != nil {
 		e.err = err.Error()
 	}
+	e.loading = true
+}
+
+// Reload an image from its source, including while a remote cache entry is fresh.
+func (e *webEntry) reload() {
+	if _, _, _, image := imageViewerQuery(e.url); image {
+		e.nav++
+		e.app.startImageEntry(e, e.url, true)
+		return
+	}
+	e.view.Page().Reload()
 	e.loading = true
 }
 
@@ -181,6 +217,8 @@ func (a *App) tellPage(id string, e *webEntry) {
 
 func (a *App) dropWeb(id string) {
 	if e := a.webs[id]; e != nil {
+		e.viewer.reset()
+		e.nav++
 		if e.view != nil {
 			e.view.Destroy()
 		}
@@ -221,7 +259,7 @@ func (a *App) openBrowser(url string) {
 	if url == "" {
 		url = proto.BlankURL
 	}
-	a.split(s, proto.CreateParams{Split: at, Direction: "right", URL: url})
+	a.split(s, proto.CreateParams{Split: at, Direction: "right", URL: url}, nil)
 }
 
 // focusAddress gives the address bar of the browser the user is in the
@@ -238,6 +276,7 @@ func (a *App) focusAddress() {
 // its page; it reports whether the pane is being dragged by its toolbar.
 func (a *App) paneBrowser(c *ui.Context, pal *palette, bar ui.TitleBar, shown float32, s *proto.Session, p *proto.Pane, top, left, right, multi, focused, hovered bool) (dragging bool) {
 	e := a.ensureWeb(p)
+	e.updateViewerAppearance(pal)
 	ref := a.paneRef(p.ID)
 	// What the page was as the build began: the address bar, which holds
 	// the pane's handle while there is no page, may go to one as it
@@ -317,10 +356,7 @@ func (a *App) browserBar(c *ui.Context, pal *palette, bar ui.TitleBar, shown flo
 			c.After(500 * time.Millisecond)
 			e.syncNav()
 		} else {
-			navButton(c, "reload", reloadIcon, locales.BrowserReload(), e.view != nil && e.url != proto.BlankURL, pal, func() {
-				e.view.Page().Reload()
-				e.loading = true
-			})
+			navButton(c, "reload", reloadIcon, locales.BrowserReload(), e.view != nil && e.url != proto.BlankURL, pal, e.reload)
 		}
 		gap := ui.Box(c.Key("drag-l")).Width(8).Shrink(0).AlignSelf(ui.Stretch)
 		dragging = a.addressBar(c, pal, s, p, e, multi)

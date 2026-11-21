@@ -117,8 +117,7 @@ func (a *App) browse(h *host, r *proto.BrowserRequest, answer func(*proto.Browse
 		case "forward":
 			page.GoForward()
 		case "reload":
-			page.Reload()
-			e.loading = true
+			e.reload()
 		}
 		do(func() (*proto.BrowserResult, error) { return nil, settle(page, done, timeout) })
 	case "wait":
