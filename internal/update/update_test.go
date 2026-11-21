@@ -211,7 +211,8 @@ func TestTarWithoutModes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if st.Mode()&0o111 == 0 {
+	// A Windows file has no bit of its own to run it.
+	if runtime.GOOS != "windows" && st.Mode()&0o111 == 0 {
 		t.Errorf("kero is not runnable: %v", st.Mode())
 	}
 	if b, err := os.ReadFile(filepath.Join(dir, "libghostty-vt.so")); err != nil || string(b) != "lib" {
