@@ -402,6 +402,7 @@
   "findCount": "{selected}/{total}",
   "findNoMatches": "没有匹配项",
   "findClose": "关闭查找栏",
+  "findHistory": "历史",
   "actionToggleChanges": "显示或隐藏改动",
   "sideChanges": "改动",
   "sideClose": "关闭",

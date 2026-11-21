@@ -238,11 +238,13 @@ func TestTermPaddingColor(t *testing.T) {
 	}
 }
 
-// The app's copy of a pane keeps the scrollback-limit, as kerod's does,
-// not the terminal's default of 10 MB.
+// The app's copy of a pane keeps at most a little of the scrollback
+// kerod keeps, and reads what is older from it (history.go), so a long
+// history is not held twice. The limit kerod keeps, none, passes
+// through.
 func TestTermScrollback(t *testing.T) {
 	a := testApp(t)
-	for _, c := range []struct{ mb, want int }{{4, 4 << 20}, {16, 16 << 20}, {0, -1}} {
+	for _, c := range []struct{ mb, want int }{{4, appScrollbackCap}, {16, appScrollbackCap}, {0, -1}} {
 		a.set.Scrollback = c.mb
 		if got := a.termOptions("a", nil).Scrollback; got != c.want {
 			t.Errorf("scrollback-limit %d: the terminal keeps %d, want %d", c.mb, got, c.want)
