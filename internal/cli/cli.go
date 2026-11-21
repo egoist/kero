@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"path"
 	"path/filepath"
@@ -1362,13 +1363,14 @@ func parseLines(s string) (int, error) {
 // parseRatio is a share of the space: a number between none and all, as
 // the help says. A ratio that is no number is a usage error, and one out
 // of the room's share too: kerod takes either for half the room, and
-// splits it as though the ratio had been said.
+// splits it as though the ratio had been said. NaN is neither less than
+// none nor more than all, and is no share of anything.
 func parseRatio(s string) (float64, error) {
 	if s == "" {
 		return 0, nil
 	}
 	r, err := strconv.ParseFloat(s, 64)
-	if err != nil || r <= 0 || r >= 1 {
+	if err != nil || math.IsNaN(r) || r <= 0 || r >= 1 {
 		return 0, usageErr("kero split -r takes a ratio between 0 and 1, not %q", s)
 	}
 	return r, nil

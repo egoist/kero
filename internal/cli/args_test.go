@@ -61,6 +61,27 @@ func TestNumberArgsAreUsed(t *testing.T) {
 	}
 }
 
+// A ratio of NaN passes the two comparisons: NaN is neither less than
+// none nor more than all. It used to go as far as the daemon, which
+// answered that it could not be written out at all, so the command
+// failed with a word of nothing instead of a usage error naming the flag.
+func TestRatioOfNaNIsAUsageError(t *testing.T) {
+	t.Setenv("KERO_CONFIG", filepath.Join(t.TempDir(), "config"))
+	sock, calls := fakeDaemon(t)
+	t.Setenv("KERO_SOCKET", sock)
+
+	for _, v := range []string{"NaN", "nan"} {
+		if err := run([]string{"split", "p1", "-r", v}, ""); !errors.Is(err, errUsage) {
+			t.Errorf("kero split -r %s: %v, want a usage error", v, err)
+		}
+	}
+	for _, m := range calls() {
+		if m != "state" {
+			t.Errorf("the daemon was asked of %q, want only of the state", m)
+		}
+	}
+}
+
 // A status the CLI cannot read is a usage error: `kero wait --for idel`
 // took it for a status, and kerod waits for a pane to have it, and none
 // ever does, so the wait never ended.
