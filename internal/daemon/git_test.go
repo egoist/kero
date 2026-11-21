@@ -99,3 +99,41 @@ func TestGitFollow(t *testing.T) {
 		t.Error("reverted a file with no changes, or one changed since shown")
 	}
 }
+
+// A revert, as a file written, has the pane's worktree show its changes
+// anew at once — also for a pane in a directory of it, not the root
+// itself, which is not a directory a refresh is asked of.
+func TestRevertPokesThePane(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("no git")
+	}
+	p := testPane(t)
+	d := p.d
+	d.log = log.New(io.Discard, "", 0)
+	d.quit = make(chan struct{})
+	d.panes = map[string]*pane{"p": p}
+	d.git = newGitFollow(d)
+
+	repo := gitRepo(t)
+	sub := filepath.Join(repo, "sub")
+	os.Mkdir(sub, 0o755)
+	os.WriteFile(filepath.Join(repo, "a.txt"), []byte("a\nb\n"), 0o644)
+	p.info.Dir = sub
+
+	now := time.Now()
+	d.git.look(now)
+	if g := p.info.Git; g == nil || g.Files != 1 || g.Added != 1 {
+		t.Fatalf("the change shows: %+v", g)
+	}
+	txt, err := d.gitText(proto.GitParams{Pane: "p", Path: "a.txt"})
+	if err != nil || txt.New != "a\nb\n" || txt.Old != "a\n" {
+		t.Fatalf("text %+v, %v", txt, err)
+	}
+	if _, err := d.gitRevert(proto.GitWriteParams{Pane: "p", Path: "a.txt", Hash: txt.Hash, Text: txt.Old}); err != nil {
+		t.Fatal(err)
+	}
+	d.git.look(now.Add(time.Second))
+	if g := p.info.Git; g == nil || g.Files != 0 {
+		t.Errorf("the pane is not told the revert: %+v", g)
+	}
+}
