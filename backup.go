@@ -156,11 +156,19 @@ func (a *App) backupNow() viewerBackup {
 }
 
 // backupSig is what the backup is of, cheaply: each viewer's, and each
-// text's with edits, at its version.
+// text's with edits, at its version. The entries are sorted: the maps
+// yield them in any order, and a signature that changed with nothing
+// changed would read as the user typing on, and the write would wait
+// for a pause that never comes.
 func (a *App) backupSig() string {
 	var b strings.Builder
-	for sid, v := range a.side.views {
-		if v.kind != "" {
+	sids := make([]string, 0, len(a.side.views))
+	for sid := range a.side.views {
+		sids = append(sids, sid)
+	}
+	slices.Sort(sids)
+	for _, sid := range sids {
+		if v := a.side.views[sid]; v.kind != "" {
 			fmt.Fprint(&b, sid, v.kind)
 			if v.file != nil {
 				b.WriteString(v.file.path)
@@ -168,7 +176,11 @@ func (a *App) backupSig() string {
 			b.WriteByte(0)
 		}
 	}
-	for _, t := range a.allTargets() {
+	ts := a.allTargets()
+	slices.SortFunc(ts, func(x, y editTarget) int {
+		return strings.Compare(x.kind+"\x00"+x.scope+"\x00"+x.path, y.kind+"\x00"+y.scope+"\x00"+y.path)
+	})
+	for _, t := range ts {
 		fmt.Fprint(&b, t.kind, t.scope, t.path, t.buf.Version(), *t.hash, "\x00")
 	}
 	fmt.Fprint(&b, len(a.side.backup.unsaved))

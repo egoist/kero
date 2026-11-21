@@ -63,3 +63,23 @@ func TestEditComesBackToItsOwnDiff(t *testing.T) {
 		t.Error("the edit was backed up without the list of changes it is in")
 	}
 }
+
+// The signature of the backup is of what the backup holds, not of the
+// order a map yields its entries: several viewers, and the signature is
+// the same from call to call, so the backup sees the pause and writes
+// (backupEdits reads every change of it as the user typing on).
+func TestBackupSigSteady(t *testing.T) {
+	a := testApp(t)
+	a.side.views = map[string]*sideView{
+		"s1": {kind: sideChanges},
+		"s2": {kind: sideFiles, file: &fileView{pane: "a", path: "/x/a.go"}},
+		"s3": {kind: sideFiles, file: &fileView{pane: "a", path: "/x/b.go"}},
+		"s4": {kind: sideChanges},
+	}
+	sig := a.backupSig()
+	for i := 0; i < 100; i++ {
+		if got := a.backupSig(); got != sig {
+			t.Fatalf("the signature changed with nothing changed: %q, then %q", sig, got)
+		}
+	}
+}
