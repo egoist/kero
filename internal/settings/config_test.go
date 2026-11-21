@@ -407,6 +407,32 @@ func TestFontFeature(t *testing.T) {
 	}
 }
 
+// env keeps the good values even when a line among them is not
+// NAME=value, and says the bad one at the end; an empty line clears the
+// list, as the other lists do.
+func TestEnvKeepsTheGoodValues(t *testing.T) {
+	for _, c := range []struct {
+		file     string
+		want     []string
+		problems int
+	}{
+		{"", nil, 0},
+		{"env = A=1", []string{"A=1"}, 0},
+		{"env = A=1\nenv = B=2", []string{"A=1", "B=2"}, 0},
+		{"env = A=1\nenv =\nenv = B=2", []string{"B=2"}, 0},
+		{"env = A=1\nenv = BAD\nenv = B=2", []string{"A=1", "B=2"}, 1},
+	} {
+		s, probs := parse(c.file + "\n")
+		if !reflect.DeepEqual(s.Env, c.want) || len(probs) != c.problems {
+			t.Errorf("%q: env %q, problems %q; want %q", c.file, s.Env, probs, c.want)
+		}
+	}
+	_, probs := parse("env = A=1\nenv = BAD\nenv = B=2\n")
+	if len(probs) != 1 || !strings.Contains(probs[0], "BAD") {
+		t.Errorf("problems %q, want one naming BAD", probs)
+	}
+}
+
 // new-session-directory takes a folder besides its choices, and writes it
 // back as it was given.
 func TestNewSessionDirectoryFolder(t *testing.T) {
