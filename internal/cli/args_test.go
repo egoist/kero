@@ -61,6 +61,45 @@ func TestNumberArgsAreUsed(t *testing.T) {
 	}
 }
 
+// A status the CLI cannot read is a usage error: `kero wait --for idel`
+// took it for a status, and kerod waits for a pane to have it, and none
+// ever does, so the wait never ended.
+func TestStatusArgsAreUsageErrors(t *testing.T) {
+	t.Setenv("KERO_CONFIG", filepath.Join(t.TempDir(), "config"))
+	sock, calls := fakeDaemon(t)
+	t.Setenv("KERO_SOCKET", sock)
+
+	if err := run([]string{"wait", "p1", "--for", "idel"}, ""); !errors.Is(err, errUsage) {
+		t.Errorf("kero wait --for idel: %v, want a usage error", err)
+	}
+	if err := run([]string{"wait", "p1", "--for", "working,idel"}, ""); !errors.Is(err, errUsage) {
+		t.Errorf("kero wait --for working,idel: %v, want a usage error", err)
+	}
+
+	// Nothing was waited for: the CLI said no before it asked the daemon
+	// of anything but the state.
+	for _, m := range calls() {
+		if m != "state" {
+			t.Errorf("the daemon was asked of %q, want only of the state", m)
+		}
+	}
+}
+
+// A status the CLI can read is waited for as it is said.
+func TestStatusArgsAreUsed(t *testing.T) {
+	t.Setenv("KERO_CONFIG", filepath.Join(t.TempDir(), "config"))
+	sock, calls := fakeDaemon(t)
+	t.Setenv("KERO_SOCKET", sock)
+
+	if err := run([]string{"wait", "p1", "--for", "waiting,error"}, ""); err != nil {
+		t.Fatalf("kero wait --for waiting,error: %v", err)
+	}
+	got := calls()
+	if len(got) != 2 || got[0] != "state" || got[1] != "wait" {
+		t.Errorf("the daemon was asked of %q, want of the state and of a wait", got)
+	}
+}
+
 // fakeDaemon is a kerod that answers what the CLI asks of it, and
 // remembers the calls it got. Its socket is the one the CLI is told of.
 func fakeDaemon(t *testing.T) (string, func() []string) {
@@ -123,6 +162,8 @@ func fakeResult(method string) any {
 		}}
 	case "read":
 		return proto.ReadResult{Text: "hello\n"}
+	case "wait":
+		return proto.Pane{ID: "p1", Status: proto.Waiting}
 	case "split":
 		return proto.Session{ID: "s2", Name: "new", Focus: "p2"}
 	}
