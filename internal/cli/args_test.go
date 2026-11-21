@@ -1,0 +1,130 @@
+package cli
+
+import (
+	"bufio"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"net"
+	"path/filepath"
+	"sync"
+	"testing"
+
+	"kero/internal/proto"
+)
+
+// A number the CLI cannot read is a usage error: `kero read -n abc` and
+// `kero split -r abc` took it for none, and read the pane whole or
+// split it in half, as though the number had been said.
+func TestNumberArgsAreUsageErrors(t *testing.T) {
+	t.Setenv("KERO_CONFIG", filepath.Join(t.TempDir(), "config"))
+	sock, calls := fakeDaemon(t)
+	t.Setenv("KERO_SOCKET", sock)
+
+	// A count of lines that is no number.
+	if err := run([]string{"read", "p1", "-n", "abc"}, ""); !errors.Is(err, errUsage) {
+		t.Errorf("kero read -n abc: %v, want a usage error", err)
+	}
+	// A ratio that is no number.
+	if err := run([]string{"split", "p1", "-r", "abc"}, ""); !errors.Is(err, errUsage) {
+		t.Errorf("kero split -r abc: %v, want a usage error", err)
+	}
+	// A ratio out of the room's share: kerod takes it for half.
+	if err := run([]string{"split", "p1", "-r", "5"}, ""); !errors.Is(err, errUsage) {
+		t.Errorf("kero split -r 5: %v, want a usage error", err)
+	}
+
+	// Nothing was read and nothing was split: the CLI said no before it
+	// asked the daemon of anything but the state.
+	for _, m := range calls() {
+		if m != "state" {
+			t.Errorf("the daemon was asked of %q, want only of the state", m)
+		}
+	}
+}
+
+// A number the CLI can read is used as it is said.
+func TestNumberArgsAreUsed(t *testing.T) {
+	t.Setenv("KERO_CONFIG", filepath.Join(t.TempDir(), "config"))
+	sock, calls := fakeDaemon(t)
+	t.Setenv("KERO_SOCKET", sock)
+
+	if err := run([]string{"read", "p1", "-n", "40"}, ""); err != nil {
+		t.Fatalf("kero read -n 40: %v", err)
+	}
+	if err := run([]string{"split", "p1", "-r", "0.3"}, ""); err != nil {
+		t.Fatalf("kero split -r 0.3: %v", err)
+	}
+	got := calls()
+	if len(got) != 4 || got[0] != "state" || got[1] != "read" || got[2] != "state" || got[3] != "split" {
+		t.Errorf("the daemon was asked of %q", got)
+	}
+}
+
+// fakeDaemon is a kerod that answers what the CLI asks of it, and
+// remembers the calls it got. Its socket is the one the CLI is told of.
+func fakeDaemon(t *testing.T) (string, func() []string) {
+	t.Helper()
+	sock := filepath.Join(t.TempDir(), "kerod.sock")
+	ln, err := net.Listen("unix", sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { ln.Close() })
+	var mu sync.Mutex
+	var got []string
+	go func() {
+		for {
+			conn, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			go func() {
+				defer conn.Close()
+				r := bufio.NewReader(conn)
+				line, err := proto.ReadLine(r, proto.MaxLine)
+				if err != nil {
+					return
+				}
+				var hello proto.Hello
+				json.Unmarshal(line, &hello)
+				fmt.Fprintf(conn, `{"version":%d,"pid":1}`+"\n", proto.Version)
+				for {
+					line, err := proto.ReadLine(r, proto.MaxLine)
+					if err != nil {
+						return
+					}
+					var req proto.Request
+					if json.Unmarshal(line, &req) != nil {
+						return
+					}
+					mu.Lock()
+					got = append(got, req.Method)
+					mu.Unlock()
+					res, _ := json.Marshal(fakeResult(req.Method))
+					fmt.Fprintf(conn, `{"id":%d,"result":%s}`+"\n", req.ID, res)
+				}
+			}()
+		}
+	}()
+	return sock, func() []string {
+		mu.Lock()
+		defer mu.Unlock()
+		return append([]string(nil), got...)
+	}
+}
+
+// fakeResult is what the fake kerod answers a call of the CLI with.
+func fakeResult(method string) any {
+	switch method {
+	case "state":
+		return proto.State{Sessions: []proto.Session{
+			{ID: "s1", Name: "api", Panes: []proto.Pane{{ID: "p1", Status: proto.Idle}}},
+		}}
+	case "read":
+		return proto.ReadResult{Text: "hello\n"}
+	case "split":
+		return proto.Session{ID: "s2", Name: "new", Focus: "p2"}
+	}
+	return nil
+}

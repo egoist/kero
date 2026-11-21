@@ -444,7 +444,10 @@ func run(args []string, host string) error {
 				dir = d
 			}
 		}
-		ratio, _ := strconv.ParseFloat(f.vals["ratio"], 64)
+		ratio, err := parseRatio(f.vals["ratio"])
+		if err != nil {
+			return err
+		}
 		command := append(f.pos[min(1, len(f.pos)):], f.rest...)
 		if f.set["wait"] && len(command) == 0 {
 			return usageErr("kero split --wait needs a command: kero split --wait -- cmd…")
@@ -554,7 +557,10 @@ func run(args []string, host string) error {
 		if err != nil {
 			return err
 		}
-		lines, _ := strconv.Atoi(f.vals["lines"])
+		lines, err := parseLines(f.vals["lines"])
+		if err != nil {
+			return err
+		}
 		var res proto.ReadResult
 		if err := c.Call("read", proto.ReadParams{ID: t.ref(), Scrollback: f.set["all"], Lines: lines}, &res); err != nil {
 			return err
@@ -1334,6 +1340,35 @@ func parseTimeout(s string) (int64, error) {
 		d = time.Duration(n) * time.Second
 	}
 	return d.Milliseconds(), nil
+}
+
+// parseLines is a count of lines: a number, and not fewer than none.
+// A count that is no number is a usage error: taken for none, it read
+// the pane whole, as though the count had been said.
+func parseLines(s string) (int, error) {
+	if s == "" {
+		return 0, nil
+	}
+	n, err := strconv.Atoi(s)
+	if err != nil || n < 0 {
+		return 0, usageErr("kero read -n takes a count of lines, not %q", s)
+	}
+	return n, nil
+}
+
+// parseRatio is a share of the space: a number between none and all, as
+// the help says. A ratio that is no number is a usage error, and one out
+// of the room's share too: kerod takes either for half the room, and
+// splits it as though the ratio had been said.
+func parseRatio(s string) (float64, error) {
+	if s == "" {
+		return 0, nil
+	}
+	r, err := strconv.ParseFloat(s, 64)
+	if err != nil || r <= 0 || r >= 1 {
+		return 0, usageErr("kero split -r takes a ratio between 0 and 1, not %q", s)
+	}
+	return r, nil
 }
 
 func printJSON(v any) error {
