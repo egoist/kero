@@ -67,7 +67,7 @@ func pathBase(p string) string { return p[strings.LastIndexAny(p, `/\`)+1:] }
 
 // viewTargets are the texts of a viewer with edits to save: its file, or
 // its diffs.
-func (a *App) viewTargets(v *sideView) []editTarget {
+func (a *App) viewTargets(v *sideView, s *proto.Session) []editTarget {
 	var ts []editTarget
 	if v.kind == sideFiles {
 		if v.file != nil {
@@ -77,7 +77,13 @@ func (a *App) viewTargets(v *sideView) []editTarget {
 		}
 		return ts
 	}
+	// The diffs of the list the viewer shows: those of another
+	// worktree's changes are another session's, and stay theirs.
+	scope := a.changesScopeOf(s)
 	for _, sf := range a.side.changes.files {
+		if sf.scope != scope {
+			continue
+		}
 		if t := a.diffTarget(sf); t.dirty() {
 			ts = append(ts, t)
 		}
