@@ -22,7 +22,23 @@ type session struct {
 	panes             []*pane
 	layout            *proto.Layout
 	focus, zoomed     string
+	prevFocus         string          // the pane the focus was in before the one it is in now
 	worktree          *proto.Worktree // made for it (proto.Session.Worktree)
+}
+
+// setFocus moves the session's focus to a pane, remembering the one it
+// was in: a pane that goes away hands the focus back to it (#390).
+func (s *session) setFocus(pane string) {
+	if s.focus == pane {
+		return
+	}
+	s.prevFocus = s.focus
+	s.focus = pane
+}
+
+// hasPane tells whether the session has a pane.
+func (s *session) hasPane(id string) bool {
+	return slices.ContainsFunc(s.panes, func(p *pane) bool { return p.info.ID == id })
 }
 
 // state returns what the subscribers see.
@@ -369,7 +385,8 @@ func (d *Daemon) split(p proto.CreateParams) (proto.Session, error) {
 	}
 	s.layout = s.layout.Split(atID, pn.info.ID, p.Direction, p.Ratio)
 	s.panes = append(s.panes, pn)
-	s.focus, s.zoomed = pn.info.ID, ""
+	s.setFocus(pn.info.ID)
+	s.zoomed = ""
 	d.panes[pn.info.ID] = pn
 	info := d.sessionInfo(s)
 	d.mu.Unlock()
@@ -391,12 +408,17 @@ func (d *Daemon) removePane(id string) error {
 	if s != nil {
 		s.panes = slices.DeleteFunc(s.panes, func(o *pane) bool { return o == p })
 		if s.layout != nil {
-			// The focus goes to the neighbor taking the room.
+			// The focus goes to the pane it was in before, or to the
+			// neighbor taking the room (#390).
 			if s.focus == id {
-				for _, dir := range []string{"left", "up", "right", "down"} {
-					if n := s.layout.Neighbor(id, dir); n != "" {
-						s.focus = n
-						break
+				if s.prevFocus != "" && s.hasPane(s.prevFocus) {
+					s.setFocus(s.prevFocus)
+				} else {
+					for _, dir := range []string{"left", "up", "right", "down"} {
+						if n := s.layout.Neighbor(id, dir); n != "" {
+							s.setFocus(n)
+							break
+						}
 					}
 				}
 			}
@@ -411,7 +433,7 @@ func (d *Daemon) removePane(id string) error {
 		if len(s.panes) == 0 {
 			d.sessions = slices.DeleteFunc(d.sessions, func(o *session) bool { return o == s })
 		} else if s.focus == id {
-			s.focus = s.panes[0].info.ID
+			s.setFocus(s.panes[0].info.ID)
 		}
 	}
 	d.mu.Unlock()

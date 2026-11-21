@@ -136,6 +136,11 @@ type App struct {
 	// in tests.
 	idleTime func() time.Duration
 
+	// prevFocus is the pane the user was in before the one they are in
+	// now, by session: a pane that closes hands the focus back to it
+	// (#390).
+	prevFocus map[string]string
+
 	renaming        string
 	renamingProject string
 	renameBuf       string
@@ -268,7 +273,7 @@ func (a *App) event(h *host, cl *client.Client, m proto.Message) {
 		// In the pane kerod has it focus, as kero focus <pane> asks: the
 		// state with it came just before.
 		if s := a.session(m.Select); s != nil && s.PaneByID(s.Focus) != nil {
-			a.focus[s.ID] = s.Focus
+			a.moveFocus(s, s.Focus)
 		}
 		a.selectSession(m.Select)
 		if a.win != nil {
