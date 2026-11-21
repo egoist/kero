@@ -121,6 +121,7 @@ type changesState struct {
 // user edits.
 type sideFile struct {
 	pane, base string
+	scope      string // the list of changes it belongs to: a worktree's, or a turn's
 	root       string // the worktree's, on the host
 	edits      edited
 	f          proto.GitFile     // the file as listed when its text was asked for
@@ -237,7 +238,7 @@ func (a *App) closeView(s *proto.Session) {
 		return
 	}
 	// Asking first to save what the user edited in it.
-	a.askToSave(a.viewTargets(v), func() {
+	a.askToSave(a.viewTargets(v, s), func() {
 		v.kind = ""
 		if a.side.focused {
 			a.side.focused = false
@@ -521,6 +522,26 @@ func changesScope(p *proto.Pane, base string) string {
 	return p.ID + "|" + base
 }
 
+// changesPane is the pane whose changes the Changes tab shows for a
+// session: the one the user is in, or the one of its agent's turn.
+func changesPane(here, turn *proto.Pane, base string) *proto.Pane {
+	if base == git.BaseTurn {
+		return turn
+	}
+	return here
+}
+
+// changesScopeOf is the list of changes the Changes tab shows for a
+// session: its worktree's changes, or its turn's.
+func (a *App) changesScopeOf(s *proto.Session) string {
+	here, turn := a.changesPanes(s)
+	pane := changesPane(here, turn, a.side.changes.base)
+	if pane == nil {
+		return ""
+	}
+	return changesScope(pane, a.side.changes.base)
+}
+
 // gitStamp is what of a worktree's status changes its changes.
 func gitStamp(g *proto.GitInfo) string {
 	if g == nil {
@@ -589,10 +610,7 @@ func (a *App) changesFrameOf(c *ui.Context, s *proto.Session) *changesFrame {
 	if !slices.Contains(cf.bases, ch.base) {
 		ch.base = cf.bases[0]
 	}
-	pane := here
-	if ch.base == git.BaseTurn {
-		pane = turn
-	}
+	pane := changesPane(here, turn, ch.base)
 	// The list is of a worktree, not of a pane: the panes the user moves
 	// between in one show it as it was, scrolled where it was. A turn's is
 	// of its snapshot.
@@ -719,6 +737,10 @@ func (a *App) changesViewer(c *ui.Context, pal *palette, s *proto.Session, width
 	files := cf.list != nil && len(cf.list.Files) > 0
 	dirty := false
 	for _, sf := range ch.files {
+		if sf.scope != cf.scope {
+			// Another worktree's diff, which this viewer does not show.
+			continue
+		}
 		dirty = dirty || a.diffTarget(sf).dirty()
 	}
 	a.viewerHeader(c, pal, s, diffIcon, locales.SideChanges(), dirty, func() {
@@ -857,7 +879,7 @@ func (a *App) syncFiles(c *ui.Context, scope string, pane *proto.Pane, root stri
 		key := scope + "|" + f.Path
 		sf := ch.files[key]
 		if sf == nil {
-			sf = &sideFile{pane: pane.ID, base: ch.base, f: f}
+			sf = &sideFile{pane: pane.ID, base: ch.base, scope: scope, f: f}
 			ch.files[key] = sf
 		}
 		sf.root = root
