@@ -718,7 +718,7 @@ func (a *App) paneRow(c *ui.Context, pal *palette, s *proto.Session, p *proto.Pa
 			}
 			a.setFocus(s, pid)
 			a.selectSession(sid)
-			a.paneRef(pid).Focus()
+			a.focusPane(pid)
 		})
 	}
 	// Where it works: a branch other than the default, else a folder

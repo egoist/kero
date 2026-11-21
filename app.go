@@ -118,6 +118,7 @@ type App struct {
 	lru        []string
 	refs       map[string]*ui.Handle // panes' terminals, and splits, by id
 	focus      map[string]string     // the pane the user is in, by session
+	keyPane    string                // the pane that has the keyboard
 	layoutDrag struct {              // the split whose divider is dragged
 		session, split string
 		ratio          float64 // where the pointer puts it, past its bounds
@@ -346,6 +347,7 @@ func (a *App) setState(h *host, st proto.State) {
 			a.dropWeb(id)
 		}
 	}
+	a.focusGone()
 	a.quickChanged()
 	if a.session(a.selected) == nil {
 		a.reselect()

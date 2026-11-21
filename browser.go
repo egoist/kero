@@ -301,7 +301,7 @@ func (a *App) browserBar(c *ui.Context, pal *palette, bar ui.TitleBar, shown flo
 	h := ui.Row(c.Key("hdr")).Height(headerH).Shrink(0).AlignItems(ui.Center).Padding(0, 10, 0, pad-6).Gap(2)
 	if h.Pressed() && !focused {
 		a.setFocus(s, p.ID)
-		a.paneRef(p.ID).Focus()
+		a.focusPane(p.ID)
 	}
 	dragging := false
 	h.Children(func() {
@@ -424,7 +424,7 @@ func (a *App) addressBar(c *ui.Context, pal *palette, s *proto.Session, p *proto
 		// The page takes the keyboard, through its element, which the
 		// field gives the focus up to.
 		e.focused = false
-		a.paneRef(p.ID).Focus()
+		a.focusPane(p.ID)
 		a.tellPage(p.ID, e)
 	}
 	// Escape gives the field back the page's URL, as a browser's does.
