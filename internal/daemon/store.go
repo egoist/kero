@@ -128,6 +128,11 @@ func writeAtomic(path string, data []byte) error {
 // restore starts again the sessions of the last daemon, which ended
 // without closing them.
 func (d *Daemon) restore() {
+	// The daemon's lock: the network listeners are up already, and a
+	// remote client that connects now must not read the state as it is
+	// restored.
+	d.mu.Lock()
+	defer d.mu.Unlock()
 	data, err := os.ReadFile(d.statePath())
 	if err != nil {
 		return
