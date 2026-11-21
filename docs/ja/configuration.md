@@ -52,7 +52,8 @@ kero config check             # 不明なキー、不正な値、agents.toml の
 | `resume-agents`         | `true`     | セッションの再開時に、各ペインで動いていたエージェントの会話を再開する |
 | `session-history`       | `false`    | 終了したエージェントの会話をサイドバーに一覧し、再開やアーカイブができるようにする（[詳細](./sessions.md#ended-sessions)） |
 | `macos-show-app-icon`   | `dock-and-menubar` | macOS で Kero のアイコンを表示する場所: `dock-and-menubar`、`dock`、`menubar`。メニューバーに表示している間は、ウインドウを閉じても Kero はそこで動き続ける。Windows と Linux では常に通知領域に表示し、ウインドウを閉じても同じく動き続ける |
-| `keep-computer-awake`   | `off`              | このコンピュータをスリープさせない: `off`、`on`(Kero の実行中ずっと)、`agents`(このマシンでエージェントが作業している間)。コマンドパレットや、メニューバーまたは通知領域の Kero アイコンのメニューからも選べる。電源アダプタ接続中は、蓋を閉じても Mac はスリープしない。バッテリー駆動中は、蓋を閉じるとスリープする |
+| `keep-computer-awake`   | `off`              | このコンピュータをスリープさせない: `off`、`on`(Kero の実行中ずっと)、`agents`(このマシンでエージェントが作業している間)。コマンドパレットや、メニューバーまたは通知領域の Kero アイコンのメニューからも選べる。電源アダプタ接続中は、蓋を閉じても Mac はスリープしない。バッテリー駆動中は、`macos-keep-awake-lid-closed` がオフなら、蓋を閉じるとスリープする |
+| `macos-keep-awake-lid-closed` | `false` | `keep-computer-awake` がこの Mac をスリープさせない間、バッテリー駆動中も蓋を閉じてスリープさせない。設定 › 一般でオンにすると、スリープをオフにするヘルパー(`pmset disablesleep`)をインストールするため、一度だけパスワードを求める。Kero がスリープさせなくなる、Kero が終了する、またはバッテリーが 10% まで下がると、スリープは元に戻る。ヘルパーを削除するには `sudo rm /Library/PrivilegedHelperTools/sh.kero.lid-awake /etc/sudoers.d/kero-lid-awake-$(id -u)` を実行する |
 | `keep-display-on`       | `false`            | `keep-computer-awake` がこのコンピュータをスリープさせない間、ディスプレイもオンのままにする。画面を見るエージェントのため。macOS と Windows |
 
 ## 外観

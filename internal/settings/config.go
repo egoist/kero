@@ -185,8 +185,9 @@ var keys = []key{
 	boolKey("session-history", "list the coding agents' ended conversations in the sidebar, to resume or archive", func(s *Settings) *bool { return &s.SessionHistory }),
 	choiceKey("macos-show-app-icon", "where Kero's icon shows; closing the window keeps Kero running in the menu bar while it shows there. Windows and Linux always show it in the notification area",
 		func(s *Settings) *string { return &s.AppIcon }, AppIcons...),
-	choiceKey("keep-computer-awake", "keep this computer from sleeping: never; as long as Kero runs; or while an agent on it works. On AC power a Mac stays awake with its lid closed. On battery, closing the lid still sleeps it",
+	choiceKey("keep-computer-awake", "keep this computer from sleeping: never; as long as Kero runs; or while an agent on it works. On AC power a Mac stays awake with its lid closed. On battery, closing the lid sleeps it, unless macos-keep-awake-lid-closed is on",
 		func(s *Settings) *string { return &s.KeepAwake }, KeepAwakeModes...),
+	boolKey("macos-keep-awake-lid-closed", "while keep-computer-awake keeps this Mac awake, keep it awake with its lid closed on battery too. It needs a helper that Kero installs, asking for an administrator's password, as this is turned on in Settings › General", func(s *Settings) *bool { return &s.KeepAwakeLidClosed }),
 	boolKey("keep-display-on", "while keep-computer-awake keeps this computer awake, keep its display on too, for agents that look at the screen. macOS and Windows", func(s *Settings) *bool { return &s.KeepDisplayOn }),
 
 	choiceKey("window-theme", "the app's appearance", func(s *Settings) *string { return &s.Appearance }, "system", "light", "dark"),
