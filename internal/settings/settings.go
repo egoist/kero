@@ -361,8 +361,18 @@ func Save(s Settings) error {
 	if err := write(s); err != nil {
 		return err
 	}
-	c := clone(s)
-	cache, problems = &c, nil
+	// What the file holds now, not what was asked of it: format keeps
+	// the lines kero does not know, and one it still gets wrong is
+	// still a problem — saying none here would leave the file wrong
+	// with nothing to show for it, and the next Load takes the cache
+	// and would not look again.
+	if b, err := os.ReadFile(Path()); err == nil {
+		c, probs := parse(string(b))
+		cache, problems = &c, probs
+	} else {
+		c := clone(s)
+		cache, problems = &c, nil
+	}
 	if st, err := os.Stat(Path()); err == nil {
 		mtime = st.ModTime().UnixNano()
 	}
