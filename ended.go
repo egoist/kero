@@ -3,6 +3,7 @@ package main
 import (
 	"cmp"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/egoist/mygo/ui"
@@ -32,22 +33,36 @@ func (a *App) askConversations() {
 		if cl == nil || h.convKnown || h.convAsked {
 			continue
 		}
+		if time.Since(h.convAt) < time.Second {
+			// A host that failed to answer is asked again in a moment,
+			// not on every frame.
+			continue
+		}
 		h.convAsked = true
+		h.convAt = time.Now()
 		gen := h.convGen
 		go func() {
 			var list []proto.Conversation
 			err := cl.Call("conversations", nil, &list)
-			a.update(func() {
-				h.convAsked = false
-				if err != nil {
-					// An older kerod knows of none: ask it no more.
-					h.convs, h.convKnown = nil, true
-					return
-				}
-				h.convs, h.convKnown = list, h.convGen == gen
-			})
+			a.update(func() { a.conversationsAnswered(h, list, gen, err) })
 		}()
 	}
+}
+
+// conversationsAnswered is what a host's answer to the conversations call
+// means: the list it knows, and whether it is asked again.
+func (a *App) conversationsAnswered(h *host, list []proto.Conversation, gen uint64, err error) {
+	h.convAsked = false
+	if err != nil {
+		if strings.Contains(err.Error(), "unknown method") {
+			// An older kerod knows of none: ask it no more.
+			h.convKnown = true
+		}
+		// Another failure is a link that broke: the list stays as it
+		// was, and is asked for again.
+		return
+	}
+	h.convs, h.convKnown = list, h.convGen == gen
 }
 
 func (a *App) endedSections(c *ui.Context, pal *palette) {
