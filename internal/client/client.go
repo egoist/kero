@@ -307,6 +307,9 @@ type Stream struct {
 	wbuf   []byte
 	closed chan struct{}
 	once   sync.Once
+	// closeErr is the error of the close of the connection: the stream
+	// is closed once, and every close of it says the same.
+	closeErr error
 	// Gone is closed when the daemon closed the session (FrameClosed).
 	Gone     chan struct{}
 	goneOnce sync.Once
@@ -425,10 +428,9 @@ func (s *Stream) Clear(what byte) error {
 }
 
 func (s *Stream) Close() error {
-	var err error
 	s.once.Do(func() {
 		close(s.closed)
-		err = s.conn.Close()
+		s.closeErr = s.conn.Close()
 	})
-	return err
+	return s.closeErr
 }

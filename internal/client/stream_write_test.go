@@ -2,6 +2,7 @@ package client
 
 import (
 	"bytes"
+	"errors"
 	"net"
 	"testing"
 
@@ -26,6 +27,17 @@ type counter struct {
 }
 
 func (c *counter) Write(p []byte) (int, error) { c.n += len(p); return len(p), nil }
+
+// failing is a connection that cannot be closed.
+type failing struct {
+	net.Conn
+	closed int
+}
+
+func (c *failing) Close() error {
+	c.closed++
+	return errors.New("the connection is gone")
+}
 
 // The frames a stream writes are the frames it writes one at a time, to
 // the byte: what a client sends a daemon is what the daemon reads.
@@ -60,6 +72,23 @@ func TestStreamWritesFrames(t *testing.T) {
 	proto.WriteFrame(&want, proto.FrameClear, []byte{proto.ClearScreen})
 	if !bytes.Equal(c.buf.Bytes(), want.Bytes()) {
 		t.Errorf("wrote %q, want %q", c.buf.Bytes(), want.Bytes())
+	}
+}
+
+// A stream is closed once, and every close of it says the same: a
+// second close said it closed, though the first one did not.
+func TestStreamCloseSaysItFailed(t *testing.T) {
+	c := &failing{}
+	s := &Stream{conn: c, closed: make(chan struct{}), Gone: make(chan struct{})}
+	err := s.Close()
+	if err == nil {
+		t.Fatal("the close said it worked")
+	}
+	if err2 := s.Close(); err2 == nil || err2.Error() != err.Error() {
+		t.Errorf("the second close said %v, want %v", err2, err)
+	}
+	if c.closed != 1 {
+		t.Errorf("the connection was closed %d times", c.closed)
 	}
 }
 
