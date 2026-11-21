@@ -77,6 +77,11 @@ func TestVersions(t *testing.T) {
 	}{
 		{"2.1.0", "2.1.0", 0}, {"2.0.11", "2.1.0", -1}, {"2.10.0", "2.9.9", 1}, {"2.1.0-beta", "2.1.0", -1},
 		{"2.1.0", "2.1.0-beta", 1}, {"v3.0.0", "2.99.0", 1}, {"2.1.0-a", "2.1.0-b", -1},
+		// A prerelease's numbers count, not their spelling: a string
+		// compare read beta.10 as before beta.2, and refused its
+		// update as older.
+		{"2.1.0-beta.10", "2.1.0-beta.2", 1}, {"2.1.0-beta.9", "2.1.0-beta.10", -1},
+		{"2.1.0-beta.2", "2.1.0-beta.11", -1}, {"2.1.0-1", "2.1.0-beta", -1},
 	} {
 		if got := Compare(c.a, c.b); got != c.want {
 			t.Errorf("Compare(%s, %s) = %d", c.a, c.b, got)
