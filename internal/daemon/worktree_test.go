@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -100,6 +101,48 @@ func TestWorktreeSession(t *testing.T) {
 		t.Errorf("removed a worktree another session works in: %v", err)
 	}
 	d.removeSession(other.ID)
+}
+
+// A session whose pane never starts leaves no worktree behind: the
+// worktree it would have worked in goes with it, so that the next try at
+// the same branch works.
+func TestWorktreeGoneWhenPaneFails(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("a shell that cannot run")
+	}
+	d := testDaemon(t)
+	repo := gitRepo(t)
+	d.projects = []proto.Project{{ID: "pr", Name: "repo", Dir: repo}}
+	// A shell that cannot run: the pane fails to start.
+	sh := filepath.Join(t.TempDir(), "shell")
+	if err := os.WriteFile(sh, []byte("#!/bin/sh\nexit 0\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg := filepath.Join(t.TempDir(), "config")
+	if err := os.WriteFile(cfg, []byte("command = "+sh+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("KERO_CONFIG", cfg)
+
+	if _, err := d.create(proto.CreateParams{Dir: repo, Worktree: "fix/login"}); err == nil {
+		t.Fatal("made a session whose pane cannot start")
+	}
+	path := filepath.Join(repo, ".kero", "worktrees", "fix-login")
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Errorf("the worktree of the session that never started stays: %v", err)
+	}
+	// The branch is free again: the next try at it works.
+	if err := os.Chmod(sh, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	s, err := d.create(proto.CreateParams{Dir: repo, Worktree: "fix/login"})
+	if err != nil {
+		t.Fatalf("the next try at the same branch: %v", err)
+	}
+	if s.Worktree == nil || s.Worktree.Path != path {
+		t.Fatalf("session %+v, worktree %+v", s, s.Worktree)
+	}
+	d.removeSession(s.ID)
 }
 
 func TestWorktreePath(t *testing.T) {
