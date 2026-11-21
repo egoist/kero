@@ -195,7 +195,43 @@ func Compare(a, b string) int {
 	case bpre == "":
 		return -1
 	}
-	return strings.Compare(apre, bpre)
+	return comparePre(apre, bpre)
+}
+
+// comparePre compares prereleases as semver does: identifier by
+// identifier, a number by its value and before a word, so beta.10 comes
+// after beta.2 and 1 before beta. A string compare read beta.10 as the
+// smaller, and an update of it was refused as older.
+func comparePre(a, b string) int {
+	an, bn := strings.Split(a, "."), strings.Split(b, ".")
+	for i := range max(len(an), len(bn)) {
+		if i >= len(an) {
+			return -1
+		}
+		if i >= len(bn) {
+			return 1
+		}
+		x, y := an[i], bn[i]
+		if x == y {
+			continue
+		}
+		xi, xerr := strconv.Atoi(x)
+		yi, yerr := strconv.Atoi(y)
+		switch {
+		case xerr == nil && yerr == nil:
+			if xi < yi {
+				return -1
+			}
+			return 1
+		case xerr == nil: // a number before a word
+			return -1
+		case yerr == nil:
+			return 1
+		default:
+			return strings.Compare(x, y)
+		}
+	}
+	return 0
 }
 
 // message is what an archive's signature signs: the archive, as the server
