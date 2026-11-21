@@ -207,8 +207,12 @@ func (a *App) view(c *ui.Context) {
 
 // resizeHandle is the sidebar's edge, which a drag moves.
 func (a *App) resizeHandle(c *ui.Context, pal *palette) {
-	// A drag leaves the keyboard in the pane the user is in.
-	h := ui.Box(c.Key("resize")).Absolute().Left(-4).Top(0).Bottom(0).Width(9).Cursor(ui.CursorResizeColumn).KeepFocus()
+	// A drag leaves the keyboard in the pane the user is in, unless that
+	// pane is a browser: its page cannot hold it while the button is down.
+	h := ui.Box(c.Key("resize")).Absolute().Left(-4).Top(0).Bottom(0).Width(9).Cursor(ui.CursorResizeColumn)
+	if a.keepsFocus() {
+		h.KeepFocus()
+	}
 	if dx, _, ok := h.Dragged(); ok {
 		if a.sideDrag == 0 {
 			a.sideDrag = a.prefs.SidebarWidth
@@ -218,6 +222,9 @@ func (a *App) resizeHandle(c *ui.Context, pal *palette) {
 	} else if a.sideDrag != 0 && !h.Pressed() {
 		a.sideDrag = 0
 		a.savePrefs()
+		// The pane the user is in takes the keyboard back, which the drag
+		// took from it.
+		a.restoreFocus()
 	}
 	if h.DoubleClicked() {
 		a.prefs.SidebarWidth = defaultSidebar

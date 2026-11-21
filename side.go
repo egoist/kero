@@ -262,7 +262,12 @@ func (a *App) rightWidth() float32 {
 // rightHandle is the sidebar's edge, which a drag moves: in the window,
 // over the edge between the cards and the sidebar, right wide.
 func (a *App) rightHandle(c *ui.Context, right float32) {
-	h := ui.Box(c.Key("resize-right")).Absolute().Right(right - 5).Top(0).Bottom(0).Width(9).Cursor(ui.CursorResizeColumn).KeepFocus()
+	// A drag leaves the keyboard in the pane the user is in, unless that
+	// pane is a browser: its page cannot hold it while the button is down.
+	h := ui.Box(c.Key("resize-right")).Absolute().Right(right - 5).Top(0).Bottom(0).Width(9).Cursor(ui.CursorResizeColumn)
+	if a.keepsFocus() {
+		h.KeepFocus()
+	}
 	if dx, _, ok := h.Dragged(); ok {
 		if a.side.barDrag == 0 {
 			a.side.barDrag = a.rightWidth()
@@ -272,6 +277,9 @@ func (a *App) rightHandle(c *ui.Context, right float32) {
 	} else if a.side.barDrag != 0 && !h.Pressed() {
 		a.side.barDrag = 0
 		a.savePrefs()
+		// The pane the user is in takes the keyboard back, which the drag
+		// took from it.
+		a.restoreFocus()
 	}
 	if h.DoubleClicked() {
 		a.prefs.RightWidth = 0
