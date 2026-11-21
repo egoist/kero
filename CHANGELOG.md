@@ -1,5 +1,80 @@
 # Changelog
 
+## 2.1.37
+
+- **End sessions when Kero quits** in Settings › General also ends this
+  machine's sessions and stops kerod when you quit, asking first while a
+  program still runs (`quit-ends-sessions = true`). Off by default.
+  Thanks @joei4cm
+- **Keep display on** in Settings › General, under Keep computer awake,
+  keeps the display on too while Kero keeps the computer awake, for
+  agents that look at the screen (`keep-display-on = true`). macOS and
+  Windows. Thanks @jkroso
+- <kbd>⌘</kbd>-hovering a `file://` link to an image previews it, as a
+  plain image path does, on remote panes too. Thanks @lcolok
+- **Image Limit** in Settings › Shell bounds the memory the images a
+  pane's programs show can take, 64 MB by default
+  (`image-storage-limit`, `0` for no limit). Before, each pane could take
+  up to 640 MB for them. Thanks @joei4cm
+- A pane whose program exited and closed no longer leaves the keyboard
+  nowhere: the pane that takes its place gets it. Thanks @joei4cm
+- The app no longer keeps a focused pane's whole scrollback in memory to
+  show its screen to screen readers, and typing and mouse reports
+  allocate less in the app and in kerod. Thanks @joei4cm
+- Settings › Colors names the folder your own Ghostty themes go in, which
+  on Windows is `%LOCALAPPDATA%\ghostty\themes`. Thanks @joei4cm
+- On Windows, opening a `~` link from a pane no longer crashes the app,
+  and a link like `~name` is no longer read as one in your home folder.
+  Thanks @joei4cm
+- The folder picker no longer shows the last host's folders when you
+  switch hosts while a listing is still loading. Thanks @joei4cm
+- When kerod restarts and the app reconnects at once, kerod no longer
+  can crash, taking every session with it, while it restores them.
+  Thanks @joei4cm
+- Closing the Changes viewer no longer asks to save, and with Don't Save
+  throws away, another session's diff edits. Thanks @joei4cm
+- A session whose pane fails to start no longer leaves its new worktree
+  behind, so trying the same branch again works. Thanks @joei4cm
+- A host's Ended and Archived conversations no longer go missing after
+  one failed call to it, as when its link drops. Thanks @joei4cm
+- `kero notify <session or pane> <message>` notifies the session or pane
+  named, as its help says. Before, the name became part of the message.
+  Thanks @joei4cm
+- Jumping to a session that needs you opens its group in the sidebar
+  when it is a remote host's session of no project. Thanks @joei4cm
+- The Changes tab keeps two hosts' worktrees of the same path apart, and
+  shows a file's diff after the session it was first opened from closes.
+  Thanks @joei4cm
+- An unsaved diff edit restored after a relaunch comes back to the diff
+  it was made in, not to the same file against another base.
+  Thanks @joei4cm
+- `kero -H <host> diff` finds a file of a Windows host's worktree given
+  as a Windows path. Thanks @joei4cm
+- Unsaved viewer edits are backed up a moment after you pause typing
+  with several viewers open too, not only when Kero quits, and a backup
+  that fails to write, as on a full disk, is tried again.
+  Thanks @joei4cm
+- Reverting a diff in the Changes viewer updates the pane's changes
+  badge at once, also for a pane in a folder of the worktree.
+  Thanks @joei4cm
+- `kero resume` exits with status 3 when its ref could be several
+  conversations, as the help says. Thanks @joei4cm
+- `kero skill setup --agent` with a name it doesn't know, a typo say, is
+  refused rather than installing the skill for every agent.
+  Thanks @joei4cm
+- `kero read -n` and `kero split -r` refuse a value that is no number,
+  or a ratio outside 0 to 1, rather than reading the whole pane or
+  splitting it in half. Thanks @joei4cm
+- `kero wait --for` with a status it doesn't know, a typo say, is refused
+  rather than waiting forever. Thanks @joei4cm
+- A conversation an agent started just before kerod restarted for an
+  update is no longer missing from `kero history` after it.
+  Thanks @joei4cm
+- Saving a diff whose session has ended no longer writes it to this
+  machine, at the path of a remote worktree's file. Its edit stays backed
+  up, and comes back when the worktree shows the file again.
+  Thanks @joei4cm
+
 ## 2.1.36
 
 - **New sessions start in** in Settings › General takes a folder of your
