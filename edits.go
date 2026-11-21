@@ -61,6 +61,11 @@ func (a *App) diffTarget(sf *sideFile) editTarget {
 	if sf.d != nil && !sf.patch {
 		t.buf = sf.d.New
 	}
+	// A diff of a pane gone is not a text to save: no host has the pane,
+	// and the local one is where its file is not.
+	if !a.paneAlive(t.pane) {
+		t.buf = nil
+	}
 	return t
 }
 
