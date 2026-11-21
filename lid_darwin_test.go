@@ -31,6 +31,8 @@ func newLidHelperTest(t *testing.T) *lidHelperTest {
 	for _, r := range [][2]string{
 		{"PATH=/usr/bin:/bin:/usr/sbin:/sbin", "PATH=" + dir + ":/usr/bin:/bin:/usr/sbin:/sbin"},
 		{"mark=/var/db/sh.kero.lid-awake", "mark=" + dir + "/mark"},
+		{"helper=/Library/PrivilegedHelperTools/sh.kero.lid-awake", "helper=" + dir + "/installed"},
+		{"rules=/etc/sudoers.d/kero-lid-awake-", "rules=" + dir + "/rules/kero-lid-awake-"},
 		{"sleep 5 &", "sleep 0.05 &"},
 	} {
 		if !strings.Contains(script, r[0]) {
@@ -208,6 +210,54 @@ func TestLidHelperRelease(t *testing.T) {
 	h.ends(h.start("release"))
 	if h.read("disabled") != "1" {
 		t.Error("release turned sleep on for another app")
+	}
+}
+
+// remove lets the Mac sleep, if the helper kept it awake, and deletes
+// the rule of the user who ran sudo, and the helper once no other user's
+// rule is left.
+func TestLidHelperRemove(t *testing.T) {
+	h := newLidHelperTest(t)
+	os.Mkdir(filepath.Join(h.dir, "rules"), 0o755)
+	exists := func(name string) bool {
+		_, err := os.Stat(filepath.Join(h.dir, name))
+		return err == nil
+	}
+	remove := func(uid string) int {
+		t.Helper()
+		cmd := exec.Command(filepath.Join(h.dir, "helper"), "remove")
+		cmd.Env = append(os.Environ(), "SUDO_UID="+uid)
+		cmd.Run()
+		return cmd.ProcessState.ExitCode()
+	}
+	h.write("installed", "the helper", 0o755)
+	h.write("rules/kero-lid-awake-501", "a rule", 0o440)
+	h.write("rules/kero-lid-awake-502", "a rule", 0o440)
+	h.set("1", lidAC)
+	h.write("mark", "", 0o644)
+
+	if code := remove("501"); code != 0 {
+		t.Fatalf("remove by 501: exit %d", code)
+	}
+	if exists("rules/kero-lid-awake-501") || !exists("rules/kero-lid-awake-502") || !exists("installed") {
+		t.Errorf("by 501: 501's rule %v, 502's %v, helper %v; want only 502's and the helper",
+			exists("rules/kero-lid-awake-501"), exists("rules/kero-lid-awake-502"), exists("installed"))
+	}
+	if h.read("disabled") != "0" || h.marked() {
+		t.Errorf("by 501: SleepDisabled %q, mark %v; want sleep back on", h.read("disabled"), h.marked())
+	}
+
+	if code := remove("502"); code != 0 || exists("rules/kero-lid-awake-502") || exists("installed") {
+		t.Errorf("by 502, the last: exit %d, rule %v, helper %v; want both gone", code, exists("rules/kero-lid-awake-502"), exists("installed"))
+	}
+
+	// Not run by sudo, remove removes nothing.
+	h.write("installed", "the helper", 0o755)
+	h.write("rules/kero-lid-awake-501", "a rule", 0o440)
+	for _, uid := range []string{"", "5x", "../x"} {
+		if code := remove(uid); code != 2 || !exists("installed") || !exists("rules/kero-lid-awake-501") {
+			t.Errorf("SUDO_UID %q: exit %d, helper %v, rule %v; want exit 2 and both kept", uid, code, exists("installed"), exists("rules/kero-lid-awake-501"))
+		}
 	}
 }
 

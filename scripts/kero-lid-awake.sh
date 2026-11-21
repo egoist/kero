@@ -10,6 +10,9 @@
 #   sh.kero.lid-awake release  let the Mac sleep, if this left it awake,
 #                              as a Kero that crashed or a Mac that lost
 #                              power can
+#   sh.kero.lid-awake remove   release, then delete the rule of the user
+#                              who ran sudo, and this script once no
+#                              other user's rule is left
 #
 # It lets the Mac sleep again as it stops, and while the battery is at
 # 10% or below. It undoes only what it did: if another app had turned
@@ -20,6 +23,10 @@ export PATH
 
 # mark is there while this keeps the Mac awake, across a restart.
 mark=/var/db/sh.kero.lid-awake
+# helper is this script as installed, and rules each user's rule, by
+# their uid.
+helper=/Library/PrivilegedHelperTools/sh.kero.lid-awake
+rules=/etc/sudoers.d/kero-lid-awake-
 
 disabled() {
 	pmset -g | grep -q '^[[:space:]]*SleepDisabled[[:space:]]*1'
@@ -44,8 +51,23 @@ release)
 	release
 	exit 0
 	;;
+remove)
+	# sudo sets SUDO_UID, which the user can't.
+	case $SUDO_UID in '' | *[!0-9]*)
+		echo "$0: remove runs by sudo" >&2
+		exit 2
+		;;
+	esac
+	release
+	rm -f "$rules$SUDO_UID"
+	for r in "$rules"*; do
+		[ -e "$r" ] && exit 0
+	done
+	rm -f "$helper"
+	exit 0
+	;;
 '' | *[!0-9]*)
-	echo "usage: $0 PID | release" >&2
+	echo "usage: $0 PID | release | remove" >&2
 	exit 2
 	;;
 esac

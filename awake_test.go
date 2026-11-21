@@ -87,3 +87,21 @@ func TestAwakeTrayDisplay(t *testing.T) {
 		t.Errorf("with agents and the display on: disabled %v, checked %v", it.Disabled, it.Checked)
 	}
 }
+
+// Turning Stay awake with the lid closed off removes its helper; turning
+// it on doesn't.
+func TestLidHelperRemovedWhenTurnedOff(t *testing.T) {
+	removed := 0
+	was := removeLidHelper
+	removeLidHelper = func() { removed++ }
+	t.Cleanup(func() { removeLidHelper = was })
+	a := testApp(t)
+	a.setKeepAwakeLidClosed(true)
+	if removed != 0 {
+		t.Fatalf("turned on: removed %d times", removed)
+	}
+	a.setKeepAwakeLidClosed(false)
+	if removed != 1 {
+		t.Errorf("turned off: removed %d times, want 1", removed)
+	}
+}

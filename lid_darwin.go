@@ -88,6 +88,18 @@ func (w *lidHold) holding() bool {
 	}
 }
 
+// removeLidHelper removes the lid helper, as Stay awake with the lid
+// closed turned off asks: the helper itself, by sudo without a password,
+// lets the Mac sleep if it kept it awake, and deletes this user's rule,
+// and itself once no other user's is left. Without this user's rule,
+// there is nothing of theirs to remove.
+var removeLidHelper = func() {
+	if _, err := os.Stat(lidSudoers()); err != nil {
+		return
+	}
+	exec.Command("/usr/bin/sudo", "-n", lidHelper, "remove").Run()
+}
+
 // lidHelperInstalled tells whether the lid helper this Kero carries is
 // installed, with this user's rule.
 func lidHelperInstalled() bool {

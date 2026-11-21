@@ -1015,6 +1015,11 @@ func (a *App) apply(s settings.Settings, save bool) {
 			a.tray.SetMenu(a.trayMenu())
 		}
 	}
+	// Stay awake with the lid closed turned off: its helper, which
+	// keepAwake just stopped, goes.
+	if old.KeepAwakeLidClosed && !s.KeepAwakeLidClosed {
+		removeLidHelper()
+	}
 	if old.AppIcon != s.AppIcon && a.win != nil {
 		a.changeAppIcon()
 	}

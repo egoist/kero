@@ -16,6 +16,8 @@ type lidHold struct{}
 
 func (*lidHold) hold(bool) {}
 
+var removeLidHelper = func() {}
+
 func lidHelperInstalled() bool { return false }
 
 func installLidHelper(string) error { return nil }
