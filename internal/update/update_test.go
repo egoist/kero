@@ -109,11 +109,16 @@ func TestInstallRefuses(t *testing.T) {
 }
 
 func tarball(t *testing.T, files map[string]string) []byte {
+	return tarballMode(t, files, 0o755)
+}
+
+// tarballMode is a tarball whose files have the mode given.
+func tarballMode(t *testing.T, files map[string]string, mode int64) []byte {
 	var buf bytes.Buffer
 	gz := gzip.NewWriter(&buf)
 	tw := tar.NewWriter(gz)
 	for name, body := range files {
-		tw.WriteHeader(&tar.Header{Name: name, Mode: 0o755, Size: int64(len(body)), Typeflag: tar.TypeReg})
+		tw.WriteHeader(&tar.Header{Name: name, Mode: mode, Size: int64(len(body)), Typeflag: tar.TypeReg})
 		tw.Write([]byte(body))
 	}
 	tw.Close()
@@ -181,5 +186,35 @@ func TestReplace(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(filepath.Dir(dir), "escape")); err == nil {
 		t.Error("a file got out of the archive")
+	}
+}
+
+// An archive that records no mode for its files has none to give them:
+// they would come out unreadable, and the server's binary unrunnable,
+// and the whole archive refused as none of Kero's.
+func TestTarWithoutModes(t *testing.T) {
+	kero := exe(runtime.GOOS)
+	dir := filepath.Join(t.TempDir(), "kero")
+	os.MkdirAll(dir, 0o755)
+	os.WriteFile(filepath.Join(dir, kero), []byte("old"), 0o755)
+	if err := Replace(tarballMode(t, map[string]string{kero: "new", "libghostty-vt.so": "lib", Marker: ""}, 0), dir); err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(filepath.Join(dir, kero))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(b) != "new" {
+		t.Errorf("kero is %q", b)
+	}
+	st, err := os.Stat(filepath.Join(dir, kero))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.Mode()&0o111 == 0 {
+		t.Errorf("kero is not runnable: %v", st.Mode())
+	}
+	if b, err := os.ReadFile(filepath.Join(dir, "libghostty-vt.so")); err != nil || string(b) != "lib" {
+		t.Errorf("the library is %q: %v", b, err)
 	}
 }
