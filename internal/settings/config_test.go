@@ -2,6 +2,7 @@ package settings
 
 import (
 	"encoding/json"
+	"math"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -123,6 +124,35 @@ func TestBadValuesKeepDefaults(t *testing.T) {
 	}
 	if len(probs) != 3 {
 		t.Errorf("problems %q", probs)
+	}
+}
+
+// A number that is no number — NaN, or past the end of what a float
+// holds — keeps the default, and the line is a problem. A size of NaN
+// would size a terminal of nothing: it is less than nothing and more
+// than anything at once, and every check of it passes.
+func TestNotANumberKeepsDefaults(t *testing.T) {
+	d := Default()
+	for _, c := range []struct {
+		line string
+		got  func(Settings) float64
+		want float64
+	}{
+		{"font-size = NaN", func(s Settings) float64 { return float64(s.FontSize) }, float64(d.FontSize)},
+		{"line-height = nan", func(s Settings) float64 { return float64(s.LineHeight) }, float64(d.LineHeight)},
+		{"font-weight = NaN", func(s Settings) float64 { return float64(s.FontWeight) }, float64(d.FontWeight)},
+		{"minimum-contrast = +Inf", func(s Settings) float64 { return float64(s.MinContrast) }, float64(d.MinContrast)},
+		{"scrollback-limit = -Inf", func(s Settings) float64 { return float64(s.Scrollback) }, float64(d.Scrollback)},
+		{"mouse-scroll-multiplier = NaN", func(s Settings) float64 { return float64(s.ScrollPrecision) }, float64(d.ScrollPrecision)},
+		{"mouse-scroll-multiplier = precision:nan,discrete:1", func(s Settings) float64 { return float64(s.ScrollDiscrete) }, float64(d.ScrollDiscrete)},
+	} {
+		s, probs := parse(c.line + "\n")
+		if got := c.got(s); got != c.want || math.IsNaN(got) {
+			t.Errorf("%s: %v, want %v", c.line, got, c.want)
+		}
+		if len(probs) != 1 || !strings.Contains(probs[0], "not a number") {
+			t.Errorf("%s: problems %q", c.line, probs)
+		}
 	}
 }
 

@@ -2,6 +2,7 @@ package settings
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -89,7 +90,10 @@ func numberKey(name, doc string, get func(*Settings) float64, set func(*Settings
 		get: func(s *Settings) []string { return []string{strconv.FormatFloat(get(s), 'f', -1, 64)} },
 		set: func(s *Settings, v []string) error {
 			n, err := strconv.ParseFloat(v[len(v)-1], 64)
-			if err != nil {
+			// NaN and the infinities are no numbers for a size or a
+			// limit: a check of theirs would pass them through, NaN
+			// less than nothing and more than anything at once.
+			if err != nil || math.IsNaN(n) || math.IsInf(n, 0) {
 				return fmt.Errorf("%q is not a number", v[len(v)-1])
 			}
 			set(s, n)
@@ -269,7 +273,7 @@ var keys = []key{
 			val := v[len(v)-1]
 			n := func(t string) (float32, error) {
 				f, err := strconv.ParseFloat(strings.TrimSpace(t), 32)
-				if err != nil {
+				if err != nil || math.IsNaN(f) || math.IsInf(f, 0) {
 					return 0, fmt.Errorf("%q is not a number", strings.TrimSpace(t))
 				}
 				return float32(min(max(f, MinScrollMultiplier), MaxScrollMultiplier)), nil
