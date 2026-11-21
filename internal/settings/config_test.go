@@ -130,6 +130,47 @@ func TestKeybinds(t *testing.T) {
 	}
 }
 
+// A shortcut that takes another action's keys survives the file: the
+// other action gives them up, and the one that took them keeps them.
+func TestKeybindTakesKeys(t *testing.T) {
+	down, _ := actions.Find("pane.split.down")
+	s := Default()
+	s.Shortcuts = map[string]string{
+		"pane.split.right": down.Keys, // the keys of Split Down
+		"pane.split.down":  "",        // and Split Down has none now
+	}
+	out := format(s, "")
+	back, probs := parse(out)
+	if len(probs) != 0 {
+		t.Errorf("problems %q", probs)
+	}
+	if back.Shortcuts["pane.split.right"] != down.Keys {
+		t.Errorf("the shortcut that took the keys: %q", back.Shortcuts["pane.split.right"])
+	}
+	if v, ok := back.Shortcuts["pane.split.down"]; !ok || v != "" {
+		t.Errorf("split down %q %v", v, ok)
+	}
+	// The freeing comes first in the file, which is read in its order:
+	// the action that takes the keys is bound after it.
+	low := strings.ToLower(out)
+	frees, binds := strings.Index(low, "=unbind"), strings.Index(low, "=pane.split.right")
+	if frees < 0 || binds < 0 || frees > binds {
+		t.Errorf("the freeing does not come before the binding:\n%s", out)
+	}
+}
+
+// A file that binds keys and frees them after is read in the order it
+// has, as Ghostty reads its own: the keys are free at the end.
+func TestKeybindUnbindComesLast(t *testing.T) {
+	s, probs := parse("keybind = " + `alt+shift+-=pane.split.right` + "\nkeybind = alt+shift+-=unbind\n")
+	if len(probs) != 0 {
+		t.Fatalf("problems %q", probs)
+	}
+	if v, ok := s.Shortcuts["pane.split.right"]; !ok || v != "" {
+		t.Errorf("split right %q %v, want no keys: the file freed them last", v, ok)
+	}
+}
+
 // Ghostty's global: prefix binds the quick terminal as Ghostty's
 // configuration writes it.
 func TestGlobalKeybind(t *testing.T) {

@@ -438,7 +438,7 @@ var keys = []key{
 		}},
 	{name: "keybind", doc: "<keys>=<action>, over the defaults, as cmd+shift+d=pane.split.down; <keys>=unbind frees keys; see kero actions", list: true,
 		get: func(s *Settings) []string {
-			var out []string
+			var binds, frees []string
 			for _, a := range actions.All {
 				k, ok := s.Shortcuts[a.ID]
 				if !ok {
@@ -446,13 +446,17 @@ var keys = []key{
 				}
 				if k == "" {
 					if a.Keys != "" {
-						out = append(out, configKeys(a.Keys)+"=unbind")
+						frees = append(frees, configKeys(a.Keys)+"=unbind")
 					}
 					continue
 				}
-				out = append(out, configKeys(k)+"="+a.ID)
+				binds = append(binds, configKeys(k)+"="+a.ID)
 			}
-			return out
+			// The freeing of keys comes before the binding that takes
+			// them: the file is read in the order it has, as Ghostty
+			// reads its own, and a freeing that came last would take
+			// the keys from the action that had just taken them.
+			return append(frees, binds...)
 		},
 		set: func(s *Settings, v []string) error {
 			s.Shortcuts = nil
