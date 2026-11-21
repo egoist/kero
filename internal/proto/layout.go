@@ -177,6 +177,31 @@ func (l *Layout) Move(pane, target, side string) *Layout {
 	return rest.Split(target, pane, side, 0.5)
 }
 
+// Rename returns the layout with the leaf old named neu. A nil layout,
+// a session's one pane, stays nil: the pane is the session's alone.
+func (l *Layout) Rename(old, neu string) *Layout {
+	if l == nil || old == neu {
+		return l
+	}
+	c := l.Clone()
+	var walk func(*Layout)
+	walk = func(n *Layout) {
+		if n == nil {
+			return
+		}
+		if n.Leaf() {
+			if n.Pane == old {
+				n.Pane = neu
+			}
+			return
+		}
+		walk(n.A)
+		walk(n.B)
+	}
+	walk(c)
+	return c
+}
+
 // Swap returns the layout with two panes in each other's places.
 func (l *Layout) Swap(a, b string) *Layout {
 	if l == nil {

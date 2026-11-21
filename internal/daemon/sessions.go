@@ -23,6 +23,9 @@ type session struct {
 	layout            *proto.Layout
 	focus, zoomed     string
 	worktree          *proto.Worktree // made for it (proto.Session.Worktree)
+	// former are ids of sessions joined into this one, so a command that
+	// still names one of them finds the panes, which kept running.
+	former []string
 }
 
 // state returns what the subscribers see.
@@ -53,7 +56,8 @@ func (d *Daemon) sessionInfo(s *session) proto.Session {
 	info := proto.Session{
 		ID: s.id, Project: s.project, Name: s.name, AgentNamed: s.agentNamed,
 		Layout: s.layout.Clone(), Focus: s.focus, Zoomed: s.zoomed, Worktree: s.worktree,
-		Panes: make([]proto.Pane, 0, len(s.panes)),
+		Former: slices.Clone(s.former),
+		Panes:  make([]proto.Pane, 0, len(s.panes)),
 	}
 	// Panes in the layout's order: left to right, top to bottom.
 	order := s.layout.Panes()
@@ -92,6 +96,13 @@ func (d *Daemon) findSessionLocked(ref string) *session {
 	}
 	for _, s := range d.sessions {
 		if s.id == ref {
+			return s
+		}
+	}
+	// A session joined into another keeps its id as a name for that one:
+	// the shell still has it in $KERO_SESSION.
+	for _, s := range d.sessions {
+		if slices.Contains(s.former, ref) {
 			return s
 		}
 	}
@@ -376,6 +387,194 @@ func (d *Daemon) split(p proto.CreateParams) (proto.Session, error) {
 	d.changed()
 	d.log.Printf("pane %s split from %s", pn.info.ID, atID)
 	return info, nil
+}
+
+// place moves a pane into another session, beside one of its panes or
+// into its place. The program keeps running. The session it joins keeps
+// its name: a pane does not carry the name of the session it left, and
+// it does not become the pane that session is named from. The session it
+// leaves goes when it was the last pane. Its worktree, when the one it
+// joins has none, stays with that session. A worktree is never deleted
+// by the move. When both have one and this is the last pane, the move
+// is refused: the worktree left behind would no longer be tracked.
+func (d *Daemon) place(p proto.PlaceParams) (proto.PlaceResult, error) {
+	d.mu.Lock()
+	pn := d.findPaneLocked(p.Pane)
+	if pn == nil {
+		d.mu.Unlock()
+		return proto.PlaceResult{}, fmt.Errorf("no pane %q", p.Pane)
+	}
+	src, dst := d.sessionOfLocked(pn), d.findSessionLocked(p.Into)
+	if src == nil || dst == nil {
+		d.mu.Unlock()
+		return proto.PlaceResult{}, fmt.Errorf("no session %q", p.Into)
+	}
+	if src == dst {
+		d.mu.Unlock()
+		return proto.PlaceResult{}, errors.New("the pane is already in that session")
+	}
+	target := paneByID(dst, p.Target)
+	if target == nil {
+		d.mu.Unlock()
+		return proto.PlaceResult{}, fmt.Errorf("no pane %q", p.Target)
+	}
+	switch p.Side {
+	case "left", "right", "up", "down":
+		if len(src.panes) == 1 && src.worktree != nil && dst.worktree != nil {
+			d.mu.Unlock()
+			return proto.PlaceResult{}, errors.New("moving its last pane would leave this session's worktree behind")
+		}
+		d.givePaneLocked(src, dst, pn)
+		if dst.layout == nil {
+			dst.layout = &proto.Layout{Pane: target.info.ID}
+		}
+		dst.layout = dst.layout.Split(target.info.ID, pn.info.ID, p.Side, 0.5)
+	case "swap":
+		d.swapPanesLocked(src, dst, pn, target)
+	default:
+		d.mu.Unlock()
+		return proto.PlaceResult{}, fmt.Errorf("no side %q", p.Side)
+	}
+	// A side changes the layout, so the session opens out. A swap keeps
+	// each session's zoom on the pane now in that place.
+	if p.Side != "swap" {
+		dst.zoomed = ""
+	}
+	// The pane already there keeps the keyboard, so an unnamed session
+	// stays named from its own pane. A swap puts the arriving pane where
+	// the one that left was.
+	switch {
+	case p.Side == "swap" && dst.focus == target.info.ID:
+		dst.focus = pn.info.ID
+	case paneByID(dst, dst.focus) == nil:
+		dst.focus = target.info.ID
+	}
+	if paneByID(dst, dst.focus) == nil {
+		dst.focus = pn.info.ID
+	}
+	res := proto.PlaceResult{Into: d.sessionInfo(dst)}
+	if slices.Contains(d.sessions, src) {
+		res.From = d.sessionInfo(src)
+	}
+	d.mu.Unlock()
+	d.changed()
+	d.log.Printf("pane %s placed %s %s in %s", pn.info.ID, p.Side, target.info.ID, dst.id)
+	return res, nil
+}
+
+// extract makes a pane a session of its own, after the one it leaves.
+// The one it leaves keeps its name. A pane that is already alone is that
+// session: nothing moves.
+func (d *Daemon) extract(id string) (proto.PlaceResult, error) {
+	d.mu.Lock()
+	pn := d.findPaneLocked(id)
+	if pn == nil {
+		d.mu.Unlock()
+		return proto.PlaceResult{}, fmt.Errorf("no pane %q", id)
+	}
+	src := d.sessionOfLocked(pn)
+	if src == nil || len(src.panes) < 2 {
+		d.mu.Unlock()
+		return proto.PlaceResult{}, errors.New("the pane is already its own session")
+	}
+	d.detachLocked(src, pn)
+	s := &session{id: newID(), project: src.project, created: time.Now().UnixMilli(), panes: []*pane{pn}, focus: pn.info.ID}
+	pn.mu.Lock()
+	pn.sid = s.id
+	pn.mu.Unlock()
+	at := slices.Index(d.sessions, src) + 1
+	d.sessions = slices.Insert(d.sessions, at, s)
+	res := proto.PlaceResult{Into: d.sessionInfo(s), From: d.sessionInfo(src)}
+	d.mu.Unlock()
+	d.changed()
+	d.log.Printf("pane %s extracted from %s into %s", pn.info.ID, src.id, s.id)
+	return res, nil
+}
+
+// givePaneLocked takes a pane out of src and puts it in dst, and lets src
+// go when it was the last pane. d.mu is held.
+func (d *Daemon) givePaneLocked(src, dst *session, pn *pane) {
+	d.detachLocked(src, pn)
+	pn.mu.Lock()
+	pn.sid = dst.id
+	pn.mu.Unlock()
+	dst.panes = append(dst.panes, pn)
+	if len(src.panes) > 0 {
+		return
+	}
+	if dst.worktree == nil {
+		dst.worktree = src.worktree
+	}
+	dst.former = append(append(dst.former, src.id), src.former...)
+	d.sessions = slices.DeleteFunc(d.sessions, func(o *session) bool { return o == src })
+}
+
+// swapPanesLocked exchanges two panes' places, one session each. d.mu is
+// held.
+func (d *Daemon) swapPanesLocked(src, dst *session, pn, target *pane) {
+	for i, p := range src.panes {
+		if p == pn {
+			src.panes[i] = target
+		}
+	}
+	for i, p := range dst.panes {
+		if p == target {
+			dst.panes[i] = pn
+		}
+	}
+	src.layout = src.layout.Rename(pn.info.ID, target.info.ID)
+	dst.layout = dst.layout.Rename(target.info.ID, pn.info.ID)
+	pn.mu.Lock()
+	pn.sid = dst.id
+	pn.mu.Unlock()
+	target.mu.Lock()
+	target.sid = src.id
+	target.mu.Unlock()
+	if src.focus == pn.info.ID {
+		src.focus = target.info.ID
+	}
+	if src.zoomed == pn.info.ID {
+		src.zoomed = target.info.ID
+	}
+	if dst.zoomed == target.info.ID {
+		dst.zoomed = pn.info.ID
+	}
+}
+
+// detachLocked takes a pane out of a session's list and layout, without
+// stopping it. d.mu is held.
+func (d *Daemon) detachLocked(s *session, pn *pane) {
+	id := pn.info.ID
+	s.panes = slices.DeleteFunc(s.panes, func(o *pane) bool { return o == pn })
+	if s.layout != nil {
+		if s.focus == id {
+			for _, dir := range []string{"left", "up", "right", "down"} {
+				if n := s.layout.Neighbor(id, dir); n != "" {
+					s.focus = n
+					break
+				}
+			}
+		}
+		s.layout = s.layout.Remove(id)
+		if s.layout != nil && s.layout.Leaf() {
+			s.layout = nil
+		}
+	}
+	if s.zoomed == id {
+		s.zoomed = ""
+	}
+	if s.focus == id && len(s.panes) > 0 {
+		s.focus = s.panes[0].info.ID
+	}
+}
+
+func paneByID(s *session, id string) *pane {
+	for _, p := range s.panes {
+		if p.info.ID == id {
+			return p
+		}
+	}
+	return nil
 }
 
 // removePane closes a pane; its session goes with its last pane.

@@ -320,20 +320,28 @@ func (a *App) paneCard(c *ui.Context, pal *palette, bar ui.TitleBar, shown float
 		a.focusPane(p.ID)
 	}
 
-	// Another pane dragged over this one: where it would go.
+	// Another pane dragged over this one: where it would go. A pane from
+	// another session of this machine lands the same way, once its row
+	// has brought this session on screen.
 	zone := zoneNone
-	if multi {
-		if d, over := ui.DragOver[paneDrag](card); over && d.session == s.ID && d.pane != p.ID {
-			if x, y, in := card.PointerPosition(); in {
-				b := a.paneRef("card-" + p.ID).Bounds(c)
-				zone = zoneAt(x/max(b.W, 1), y/max(b.H, 1))
+	if d, over := ui.DragOver[paneDrag](card); over && a.takesPane(s, p.ID, d) {
+		if x, y, in := card.PointerPosition(); in {
+			b := a.paneRef("card-" + p.ID).Bounds(c)
+			zone = zoneAt(x/max(b.W, 1), y/max(b.H, 1))
+		}
+	}
+	if d, ok := ui.Drop[paneDrag](card); ok && a.takesPane(s, p.ID, d) {
+		sid, target, pane := s.ID, p.ID, d.pane
+		drop := a.lastZone
+		same := d.session == s.ID
+		a.carryPane, a.carryFrom = "", ""
+		a.defer_(func() {
+			if same {
+				a.movePane(sid, pane, target, drop)
+			} else {
+				a.placePane(pane, sid, target, drop)
 			}
-		}
-		if d, ok := ui.Drop[paneDrag](card); ok && d.session == s.ID && d.pane != p.ID {
-			sid, target := s.ID, p.ID
-			drop := a.lastZone
-			a.defer_(func() { a.movePane(sid, d.pane, target, drop) })
-		}
+		})
 	}
 	if zone != zoneNone {
 		a.lastZone = zone
@@ -401,8 +409,22 @@ func (a *App) followMouse(c *ui.Context, s *proto.Session, p *proto.Pane, card u
 	}
 }
 
-// paneDrag is a pane dragged by its title to another place.
+// paneDrag is a pane dragged by its title to another place: another
+// split of its session, or, dropped on a session's row and then on one
+// of that session's panes, a split there.
 type paneDrag struct{ session, pane string }
+
+// takesPane reports whether a pane dropped on target, one of s, would
+// land: another pane of s, or a pane from another session of s's machine.
+func (a *App) takesPane(s *proto.Session, target string, d paneDrag) bool {
+	if s == nil || d.pane == "" || d.pane == target || a.hostOf(d.pane) != a.hostOf(s.ID) {
+		return false
+	}
+	if d.session == s.ID {
+		return len(s.Panes) > 1
+	}
+	return true
+}
 
 // dropZone is where a pane dropped on another goes: beside it, on a side,
 // or in its place, which the other takes (swap).
@@ -530,9 +552,9 @@ func (a *App) paneHeader(c *ui.Context, pal *palette, bar ui.TitleBar, shown flo
 			a.sidebarButtons(c, pal, bar, shown)
 		}
 		// The title is the pane's handle: dragged, it takes the pane to
-		// another place in the session.
+		// another place in the session, or onto another session.
 		grip := ui.Row(c.Key("grip")).Gap(8).AlignItems(ui.Center).Shrink(1).MinWidth(0).Height(28).Padding(0, 8).Margin(0, 0, 0, -8).Radius(8)
-		if multi {
+		if multi || a.otherSession(s) {
 			grip.Drag(paneDrag{s.ID, p.ID}).Tooltip(locales.PaneDragTip())
 			dragging = grip.Dragging()
 			switch {

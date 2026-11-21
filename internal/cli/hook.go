@@ -63,6 +63,14 @@ func hookCmd(args []string) error {
 				return nil
 			}
 			pane, sid, away = r.Pane, r.Session, r.Away
+		} else {
+			// $KERO_SESSION still names the session the pane started in.
+			var st proto.State
+			if c.Call("state", nil, &st) == nil {
+				if t, ferr := find(st, pane); ferr == nil {
+					sid = t.s.ID
+				}
+			}
 		}
 		if in.Source != "resume" && in.Source != "compact" {
 			forgetAgentName(c, pane, sid)

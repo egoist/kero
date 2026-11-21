@@ -320,6 +320,21 @@ func (a *App) sidebar(c *ui.Context, pal *palette, bar ui.TitleBar) {
 	if list.WindowDoubleClicked() {
 		a.defer_(func() { a.newSession("") })
 	}
+	// Empty sidebar, not a session's row: a pane dropped here becomes a
+	// session of its own. A pane that is already alone stays where it is.
+	carried, overList := ui.DragOver[paneDrag](list)
+	tearOff := overList && a.canExtract(carried)
+	if dropped, ok := ui.Drop[paneDrag](list); ok {
+		if a.canExtract(dropped) {
+			pane := dropped.pane
+			a.carryPane, a.carryFrom = "", ""
+			a.defer_(func() { a.extractPane(pane) })
+		} else if a.carryFrom != "" {
+			back := a.carryFrom
+			a.carryPane, a.carryFrom = "", ""
+			a.defer_(func() { a.selectSession(back) })
+		}
+	}
 	list.Children(func() {
 		n := 0  // the rows shown, for ⌘1–9 (Ctrl+1–9 elsewhere)
 		gi := 0 // the groups shown, the first of which sits higher
@@ -358,6 +373,12 @@ func (a *App) sidebar(c *ui.Context, pal *palette, bar ui.TitleBar) {
 		}
 		if a.set.SessionHistory {
 			a.endedSections(c, pal)
+		}
+		if tearOff {
+			ui.Row(c.Key("tear-off")).Height(rowH).Margin(8, 0, 0, 0).Padding(0, 10, 0, rowInset).Radius(8).AlignItems(ui.Center).
+				Background(pal.accent.Alpha(0.12)).Children(func() {
+				ui.Text(c, locales.ActionNewSession()).FontSize(13).TextColor(pal.accent).SingleLine()
+			})
 		}
 	})
 	a.sidebarFooter(c, pal)
@@ -539,8 +560,15 @@ func (a *App) sessionRow(c *ui.Context, pal *palette, s *proto.Session, n *int) 
 		// one moves no text.
 		row.Border(1, ui.Transparent)
 	}
+	// A pane dragged over the row brings this session on screen, so the
+	// pane can be dropped on one of its splits. Letting go here, before
+	// a split, puts the session that was showing back.
+	carried, overHere := ui.DragOver[paneDrag](row)
+	draggingHere := overHere && carried.pane != "" && a.hostOf(carried.pane) == a.hostOf(s.ID)
 	bg := ui.Transparent
 	switch {
+	case draggingHere && carried.session != s.ID:
+		bg = pal.accent.Alpha(0.16)
 	case selected:
 		bg = pal.rowSelected
 		chosen(row, pal)
@@ -548,6 +576,20 @@ func (a *App) sessionRow(c *ui.Context, pal *palette, s *proto.Session, n *int) 
 		bg = pal.rowHover
 	}
 	row.Background(row.AnimateColor("bg", bg, ui.Animation{Duration: 110 * time.Millisecond}))
+	if draggingHere {
+		if a.carryPane != carried.pane {
+			a.carryPane = carried.pane
+			a.carryFrom = a.selected
+		}
+		if a.selected != s.ID {
+			a.glanceSession(s.ID)
+		}
+	}
+	if dropped, ok := ui.Drop[paneDrag](row); ok && dropped.session != s.ID && a.carryFrom != "" {
+		back := a.carryFrom
+		a.carryPane, a.carryFrom = "", ""
+		a.defer_(func() { a.selectSession(back) })
+	}
 	// A session of a host the app lost shows as it was, faded, until the
 	// host is back.
 	if h := a.hostOf(s.ID); h.remote() && h.conn != connReady {

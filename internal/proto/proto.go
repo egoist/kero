@@ -313,6 +313,9 @@ type Session struct {
 	Lead   string `json:"lead,omitempty"`
 	Focus  string `json:"focus,omitempty"`
 	Zoomed string `json:"zoomed,omitempty"`
+	// Former are ids of sessions joined into this one. Their panes kept
+	// running, so a command that still names an old id reaches them here.
+	Former []string `json:"former,omitempty"`
 	// Worktree is the linked git worktree kero made for the session to
 	// work in, nil for none.
 	Worktree *Worktree `json:"worktree,omitempty"`
@@ -758,6 +761,23 @@ type (
 		ID      string `json:"id"`
 		Project string `json:"project,omitempty"`
 		Index   int    `json:"index"` // within the project; -1 last
+	}
+	// PlaceParams moves a pane into a session, beside one of its panes
+	// (Side: left, right, up or down) or into its place (swap). The
+	// program keeps running. The session it leaves goes when it was the
+	// last pane. That move is refused when both sessions have a worktree:
+	// the one left behind would no longer be tracked.
+	PlaceParams struct {
+		Pane   string `json:"pane"`
+		Into   string `json:"into"`
+		Target string `json:"target"`
+		Side   string `json:"side"`
+	}
+	// PlaceResult is the session the pane joined, and the one it left.
+	// From is empty when that session went with its last pane.
+	PlaceResult struct {
+		Into Session `json:"into"`
+		From Session `json:"from,omitempty"`
 	}
 	SendParams struct {
 		ID   string `json:"id"`

@@ -124,6 +124,20 @@ func (d *Daemon) call(c *controlConn, method string, raw json.RawMessage) (any, 
 		}
 		return true, d.move(p)
 
+	case "place":
+		var p proto.PlaceParams
+		if err := decode(&p); err != nil {
+			return nil, err
+		}
+		return d.place(p)
+
+	case "extract":
+		var p proto.IDParams
+		if err := decode(&p); err != nil {
+			return nil, err
+		}
+		return d.extract(p.ID)
+
 	case "focus":
 		var p proto.FocusParams
 		if err := decode(&p); err != nil {
