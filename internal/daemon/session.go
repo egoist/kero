@@ -821,31 +821,6 @@ func (s *pane) history(force bool) []byte {
 	return s.term.History()
 }
 
-// readText returns the session's text: the screen, or with scrollback; a
-// browser's is its page's title and URL.
-func (s *pane) readText(scrollback bool, lines int) string {
-	s.mu.Lock()
-	if s.term == nil {
-		text := strings.TrimSpace(s.info.Title + "\n" + s.info.URL)
-		s.mu.Unlock()
-		return text + "\n"
-	}
-	text := s.term.Text()
-	rows := s.info.Rows
-	s.mu.Unlock()
-	all := strings.Split(strings.TrimRight(text, "\n "), "\n")
-	if !scrollback && lines <= 0 {
-		lines = rows
-	}
-	if lines > 0 && len(all) > lines {
-		all = all[len(all)-lines:]
-	}
-	for i, l := range all {
-		all[i] = strings.TrimRight(l, " ")
-	}
-	return strings.Join(all, "\n") + "\n"
-}
-
 // attachment is a client attached to a session: its frames go out in
 // order through a queue, so that a slow client never holds the session.
 type attachment struct {

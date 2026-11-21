@@ -253,7 +253,7 @@ func (d *Daemon) call(c *controlConn, method string, raw json.RawMessage) (any, 
 		if err != nil {
 			return nil, err
 		}
-		return proto.ReadResult{Text: pn.readText(p.Scrollback, p.Lines)}, nil
+		return pn.read(p), nil
 
 	case "view":
 		var p proto.ViewParams
