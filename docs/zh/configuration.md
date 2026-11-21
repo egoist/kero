@@ -46,6 +46,7 @@ kero config check             # 报告未知的配置项、无效的值和agents
 | `sidebar-rows`          | `detailed` | 侧边栏如何显示会话：`detailed` 在第二行显示状态消息，没有时显示分支和改动；`compact` 只占一行 |
 | `sidebar-session-count` | `true`    | 在侧边栏的项目名称旁显示其包含的会话数量 |
 | `focus-follows-mouse`   | `false`   | 指针移入哪个窗格，就聚焦哪个窗格                              |
+| `trackpad-gestures`     | `false`   | 双指左右滑动以隐藏或显示侧边栏（按住 Option/Alt 可改为横向滚动内容），在窗格上双指张开或捏合以放大或还原窗格 |
 | `confirm-close`         | `true`    | 关闭仍有程序在运行的窗格前先确认                              |
 | `quit-ends-sessions`     | `false`   | 退出 Kero 时也结束本机的全部会话并停止 kerod                  |
 | `restore-sessions`      | `true`    | kerod 重启后（例如开机后）重新启动之前的会话                   |

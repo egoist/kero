@@ -95,7 +95,7 @@ func (a *App) view(c *ui.Context) {
 	a.shortcuts(c)
 
 	bar := c.TitleBar()
-	row := ui.Row(c).Fill().AlignItems(ui.Stretch)
+	row := ui.Row(c).Fill().AlignItems(ui.Stretch).HandleInput(a.handleSidebarSwipe)
 	backdrop(c, row)
 	// A curve, not a spring: a spring's long tail crawls under a pixel a
 	// frame, which whole pixels turn into hops and holds, a shake as it
@@ -112,6 +112,7 @@ func (a *App) view(c *ui.Context) {
 	// In a window too narrow for it beside the cards, it gets out of their
 	// way, coming back as the window widens, unless shown anyway.
 	winW, _ := c.Size()
+	a.side.viewer = a.paneRef("side-card").Bounds(c)
 	leftW := float32(0)
 	if !a.prefs.SidebarHidden {
 		leftW = a.prefs.SidebarWidth

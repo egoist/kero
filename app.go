@@ -176,10 +176,11 @@ type App struct {
 	peek         peek // the image a path Command hovers shows
 	// from is the host whose program asked for the action being run (kero
 	// do), nil for the user's.
-	from   *host
-	picker folderPicker // the folders of a host, to open a project in
-	side   sideState    // the side panel, beside a session's panes
-	quick  quickTerm    // the terminal the global shortcut drops down
+	from     *host
+	picker   folderPicker // the folders of a host, to open a project in
+	side     sideState    // the side panel, beside a session's panes
+	quick    quickTerm    // the terminal the global shortcut drops down
+	gestures gestureState // trackpad swipe and pinch gesture tracking
 }
 
 // confirmation is a question the app asks before something it cannot undo.
