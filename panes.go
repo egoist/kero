@@ -136,6 +136,51 @@ func (a *App) focusTerminal() {
 	}
 }
 
+// keepsFocus tells whether a drag should leave the keyboard in the pane
+// the user is in. A browser's page cannot hold it while a button is
+// down: given the keyboard back, it takes the mouse capture with it, and
+// the drag ends (#394). So the drag gives the keyboard up, and
+// restoreFocus gives it back when the drag is over.
+func (a *App) keepsFocus() bool {
+	s := a.session(a.selected)
+	if s == nil {
+		return true
+	}
+	id := a.focusOf(s)
+	return id == "" || !a.isBrowser(id)
+}
+
+// restoreFocus gives the pane the user is in the keyboard a drag took.
+func (a *App) restoreFocus() {
+	if s := a.session(a.selected); s != nil {
+		if id := a.focusOf(s); id != "" {
+			a.paneRef(id).Focus()
+		}
+	}
+}
+
+// handlePress tells that a drag handle has the pointer, and gives the pane
+// the user is in its keyboard back when the handle lets it go. A browser's
+// page cannot hold the keyboard while the button is down (#394): the press
+// takes it, and a click without a drag must not take it for good (#398).
+func (a *App) handlePress(key string, h ui.Element) {
+	// The press lasts wherever the pointer goes, so a drag on its way
+	// does not give the keyboard back before it is over.
+	if b, ok := h.PressedButton(); ok && b == 0 {
+		a.pressHandle = key
+		return
+	}
+	if a.pressHandle != key {
+		return
+	}
+	a.pressHandle = ""
+	if !a.keepsFocus() {
+		// The pane the user is in takes the keyboard back, which the
+		// press took from it.
+		a.restoreFocus()
+	}
+}
+
 // panes shows a session's panes in their layout: the zoomed one alone.
 // right tells that they reach the window's right edge, which the side
 // panel takes while it shows.
@@ -188,8 +233,12 @@ func (a *App) layoutNode(c *ui.Context, pal *palette, bar ui.TitleBar, shown flo
 
 // divider is the gap between two panes, which a drag moves.
 func (a *App) divider(c *ui.Context, pal *palette, s *proto.Session, l *proto.Layout, key string) {
-	// A drag leaves the keyboard in the pane the user is in.
-	d := ui.Box(c.Key("div")).Shrink(0).KeepFocus()
+	// A drag leaves the keyboard in the pane the user is in, unless that
+	// pane is a browser: its page cannot hold it while the button is down.
+	d := ui.Box(c.Key("div")).Shrink(0)
+	if a.keepsFocus() {
+		d.KeepFocus()
+	}
 	if l.Row {
 		d.Width(paneGap).Cursor(ui.CursorResizeColumn)
 	} else {
@@ -236,6 +285,10 @@ func (a *App) divider(c *ui.Context, pal *palette, s *proto.Session, l *proto.La
 		l.Ratio = 0.5
 		a.call(s.ID, "layout", proto.LayoutParams{Session: s.ID, Layout: s.Layout.Clone()}, nil)
 	}
+	// The handle has the pointer, or had it and let it go: the pane the
+	// user is in takes the keyboard back, which the press took from it
+	// (#398).
+	a.handlePress(key, d)
 }
 
 // paneCard is a pane: a card with a header and the terminal. top, left and

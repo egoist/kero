@@ -123,6 +123,10 @@ type App struct {
 		session, split string
 		ratio          float64 // where the pointer puts it, past its bounds
 	}
+	// pressHandle is the drag handle the pointer is pressing: it took the
+	// keyboard from the pane the user is in, and gives it back when the
+	// pointer lets go (#398).
+	pressHandle string
 
 	active   bool
 	focused  bool
