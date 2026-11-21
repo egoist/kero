@@ -20,8 +20,9 @@ const (
 
 // keepAwake holds the computer awake, or lets it sleep, as the mode and
 // this machine's sessions ask, and its display on while it holds, if Keep
-// display on asks: a session of another host's working keeps that
-// machine busy, not this one.
+// display on asks, and a Mac awake with its lid closed, if Stay awake
+// with the lid closed asks: a session of another host's working keeps
+// that machine busy, not this one.
 func (a *App) keepAwake() {
 	hold := false
 	switch a.set.KeepAwake {
@@ -31,6 +32,7 @@ func (a *App) keepAwake() {
 		hold = anyWorking(a.st.Sessions, func(id string) bool { return !a.hostOf(id).remote() })
 	}
 	a.awake.hold(hold, a.set.KeepDisplayOn)
+	a.lid.hold(hold && a.set.KeepAwakeLidClosed)
 }
 
 // anyWorking tells whether a pane of the sessions local takes is Working.
@@ -95,6 +97,38 @@ func (a *App) setKeepDisplayOn(on bool) {
 	s := a.set
 	s.KeepDisplayOn = on
 	a.applySettings(s)
+}
+
+// setKeepAwakeLidClosed chooses whether a Mac kept awake stays awake with
+// its lid closed on battery, and saves it.
+func (a *App) setKeepAwakeLidClosed(on bool) {
+	s := a.set
+	s.KeepAwakeLidClosed = on
+	a.applySettings(s)
+}
+
+// installLid installs the lid helper, as Stay awake with the lid closed
+// turned on needs: away from the window, as it waits for the user's
+// password. Turned down or failed, the setting goes back off.
+func (a *App) installLid() {
+	go func() {
+		err := installLidHelper(locales.AwakeLidPrompt())
+		a.update(func() { a.lidInstalled(err) })
+	}()
+}
+
+// lidInstalled takes the lid helper's install's end: the Mac kept awake
+// with its lid closed now, or the setting back off, and why, but for a
+// password the user didn't give.
+func (a *App) lidInstalled(err error) {
+	if err == nil {
+		a.keepAwake()
+		return
+	}
+	a.setKeepAwakeLidClosed(false)
+	if err != errCanceled {
+		a.ss.toast = locales.AwakeLidFailed(err.Error())
+	}
 }
 
 // awakeCommands are the palette's commands of Keep computer awake: one for

@@ -52,7 +52,8 @@ kero config check             # 报告未知的配置项、无效的值和agents
 | `resume-agents`         | `true`    | 会话重新启动时，恢复每个窗格中智能体的对话                    |
 | `session-history`       | `false`   | 在侧边栏中列出智能体已结束的对话，可恢复或归档（[详情](./sessions.md#ended-sessions)） |
 | `macos-show-app-icon`   | `dock-and-menubar` | 在 macOS 上显示 Kero 图标的位置：`dock-and-menubar`、`dock` 或 `menubar`。图标显示在菜单栏时，关闭窗口后 Kero 会继续在那里运行。Windows 和 Linux 上始终显示在通知区域，关闭窗口后同样会继续运行 |
-| `keep-computer-awake`   | `off`              | 阻止电脑睡眠：`off`；`on`，Kero 运行期间一直保持；`agents`，本机有智能体工作时保持。也可以在命令面板或菜单栏、通知区域的 Kero 图标菜单中选择。接通电源时，合上盖子 Mac 也保持唤醒。使用电池时，合上盖子仍会让它睡眠 |
+| `keep-computer-awake`   | `off`              | 阻止电脑睡眠：`off`；`on`，Kero 运行期间一直保持；`agents`，本机有智能体工作时保持。也可以在命令面板或菜单栏、通知区域的 Kero 图标菜单中选择。接通电源时，合上盖子 Mac 也保持唤醒。使用电池时，除非开启了 `macos-keep-awake-lid-closed`，合上盖子会让它睡眠 |
+| `macos-keep-awake-lid-closed` | `false` | `keep-computer-awake` 阻止此 Mac 睡眠期间，使用电池时合上盖子也保持唤醒。在设置 › 通用中开启时，会请求一次密码，以安装一个关闭睡眠的辅助程序（`pmset disablesleep`）。当 Kero 不再阻止 Mac 睡眠、Kero 退出或电池电量降到 10% 时，睡眠会恢复。关闭此项会删除辅助程序，无需密码。如果在开启状态下卸载了 Kero，运行 `sudo rm /Library/PrivilegedHelperTools/sh.kero.lid-awake /etc/sudoers.d/kero-lid-awake-$(id -u)` 删除辅助程序 |
 | `keep-display-on`       | `false`            | `keep-computer-awake` 阻止电脑睡眠期间，显示器也保持开启，方便需要查看屏幕的智能体。适用于 macOS 和 Windows |
 
 ## 外观

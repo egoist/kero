@@ -92,6 +92,7 @@ type App struct {
 	winOpen bool
 	tray    *mygo.Tray // the icon in the menu bar or notification area, while it shows
 	awake   awakeHold  // keeps the computer from sleeping, as Keep computer awake asks
+	lid     lidHold    // and a Mac with its lid closed on battery, as Stay awake with the lid closed asks
 	// ending is set once quit-ends-sessions has begun ending this
 	// machine's sessions: the quit that teardown runs is coming, and a
 	// quit asked while it runs asks nothing.
@@ -1008,11 +1009,16 @@ func (a *App) apply(s settings.Settings, save bool) {
 	if old.DockBadge != s.DockBadge {
 		a.notify(true)
 	}
-	if old.KeepAwake != s.KeepAwake || old.KeepDisplayOn != s.KeepDisplayOn {
+	if old.KeepAwake != s.KeepAwake || old.KeepDisplayOn != s.KeepDisplayOn || old.KeepAwakeLidClosed != s.KeepAwakeLidClosed {
 		a.keepAwake()
 		if a.tray != nil {
 			a.tray.SetMenu(a.trayMenu())
 		}
+	}
+	// Stay awake with the lid closed turned off: its helper, which
+	// keepAwake just stopped, goes.
+	if old.KeepAwakeLidClosed && !s.KeepAwakeLidClosed {
+		removeLidHelper()
 	}
 	if old.AppIcon != s.AppIcon && a.win != nil {
 		a.changeAppIcon()
