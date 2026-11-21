@@ -60,6 +60,43 @@ func shownPanes(s *proto.Session) []string {
 	return []string{p.ID}
 }
 
+// moveFocus puts the user in a pane, remembering the pane they were in
+// before it: a pane that closes hands the focus back to it (#390).
+func (a *App) moveFocus(s *proto.Session, pane string) {
+	if a.focus == nil {
+		a.focus = map[string]string{}
+	}
+	if old := a.focus[s.ID]; old != "" && old != pane && s.PaneByID(old) != nil {
+		if a.prevFocus == nil {
+			a.prevFocus = map[string]string{}
+		}
+		a.prevFocus[s.ID] = old
+	}
+	a.focus[s.ID] = pane
+}
+
+// nextFocus returns the pane that takes the focus when a pane closes: the
+// one the user was in before it, or the neighbor taking its room (#390).
+func (a *App) nextFocus(s *proto.Session, closing string) string {
+	if prev := a.prevFocus[s.ID]; prev != "" && prev != closing && s.PaneByID(prev) != nil {
+		return prev
+	}
+	if s.Layout != nil {
+		for _, dir := range []string{"left", "up", "right", "down"} {
+			if n := s.Layout.Neighbor(closing, dir); n != "" {
+				return n
+			}
+		}
+	}
+	return ""
+}
+
+// paneFocused tells whether a pane is the one the user is in: with the
+// window in the background, no pane is (#390).
+func (a *App) paneFocused(s *proto.Session, p *proto.Pane) bool {
+	return a.focused && p.ID == a.focusOf(s)
+}
+
 // setFocus moves the user into a pane, and tells kerod, which remembers it.
 func (a *App) setFocus(s *proto.Session, pane string) {
 	if a.focus == nil {
@@ -68,7 +105,7 @@ func (a *App) setFocus(s *proto.Session, pane string) {
 	if a.focus[s.ID] == pane && s.Focus == pane {
 		return
 	}
-	a.focus[s.ID] = pane
+	a.moveFocus(s, pane)
 	s.Focus = pane
 	if s.Zoomed != "" {
 		s.Zoomed = pane
@@ -296,11 +333,17 @@ func (a *App) divider(c *ui.Context, pal *palette, s *proto.Session, l *proto.La
 // the window, keeps clear of the traffic lights on macOS, and keeps room
 // for the window controls elsewhere (controlsRoom).
 func (a *App) paneCard(c *ui.Context, pal *palette, bar ui.TitleBar, shown float32, s *proto.Session, p *proto.Pane, top, left, right, multi bool) {
-	focused := p.ID == a.focusOf(s)
+	// A pane is focused when the user is in it and the window has the
+	// keyboard: with the window in the background, no pane is (#390).
+	focused := a.paneFocused(s, p)
+	// The panes the user is not in fade: with the window in the
+	// background there is no pane the user is in, and all of them fading
+	// says nothing.
+	fade := a.focused && !focused
 	bg := pal.card
 	// A browser's page stays opaque, so its toolbar does too, and neither
 	// fades: a page is read, not typed into, from beside it.
-	if multi && !focused && !p.Browser() && a.set.DimUnfocused {
+	if multi && fade && !p.Browser() && a.set.DimUnfocused {
 		bg = pal.cardDim
 	}
 	card := ui.Column(c.Key("pane-" + p.ID)).Grow(1).Basis(0).MinWidth(0).MinHeight(0).Radius(14).Clip().Bind(a.paneRef("card-" + p.ID))
@@ -348,7 +391,7 @@ func (a *App) paneCard(c *ui.Context, pal *palette, bar ui.TitleBar, shown float
 			dragging = a.paneHeader(c, pal, bar, shown, s, p, top, left, right, multi, focused, hovered)
 			a.paneTerminal(c, pal, s, p)
 		}
-		if multi && !p.Browser() && a.set.DimUnfocused {
+		if multi && fade && !p.Browser() && a.set.DimUnfocused {
 			// The terminals the user is not in fade, text and all.
 			v := ui.Box(c.Key("veil")).Absolute().Top(0).Left(0).Right(0).Bottom(0).PassThrough().Background(pal.veil)
 			v.Opacity(v.Animate("on", b2f(!focused), 160*time.Millisecond))
@@ -816,10 +859,7 @@ func (a *App) split(s *proto.Session, p proto.CreateParams) {
 			}
 			a.replaceSession(h, ns)
 			if cur := a.session(ns.ID); cur != nil {
-				if a.focus == nil {
-					a.focus = map[string]string{}
-				}
-				a.focus[ns.ID] = ns.Focus
+				a.moveFocus(cur, ns.Focus)
 				a.ensureTerm(ns.Focus)
 				a.touch(ns.Focus)
 				if !a.isBrowser(ns.Focus) {
@@ -874,14 +914,11 @@ func (a *App) closePane(s *proto.Session, pane string, ask bool) {
 		}
 		return
 	}
-	// The neighbor taking the room takes the focus, as kerod does.
-	if a.focusOf(s) == pane && s.Layout != nil {
-		for _, dir := range []string{"left", "up", "right", "down"} {
-			if n := s.Layout.Neighbor(pane, dir); n != "" {
-				a.focus[s.ID] = n
-				break
-			}
-		}
+	// The pane the user was in before takes the focus back, or the
+	// neighbor taking the room, as kerod does (#390).
+	next := ""
+	if a.focusOf(s) == pane {
+		next = a.nextFocus(s, pane)
 	}
 	s.Layout = s.Layout.Remove(pane)
 	if s.Layout.Leaf() {
@@ -895,6 +932,11 @@ func (a *App) closePane(s *proto.Session, pane string, ask bool) {
 			s.Panes = append(s.Panes[:i], s.Panes[i+1:]...)
 			break
 		}
+	}
+	if next != "" {
+		// The focus moves after the pane is gone: the pane it was in
+		// before is not remembered as one to come back to.
+		a.setFocus(s, next)
 	}
 	a.dropTerm(pane)
 	a.dropWeb(pane)

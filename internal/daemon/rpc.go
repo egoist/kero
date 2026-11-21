@@ -133,7 +133,7 @@ func (d *Daemon) call(c *controlConn, method string, raw json.RawMessage) (any, 
 		s := d.findSessionLocked(p.Session)
 		ok := s != nil && slices.ContainsFunc(s.panes, func(o *pane) bool { return o.info.ID == p.Pane })
 		if ok {
-			s.focus = p.Pane
+			s.setFocus(p.Pane)
 			if s.zoomed != "" {
 				s.zoomed = p.Pane
 			}
@@ -156,7 +156,8 @@ func (d *Daemon) call(c *controlConn, method string, raw json.RawMessage) (any, 
 			if p.Pane == "" || s.zoomed == p.Pane {
 				s.zoomed = ""
 			} else if slices.ContainsFunc(s.panes, func(o *pane) bool { return o.info.ID == p.Pane }) {
-				s.zoomed, s.focus = p.Pane, p.Pane
+				s.zoomed = p.Pane
+				s.setFocus(p.Pane)
 			}
 		}
 		d.mu.Unlock()
@@ -288,7 +289,7 @@ func (d *Daemon) call(c *controlConn, method string, raw json.RawMessage) (any, 
 		s := d.findSessionLocked(p.Session)
 		if s != nil && p.Pane != "" {
 			if pn := d.findPaneLocked(p.Pane); pn != nil && pn.sid == s.id {
-				s.focus = pn.info.ID
+				s.setFocus(pn.info.ID)
 			}
 		}
 		d.mu.Unlock()
