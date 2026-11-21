@@ -101,6 +101,9 @@ func settingsIndex() []searchEntry {
 	if runtime.GOOS == "darwin" {
 		entries = append(entries, searchEntry{"general", locales.SetAppIcon(), "macos-show-app-icon dock menu bar menubar tray status item hide"})
 	}
+	if awakeDisplay {
+		entries = append(entries, searchEntry{"general", locales.AwakeDisplay(), "keep-display-on display screen monitor awake sleep lock caffeinate agents screenshot"})
+	}
 	return entries
 }
 
