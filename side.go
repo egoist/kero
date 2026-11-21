@@ -123,6 +123,7 @@ type sideFile struct {
 	pane, base string
 	scope      string // the list of changes it belongs to: a worktree's, or a turn's
 	root       string // the worktree's, on the host
+	host       string // the host's name, "" for this machine: as it was asked of
 	edits      edited
 	f          proto.GitFile     // the file as listed when its text was asked for
 	d          *editor.DiffState // nil until its text comes, or for a binary file
@@ -895,7 +896,7 @@ func (a *App) syncFiles(c *ui.Context, scope string, pane *proto.Pane, root stri
 		// The pane of the list now: the one it was asked for before may
 		// be gone, with the session it was in, and the diff is asked of
 		// the pane that is in the worktree now.
-		sf.pane, sf.root = pane.ID, root
+		sf.pane, sf.host, sf.root = pane.ID, a.hostOf(pane.ID).name, root
 		if a.fileCollapsed(scope, f) || sf.busy || sf.writing || a.hostOf(pane.ID).cl == nil {
 			continue
 		}

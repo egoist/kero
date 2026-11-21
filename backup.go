@@ -146,13 +146,25 @@ func (a *App) backupNow() viewerBackup {
 		vb.Views[sid] = b
 	}
 	for _, t := range a.allTargets() {
-		vb.Unsaved = append(vb.Unsaved, unsavedText{Kind: t.kind, Host: a.hostOf(t.pane).name, Scope: t.scope, Pane: t.pane, Path: t.path, Hash: *t.hash, Text: bufferText(t.buf)})
+		vb.Unsaved = append(vb.Unsaved, a.unsavedOf(t))
+	}
+	// The edits of panes gone, which are not saved but stay kept: their
+	// files are where they were, and the worktree may show them again.
+	for _, sf := range a.side.changes.files {
+		if t := a.diffTarget(sf); t.gone && t.buf != nil && t.buf.Modified() {
+			vb.Unsaved = append(vb.Unsaved, a.unsavedOf(t))
+		}
 	}
 	for _, u := range a.side.backup.unsaved {
 		vb.Unsaved = append(vb.Unsaved, u)
 	}
 	slices.SortFunc(vb.Unsaved, func(x, y unsavedText) int { return strings.Compare(x.key(), y.key()) })
 	return vb
+}
+
+// unsavedOf is a text the backup keeps, as its file has it.
+func (a *App) unsavedOf(t editTarget) unsavedText {
+	return unsavedText{Kind: t.kind, Host: t.host, Scope: t.scope, Pane: t.pane, Path: t.path, Hash: *t.hash, Text: bufferText(t.buf)}
 }
 
 // backupSig is what the backup is of, cheaply: each viewer's, and each
