@@ -645,5 +645,9 @@
   "setShortcutGlobal": "在任何应用中都可用",
   "commonUnlimited": "无限制",
   "setImageLimit": "图片上限",
-  "setImageLimitDetail": "每个窗格中程序显示的图片最多占用多少。"
+  "setImageLimitDetail": "每个窗格中程序显示的图片最多占用多少。",
+  "setDefaultTerminal": "默认终端",
+  "setDefaultTerminalDetail": "打开 .command 文件和 shell 脚本时使用的应用。",
+  "setDefaultTerminalMake": "将 Kero 设为默认",
+  "setDefaultTerminalRestore": "改回 Terminal.app"
 }

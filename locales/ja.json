@@ -645,5 +645,9 @@
   "setShortcutGlobal": "どのアプリでも使えます",
   "commonUnlimited": "無制限",
   "setImageLimit": "画像の上限",
-  "setImageLimitDetail": "各ペインでプログラムが表示する画像が占める最大量。"
+  "setImageLimitDetail": "各ペインでプログラムが表示する画像が占める最大量。",
+  "setDefaultTerminal": "デフォルトのターミナル",
+  "setDefaultTerminalDetail": ".command ファイルやシェルスクリプトを開くときに使うアプリ。",
+  "setDefaultTerminalMake": "Keroをデフォルトにする",
+  "setDefaultTerminalRestore": "Terminal.appに戻す"
 }

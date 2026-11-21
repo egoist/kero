@@ -6573,3 +6573,43 @@ func SetImageLimitDetail() string { return In(i18n.Locale()).SetImageLimitDetail
 func (msgs Messages) SetImageLimitDetail() string {
 	return Catalog.Format(msgs.locale, "setImageLimitDetail", nil)
 }
+
+// SetDefaultTerminal says "Default Terminal"
+// in the language the app shows.
+func SetDefaultTerminal() string { return In(i18n.Locale()).SetDefaultTerminal() }
+
+// SetDefaultTerminal says "Default Terminal"
+// in the language of msgs.
+func (msgs Messages) SetDefaultTerminal() string {
+	return Catalog.Format(msgs.locale, "setDefaultTerminal", nil)
+}
+
+// SetDefaultTerminalDetail says "The app that runs .command files and shell scripts when they are opened."
+// in the language the app shows.
+func SetDefaultTerminalDetail() string { return In(i18n.Locale()).SetDefaultTerminalDetail() }
+
+// SetDefaultTerminalDetail says "The app that runs .command files and shell scripts when they are opened."
+// in the language of msgs.
+func (msgs Messages) SetDefaultTerminalDetail() string {
+	return Catalog.Format(msgs.locale, "setDefaultTerminalDetail", nil)
+}
+
+// SetDefaultTerminalMake says "Make Kero Default"
+// in the language the app shows.
+func SetDefaultTerminalMake() string { return In(i18n.Locale()).SetDefaultTerminalMake() }
+
+// SetDefaultTerminalMake says "Make Kero Default"
+// in the language of msgs.
+func (msgs Messages) SetDefaultTerminalMake() string {
+	return Catalog.Format(msgs.locale, "setDefaultTerminalMake", nil)
+}
+
+// SetDefaultTerminalRestore says "Use Terminal.app"
+// in the language the app shows.
+func SetDefaultTerminalRestore() string { return In(i18n.Locale()).SetDefaultTerminalRestore() }
+
+// SetDefaultTerminalRestore says "Use Terminal.app"
+// in the language of msgs.
+func (msgs Messages) SetDefaultTerminalRestore() string {
+	return Catalog.Format(msgs.locale, "setDefaultTerminalRestore", nil)
+}
