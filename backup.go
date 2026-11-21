@@ -51,22 +51,34 @@ type viewBackup struct {
 type unsavedText struct {
 	Kind string `json:"kind"`
 	Host string `json:"host,omitempty"` // "" for this machine
-	Pane string `json:"pane,omitempty"`
-	Path string `json:"path"`
-	Hash string `json:"hash"`
-	Text string `json:"text"`
+	// Scope is the list of changes a diff's is: a worktree's against a
+	// base, or a turn's. Two of them may be of one file, and an edit of
+	// one is not the other's.
+	Scope string `json:"scope,omitempty"`
+	Pane  string `json:"pane,omitempty"`
+	Path  string `json:"path"`
+	Hash  string `json:"hash"`
+	Text  string `json:"text"`
 }
 
-func (u unsavedText) key() string { return unsavedKey(u.Kind, u.Host, u.Path) }
+func (u unsavedText) key() string { return unsavedKey(u.Kind, u.Host, u.Scope, u.Path) }
 
-func unsavedKey(kind, host, path string) string { return kind + "\x00" + host + "\x00" + path }
+// unsavedKey is what an edit is remembered by. A file's has no scope of
+// its own, and keeps the key it always had, so an edit backed up before
+// scopes were stays the file's.
+func unsavedKey(kind, host, scope, path string) string {
+	if scope == "" {
+		return kind + "\x00" + host + "\x00" + path
+	}
+	return kind + "\x00" + host + "\x00" + scope + "\x00" + path
+}
 
 func backupPath() string { return filepath.Join(proto.Dir(), "unsaved.json") }
 
 // backupState is what the app keeps of its backups.
 type backupState struct {
 	// unsaved are the edits backed up that no text shows yet, by kind,
-	// host and path (unsavedKey).
+	// host, scope and path (unsavedKey).
 	unsaved map[string]unsavedText
 	// sig is what the backup is of, as last seen, changed when it
 	// changed; written what the file has.
@@ -109,8 +121,8 @@ func (a *App) loadBackup() {
 
 // restoreEdit puts back in b, a text just loaded, the edit backed up of
 // its file, if any, with the hash of the file it was made on.
-func (a *App) restoreEdit(kind string, h *host, path string, b *editor.Buffer, hash *string) {
-	key := unsavedKey(kind, h.name, path)
+func (a *App) restoreEdit(kind string, h *host, scope, path string, b *editor.Buffer, hash *string) {
+	key := unsavedKey(kind, h.name, scope, path)
 	u, ok := a.side.backup.unsaved[key]
 	if !ok {
 		return
@@ -134,7 +146,7 @@ func (a *App) backupNow() viewerBackup {
 		vb.Views[sid] = b
 	}
 	for _, t := range a.allTargets() {
-		vb.Unsaved = append(vb.Unsaved, unsavedText{Kind: t.kind, Host: a.hostOf(t.pane).name, Pane: t.pane, Path: t.path, Hash: *t.hash, Text: bufferText(t.buf)})
+		vb.Unsaved = append(vb.Unsaved, unsavedText{Kind: t.kind, Host: a.hostOf(t.pane).name, Scope: t.scope, Pane: t.pane, Path: t.path, Hash: *t.hash, Text: bufferText(t.buf)})
 	}
 	for _, u := range a.side.backup.unsaved {
 		vb.Unsaved = append(vb.Unsaved, u)
@@ -157,7 +169,7 @@ func (a *App) backupSig() string {
 		}
 	}
 	for _, t := range a.allTargets() {
-		fmt.Fprint(&b, t.kind, t.path, t.buf.Version(), *t.hash, "\x00")
+		fmt.Fprint(&b, t.kind, t.scope, t.path, t.buf.Version(), *t.hash, "\x00")
 	}
 	fmt.Fprint(&b, len(a.side.backup.unsaved))
 	return b.String()

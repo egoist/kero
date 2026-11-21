@@ -1209,7 +1209,7 @@ func (a *App) showText(sf *sideFile, t proto.GitText) {
 		now.SetLanguage(lang)
 		sf.d, sf.patch = &editor.DiffState{Old: old, New: now}, false
 		h := a.hostOf(sf.pane)
-		a.restoreEdit(sideChanges, h, h.joinPath(sf.root, sf.f.Path), now, &sf.hash)
+		a.restoreEdit(sideChanges, h, sf.scope, h.joinPath(sf.root, sf.f.Path), now, &sf.hash)
 	default:
 		replaceText(sf.d.Old, t.Old)
 		replaceText(sf.d.New, t.New)
