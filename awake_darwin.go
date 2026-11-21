@@ -25,12 +25,16 @@ func (w *awakeHold) hold(on, display bool) {
 		return
 	}
 	old := w.cmd
-	w.cmd, w.display = nil, false
 	if on {
-		cmd := exec.Command("/usr/bin/caffeinate", caffeinateArgs(display, os.Getpid())...)
-		if cmd.Start() == nil {
-			w.cmd, w.display = cmd, display
+		cmd := caffeinateCmd(display)
+		if cmd.Start() != nil {
+			// The new hold did not start: the old one keeps holding, so
+			// that the Mac does not sleep between them.
+			return
 		}
+		w.cmd, w.display = cmd, display
+	} else {
+		w.cmd, w.display = nil, false
 	}
 	// The old caffeinate goes once the new one holds, so that the Mac
 	// can't sleep between them.
@@ -38,6 +42,12 @@ func (w *awakeHold) hold(on, display bool) {
 		old.Process.Kill()
 		old.Wait()
 	}
+}
+
+// caffeinateCmd makes the caffeinate that holds, so that a test can have
+// it fail to start.
+var caffeinateCmd = func(display bool) *exec.Cmd {
+	return exec.Command("/usr/bin/caffeinate", caffeinateArgs(display, os.Getpid())...)
 }
 
 // caffeinateArgs are caffeinate's flags for a hold that waits on pid, and
