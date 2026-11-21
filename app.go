@@ -1562,12 +1562,26 @@ func (a *App) jumpTo(want func(*proto.Session) bool) bool {
 	for k := 1; k <= len(ids); k++ {
 		id := ids[(i+k+len(ids))%len(ids)]
 		if s := a.session(id); s != nil && id != a.selected && want(s) {
-			delete(a.prefs.Collapsed, s.Project)
+			delete(a.prefs.Collapsed, a.groupKey(s))
 			a.selectSession(id)
 			return true
 		}
 	}
 	return false
+}
+
+// groupKey is what the collapse of the group the session is in is
+// remembered by: its project's id, and for a remote host's sessions of no
+// project, its host's.
+func (a *App) groupKey(s *proto.Session) string {
+	for _, g := range a.groups() {
+		for _, x := range g.sessions {
+			if x.ID == s.ID {
+				return g.key()
+			}
+		}
+	}
+	return s.Project
 }
 
 // jumpToAttention goes to the next session that needs the user, after the
