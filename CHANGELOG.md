@@ -1,5 +1,333 @@
 # Changelog
 
+## 2.1.37
+
+- **End sessions when Kero quits** in Settings › General also ends this
+  machine's sessions and stops kerod when you quit, asking first while a
+  program still runs (`quit-ends-sessions = true`). Off by default.
+  Thanks @joei4cm
+- **Keep display on** in Settings › General, under Keep computer awake,
+  keeps the display on too while Kero keeps the computer awake, for
+  agents that look at the screen (`keep-display-on = true`). macOS and
+  Windows. Thanks @jkroso
+- <kbd>⌘</kbd>-hovering a `file://` link to an image previews it, as a
+  plain image path does, on remote panes too. Thanks @lcolok
+- **Image Limit** in Settings › Shell bounds the memory the images a
+  pane's programs show can take, 64 MB by default
+  (`image-storage-limit`, `0` for no limit). Before, each pane could take
+  up to 640 MB for them. Thanks @joei4cm
+- A pane whose program exited and closed no longer leaves the keyboard
+  nowhere: the pane that takes its place gets it. Thanks @joei4cm
+- The app no longer keeps a focused pane's whole scrollback in memory to
+  show its screen to screen readers, and typing and mouse reports
+  allocate less in the app and in kerod. Thanks @joei4cm
+- Settings › Colors names the folder your own Ghostty themes go in, which
+  on Windows is `%LOCALAPPDATA%\ghostty\themes`. Thanks @joei4cm
+- On Windows, opening a `~` link from a pane no longer crashes the app,
+  and a link like `~name` is no longer read as one in your home folder.
+  Thanks @joei4cm
+- The folder picker no longer shows the last host's folders when you
+  switch hosts while a listing is still loading. Thanks @joei4cm
+- When kerod restarts and the app reconnects at once, kerod no longer
+  can crash, taking every session with it, while it restores them.
+  Thanks @joei4cm
+- Closing the Changes viewer no longer asks to save, and with Don't Save
+  throws away, another session's diff edits. Thanks @joei4cm
+- A session whose pane fails to start no longer leaves its new worktree
+  behind, so trying the same branch again works. Thanks @joei4cm
+- A host's Ended and Archived conversations no longer go missing after
+  one failed call to it, as when its link drops. Thanks @joei4cm
+- `kero notify <session or pane> <message>` notifies the session or pane
+  named, as its help says. Before, the name became part of the message.
+  Thanks @joei4cm
+- Jumping to a session that needs you opens its group in the sidebar
+  when it is a remote host's session of no project. Thanks @joei4cm
+- The Changes tab keeps two hosts' worktrees of the same path apart, and
+  shows a file's diff after the session it was first opened from closes.
+  Thanks @joei4cm
+- An unsaved diff edit restored after a relaunch comes back to the diff
+  it was made in, not to the same file against another base.
+  Thanks @joei4cm
+- `kero -H <host> diff` finds a file of a Windows host's worktree given
+  as a Windows path. Thanks @joei4cm
+- Unsaved viewer edits are backed up a moment after you pause typing
+  with several viewers open too, not only when Kero quits, and a backup
+  that fails to write, as on a full disk, is tried again.
+  Thanks @joei4cm
+- Reverting a diff in the Changes viewer updates the pane's changes
+  badge at once, also for a pane in a folder of the worktree.
+  Thanks @joei4cm
+- `kero resume` exits with status 3 when its ref could be several
+  conversations, as the help says. Thanks @joei4cm
+- `kero skill setup --agent` with a name it doesn't know, a typo say, is
+  refused rather than installing the skill for every agent.
+  Thanks @joei4cm
+- `kero read -n` and `kero split -r` refuse a value that is no number,
+  or a ratio outside 0 to 1, rather than reading the whole pane or
+  splitting it in half. Thanks @joei4cm
+- `kero wait --for` with a status it doesn't know, a typo say, is refused
+  rather than waiting forever. Thanks @joei4cm
+- A conversation an agent started just before kerod restarted for an
+  update, or before the app ended kerod, is no longer missing from
+  `kero history` after it. Thanks @joei4cm
+- A paste bigger than 16 MB no longer cuts the pane off from the app,
+  so it takes no more input. Thanks @joei4cm
+- A server update whose archive records no file permissions installs a
+  kerod that runs. Thanks @joei4cm
+- A shortcut can no longer be the plain F key, which took every `f`
+  typed, in terminals too. Thanks @joei4cm
+- A pane's scrollback that kerod could not write, as on a full disk, is
+  written again later rather than lost. Thanks @joei4cm
+- `kero wait --exit` no longer reports exit status 0 for a command whose
+  shell did not say how it ended. Thanks @joei4cm
+- A browser pane opens `127.1:8080` and the like over http, as a
+  browser does, not as an https page that fails. Thanks @joei4cm
+- A failed `kero daemon install-service` puts back the service unit that
+  was there, rather than removing it. Thanks @joei4cm
+- `kero hosts add` refuses a port outside 1 to 65535 at once, rather than
+  saving an address ssh cannot use. Thanks @joei4cm
+- `kero skill setup --agent agents` no longer writes CodeBuddy Code's
+  hook, which has a skill and a hook of its own. Thanks @joei4cm
+- A host's color picked in the sidebar is saved, rather than lost when
+  Kero quits. Thanks @joei4cm
+- Installing an agent's hook keeps its settings file a symlink, as with
+  dotfiles, rather than writing a plain file over it. Thanks @joei4cm
+- `kero wait -t` refuses a timeout below zero, rather than waiting
+  forever. Thanks @joei4cm
+- A space typed in the command palette no longer hides what it should
+  find, as `new session` for New Session. Thanks @joei4cm
+- A shortcut set to keys another action had is kept after Kero restarts,
+  rather than leaving both actions with none. Thanks @joei4cm
+- When git fails, as on a timeout, the Changes viewer says so, rather than
+  showing a file's whole text as new or a clean file as changed.
+  Thanks @joei4cm
+- With `worktree-dir` set to a folder of the repository, its worktrees
+  no longer show as a change of it in every pane. Thanks @joei4cm
+- Closing a session whose worktree was already removed no longer says the
+  worktree stays, and removes its branch as it should. Thanks @joei4cm
+- A call to kerod after its connection dropped fails at once, rather than
+  leaving the app or the CLI waiting forever. Thanks @joei4cm
+- `kero hook remove` and `kero skill remove` no longer remove a hook of
+  another program with "kero" in its name. Thanks @joei4cm
+- A full reset right after an unfinished escape sequence clears the
+  pane's working status and progress too. Thanks @joei4cm
+- Edits in the Changes viewer are kept when the file grows past what it
+  shows whole, rather than lost. Thanks @joei4cm
+- A large file whose patch could not be made says so, rather than showing
+  an empty change. Thanks @joei4cm
+- Reverting a file whose only change is its mode, as `chmod +x`, puts the
+  mode back, and on Windows a file whose line endings alone differ is no
+  longer taken for changed. Thanks @joei4cm
+- Opening the configuration in a text editor from Settings says when the
+  editor could not start, rather than doing nothing. Thanks @joei4cm
+- Revert works on a file an agent added, which it removes, or deleted,
+  which it writes back. Thanks @joei4cm
+- kerod lets go of a pane's terminal when its shell exits, rather than
+  holding one open for every session that ever ended. Thanks @joei4cm
+- `kero daemon uninstall-service` says when systemd could not stop the
+  service, rather than saying it is gone while it still runs.
+  Thanks @joei4cm
+- Settings says when it could not write the configuration it was asked to
+  open, rather than opening an editor on a file that is not there.
+  Thanks @joei4cm
+- A zoomed pane stays zoomed when kerod restarts, as for an update.
+  Thanks @joei4cm
+- The Changes tab no longer offers to open a remote host's file on this
+  machine, where a file of the same path may be another. Thanks @joei4cm
+- `--json=false` and the like turn a flag off, rather than on.
+  Thanks @joei4cm
+- Sessions are no longer lost when two saves of kerod's state happen at
+  once, as a change landing just as Kero quits. Thanks @joei4cm
+- `kero hosts check` says when it could not read a host's kerod state,
+  rather than counting no sessions. Thanks @joei4cm
+- A pipeline such as `git log | less` keeps its name in the pane after
+  its first program ends. Thanks @joei4cm
+- kerod logs a conversations file it could not write or read, and tries
+  the write again on the next save, rather than losing the list
+  silently. Thanks @joei4cm
+- A setting that could not be saved is said in the Settings window,
+  where you changed it. Thanks @joei4cm
+- `kero -H host daemon status` exits with status 4 when it cannot reach
+  the host's kerod, as the local command does. Thanks @joei4cm
+- A session started just as kerod stops or restarts is refused, rather
+  than said to start and then lost. Thanks @joei4cm
+- Settings › Terminal shows a font weight it has no name for, such as
+  `font-weight = 700`, as its number rather than a blank. Thanks @joei4cm
+- Settings › Advanced says when kerod's sessions could not be read, or
+  when a kerod of another version runs, rather than "0 sessions" or "Not
+  running". Thanks @joei4cm
+- The quick terminal says when its session's pane in focus is a browser,
+  rather than spinning for ever. Thanks @joei4cm
+- `kero daemon status` exits with status 4 when kerod cannot be reached,
+  and names a kerod of another version. Thanks @joei4cm
+- kerod logs a pane's history it could not read on restore.
+  Thanks @joei4cm
+- Settings › General › New sessions start in › Custom… opens its folder
+  dialog on the Settings window. Thanks @joei4cm
+- An ad-filter list that is there but cannot be read is said, rather
+  than ads loading while Settings says they are blocked. Thanks @joei4cm
+- A settings change or a new session while a pane's terminal attaches no
+  longer can crash the app. Thanks @joei4cm
+- Kero says when it could not restore your unsaved edits, rather than
+  dropping them without a word. Thanks @joei4cm
+- Kero says when it could not read or save the things it remembers
+  between runs, such as the open session and the sidebar's width.
+  Thanks @joei4cm
+- A pasted image's path on another machine is quoted for that machine's
+  shell, even when the machine reconnects as the image is sent.
+  Thanks @joei4cm
+- `kero new --focus` and the like fail when the app could not be told to
+  show the session, rather than printing its ID as if it had.
+  Thanks @joei4cm
+- With **End sessions when Kero quits** on, Kero asks you to try again or
+  quit anyway when the sessions could not be ended, rather than quitting
+  and leaving them running. Thanks @joei4cm
+- Closing a session no longer removes its worktree when the worktree's
+  git could not be read: the close is refused, and the changes stay.
+  Thanks @joei4cm
+- A configuration file that is there but cannot be read is said, and a
+  save no longer writes over it with the defaults. Thanks @joei4cm
+- Opening a file Kero could not read the path of says why, rather than
+  saying the file is not there. Thanks @joei4cm
+- `kero report --progress` refuses a value that is not a percentage from
+  0 to 100, rather than reporting nothing of it. Thanks @joei4cm
+- `kero report` refuses an `--id`, `--kind` or `--app` that kerod would
+  drop, and a `--kind` or `--progress` of a state that does not take one,
+  rather than exiting 0 while the report, or that part of it, is lost.
+  Thanks @joei4cm
+- `kero restart` refuses `--remove-worktree` and `--force`, which are
+  `kero close`'s, rather than ignoring them. Thanks @joei4cm
+- A file dropped on another machine's pane that could not be read is said
+  as such, not as a folder. Thanks @joei4cm
+- `kero new` run from a directory that was deleted says so, rather than
+  starting the session in the home directory. Thanks @joei4cm
+- A pane's git branch and changes refresh again after a `git status` that
+  failed, rather than keeping the last numbers until something else
+  changed. Thanks @joei4cm
+- `kero split` refuses more than one of `--right`, `--down`, `--left` and
+  `--up`, rather than keeping one of them. Thanks @joei4cm
+- Connecting to a host that ends at once (a Windows host's first try, or
+  one without Kero) says why, rather than `write |1: broken pipe`.
+  Thanks @joei4cm
+- Closing a session with its worktree says so when Kero could not tell
+  whether the branch was merged (its base branch was deleted, say), rather
+  than keeping the branch without a word. Thanks @joei4cm
+- `kero daemon install-service` on Linux refuses to go on over a unit file
+  it cannot read, rather than overwriting it and, should the install
+  fail, removing it. Thanks @joei4cm
+- `kero daemon uninstall-service` on Linux says when systemd did not take
+  the unit's removal, rather than saying the service is gone while systemd
+  still lists it. Thanks @joei4cm
+- A backup of unsaved edits that could not be written is said, once per
+  trouble, rather than not at all. Thanks @joei4cm
+- A configuration file that cannot be read for a moment keeps the settings
+  as they were, rather than putting the defaults in their place (and
+  taking down the listeners it names). Thanks @joei4cm
+- Replacing a file or folder by dropping one on the Files tab keeps what
+  was there when the copy fails, rather than losing it. Thanks @joei4cm
+- kerod logs a worktree whose git cannot be read, rather than not
+  following it without a word. Thanks @joei4cm
+- A repository's `info/exclude` that cannot be read keeps its rules,
+  rather than being written over with the worktrees' folder alone.
+  Thanks @joei4cm
+- `kero daemon uninstall-service` on Linux refuses to go on over a unit it
+  cannot look at, rather than saying the service is gone. Thanks @joei4cm
+- A backup of edits that could not be removed is said, rather than its
+  edits coming back after the next start. Thanks @joei4cm
+- Closing a session whose worktree folder cannot be entered says why the
+  worktree stays, rather than taking it for gone. Thanks @joei4cm
+- A configuration that could not be read for a moment stops being reported
+  once it reads again. Thanks @joei4cm
+- A drop on the Files tab whose old file could not be taken away names
+  where the finished copy is. Thanks @joei4cm
+- A setting with a line break in it is refused, rather than written as two
+  lines whose second is read as a setting of its own. Thanks @joei4cm
+- Zooming a pane that is no longer in the session says so, rather than
+  answering success. Thanks @joei4cm
+- A setting whose value is in quotes of its own keeps them when saved.
+  Thanks @joei4cm
+- Resuming a conversation, or `kero new -d`, in a directory that cannot be
+  looked into says why, rather than that it is gone. Thanks @joei4cm
+- A restart whose shell cannot start says why and keeps the pane as it was,
+  rather than saying it restarted. Thanks @joei4cm
+- A backup of unsaved edits that cannot be read is kept aside as
+  `unsaved.json.broken`, rather than written over. Thanks @joei4cm
+- Pi panes show Pi's icon, and Pi conversations take their name or first
+  message as their title, rather than "π - <dir>". Thanks @isjiajia01
+- Pi syncs with Kero once it settles, after its retries and queued
+  messages, rather than only as a run ends. Thanks @isjiajia01
+- Installing the background service on macOS or Windows says so when the
+  running kerod would not stop, rather than reporting success. Thanks @joei4cm
+- A git status whose `core.fsmonitor` hook keeps running returns at its
+  deadline, rather than holding every pane's branch and changes. Thanks @joei4cm
+- A git status that cannot be read is logged, rather than leaving the pane's
+  numbers frozen with nothing said. Thanks @joei4cm
+- A filter list that could not be downloaded is said even when other lists
+  loaded. Thanks @joei4cm
+- Settings kept from before the configuration file that cannot be read are
+  said and left in place, rather than dropped silently. Thanks @joei4cm
+- `kero send` says so when the input could not reach the pane. Thanks @joei4cm
+- Installing the command line tool from Settings shows the result in Settings,
+  and refreshes its status once the install finishes. Thanks @joei4cm
+- A restored pane whose directory cannot be reached is not started in the home
+  directory, and is kept for the next start. Thanks @joei4cm
+- Reverting a change to a file the agent renamed puts its content back,
+  rather than deleting the file. Thanks @joei4cm
+- A pane's history that cannot be removed as the pane closes is logged.
+  Thanks @joei4cm
+- A kerod service that cannot be checked is logged, and Kero starts its own
+  kerod as before. Thanks @joei4cm
+- A remote connection refused because Tailscale could not say the machine's
+  owner says so, rather than blaming `listen-allow`. Thanks @joei4cm
+- In a narrow sidebar, a session's branch gives way so its time and status
+  stay in the row. Thanks @isjiajia01
+- Uninstalling the background service on macOS or Windows says so when the
+  service could not be removed, and keeps its file, rather than reporting it
+  gone. Thanks @joei4cm
+- An action whose shortcut another action took gets it back when that action
+  lets it go, rather than losing it for good. Thanks @joei4cm
+- A skill or hook file that cannot be read, or whose hooks are malformed, says
+  so in `kero skill status` and Settings, rather than reading as missing.
+  Thanks @joei4cm
+- `kero daemon stop` says so when a kerod answers without saying hello, rather
+  than reporting it stopped. Thanks @joei4cm
+- A pane whose directory a file took the place of is not started in the home
+  directory. Thanks @joei4cm
+- Making a worktree in a repository whose git cannot be read says why, rather
+  than that the folder is in no repository. Thanks @joei4cm
+- A worktree whose merged check had no answer says the failure, rather than
+  showing the branch as unmerged. Thanks @joei4cm
+- kerod no longer writes over a state, conversations or history file that is
+  there but cannot be read. Thanks @joei4cm
+- `kero daemon status` says when kerod is there but cannot be asked, rather
+  than that it is not running. Thanks @joei4cm
+- `kero config show` says when the configuration cannot be read, rather than
+  printing the defaults as the settings. Thanks @joei4cm
+- Settings kept from before the configuration file that cannot be migrated
+  stay in effect and say why, rather than falling back to the defaults.
+  Thanks @joei4cm
+- `kero daemon stop` and `restart` say when kerod's service cannot be checked,
+  rather than going around a service that may be there. Thanks @joei4cm
+- `kero daemon stop` says when kerod is there but cannot be asked, rather than
+  saying nothing and leaving it running. Thanks @joei4cm
+- A custom folder for new sessions that cannot be looked into is said, rather
+  than the session starting in the home folder. Thanks @joei4cm
+- Actions the quick terminal cannot show, such as splitting or starting a
+  session, no longer change the main window behind it, and closing hides the
+  quick terminal. Thanks @comf4rtnoise
+- An `env` line that is not `NAME=value` no longer drops the `env` lines
+  after it from every pane's environment. Thanks @joei4cm
+- Saving in Settings no longer hides the configuration's problems, such
+  as an unknown key, while the line stays wrong in the file.
+  Thanks @joei4cm
+- A setting with a `#` and a backslash in it, such as a Windows folder,
+  no longer gains a backslash each time Settings saves it.
+  Thanks @joei4cm
+- Saving a diff whose session has ended no longer writes it to this
+  machine, at the path of a remote worktree's file. Its edit stays backed
+  up, and comes back when the worktree shows the file again.
+  Thanks @joei4cm
+
 ## 2.1.36
 
 - **New sessions start in** in Settings › General takes a folder of your
