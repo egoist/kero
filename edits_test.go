@@ -47,3 +47,19 @@ func editedDiff(t *testing.T, a *App, root, path string) *sideFile {
 	}
 	return sf
 }
+
+// A diff of a pane gone is not a text to save: no host has the pane, and
+// the local one is where its file is not — a session that ended must not
+// have its diff written here.
+func TestDiffOfAPaneGoneIsNotSaved(t *testing.T) {
+	a := testApp(t)
+	a.st.Sessions[0].Panes[0].Git = &proto.GitInfo{Root: "/tmp/a", Branch: "main", Default: "main"}
+	sf := editedDiff(t, a, "/tmp/a", "main.go")
+	sf.pane = "gone"
+	if a.diffTarget(sf).dirty() {
+		t.Error("a diff of a pane gone is a text to save")
+	}
+	if ts := a.allTargets(); len(ts) != 0 {
+		t.Errorf("the texts with edits to save: %+v", ts)
+	}
+}
