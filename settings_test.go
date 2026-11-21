@@ -795,6 +795,7 @@ func TestThemesDir(t *testing.T) {
 		{"no XDG_CONFIG_HOME on macOS", "darwin", "", win, home, atHome(filepath.Join(home, ".config"))},
 		{"LOCALAPPDATA on Windows", "windows", "", win, win, "~" + strings.TrimPrefix(themes(win), win)},
 		{"LOCALAPPDATA unset on Windows", "windows", "", "", win, "~" + strings.TrimPrefix(themes(filepath.Join(win, ".config")), win)},
+		{"a sibling of the home", "linux", filepath.Join("/home", "melissa", ".config"), win, home, themes(filepath.Join("/home", "melissa", ".config"))},
 		{"no home", "linux", "", "", "", ""},
 		{"no home on Windows", "windows", "", "", "", ""},
 	} {
