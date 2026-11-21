@@ -63,7 +63,8 @@ Usage:
                                 stops working, then print its screen
   kero read [target] [-a] [-n lines]
                                 print the screen (-a with the scrollback)
-  kero wait [target] [--for idle,waiting,error,exited] [--timeout 10m]
+  kero wait [target] [--for idle,working,waiting,error,exited]
+                                [--timeout 10m]
                                 wait until the pane stops working (or
                                 reaches one of the statuses), print it
       -x, --exit                  instead wait for the command it started
@@ -583,11 +584,13 @@ func run(args []string, host string) error {
 			}
 			return waitExit(c, t.ref(), f.vals["timeout"])
 		}
-		var want []proto.Status
-		for _, w := range strings.Split(f.vals["for"], ",") {
-			if w = strings.TrimSpace(w); w != "" {
-				want = append(want, proto.Status(w))
-			}
+		statuses, err := parseStatuses("wait", f.vals["for"])
+		if err != nil {
+			return err
+		}
+		want := make([]proto.Status, len(statuses))
+		for i, s := range statuses {
+			want[i] = proto.Status(s)
 		}
 		timeout, err := parseTimeout(f.vals["timeout"])
 		if err != nil {
@@ -1369,6 +1372,30 @@ func parseRatio(s string) (float64, error) {
 		return 0, usageErr("kero split -r takes a ratio between 0 and 1, not %q", s)
 	}
 	return r, nil
+}
+
+// parseStatuses are the statuses a wait is for: the ones a pane has, and
+// none other. A status that is none of them is a usage error: kerod
+// waits for a pane to have it, and a pane never has it, so the wait
+// never ends.
+func parseStatuses(cmd, v string) ([]string, error) {
+	valid := []proto.Status{proto.Idle, proto.Working, proto.Waiting, proto.Failed, proto.Exited}
+	var want []string
+	for _, w := range strings.Split(v, ",") {
+		w = strings.TrimSpace(w)
+		if w == "" {
+			continue
+		}
+		ok := false
+		for _, s := range valid {
+			ok = ok || string(s) == w
+		}
+		if !ok {
+			return nil, usageErr("kero %s: no status %q (idle, working, waiting, error, exited)", cmd, w)
+		}
+		want = append(want, w)
+	}
+	return want, nil
 }
 
 func printJSON(v any) error {

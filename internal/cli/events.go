@@ -270,19 +270,9 @@ func eventsCmd(c *client.Client, st proto.State, args []string) error {
 			return err
 		}
 	}
-	valid := []proto.Status{proto.Idle, proto.Working, proto.Waiting, proto.Failed, proto.Exited}
-	for _, w := range strings.Split(fl.vals["for"], ",") {
-		if w = strings.TrimSpace(w); w == "" {
-			continue
-		}
-		ok := false
-		for _, v := range valid {
-			ok = ok || string(v) == w
-		}
-		if !ok {
-			return usageErr("kero events: no status %q (idle, working, waiting, error, exited)", w)
-		}
-		f.statuses = append(f.statuses, w)
+	f.statuses, err = parseStatuses("events", fl.vals["for"])
+	if err != nil {
+		return err
 	}
 	timeout, err := parseTimeout(fl.vals["timeout"])
 	if err != nil {
