@@ -229,6 +229,18 @@ func listAll(asJSON bool) error {
 	return nil
 }
 
+// hostDaemonState says what the kerod on the host says about itself: a
+// state it could not read is said, not counted as none — no sessions
+// would tell the user theirs were gone.
+func hostDaemonState(c *client.Client) {
+	var st proto.State
+	if err := c.Call("state", nil, &st); err != nil {
+		fmt.Printf("kerod: its state: %v\n", err)
+		return
+	}
+	fmt.Printf("kerod: Kero %s, pid %d, %d sessions\n", orDash(c.Welcome.App), c.Welcome.PID, len(st.Sessions))
+}
+
 // hostsCmd manages the hosts the app shows and -H reaches, which the
 // configuration keeps (host = name=address).
 func hostsCmd(args []string) error {
@@ -326,9 +338,7 @@ func hostsCmd(args []string) error {
 			return fmt.Errorf("kerod: %w", err)
 		}
 		defer c.Close()
-		var st proto.State
-		c.Call("state", nil, &st)
-		fmt.Printf("kerod: Kero %s, pid %d, %d sessions\n", orDash(c.Welcome.App), c.Welcome.PID, len(st.Sessions))
+		hostDaemonState(c)
 		return nil
 
 	case "install":
