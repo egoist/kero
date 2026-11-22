@@ -316,3 +316,26 @@ func fakeResult(method string) any {
 	}
 	return nil
 }
+
+// A project that is not there is "no such target" (exit 3), as the
+// usage says, not a failure (exit 1): `kero history -p typo` told a
+// script the command failed, when it was the name that was wrong.
+func TestHistoryOfAnUnknownProjectIsNotFound(t *testing.T) {
+	t.Setenv("KERO_CONFIG", filepath.Join(t.TempDir(), "config"))
+	sock, _ := fakeDaemon(t)
+	t.Setenv("KERO_SOCKET", sock)
+	c, err := client.ConnectVia(client.Local{NoStart: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	st := proto.State{Projects: []proto.Project{{ID: "p1", Name: "demo"}}}
+	if _, err := conversations(c, st, "nope", ""); !errors.Is(err, errNotFound) {
+		t.Errorf("kero history -p nope: %v, want a not-found error", err)
+	}
+	// A project of a name the case differs in is the same project, and
+	// its id.
+	if list, err := conversations(c, st, "DEMO", ""); err != nil || len(list) != 0 {
+		t.Errorf("kero history -p DEMO: %v, %v conversations", err, len(list))
+	}
+}
