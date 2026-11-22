@@ -32,6 +32,9 @@ func TestHostsCheckSaysAFailedState(t *testing.T) {
 
 func TestSplitHost(t *testing.T) {
 	t.Setenv("KERO_HOST", "")
+	// The test runs where it runs: inside a pane of Kero, $KERO_PANE is
+	// set, and $KERO_HOST gives way to the pane's machine.
+	t.Setenv("KERO_PANE", "")
 	for _, c := range []struct {
 		args []string
 		host string
