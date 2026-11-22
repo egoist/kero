@@ -968,9 +968,23 @@ func (a *App) terminalPage(c *ui.Context, pal *palette) {
 			slider(c, "lh", &v, 1, 2, 160, pal).OnChange(func() { a.set.LineHeight = float32(int(v*100+0.5)) / 100 })
 			ui.Textf(c, "%.2f×", s.LineHeight).FontSize(12.5).TextColor(pal.textMuted).Width(40).FontFeatures("tnum")
 		})
+		weights := []int{300, 400, 500, 600}
+		if !slices.Contains(weights, s.FontWeight) {
+			weights = append(weights, s.FontWeight)
+			slices.Sort(weights)
+		}
+		// The usual weights are named; a configured one between them shows
+		// its number rather than a blank face.
+		weightNames := map[int]string{
+			300: locales.SetWeightLight(), 400: locales.SetWeightRegular(),
+			500: locales.SetWeightMedium(), 600: locales.SetWeightSemibold(),
+		}
 		settingRow(c, pal, locales.SetWeight(), "", func() {
-			popup(c, "weight", &s.FontWeight, []int{300, 400, 500, 600}, func(w int) string {
-				return map[int]string{300: locales.SetWeightLight(), 400: locales.SetWeightRegular(), 500: locales.SetWeightMedium(), 600: locales.SetWeightSemibold()}[w]
+			popup(c, "weight", &s.FontWeight, weights, func(w int) string {
+				if name, ok := weightNames[w]; ok {
+					return name
+				}
+				return strconv.Itoa(w)
 			}, 140, pal)
 		})
 		settingRow(c, pal, locales.SetLigatures(), locales.SetLigaturesDetail(), func() {

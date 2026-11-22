@@ -45,6 +45,18 @@ func TestSettingsPages(t *testing.T) {
 	}
 }
 
+func TestFontWeightShowsTheCurrentValue(t *testing.T) {
+	a := testApp(t)
+	a.ss.draft = map[string]string{}
+	a.ss.page = "terminal"
+	a.set.FontWeight = 700
+	tt := ui.NewTester(a.settingsView, 820, 900)
+	tt.Frame()
+	if !tt.HasText("700") {
+		t.Errorf("weight 700 is not named; texts %q", tt.Texts())
+	}
+}
+
 // A shortcut is typed into its chip, saved, and takes the keys from the
 // action that had them.
 func TestRecordShortcut(t *testing.T) {
