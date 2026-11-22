@@ -266,6 +266,14 @@ func (d *Daemon) startPane(sid string, p proto.CreateParams, dir string) (*pane,
 
 // create starts a session, or a pane of one with p.Split.
 func (d *Daemon) create(p proto.CreateParams) (proto.Session, error) {
+	d.mu.Lock()
+	if d.ending {
+		// The daemon is shutting down: a session made now would go
+		// with it, and the user would hear of neither.
+		d.mu.Unlock()
+		return proto.Session{}, errors.New("kerod is shutting down")
+	}
+	d.mu.Unlock()
 	if p.Split != "" {
 		return d.split(p)
 	}
