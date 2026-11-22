@@ -213,8 +213,13 @@ func (r Repo) FileText(ctx context.Context, rev, path, oldPath string) (Text, er
 		return Text{}, err
 	}
 	t.Hash = Hash(nb)
-	ob, err := run(ctx, r.Root, nil, "cat-file", "blob", rev+":"+oldPath)
+	// LC_ALL=C: what notInRev reads is git's English message, which a
+	// translated git would say otherwise, as run takes the user's.
+	ob, err := run(ctx, r.Root, cLocale, "cat-file", "blob", rev+":"+oldPath)
 	if err != nil {
+		if !notInRev(err) {
+			return Text{}, err
+		}
 		ob = nil // added since
 	}
 	switch {
@@ -263,12 +268,35 @@ func (r Repo) Changed(ctx context.Context, rev, path string) (bool, error) {
 	if err != nil && !os.IsNotExist(err) {
 		return false, err
 	}
-	ob, err := run(ctx, r.Root, nil, "cat-file", "blob", rev+":"+path)
+	// LC_ALL=C, as FileText's: what notInRev reads is git's English
+	// message, which a translated git would say otherwise.
+	ob, err := run(ctx, r.Root, cLocale, "cat-file", "blob", rev+":"+path)
 	if err != nil {
+		if !notInRev(err) {
+			return false, err
+		}
 		return nb != nil, nil // not in rev: changed when it is now
 	}
 	return !bytes.Equal(ob, nb), nil
 }
+
+// notInRev tells whether err says the path is not in the rev, as git
+// says it in English, which the call that failed was given LC_ALL=C for:
+// "fatal: path 'x' does not exist in 'HEAD'" when the file is not on
+// disk either, and "fatal: path 'x' exists on disk, but not in 'HEAD'"
+// when it is. Any other failure is a failure and not a file that is not
+// there: a timeout, a rev that is gone, a git that is broken.
+func notInRev(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "does not exist in") || strings.Contains(msg, "exists on disk, but not in")
+}
+
+// cLocale is the environment of the git calls whose words are read: it
+// keeps git's messages the English ones, whatever the user's locale is.
+var cLocale = []string{"LC_ALL=C"}
 
 // ErrChanged: the file isn't as it was when read.
 var ErrChanged = errors.New("the file changed since it was shown")
