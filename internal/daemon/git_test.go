@@ -1,6 +1,7 @@
 package daemon
 
 import (
+	"context"
 	"io"
 	"log"
 	"os"
@@ -135,5 +136,50 @@ func TestRevertPokesThePane(t *testing.T) {
 	d.git.look(now.Add(time.Second))
 	if g := p.info.Git; g == nil || g.Files != 0 {
 		t.Errorf("the pane is not told the revert: %+v", g)
+	}
+}
+
+// A change of a file's mode is a change to revert: the revert puts the
+// mode back with the text, and the file shows as it was.
+func TestRevertPutsBackTheMode(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("no git")
+	}
+	p := testPane(t)
+	d := p.d
+	d.log = log.New(io.Discard, "", 0)
+	d.panes = map[string]*pane{"p": p}
+	repo := realPath(t, t.TempDir())
+	gitIn(t, repo, "init", "-q")
+	os.WriteFile(filepath.Join(repo, "a.txt"), []byte("one\n"), 0o644)
+	gitIn(t, repo, "add", "-A")
+	gitIn(t, repo, "commit", "-q", "-m", "first")
+	p.info.Dir = repo
+	full := filepath.Join(repo, "a.txt")
+	// The file is made to run: the bytes are as they were.
+	if err := os.Chmod(full, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	txt, err := d.gitText(proto.GitParams{Pane: "p", Base: git.BaseHead, Path: "a.txt"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := d.gitRevert(proto.GitWriteParams{Pane: "p", Base: git.BaseHead, Path: "a.txt", Hash: txt.Hash, Text: txt.Old}); err != nil {
+		t.Fatal(err)
+	}
+	fi, err := os.Stat(full)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fi.Mode().Perm() != 0o644 {
+		t.Errorf("the mode after the revert: %v", fi.Mode())
+	}
+	r, err := git.Open(context.Background(), repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	changed, err := r.Changed(context.Background(), "HEAD", "a.txt")
+	if err != nil || changed {
+		t.Errorf("the file after the revert: changed=%v, %v", changed, err)
 	}
 }

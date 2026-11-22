@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path"
@@ -363,6 +364,49 @@ func WriteFile(full, hash, text string) error {
 		os.Remove(tmp.Name())
 	}
 	return err
+}
+
+// Mode returns the mode path has in rev, as git's tree holds it: the
+// permission bits a regular file of that tree is checked out with, and
+// 0 when the rev has no regular file there.
+func (r Repo) Mode(ctx context.Context, rev, path string) (fs.FileMode, error) {
+	if _, err := r.local(path); err != nil {
+		return 0, err
+	}
+	// "<mode> <type> <object>\t<path>": the mode is the first word of
+	// the one line of the file asked for, and there is no line when the
+	// rev has no file there.
+	out, err := run(ctx, r.Root, cLocale, "ls-tree", rev, "--", path)
+	if err != nil {
+		return 0, err
+	}
+	line, _, _ := strings.Cut(strings.TrimSpace(string(out)), "\n")
+	mode, _, _ := strings.Cut(line, " ")
+	switch mode {
+	case "100644":
+		return 0o644, nil
+	case "100755":
+		return 0o755, nil
+	}
+	return 0, nil // not a regular file of the rev: a symlink or a submodule
+}
+
+// Revert puts a file back as rev has it: its content as hash says it was
+// shown, and its mode as the rev's tree holds it — a file made to run,
+// and made not to, runs as the rev says again.
+func (r Repo) Revert(ctx context.Context, rev, path, hash, text string) error {
+	if err := r.Write(path, hash, text); err != nil {
+		return err
+	}
+	mode, err := r.Mode(ctx, rev, path)
+	if err != nil || mode == 0 {
+		return err
+	}
+	full, err := r.local(path)
+	if err != nil {
+		return err
+	}
+	return os.Chmod(full, mode)
 }
 
 // local returns the file of the worktree a slash-separated path names,

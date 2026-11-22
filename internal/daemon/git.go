@@ -364,7 +364,7 @@ func (d *Daemon) gitRevert(p proto.GitWriteParams) (string, error) {
 	if !changed {
 		return "", fmt.Errorf("%s has no changes to revert", p.Path)
 	}
-	if err := r.Write(p.Path, p.Hash, p.Text); err != nil {
+	if err := r.Revert(ctx, rev, p.Path, p.Hash, p.Text); err != nil {
 		return "", err
 	}
 	// The panes of the file's worktree show their changes anew, as with
