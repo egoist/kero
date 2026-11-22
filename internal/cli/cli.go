@@ -1230,7 +1230,7 @@ func conversations(c *client.Client, st proto.State, project, query string) ([]p
 			}
 		}
 		if id == "" {
-			return nil, fmt.Errorf("no project %q", project)
+			return nil, fmt.Errorf("%w: no project %q", errNotFound, project)
 		}
 		list = slices.DeleteFunc(list, func(cv proto.Conversation) bool { return cv.Project != id })
 	}
