@@ -69,6 +69,13 @@ func (o *oscScanner) scan(p []byte, fn func(body []byte), reset func()) {
 					o.begin()
 				} else if b != 0x1b {
 					o.state = 0
+					if b == 'c' {
+						// A full reset that ends a string is a full
+						// reset: what the string held goes, as the
+						// records and the progress it would have
+						// cleared.
+						reset()
+					}
 				}
 			}
 		}
