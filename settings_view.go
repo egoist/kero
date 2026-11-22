@@ -1352,8 +1352,11 @@ func (a *App) advancedPage(c *ui.Context, pal *palette) {
 	settingsGroup(c, pal, locales.SetConfiguration(), locales.SetConfigurationDetail(), func() {
 		settingRow(c, pal, locales.SetConfigFile(), proto.ShortDir(settings.Path()), func() {
 			if button(c, "reveal-config", locales.CommonShowIn(fileManager()), "", false, pal) {
-				a.ensureConfig()
-				revealPath(settings.Path())
+				if err := a.ensureConfig(); err != nil {
+					a.ss.toast = locales.ToastSaveSettingsFailed(err.Error())
+				} else {
+					revealPath(settings.Path())
+				}
 			}
 			if button(c, "edit-config", locales.CommonOpen(), "", true, pal) {
 				a.openConfig()
@@ -1427,11 +1430,14 @@ func (a *App) chooseNewSessionDir() {
 }
 
 // ensureConfig writes the configuration file, with its header, when
-// there is none yet, so that there is a file to open.
-func (a *App) ensureConfig() {
-	if _, err := os.Stat(settings.Path()); err != nil {
-		settings.Save(a.set)
+// there is none yet, so that there is a file to open. It says when it
+// could not: a configuration that was not written is not one to open,
+// and the editor would open a file of its own making instead.
+func (a *App) ensureConfig() error {
+	if _, err := os.Stat(settings.Path()); err == nil {
+		return nil
 	}
+	return settings.Save(a.set)
 }
 
 // openConfig opens the configuration in the user's text editor. It is
@@ -1439,7 +1445,10 @@ func (a *App) ensureConfig() {
 // button that asks is there, and the main window's toast is not shown
 // in it.
 func (a *App) openConfig() {
-	a.ensureConfig()
+	if err := a.ensureConfig(); err != nil {
+		a.ss.toast = locales.ToastSaveSettingsFailed(err.Error())
+		return
+	}
 	if err := openTextFile(settings.Path()); err != nil {
 		a.ss.toast = locales.ToastOpenConfigFailed(err.Error())
 	}
