@@ -7,18 +7,33 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"syscall"
 )
 
-// groupAlive reports whether any process of the group pg is still
-// running: a pipeline's leader going first does not end the group. The
-// fields of /proc/pid/stat past the state are ppid, pgrp, ... : f[0] is
-// the state, f[2] the group.
-func groupAlive(pg int) bool {
+// groupMember returns a live process of the group pg: the leader's pid
+// when it is alive, else any member's. A pipeline's leader going first
+// does not end the group. The group's existence is asked cheaply first
+// (kill -pg, 0), and /proc is scanned only when the leader is gone, to
+// find a member.
+func groupMember(pg int) (int, bool) {
+	if pg <= 0 {
+		return 0, false
+	}
+	if err := syscall.Kill(-pg, 0); err != nil {
+		return 0, false
+	}
+	if procName(pg) != "" {
+		return pg, true
+	}
 	entries, err := os.ReadDir("/proc")
 	if err != nil {
-		return false
+		return 0, false
 	}
 	for _, e := range entries {
+		pid, err := strconv.Atoi(e.Name())
+		if err != nil {
+			continue
+		}
 		b, err := os.ReadFile("/proc/" + e.Name() + "/stat")
 		if err != nil {
 			continue
@@ -32,8 +47,8 @@ func groupAlive(pg int) bool {
 			continue
 		}
 		if g, err := strconv.Atoi(f[2]); err == nil && g == pg {
-			return true
+			return pid, true
 		}
 	}
-	return false
+	return 0, false
 }
