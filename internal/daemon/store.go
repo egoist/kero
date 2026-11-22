@@ -112,7 +112,13 @@ func (d *Daemon) saveHistories(force bool) {
 	d.mu.Unlock()
 	for _, p := range panes {
 		if h := p.history(force); h != nil {
-			writeAtomic(d.historyPath(p.info.ID), h)
+			if err := writeAtomic(d.historyPath(p.info.ID), h); err != nil {
+				// The scrollback is the pane's still: a write that
+				// failed does not take it away, and it is saved
+				// again the next time.
+				d.log.Printf("the history of %s: %v", p.info.ID, err)
+				p.keepHistory()
+			}
 		}
 	}
 }
