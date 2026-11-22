@@ -171,6 +171,13 @@ var sendPaste = func(dialer client.Dialer, ups []pasteUpload) ([]string, error) 
 // shellEscape writes a path as one word of a POSIX shell, as dropped
 // files' are: a backslash before what the shell would read otherwise.
 func shellEscape(p string) string {
+	// A backslash before a newline is a line continuation to a POSIX
+	// shell: both go, and the words around them join, so the path would
+	// name another file. A path in single quotes carries the newline as
+	// it is.
+	if strings.ContainsRune(p, '\n') {
+		return "'" + strings.ReplaceAll(p, "'", `'\''`) + "'"
+	}
 	var b strings.Builder
 	for _, r := range p {
 		safe := r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || strings.ContainsRune("/._-+@%:,=", r) || r > 0x7f
