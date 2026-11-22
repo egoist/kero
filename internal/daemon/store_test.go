@@ -1,7 +1,10 @@
 package daemon
 
 import (
+	"bytes"
+	"log"
 	"os"
+	"strings"
 	"testing"
 
 	"kero/internal/proto"
@@ -40,5 +43,38 @@ func TestFailedHistorySaveKeepsIt(t *testing.T) {
 	p.mu.Unlock()
 	if dirty {
 		t.Error("the history was saved and the pane is still dirty")
+	}
+}
+
+// A state that could not be written is said: the sessions it holds are
+// the ones the next daemon starts again, and a lost write is lost for
+// good.
+func TestFailedStateSaveIsSaid(t *testing.T) {
+	d := testDaemon(t)
+	var buf bytes.Buffer
+	d.log = log.New(&buf, "", 0)
+	// The path of the state is a directory: the write cannot put it
+	// there.
+	if err := os.MkdirAll(d.statePath(), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	d.saveState()
+	if !strings.Contains(buf.String(), "state") {
+		t.Fatalf("the failed write was not said: %q", buf.String())
+	}
+}
+
+// A state that could not be read is said: the sessions of the last
+// daemon are gone, and nobody is told.
+func TestUnreadableStateIsSaid(t *testing.T) {
+	d := testDaemon(t)
+	var buf bytes.Buffer
+	d.log = log.New(&buf, "", 0)
+	if err := os.WriteFile(d.statePath(), []byte("{not json"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	d.restore()
+	if !strings.Contains(buf.String(), "state") {
+		t.Fatalf("the unreadable state was not said: %q", buf.String())
 	}
 }
