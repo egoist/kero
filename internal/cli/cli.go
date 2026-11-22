@@ -272,6 +272,16 @@ func parse(args []string, valued, boolean map[string]string) (*flags, error) {
 			continue
 		}
 		if canon, ok := boolean[name]; ok {
+			if hasVal {
+				// --flag=false, as the valued flags take it: false, not
+				// the flag.
+				b, err := strconv.ParseBool(val)
+				if err != nil {
+					return nil, usageErr("%s takes true or false, not %q", a, val)
+				}
+				f.set[canon] = b
+				continue
+			}
 			f.set[canon] = true
 			continue
 		}
