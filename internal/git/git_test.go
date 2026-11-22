@@ -314,3 +314,26 @@ func TestChangedSeesAModeChange(t *testing.T) {
 		t.Errorf("the mode as it was: %v, %v", changed, err)
 	}
 }
+
+// git records only the execute bit: a revert takes it from the rev and
+// leaves the rest of the file's mode as it is.
+func TestRevertKeepsTheRestOfTheMode(t *testing.T) {
+	r := repo(t, map[string]string{"a.txt": "one\n"})
+	full := filepath.Join(r.Root, "a.txt")
+	// A group-writable file, made to run.
+	if err := os.Chmod(full, 0o774); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.Revert(context.Background(), "HEAD", "a.txt", Hash([]byte("one\n")), "one\n"); err != nil {
+		t.Fatal(err)
+	}
+	fi, err := os.Stat(full)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The rev has no execute bit (100644), so the +x goes; the group
+	// write is not git's to take.
+	if fi.Mode().Perm() != 0o664 {
+		t.Errorf("the mode after the revert: %v", fi.Mode())
+	}
+}
