@@ -930,16 +930,19 @@ func (a *App) zoom(steps int, reset bool) {
 
 // applySettings makes settings the app's, saving them: the terminals take
 // what changed at once, and are attached again for what only a new
-// terminal takes.
-func (a *App) applySettings(s settings.Settings) { a.apply(s, true) }
+// terminal takes. It says a save that failed, and returns the error, so
+// that the caller can say it where the change was made.
+func (a *App) applySettings(s settings.Settings) error { return a.apply(s, true) }
 
 // apply makes settings the app's, saving them to the configuration when
 // they come from the app rather than from the file.
-func (a *App) apply(s settings.Settings, save bool) {
+func (a *App) apply(s settings.Settings, save bool) error {
 	old := a.applied
 	a.set, a.applied = s, s.Clone()
+	var saveErr error
 	if save {
 		if err := settings.Save(s); err != nil {
+			saveErr = err
 			a.toast(locales.ToastSaveSettingsFailed(err.Error()))
 		}
 	}
@@ -1034,6 +1037,7 @@ func (a *App) apply(s settings.Settings, save bool) {
 	if a.quick.win != nil {
 		a.quick.win.Invalidate()
 	}
+	return saveErr
 }
 
 // watchConfig applies the configuration as the user saves it in an
