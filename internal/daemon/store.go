@@ -256,9 +256,13 @@ func (d *Daemon) restorePane(sid string, sp savedPane, when string, resumeAgents
 	// new shell under it: what a program drew below the cursor, as an
 	// agent's status bar, goes, rather than show under the new shell's
 	// prompt. History carries no modes and no cursor to undo.
-	if h, err := os.ReadFile(d.historyPath(sp.ID)); err == nil && len(h) > 0 {
+	h, err := os.ReadFile(d.historyPath(sp.ID))
+	if err == nil && len(h) > 0 {
 		p.term.Feed(h)
 		p.term.Feed([]byte("\x1b[2m── restored · session ended " + when + " ──\x1b[0m\r\n"))
+	} else if err != nil && !os.IsNotExist(err) {
+		// The pane restores without its scrollback, and the log says so.
+		d.log.Printf("restoring the history of %s: %v", sp.ID, err)
 	}
 	// The shell alone: what ran in it may not want to run again unasked.
 	// But an agent's conversation, which only waits for the user.
