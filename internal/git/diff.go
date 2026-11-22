@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path"
@@ -274,14 +275,25 @@ func (r Repo) Changed(ctx context.Context, rev, path string) (bool, error) {
 	}
 	// LC_ALL=C, as FileText's: what notInRev reads is git's English
 	// message, which a translated git would say otherwise.
-	ob, err := run(ctx, r.Root, cLocale, "cat-file", "blob", rev+":"+path)
-	if err != nil {
+	if _, err := run(ctx, r.Root, cLocale, "cat-file", "blob", rev+":"+path); err != nil {
 		if !notInRev(err) {
 			return false, err
 		}
 		return nb != nil, nil // not in rev: changed when it is now
 	}
-	return !bytes.Equal(ob, nb), nil
+	// The file is in the rev: a diff with it says whether it changed —
+	// the mode too, which the blob's bytes alone do not hold, and after
+	// the filters a checkout runs, which the bytes alone do not see. The
+	// answer is as the diff the user sees: --quiet gives nothing but the
+	// exit, 0 for the same and 1 for changed.
+	if _, err := run(ctx, r.Root, cLocale, "diff", "--quiet", "--no-ext-diff", "--no-textconv", rev, "--", path); err != nil {
+		var exit *exec.ExitError
+		if errors.As(err, &exit) && exit.ExitCode() == 1 {
+			return true, nil
+		}
+		return false, err
+	}
+	return false, nil
 }
 
 // notInRev tells whether err says the path is not in the rev, as git
@@ -352,6 +364,49 @@ func WriteFile(full, hash, text string) error {
 		os.Remove(tmp.Name())
 	}
 	return err
+}
+
+// Mode returns the mode path has in rev, as git's tree holds it: the
+// permission bits a regular file of that tree is checked out with, and
+// 0 when the rev has no regular file there.
+func (r Repo) Mode(ctx context.Context, rev, path string) (fs.FileMode, error) {
+	if _, err := r.local(path); err != nil {
+		return 0, err
+	}
+	// "<mode> <type> <object>\t<path>": the mode is the first word of
+	// the one line of the file asked for, and there is no line when the
+	// rev has no file there.
+	out, err := run(ctx, r.Root, cLocale, "ls-tree", rev, "--", path)
+	if err != nil {
+		return 0, err
+	}
+	line, _, _ := strings.Cut(strings.TrimSpace(string(out)), "\n")
+	mode, _, _ := strings.Cut(line, " ")
+	switch mode {
+	case "100644":
+		return 0o644, nil
+	case "100755":
+		return 0o755, nil
+	}
+	return 0, nil // not a regular file of the rev: a symlink or a submodule
+}
+
+// Revert puts a file back as rev has it: its content as hash says it was
+// shown, and its mode as the rev's tree holds it — a file made to run,
+// and made not to, runs as the rev says again.
+func (r Repo) Revert(ctx context.Context, rev, path, hash, text string) error {
+	if err := r.Write(path, hash, text); err != nil {
+		return err
+	}
+	mode, err := r.Mode(ctx, rev, path)
+	if err != nil || mode == 0 {
+		return err
+	}
+	full, err := r.local(path)
+	if err != nil {
+		return err
+	}
+	return os.Chmod(full, mode)
 }
 
 // local returns the file of the worktree a slash-separated path names,

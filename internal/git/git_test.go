@@ -291,3 +291,26 @@ func TestLocal(t *testing.T) {
 		t.Error("FileText read outside the worktree")
 	}
 }
+
+// A change of a file's mode is a change, as git shows it, though the
+// file's bytes are as they were.
+func TestChangedSeesAModeChange(t *testing.T) {
+	r := repo(t, map[string]string{"f.txt": "line\n"})
+	if err := os.Chmod(filepath.Join(r.Root, "f.txt"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// On a system where a file's mode is not kept — Windows, or a
+	// filesystem with no permissions — git sees no change either.
+	if out := gitIn(t, r.Root, "status", "--porcelain"); out == "" {
+		t.Skip("the mode is not tracked here")
+	}
+	if changed, err := r.Changed(context.Background(), "HEAD", "f.txt"); err != nil || !changed {
+		t.Errorf("a change of the mode: %v, %v", changed, err)
+	}
+	if err := os.Chmod(filepath.Join(r.Root, "f.txt"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if changed, err := r.Changed(context.Background(), "HEAD", "f.txt"); err != nil || changed {
+		t.Errorf("the mode as it was: %v, %v", changed, err)
+	}
+}
