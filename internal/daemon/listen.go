@@ -468,6 +468,7 @@ func (d *Daemon) restart() (then func(), err error) {
 	d.log.Printf("restarting, as a client asked")
 	// Once the answer is written.
 	return func() {
+		d.beginShutdown()
 		d.saveSerialized(func() {
 			d.saveHistories(true)
 			d.saveState()
