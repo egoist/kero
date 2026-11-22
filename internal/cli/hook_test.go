@@ -210,6 +210,39 @@ func TestAgentPlugins(t *testing.T) {
 	}
 }
 
+// A settings file that is a symlink, as of a dotfiles repo, is written
+// through: the symlink stays, and the file it points to changes.
+func TestHookInstallThroughASymlink(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("KERO_HOME", filepath.Join(home, "kero"))
+	dir := t.TempDir()
+	target := filepath.Join(dir, "dotfiles", "settings.json")
+	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(target, []byte("{}"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(dir, "link.json")
+	if err := os.Symlink(filepath.Join("dotfiles", "settings.json"), link); err != nil {
+		t.Skip(err) // Windows without the privilege
+	}
+	h := agentHook{"claude", link}
+	if err := h.install(); err != nil {
+		t.Fatal(err)
+	}
+	fi, err := os.Lstat(link)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fi.Mode()&os.ModeSymlink == 0 {
+		t.Fatal("the symlink was taken away by a plain file")
+	}
+	if got := read(t, target); !strings.Contains(got, "hook claude") {
+		t.Fatalf("the file it points to did not change:\n%s", got)
+	}
+}
+
 func TestMain(m *testing.M) {
 	// The kero command of TestCodexHookRunsInEveryShell: this test binary.
 	if os.Getenv("KERO_TEST_HOOK") == "1" {

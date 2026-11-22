@@ -625,8 +625,11 @@ func marshal(v any) json.RawMessage {
 	return bytes.TrimSpace(b.Bytes())
 }
 
-// writeFileAtomic replaces a file whole, keeping its mode.
+// writeFileAtomic replaces a file whole, keeping its mode. A file that is
+// a symlink is written through: the symlink stays a symlink, and the file
+// it points to changes.
 func writeFileAtomic(path string, b []byte) error {
+	path = linkTarget(path)
 	mode := os.FileMode(0o644)
 	if st, err := os.Stat(path); err == nil {
 		mode = st.Mode().Perm()
@@ -650,4 +653,22 @@ func writeFileAtomic(path string, b []byte) error {
 		return err
 	}
 	return os.Rename(tmp.Name(), path)
+}
+
+// linkTarget is the file a path's symlinks lead to, even one not there
+// yet, else the path itself. A settings file of a dotfiles repo, say, is
+// a symlink to the file the repo keeps, and writing the settings must
+// change that file and not take the symlink away.
+func linkTarget(path string) string {
+	for range 40 {
+		dest, err := os.Readlink(path)
+		if err != nil {
+			return path
+		}
+		if !filepath.IsAbs(dest) {
+			dest = filepath.Join(filepath.Dir(path), dest)
+		}
+		path = dest
+	}
+	return path
 }
