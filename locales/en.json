@@ -320,6 +320,18 @@
     }
   },
   "svcStale": " · still an earlier Kero: restart it to update",
+  "svcRunningUnreadable": "Running (pid {pid}) for {duration} · the sessions could not be read",
+  "@svcRunningUnreadable": {
+    "placeholders": {
+      "pid": {
+        "type": "String"
+      },
+      "duration": {
+        "type": "String"
+      }
+    }
+  },
+  "svcAnotherVersion": "Running · another version of Kero: restart it",
   "durUnderMinute": "under a minute",
   "durMinutes": "{n} min",
   "@durMinutes": {
