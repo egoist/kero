@@ -70,7 +70,13 @@ func WriteFrame(w io.Writer, kind byte, payload []byte) error {
 	buf[0] = kind
 	binary.BigEndian.PutUint32(buf[1:5], uint32(len(payload)))
 	copy(buf[5:], payload)
-	_, err := w.Write(buf)
+	n, err := w.Write(buf)
+	if err == nil && n < len(buf) {
+		// A writer that takes less than it is given, and says nothing,
+		// would leave a frame cut in half: the stream is broken, and the
+		// reader of it cannot tell what it missed.
+		err = io.ErrShortWrite
+	}
 	return err
 }
 
