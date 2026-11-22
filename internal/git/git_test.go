@@ -337,3 +337,76 @@ func TestRevertKeepsTheRestOfTheMode(t *testing.T) {
 		t.Errorf("the mode after the revert: %v", fi.Mode())
 	}
 }
+
+// A file the agent deleted, reverted: written anew as the rev has it.
+func TestRevertRestoresADeletedFile(t *testing.T) {
+	r := repo(t, map[string]string{"a.txt": "one\n"})
+	full := filepath.Join(r.Root, "a.txt")
+	if err := os.Remove(full); err != nil {
+		t.Fatal(err)
+	}
+	// The hash the diff shows of a file that is not there: the empty
+	// content's.
+	if err := r.Revert(context.Background(), "HEAD", "a.txt", Hash(nil), "one\n"); err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(full)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(b) != "one\n" {
+		t.Errorf("restored %q", b)
+	}
+	fi, err := os.Stat(full)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fi.Mode().Perm() != 0o644 {
+		t.Errorf("the mode of the file written anew: %v", fi.Mode())
+	}
+	// One changed meanwhile is asked about, as a write is.
+	if err := os.Remove(full); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.Revert(context.Background(), "HEAD", "a.txt", Hash([]byte("other\n")), "one\n"); err != ErrChanged {
+		t.Errorf("a file that went another way: %v", err)
+	}
+}
+
+// A file the agent added, reverted: taken away, as the rev has none.
+func TestRevertRemovesAFileNotInTheRev(t *testing.T) {
+	r := repo(t, map[string]string{"a.txt": "one\n"})
+	write(t, filepath.Join(r.Root, "new.txt"), "new\n")
+	if err := r.Revert(context.Background(), "HEAD", "new.txt", Hash([]byte("new\n")), ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(r.Root, "new.txt")); !os.IsNotExist(err) {
+		t.Errorf("the file the rev does not have stays: %v", err)
+	}
+	// One changed meanwhile is asked about, as a write is.
+	write(t, filepath.Join(r.Root, "new.txt"), "other\n")
+	if err := r.Revert(context.Background(), "HEAD", "new.txt", Hash([]byte("new\n")), ""); err != ErrChanged {
+		t.Errorf("a file that went another way: %v", err)
+	}
+}
+
+// A file that is not there is the empty content to a write: one over a
+// file deleted since it was read is asked about, and one of the empty
+// content's hash writes it anew.
+func TestWriteFileOverADeletedFile(t *testing.T) {
+	dir := t.TempDir()
+	full := filepath.Join(dir, "f.txt")
+	if err := WriteFile(full, Hash([]byte("read\n")), "text\n"); err != ErrChanged {
+		t.Errorf("a file that is not there, with the hash of one that was: %v", err)
+	}
+	if err := WriteFile(full, Hash(nil), "text\n"); err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(full)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(b) != "text\n" {
+		t.Errorf("wrote %q", b)
+	}
+}
