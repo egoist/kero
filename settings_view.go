@@ -1434,11 +1434,14 @@ func (a *App) ensureConfig() {
 	}
 }
 
-// openConfig opens the configuration in the user's text editor.
+// openConfig opens the configuration in the user's text editor. It is
+// the Settings window's own toast that says when it could not: the
+// button that asks is there, and the main window's toast is not shown
+// in it.
 func (a *App) openConfig() {
 	a.ensureConfig()
 	if err := openTextFile(settings.Path()); err != nil {
-		a.toast(locales.ToastOpenConfigFailed(err.Error()))
+		a.ss.toast = locales.ToastOpenConfigFailed(err.Error())
 	}
 }
 
