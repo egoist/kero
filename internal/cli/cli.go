@@ -1032,8 +1032,16 @@ func daemonCmd(args []string, host string) error {
 	case "status":
 		svc := service.Get()
 		c, err := client.Connect(true)
+		var connErr error
 		if err != nil {
-			fmt.Println("kerod is not running")
+			// A kerod the CLI cannot talk to fails the command, as a
+			// host's does: a script sees the same exit status either way.
+			if errors.Is(err, client.ErrVersion) {
+				fmt.Println("kerod is running, of another version: `kero daemon restart` runs this one")
+			} else {
+				fmt.Println("kerod is not running")
+			}
+			connErr = exitStatus(4)
 		} else {
 			defer c.Close()
 			running := fmt.Sprintf("kerod %d running (Kero %s, pid %d) for %s", c.Welcome.Version, orDash(c.Welcome.App), c.Welcome.PID,
@@ -1061,7 +1069,7 @@ func daemonCmd(args []string, host string) error {
 		if l := settings.Load().Listen; len(l) > 0 {
 			fmt.Println("listening:", strings.Join(l, ", "))
 		}
-		return nil
+		return connErr
 	case "stop", "restart":
 		// The service's manager stops and restarts it, but Task
 		// Scheduler, whose kerod stops as any, and starts with the task.

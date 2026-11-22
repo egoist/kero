@@ -173,6 +173,44 @@ func TestDaemonStatusSaysAFailedState(t *testing.T) {
 	}
 }
 
+// A kerod the CLI cannot talk to fails the command, as a host's does: a
+// script sees the same exit status either way.
+func TestDaemonStatusFailsWhenTheDaemonCannotBeReached(t *testing.T) {
+	t.Setenv("KERO_CONFIG", filepath.Join(t.TempDir(), "config"))
+	t.Setenv("KERO_SOCKET", filepath.Join(t.TempDir(), "kerod.sock"))
+
+	var err error
+	out := captureStdout(t, func() { err = run([]string{"daemon", "status"}, "") })
+	var es exitStatus
+	if !errors.As(err, &es) || int(es) != 4 {
+		t.Fatalf("the exit status is %v, want 4", err)
+	}
+	if !strings.Contains(out, "kerod is not running") {
+		t.Errorf("no word of the daemon that is not there:\n%s", out)
+	}
+}
+
+// A kerod of another version runs, and the status says so — not "not
+// running".
+func TestDaemonStatusSaysTheVersionDiffers(t *testing.T) {
+	t.Setenv("KERO_CONFIG", filepath.Join(t.TempDir(), "config"))
+	sock, _ := fakeDaemonOfVersion(t, proto.Version+1)
+	t.Setenv("KERO_SOCKET", sock)
+
+	var err error
+	out := captureStdout(t, func() { err = run([]string{"daemon", "status"}, "") })
+	var es exitStatus
+	if !errors.As(err, &es) || int(es) != 4 {
+		t.Fatalf("the exit status is %v, want 4", err)
+	}
+	if !strings.Contains(out, "another version") {
+		t.Errorf("no word of the version that differs:\n%s", out)
+	}
+	if strings.Contains(out, "not running") {
+		t.Errorf("it says the daemon is not there while it is:\n%s", out)
+	}
+}
+
 // A remote daemon's state, which it could not give, is said too: the
 // -H form said "0 sessions" of one it never heard from.
 func TestRemoteDaemonStatusSaysAFailedState(t *testing.T) {
@@ -197,6 +235,12 @@ func TestRemoteDaemonStatusSaysAFailedState(t *testing.T) {
 // fakeDaemon is a kerod that answers what the CLI asks of it, and
 // remembers the calls it got. Its socket is the one the CLI is told of.
 func fakeDaemon(t *testing.T) (string, func() []string) {
+	return fakeDaemonOfVersion(t, proto.Version)
+}
+
+// fakeDaemonOfVersion is fakeDaemon answering with the protocol version
+// given, as a kerod of another version would.
+func fakeDaemonOfVersion(t *testing.T, version int) (string, func() []string) {
 	t.Helper()
 	sock := filepath.Join(t.TempDir(), "kerod.sock")
 	ln, err := net.Listen("unix", sock)
@@ -221,7 +265,7 @@ func fakeDaemon(t *testing.T) (string, func() []string) {
 				}
 				var hello proto.Hello
 				json.Unmarshal(line, &hello)
-				fmt.Fprintf(conn, `{"version":%d,"pid":1}`+"\n", proto.Version)
+				fmt.Fprintf(conn, `{"version":%d,"pid":1}`+"\n", version)
 				for {
 					line, err := proto.ReadLine(r, proto.MaxLine)
 					if err != nil {
