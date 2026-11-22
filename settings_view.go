@@ -323,7 +323,11 @@ func (a *App) settingsView(c *ui.Context) {
 	}
 	// The controls edit a.set: what changed applies, and saves.
 	if !reflect.DeepEqual(a.set, a.applied) {
-		a.applySettings(a.set)
+		if err := a.applySettings(a.set); err != nil {
+			// The Settings window is where the change was made, and
+			// it says so there: the main window's toast is behind it.
+			a.ss.toast = locales.ToastSaveSettingsFailed(err.Error())
+		}
 	}
 }
 
@@ -1396,7 +1400,11 @@ func (a *App) advancedPage(c *ui.Context, pal *palette) {
 			if button(c, "reset", locales.SetResetButton(), "", false, pal) {
 				a.ss.confirm = &confirmation{
 					open: true, title: locales.SetResetTitle(), detail: locales.SetResetConfirmDetail(), action: locales.SetResetAction(), destroy: true,
-					run: func() { a.applySettings(settings.Default()) },
+					run: func() {
+						if err := a.applySettings(settings.Default()); err != nil {
+							a.ss.toast = locales.ToastSaveSettingsFailed(err.Error())
+						}
+					},
 				}
 			}
 		})

@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -837,5 +838,28 @@ func TestThemesDir(t *testing.T) {
 	t.Setenv("HOME", home)
 	if got, want := themesDir(), atHome(filepath.Join(home, ".config")); got != want {
 		t.Errorf("without XDG_CONFIG_HOME: %q, want %q", got, want)
+	}
+}
+
+// A setting that could not be saved is said in the Settings window,
+// where the change was made: the main window's toast is behind it.
+func TestSettingsSaveFailureIsSaidInTheSettingsWindow(t *testing.T) {
+	a := testApp(t)
+	a.ss.draft = map[string]string{}
+	// A file where the configuration's folder should be: there is no
+	// folder to write the configuration in.
+	blocker := filepath.Join(t.TempDir(), "blocker")
+	if err := os.WriteFile(blocker, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("KERO_CONFIG", filepath.Join(blocker, "config"))
+	// A setting the window applies: the controls edit a.set, and what
+	// changed applies and saves.
+	a.set.Scrollback = 8
+	tt := ui.NewTester(a.settingsView, 820, 900)
+	tt.Frame()
+	tt.Frame()
+	if !tt.HasText("save the settings") {
+		t.Errorf("the setting could not be saved, and the Settings window said nothing: %q", tt.Texts())
 	}
 }
