@@ -439,6 +439,22 @@ func TestHostColor(t *testing.T) {
 	}
 }
 
+// A host's color, picked where the host is, is saved: the settings are
+// saved as they are applied, and the color was only in the app's memory.
+func TestHostColorIsSaved(t *testing.T) {
+	a := testApp(t)
+	withHost(t, a, "build")
+	a.setHostColor(a.hostNamed("build"), "teal")
+	saved := settings.Load()
+	h := saved.Host("build")
+	if h == nil || h.Color != "teal" {
+		t.Fatalf("the saved host is %+v, want the color teal", h)
+	}
+	if a.set.Host("build").Color != "teal" {
+		t.Errorf("the app's host is %+v, want the color teal", a.set.Host("build"))
+	}
+}
+
 // Dark, a remote group's tag and a remote pane's header in its host's
 // color ($KERO_SHOTS).
 func TestSidebarFlatDarkShot(t *testing.T) {
