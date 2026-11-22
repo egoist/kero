@@ -326,19 +326,25 @@ func (s *pane) tick(now time.Time) bool {
 	pg := s.proc.Foreground()
 	s.fgPGID = pg
 	proc, agent, runtime := "", "", ""
+	member := 0
 	if pg != 0 && pg != s.shellPID {
-		proc = procName(pg)
-		args := procArgs(pg)
-		agent = detectAgent(proc, args)
-		if proc == "node" || proc == "bun" || proc == "python" || proc == "python3" || proc == "deno" {
-			// A script: name it by the script, as "codex", not "node".
-			if len(args) > 1 {
-				runtime = strings.TrimSuffix(proc, "3")
-				proc = strings.TrimSuffix(filepath.Base(args[1]), filepath.Ext(args[1]))
+		// A pipeline's leader may go first while the job goes on: the
+		// name then is a member's, not the leader's.
+		if m, ok := groupMember(pg); ok {
+			member = m
+			proc = procName(m)
+			args := procArgs(m)
+			agent = detectAgent(proc, args)
+			if proc == "node" || proc == "bun" || proc == "python" || proc == "python3" || proc == "deno" {
+				// A script: name it by the script, as "codex", not "node".
+				if len(args) > 1 {
+					runtime = strings.TrimSuffix(proc, "3")
+					proc = strings.TrimSuffix(filepath.Base(args[1]), filepath.Ext(args[1]))
+				}
 			}
-		}
-		if agent != "" {
-			proc = agent
+			if agent != "" {
+				proc = agent
+			}
 		}
 	}
 	if proc == "" && s.info.Process != "" {
@@ -370,11 +376,12 @@ func (s *pane) tick(now time.Time) bool {
 			s.d.save()
 			s.d.git.poke(dir)
 		}
-		// The program's own, from its group's leader, as an agent's that
-		// went into a worktree: the shell under it stays where it was.
+		// The program's own, from the process that runs, as an agent's
+		// that went into a worktree: the shell under it stays where it
+		// was.
 		pdir := ""
 		if proc != "" {
-			pdir = procCwd(pg)
+			pdir = procCwd(member)
 		}
 		if pdir == s.info.Dir {
 			pdir = ""
