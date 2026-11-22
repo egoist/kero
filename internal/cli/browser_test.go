@@ -56,6 +56,11 @@ func TestBrowserTarget(t *testing.T) {
 		{"text", "h1", "h2"},
 		{"reload", "now"},
 		{"text", "-o", "x.png"},
+		{"text", "--", "h1"},
+		{"html", "--", "h1"},
+		{"snapshot", "--", "h1"},
+		{"wait", "--", "h1"},
+		{"click", "--", "h1"},
 		{"click", "a", "--enter"},
 		{"s1", "eval"},
 	} {
