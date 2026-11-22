@@ -918,10 +918,15 @@ func repoPath(root, p string, remote bool) (string, error) {
 		// A Windows host's worktree root has backslashes, as a path
 		// given of it may: write both as slashes before comparing them.
 		p = strings.ReplaceAll(p, `\`, "/")
-		root = strings.ReplaceAll(root, `\`, "/")
-		if rel, ok := strings.CutPrefix(p, strings.TrimSuffix(root, "/")+"/"); ok {
+		root = strings.TrimSuffix(strings.ReplaceAll(root, `\`, "/"), "/")
+		if p == root {
+			return "", nil // the worktree itself: every file of it
+		}
+		if rel, ok := strings.CutPrefix(p, root+"/"); ok {
 			p = rel
-		} else if strings.HasPrefix(p, "/") {
+		} else if strings.HasPrefix(p, "/") || drivePath(p) {
+			// An absolute path of another machine is of its own tree,
+			// and the worktree's root is the only one here.
 			return "", fmt.Errorf("%s is not in the worktree %s", p, root)
 		}
 		return strings.TrimPrefix(path.Clean("/"+p), "/"), nil
@@ -938,6 +943,13 @@ func repoPath(root, p string, remote bool) (string, error) {
 		return "", nil
 	}
 	return filepath.ToSlash(rel), nil
+}
+
+// drivePath tells whether a path is of a Windows drive, as "C:/x" is:
+// an absolute path of a Windows machine, which is not of the worktree
+// unless it is under it.
+func drivePath(p string) bool {
+	return len(p) >= 2 && p[1] == ':'
 }
 
 // current is the pane a command runs in, inside kero.
