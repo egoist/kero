@@ -216,9 +216,28 @@ func anyShell(path string) string {
 	return filepath.ToSlash(path)
 }
 
-// ours tells kero's hook commands, of this kero or another's.
+// ours tells kero's hook commands, of this kero or another's: the
+// command of a program named kero, for this agent. A command of another
+// program that has "kero" in its name is not kero's, and the user's own
+// hook is not kero's to take away.
 func (h agentHook) ours(command string) bool {
-	return strings.Contains(command, "kero") && strings.HasSuffix(command, " hook "+h.agent)
+	suffix := " hook " + h.agent
+	if !strings.HasSuffix(command, suffix) {
+		return false
+	}
+	// The program the command names, without the quotes a shell reads
+	// its path in: the name of the program is what tells kero's own
+	// command from another's.
+	program := strings.Map(func(r rune) rune {
+		if r == '"' || r == '\'' {
+			return -1
+		}
+		return r
+	}, command[:len(command)-len(suffix)])
+	if i := strings.LastIndexAny(program, `/\`); i >= 0 {
+		program = program[i+1:]
+	}
+	return program == "kero" || program == "kero.exe"
 }
 
 // state is "current", "outdated" (kero's hook, of another command line)

@@ -243,6 +243,33 @@ func TestHookInstallThroughASymlink(t *testing.T) {
 	}
 }
 
+// A hook of another program is not kero's, even when its name has
+// "kero" in it: the user's own hook is not kero's to take away.
+func TestHookOfAnotherProgram(t *testing.T) {
+	h := agentHook{agent: "claude"}
+	for _, c := range []string{
+		"'/usr/local/bin/kero' hook claude",
+		"/usr/local/bin/kero hook claude",
+		"kero hook claude",
+		`"C:\Program Files\Kero\bin\kero.exe" hook claude`,
+		`cmd /d /c "C:\Program Files\Kero\bin\kero.exe" hook claude`,
+	} {
+		if !h.ours(c) {
+			t.Errorf("%q is kero's hook", c)
+		}
+	}
+	for _, c := range []string{
+		"/usr/local/bin/kerouac hook claude",
+		"/opt/kero-notes/hook claude",
+		"my-kero hook claude",
+		"kero hook codex",
+	} {
+		if h.ours(c) {
+			t.Errorf("%q is not kero's hook", c)
+		}
+	}
+}
+
 func TestMain(m *testing.M) {
 	// The kero command of TestCodexHookRunsInEveryShell: this test binary.
 	if os.Getenv("KERO_TEST_HOOK") == "1" {
