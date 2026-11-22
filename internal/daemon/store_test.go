@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"bytes"
+	"encoding/json"
 	"log"
 	"os"
 	"strings"
@@ -63,6 +64,38 @@ func TestFailedStateSaveIsSaid(t *testing.T) {
 	d.saveState()
 	if !strings.Contains(buf.String(), "state") {
 		t.Fatalf("the failed write was not said: %q", buf.String())
+	}
+}
+
+// A pane's history that could not be read is said: the pane restores
+// without its scrollback, and the log names it. A pane without a history
+// at all — none was saved — is no news.
+func TestUnreadableHistoryIsSaid(t *testing.T) {
+	d := testDaemon(t)
+	var buf bytes.Buffer
+	d.log = log.New(&buf, "", 0)
+	saved := savedState{Version: 2, Projects: d.projects, Sessions: []savedSession{{
+		ID: "s1", Project: "pr", Name: "s1",
+		Panes: []savedPane{{ID: "p1", Dir: d.dir, Cols: 80, Rows: 24}},
+	}}}
+	data, err := json.Marshal(saved)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(d.statePath(), data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	// The history cannot be read: the path is a directory.
+	if err := os.MkdirAll(d.historyPath("p1"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	d.restore()
+	if !strings.Contains(buf.String(), "history") {
+		t.Fatalf("the unreadable history was not said: %q", buf.String())
+	}
+	// And the pane restored either way, without its scrollback.
+	if len(d.sessions) != 1 || len(d.sessions[0].panes) != 1 {
+		t.Fatalf("restored %d sessions", len(d.sessions))
 	}
 }
 
