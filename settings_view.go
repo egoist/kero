@@ -1437,7 +1437,9 @@ func (a *App) ensureConfig() {
 // openConfig opens the configuration in the user's text editor.
 func (a *App) openConfig() {
 	a.ensureConfig()
-	openTextFile(settings.Path())
+	if err := openTextFile(settings.Path()); err != nil {
+		a.toast(locales.ToastOpenConfigFailed(err.Error()))
+	}
 }
 
 // toastIn shows a short message in the window c is of.

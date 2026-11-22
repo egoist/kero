@@ -70,6 +70,7 @@
   "toastCopied": "コピーしました",
   "toastCopiedToClipboard": "クリップボードにコピーしました",
   "toastSaveSettingsFailed": "設定を保存できませんでした: {error}",
+  "toastOpenConfigFailed": "設定を開けませんでした: {error}",
   "toastPasteImageFailed": "画像をペーストできませんでした: {error}。もう一度試すか、画像ファイルをペインにドロップしてください。",
   "toastPasteImageDenied": "画像をペーストできませんでした: Kero は {dir} に書き込めません。書き込み可能にするか、画像ファイルをペインにドロップしてください。",
   "toastPasteImageDiskFull": "画像をペーストできませんでした: ディスクがいっぱいです。空き容量を増やしてから、もう一度試してください。",
