@@ -578,6 +578,7 @@ type changesFrame struct {
 	bases, labels, tips []string
 	pane                *proto.Pane // whose worktree, or turn, it lists
 	scope               string
+	remote              bool // the worktree is another machine's
 	list                *proto.GitChanges // nil until one comes
 	held                bool              // list is another base's, faded for a moment
 	// rows are the viewer's rows this frame, heads the row of each file's
@@ -660,6 +661,7 @@ func (a *App) changesFrameOf(c *ui.Context, s *proto.Session) *changesFrame {
 		c.After(400 * time.Millisecond)
 	}
 	cf.pane, cf.scope, cf.list, cf.held = pane, scope, list, held
+	cf.remote = pane != nil && a.hostOf(pane.ID).remote()
 	return cf
 }
 
@@ -837,7 +839,7 @@ func (a *App) changesViewer(c *ui.Context, pal *palette, s *proto.Session, width
 					// Folding it as the list pins it brings it back where
 					// it stays: at the top.
 					ls.ScrollIntoView(i)
-				})
+				}, cf.remote)
 			})
 		}).Grow(1).MinWidth(0).MinHeight(0).Padding(0, 0, 16, 0).ScrollbarInsets(stickyH, 0, 0, 0)
 	})
@@ -1006,8 +1008,9 @@ func (a *App) fileDiff(c *ui.Context, pal *palette, s *proto.Session, scope stri
 
 // fileHeader is a changed file's header: its change, its name and folder
 // and the lines it adds and removes, which a click folds or unfolds,
-// running folding first when set.
-func (a *App) fileHeader(c *ui.Context, pal *palette, scope, root string, f proto.GitFile, folding func()) {
+// running folding first when set. remote tells whether the list is of
+// another machine's worktree, whose paths this machine cannot open.
+func (a *App) fileHeader(c *ui.Context, pal *palette, scope, root string, f proto.GitFile, folding func(), remote bool) {
 	ch := &a.side.changes
 	key := scope + "|" + f.Path
 	collapsed := a.fileCollapsed(scope, f)
@@ -1049,7 +1052,7 @@ func (a *App) fileHeader(c *ui.Context, pal *palette, scope, root string, f prot
 		} else {
 			a.lineCounts(c, pal, f.Added, f.Removed, 12)
 		}
-		if f.Status != "deleted" {
+		if f.Status != "deleted" && !remote {
 			full := filepath.Join(root, filepath.FromSlash(f.Path))
 			iconButton(c, "open", openFileIcon, locales.ChangesOpenFile(), pal, func() { openPath(full) })
 		}
