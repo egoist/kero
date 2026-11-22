@@ -502,12 +502,17 @@ func (d *Daemon) call(c *controlConn, method string, raw json.RawMessage) (any, 
 			return nil, errors.New("a project needs a name")
 		}
 		d.mu.Lock()
+		found := false
 		for i := range d.projects {
 			if d.projects[i].ID == p.ID {
 				d.projects[i].Name = name
+				found = true
 			}
 		}
 		d.mu.Unlock()
+		if !found {
+			return nil, fmt.Errorf("no project %q", p.ID)
+		}
 		d.changed()
 		return true, nil
 
@@ -525,6 +530,9 @@ func (d *Daemon) call(c *controlConn, method string, raw json.RawMessage) (any, 
 			d.projects = slices.Insert(d.projects, j, pr)
 		}
 		d.mu.Unlock()
+		if i < 0 {
+			return nil, fmt.Errorf("no project %q", p.ID)
+		}
 		d.changed()
 		return true, nil
 
