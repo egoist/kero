@@ -222,9 +222,21 @@ func (a *App) attachQuick() {
 		return
 	}
 	p := s.FocusPane()
-	if p == nil || p.Browser() {
+	if p == nil {
 		return
 	}
+	if p.Browser() {
+		// A browser pane shows no terminal: say so rather than spin. The
+		// pane's focus changing attaches it again — quickChanged runs
+		// attachQuick again then.
+		if q.err == "" {
+			q.err = locales.QuickPaneIsBrowser()
+			a.update(func() {})
+		}
+		return
+	}
+	// A terminal pane to attach to: a browser's word is stale.
+	q.err = ""
 	if q.e != nil && q.pane == p.ID && q.e.err == "" {
 		return
 	}
@@ -307,9 +319,14 @@ func (a *App) dropQuick() {
 func (a *App) quickChanged() {
 	q := &a.quick
 	if q.e == nil {
-		if q.shown && q.err == "" {
-			a.attachQuick()
+		if !q.shown {
+			return
 		}
+		if q.err != "" && a.quickSession() == nil {
+			// The session could not be made: wait for the user's try.
+			return
+		}
+		a.attachQuick()
 		return
 	}
 	s := a.quickSession()
