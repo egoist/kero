@@ -7,6 +7,7 @@ import (
 	"os"
 	"sync"
 	"testing"
+	"time"
 )
 
 // The state is restored under the daemon's lock: the network listeners
@@ -78,4 +79,30 @@ func TestRestoreKeepsTheZoom(t *testing.T) {
 	if got := d2.sessions[0].zoomed; got != "" {
 		t.Errorf("the zoom of a pane that is not there: %q", got)
 	}
+}
+
+// A restored pane is marked for the save of its history before its shell
+// starts: the pump that reads the shell's output marks it under the
+// pane's lock, and the mark written after the start raced it.
+func TestRestoredPaneIsMarkedBeforeItsShell(t *testing.T) {
+	d := testDaemon(t)
+	saved := savedState{Version: 2, Projects: d.projects, Sessions: []savedSession{{
+		ID: "s1", Project: "pr", Name: "s1",
+		Panes: []savedPane{{ID: "p1", Dir: d.dir, Cols: 80, Rows: 24}},
+	}}}
+	data, err := json.Marshal(saved)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(d.statePath(), data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	d.restore()
+	if d.findPane("p1") == nil {
+		t.Fatal("p1 was not restored")
+	}
+	// The shell's prompt comes as output, which marks the pane under its
+	// lock: the restore's mark, written after the shell started, raced
+	// the pump's, and `go test -race` says so.
+	time.Sleep(time.Second)
 }

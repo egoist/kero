@@ -264,6 +264,10 @@ func (d *Daemon) restorePane(sid string, sp savedPane, when string, resumeAgents
 		// The pane restores without its scrollback, and the log says so.
 		d.log.Printf("restoring the history of %s: %v", sp.ID, err)
 	}
+	// Marked for the history's save before the shell starts: the pump
+	// that reads its output marks the pane under its lock, and a mark
+	// written after the start would race the pump's.
+	p.dirty = true
 	// The shell alone: what ran in it may not want to run again unasked.
 	// But an agent's conversation, which only waits for the user.
 	if err := p.start(command, nil); err != nil {
@@ -274,7 +278,6 @@ func (d *Daemon) restorePane(sid string, sp savedPane, when string, resumeAgents
 	if reason != "" {
 		d.log.Printf("pane %s restored as shell: %s", sp.ID, reason)
 	}
-	p.dirty = true
 	return p
 }
 
