@@ -145,6 +145,43 @@ func TestWorktreeGoneWhenPaneFails(t *testing.T) {
 	d.removeSession(s.ID)
 }
 
+// The worktrees of a repository's own sessions are not its changes: the
+// folder they went into is excluded, wherever the user put them.
+func TestWorktreeExcludesItsOwnFolder(t *testing.T) {
+	d := testDaemon(t)
+	repo := gitRepo(t)
+	d.projects = []proto.Project{{ID: "pr", Name: "repo", Dir: repo}}
+	cfg := filepath.Join(t.TempDir(), "config")
+	if err := os.WriteFile(cfg, []byte("worktree-dir = wt\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("KERO_CONFIG", cfg)
+
+	s, err := d.create(proto.CreateParams{Dir: repo, Worktree: "fix"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.Worktree == nil || s.Worktree.Path != filepath.Join(repo, "wt", filepath.Base(repo), "fix") {
+		t.Fatalf("session %+v, worktree %+v", s, s.Worktree)
+	}
+	if out := gitOut(t, repo, "status", "--porcelain"); strings.TrimSpace(out) != "" {
+		t.Errorf("the worktree of the session is a change of the repository: %q", out)
+	}
+	d.removeSession(s.ID)
+}
+
+// gitOut runs git in dir and gives what it printed.
+func gitOut(t *testing.T, dir string, args ...string) string {
+	t.Helper()
+	cmd := exec.Command("git", args...)
+	cmd.Dir = dir
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("git %v: %v\n%s", args, err, out)
+	}
+	return string(out)
+}
+
 func TestWorktreePath(t *testing.T) {
 	main := filepath.FromSlash("/src/kero")
 	if got := worktreePath(main, "fix/login", ""); got != filepath.FromSlash("/src/kero/.kero/worktrees/fix-login") {
