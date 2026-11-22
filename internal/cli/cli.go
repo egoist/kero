@@ -1155,7 +1155,6 @@ func daemonCmd(args []string, host string) error {
 	return usageErr("unknown daemon command %q", sub)
 }
 
-// remoteDaemonCmd is kero -H <host> daemon …: how kerod on the host is,
 // remoteDaemonConnect opens the connection to the kerod on the host: a
 // daemon that cannot be talked to is said, and the command fails, as
 // the local one does. The connection is given as a function, so that a
@@ -1185,6 +1184,7 @@ func remoteDaemonStatus(c *client.Client) {
 	fmt.Printf("%s: %d sessions\n", running, len(st.Sessions))
 }
 
+// remoteDaemonCmd is kero -H <host> daemon …: how kerod on the host is,
 // and restarting it, or updating Kero there, as the app does.
 func remoteDaemonCmd(sub string, args []string, host string) error {
 	rc, err := dialHost(host)
