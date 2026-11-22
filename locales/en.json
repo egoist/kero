@@ -292,6 +292,7 @@
   },
   "paneForegroundTip": "Running in the foreground",
   "paneCantShow": "Can’t show this pane",
+  "quickPaneIsBrowser": "The pane in focus is a browser — focus a terminal pane of the session",
   "paneAttaching": "Attaching",
   "pageGeneral": "General",
   "pageAppearance": "Appearance",

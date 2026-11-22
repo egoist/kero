@@ -181,6 +181,7 @@
   "paneExited": "已退出 {code}",
   "paneForegroundTip": "正在前台运行",
   "paneCantShow": "无法显示此窗格",
+  "quickPaneIsBrowser": "当前聚焦的窗格是浏览器——请聚焦该会话的终端窗格",
   "paneAttaching": "正在连接",
   "pageGeneral": "通用",
   "pageAppearance": "外观",

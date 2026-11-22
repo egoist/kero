@@ -1870,6 +1870,16 @@ func (msgs Messages) PaneCantShow() string {
 	return Catalog.Format(msgs.locale, "paneCantShow", nil)
 }
 
+// QuickPaneIsBrowser says "The pane in focus is a browser — focus a terminal pane of the session"
+// in the language the app shows.
+func QuickPaneIsBrowser() string { return In(i18n.Locale()).QuickPaneIsBrowser() }
+
+// QuickPaneIsBrowser says "The pane in focus is a browser — focus a terminal pane of the session"
+// in the language of msgs.
+func (msgs Messages) QuickPaneIsBrowser() string {
+	return Catalog.Format(msgs.locale, "quickPaneIsBrowser", nil)
+}
+
 // PaneAttaching says "Attaching"
 // in the language the app shows.
 func PaneAttaching() string { return In(i18n.Locale()).PaneAttaching() }
