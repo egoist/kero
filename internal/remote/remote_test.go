@@ -537,3 +537,15 @@ func TestFlateCloseDuringRead(t *testing.T) {
 		}
 	}
 }
+
+// A wsl:// address is of Windows: on another system the install says so,
+// as the connection to it does.
+func TestInstallOfAWslHostIsOfWindows(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows")
+	}
+	_, err := InstallCommand(Addr{Scheme: "wsl", Host: "Ubuntu"}, "", true)
+	if err == nil || !strings.Contains(err.Error(), "Windows") {
+		t.Fatalf("the install command: %v", err)
+	}
+}
