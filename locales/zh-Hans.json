@@ -70,6 +70,7 @@
   "toastCopied": "已复制",
   "toastCopiedToClipboard": "已复制到剪贴板",
   "toastSaveSettingsFailed": "无法保存设置：{error}",
+  "toastOpenConfigFailed": "无法打开配置：{error}",
   "toastPasteImageFailed": "无法粘贴图片：{error}。请重试，或把图片文件拖到窗格上。",
   "toastPasteImageDenied": "无法粘贴图片：Kero 没有权限写入 {dir}。请让该文件夹可写，或把图片文件拖到窗格上。",
   "toastPasteImageDiskFull": "无法粘贴图片：磁盘空间已满。请释放空间后重试。",

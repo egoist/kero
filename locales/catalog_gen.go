@@ -738,6 +738,18 @@ func (msgs Messages) ToastSaveSettingsFailed(error string) string {
 	return Catalog.Format(msgs.locale, "toastSaveSettingsFailed", map[string]any{"error": error})
 }
 
+// ToastOpenConfigFailed says "Couldn’t open the configuration: {error}"
+// in the language the app shows.
+func ToastOpenConfigFailed(error string) string {
+	return In(i18n.Locale()).ToastOpenConfigFailed(error)
+}
+
+// ToastOpenConfigFailed says "Couldn’t open the configuration: {error}"
+// in the language of msgs.
+func (msgs Messages) ToastOpenConfigFailed(error string) string {
+	return Catalog.Format(msgs.locale, "toastOpenConfigFailed", map[string]any{"error": error})
+}
+
 // ToastPasteImageFailed says "Couldn’t paste the image: {error}. Try again, or drop the image file on the pane."
 // in the language the app shows.
 func ToastPasteImageFailed(error string) string {

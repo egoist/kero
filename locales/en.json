@@ -70,6 +70,7 @@
   "toastCopied": "Copied",
   "toastCopiedToClipboard": "Copied to clipboard",
   "toastSaveSettingsFailed": "Couldn’t save the settings: {error}",
+  "toastOpenConfigFailed": "Couldn’t open the configuration: {error}",
   "toastPasteImageFailed": "Couldn’t paste the image: {error}. Try again, or drop the image file on the pane.",
   "toastPasteImageDenied": "Couldn’t paste the image: Kero can’t write to {dir}. Make it writable, or drop the image file on the pane.",
   "toastPasteImageDiskFull": "Couldn’t paste the image: the disk is full. Free some space and try again.",
