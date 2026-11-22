@@ -135,12 +135,17 @@ func lingering(name string) bool {
 	return err == nil
 }
 
-// Uninstall stops and removes the service.
+// Uninstall stops and removes the service. A systemd that did not stop
+// it keeps the service registered: the unit stays, and the error says
+// what happened — a service that is there and says it is not is one the
+// user cannot get rid of.
 func Uninstall() error {
 	if !Installed() {
 		return nil
 	}
-	systemctl("disable", "--now", Name()+".service")
+	if _, err := systemctl("disable", "--now", Name()+".service"); err != nil {
+		return err
+	}
 	if err := os.Remove(file()); err != nil {
 		return err
 	}
