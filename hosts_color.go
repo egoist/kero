@@ -63,13 +63,18 @@ func (a *App) colorMenu(m *ui.Menu, h *host) {
 	})
 }
 
+// setHostColor sets a host's color, in its settings, and saves them: the
+// color is picked where the host is, in the sidebar, and the settings are
+// saved where they are changed, which is the Settings window.
 func (a *App) setHostColor(h *host, color string) {
 	s := a.set.Clone()
-	if cfg := s.Host(h.name); cfg != nil {
-		cfg.Color = color
-		h.cfg.Color = color
+	cfg := s.Host(h.name)
+	if cfg == nil || cfg.Color == color {
+		return
 	}
-	a.set = s
+	cfg.Color = color
+	h.cfg.Color = color
+	a.applySettings(s)
 }
 
 func colorLabel(name string) string {
