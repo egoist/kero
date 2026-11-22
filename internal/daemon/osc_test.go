@@ -76,6 +76,38 @@ func TestCommandExit(t *testing.T) {
 	}
 }
 
+// A marker that ends the command without saying how it ended leaves the
+// status unknown: it is not 0, which says the command went well.
+func TestCommandExitWithoutAStatus(t *testing.T) {
+	s := testPane(t)
+	s.awaiting = true
+	s.output([]byte("\x1b]133;D\a"))
+	if s.info.CommandExit != nil {
+		t.Fatalf("CommandExit = %v, want none", *s.info.CommandExit)
+	}
+	if !s.ended {
+		t.Error("the command did not end")
+	}
+	// A status that comes after it is the command's.
+	s.output([]byte("\x1b]133;D;5\a"))
+	if s.info.CommandExit == nil || *s.info.CommandExit != 5 {
+		t.Fatalf("CommandExit = %v, want 5", s.info.CommandExit)
+	}
+}
+
+// Waiting for a command that ended without a status says so, rather than
+// claiming it ended well, or waiting for a status that will not come.
+func TestWaitForACommandWithoutAStatus(t *testing.T) {
+	s := testPane(t)
+	s.awaiting = true
+	s.output([]byte("\x1b]133;D\a"))
+	c := &controlConn{done: make(chan struct{})}
+	_, err := s.d.wait(c, s, proto.WaitParams{ID: "p", Exit: true})
+	if err == nil || !strings.Contains(err.Error(), "did not tell its status") {
+		t.Fatalf("wait: %v", err)
+	}
+}
+
 // A full reset forgets the programs' reports.
 func TestFullResetClearsRecords(t *testing.T) {
 	s := testPane(t)
