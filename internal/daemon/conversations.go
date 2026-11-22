@@ -53,10 +53,16 @@ func (d *Daemon) convPath() string { return filepath.Join(d.dir, "conversations.
 func (d *Daemon) loadConversations() {
 	data, err := os.ReadFile(d.convPath())
 	if err != nil {
+		if !errors.Is(err, os.ErrNotExist) {
+			// No file is a daemon that remembered none; a file that
+			// cannot be read is one that is there and is lost.
+			d.log.Printf("reading the conversations: %v", err)
+		}
 		return
 	}
 	var list []proto.Conversation
-	if json.Unmarshal(data, &list) != nil {
+	if err := json.Unmarshal(data, &list); err != nil {
+		d.log.Printf("the conversations of the last daemon could not be read: %v", err)
 		return
 	}
 	list = slices.DeleteFunc(list, func(c proto.Conversation) bool {
@@ -78,8 +84,22 @@ func (d *Daemon) saveConversations() {
 	cs.dirty = false
 	data, err := json.MarshalIndent(cs.list, "", "  ")
 	cs.mu.Unlock()
-	if err == nil {
-		writeAtomic(d.convPath(), data)
+	if err != nil {
+		d.log.Printf("the conversations: %v", err)
+		cs.mu.Lock()
+		cs.dirty = true
+		cs.mu.Unlock()
+		return
+	}
+	if err := writeAtomic(d.convPath(), data); err != nil {
+		// The conversations stay as they were, and are written again
+		// on the next save: the ones the last daemon remembered are
+		// the ones the next one starts with, and a lost write is
+		// lost for good.
+		d.log.Printf("writing the conversations: %v", err)
+		cs.mu.Lock()
+		cs.dirty = true
+		cs.mu.Unlock()
 	}
 }
 

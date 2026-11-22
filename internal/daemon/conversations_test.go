@@ -1,8 +1,10 @@
 package daemon
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"slices"
@@ -258,4 +260,45 @@ func TestClaudeTitle(t *testing.T) {
 func timeAfter(path string) time.Time {
 	st, _ := os.Stat(path)
 	return st.ModTime().Add(time.Second)
+}
+
+// A conversations file that could not be written is said: the
+// conversations are the ones the next kerod starts with, and a lost
+// write is lost for good. They are written again on the next save.
+func TestFailedConversationSaveIsSaid(t *testing.T) {
+	d := testDaemon(t)
+	var buf bytes.Buffer
+	d.log = log.New(&buf, "", 0)
+	// The path of the conversations is a directory: the write cannot
+	// put it there.
+	if err := os.MkdirAll(d.convPath(), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	d.convs.note(proto.Conversation{Agent: "claude", ID: "13b997c3"}, time.Now().UnixMilli())
+	d.saveConversations()
+	if !strings.Contains(buf.String(), "conversations") {
+		t.Fatalf("the failed write was not said: %q", buf.String())
+	}
+	d.convs.mu.Lock()
+	dirty := d.convs.dirty
+	d.convs.mu.Unlock()
+	if !dirty {
+		t.Error("the conversations are marked written though the write failed")
+	}
+}
+
+// Conversations that could not be read are said: they are the ones the
+// app's palette and `kero history` list, and nobody is told they are
+// gone.
+func TestUnreadableConversationsAreSaid(t *testing.T) {
+	d := testDaemon(t)
+	var buf bytes.Buffer
+	d.log = log.New(&buf, "", 0)
+	if err := os.WriteFile(d.convPath(), []byte("{not json"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	d.loadConversations()
+	if !strings.Contains(buf.String(), "conversations") {
+		t.Fatalf("the unreadable conversations were not said: %q", buf.String())
+	}
 }
