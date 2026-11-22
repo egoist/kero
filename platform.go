@@ -58,12 +58,16 @@ var ownControls = runtime.GOOS != "darwin"
 // followWindowButtons keeps it in step. Main thread only.
 var showControls = ownControls
 
+// roundWindows is fixed at startup, like the native windows' transparency.
+var roundWindows bool
+
 // followWindowButtons sets showControls, and again as the desktop's button
 // layout changes. Once the app is ready.
 func followWindowButtons() {
 	if !ownControls {
 		return
 	}
+	roundWindows = runtime.GOOS == "linux" && !mygo.Theme.WindowButtons().Empty()
 	update := func() { showControls = controlsWanted(os.Getenv, mygo.Theme.WindowButtons()) }
 	update()
 	mygo.Theme.OnUpdated(update)
@@ -86,6 +90,9 @@ func controlsWanted(getenv func(string) string, buttons mygo.WindowButtons) bool
 // lights on macOS and without its buttons elsewhere (ownControls), which
 // keeps the edges that resize the window.
 func framed(o mygo.WindowOptions) mygo.WindowOptions {
+	if roundWindows {
+		o.Transparent = true
+	}
 	if ownControls {
 		o.TitleBarStyle = mygo.TitleBarHidden
 		o.HideWindowButtons = true
@@ -101,6 +108,28 @@ func framed(o mygo.WindowOptions) mygo.WindowOptions {
 	// panes' headers are.
 	o.TrafficLightPosition = &mygo.Point{X: 18, Y: barMid - 7}
 	return o
+}
+
+// roundWindow clips the Linux window's background and content together.
+func roundWindow(c *ui.Context, w *mygo.Window) {
+	if !roundWindows {
+		return
+	}
+	radius := float32(14 + cardGap)
+	if w != nil && (w.IsMaximized() || w.IsFullScreen()) {
+		radius = 0
+	}
+	c.Root().Radius(radius).Clip()
+}
+
+// followWindowCorners redraws state changes even when the size stays the same.
+func followWindowCorners(w *mygo.Window) {
+	if roundWindows {
+		w.OnMaximize(w.Invalidate)
+		w.OnUnmaximize(w.Invalidate)
+		w.OnEnterFullScreen(w.Invalidate)
+		w.OnLeaveFullScreen(w.Invalidate)
+	}
 }
 
 var (
