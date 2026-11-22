@@ -392,8 +392,9 @@ func (r Repo) Mode(ctx context.Context, rev, path string) (fs.FileMode, error) {
 }
 
 // Revert puts a file back as rev has it: its content as hash says it was
-// shown, and its mode as the rev's tree holds it — a file made to run,
-// and made not to, runs as the rev says again.
+// shown, and its execute bit as the rev's tree holds it — a file made to
+// run, and made not to, runs as the rev says again. The rest of the
+// mode is not git's to keep, and stays as the file has it.
 func (r Repo) Revert(ctx context.Context, rev, path, hash, text string) error {
 	if err := r.Write(path, hash, text); err != nil {
 		return err
@@ -406,7 +407,13 @@ func (r Repo) Revert(ctx context.Context, rev, path, hash, text string) error {
 	if err != nil {
 		return err
 	}
-	return os.Chmod(full, mode)
+	fi, err := os.Stat(full)
+	if err != nil {
+		return err
+	}
+	// Git records only the execute bit: take it from the rev, and leave
+	// the rest of the file's mode as it is.
+	return os.Chmod(full, fi.Mode().Perm()&^0o111|mode&0o111)
 }
 
 // local returns the file of the worktree a slash-separated path names,
