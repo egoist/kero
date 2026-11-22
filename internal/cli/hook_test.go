@@ -125,6 +125,36 @@ func TestHookRefusesBadSettings(t *testing.T) {
 	}
 }
 
+// CodeBuddy Code has a skill and a hook of its own: it is not one of
+// the agents that share a directory with the others.
+func TestCodeBuddyIsNotAmongTheAgents(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("KERO_HOME", filepath.Join(home, "kero"))
+	for _, env := range []string{"CLAUDE_CONFIG_DIR", "CODEX_HOME", "PI_CODING_AGENT_DIR", "XDG_CONFIG_HOME", "CODEBUDDY_CONFIG_DIR"} {
+		t.Setenv(env, "")
+	}
+	if err := os.MkdirAll(filepath.Join(home, ".codebuddy"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	names := func(agent string) string {
+		var out []string
+		for _, it := range agentHooks(agent) {
+			out = append(out, it.name())
+		}
+		return strings.Join(out, ",")
+	}
+	if got := names("agents"); strings.Contains(got, "codebuddy") {
+		t.Errorf("the agents that share a directory include codebuddy: %s", got)
+	}
+	if got := names(""); !strings.Contains(got, "codebuddy") {
+		t.Errorf("every agent misses codebuddy: %s", got)
+	}
+	if got := names("codebuddy"); got != "codebuddy" {
+		t.Errorf("codebuddy alone = %s", got)
+	}
+}
+
 // Pi's and OpenCode's plugins go in when the agent is installed, run
 // Kero's own kero command, and come out whole.
 func TestAgentPlugins(t *testing.T) {
