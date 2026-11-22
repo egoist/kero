@@ -236,6 +236,21 @@ func TestBigInputGoesInFrames(t *testing.T) {
 	}
 }
 
+// A writer that takes less of a frame than it is given, and says
+// nothing, does not leave a frame cut in half: the write fails.
+func TestShortFrameWrite(t *testing.T) {
+	w := &shortWriter{}
+	err := WriteFrame(w, FrameInput, []byte("hello"))
+	if err != io.ErrShortWrite {
+		t.Fatalf("WriteFrame = %v, want io.ErrShortWrite", err)
+	}
+}
+
+// shortWriter takes half of what it is given, and says nothing.
+type shortWriter struct{}
+
+func (w *shortWriter) Write(p []byte) (int, error) { return len(p) / 2, nil }
+
 // A line that fits in the reader's buffer comes back without a copy of
 // its own, one that doesn't is assembled into a buffer of its own, and a
 // line past max is refused either way.
