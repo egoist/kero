@@ -705,6 +705,10 @@ func (s *pane) exited(proc *ptyProc) {
 	}
 	code := proc.code
 	s.proc = nil
+	// The terminal is the daemon's to let go of once the shell is gone:
+	// nothing else closes it, and kerod would hold one for every shell
+	// that ever ended.
+	proc.Close()
 	s.dropLive()
 	s.info.ExitCode = code
 	s.info.Process, s.info.Agent, s.info.Runtime, s.info.PID = "", "", "", 0
