@@ -14,6 +14,7 @@ import (
 	"sync"
 	"testing"
 
+	"kero/internal/client"
 	"kero/internal/proto"
 )
 
@@ -169,6 +170,27 @@ func TestDaemonStatusSaysAFailedState(t *testing.T) {
 	}
 	if m := calls(); len(m) == 0 || m[0] != "state" {
 		t.Errorf("the daemon was asked of %q, want of the state", m)
+	}
+}
+
+// A remote daemon's state, which it could not give, is said too: the
+// -H form said "0 sessions" of one it never heard from.
+func TestRemoteDaemonStatusSaysAFailedState(t *testing.T) {
+	t.Setenv("KERO_CONFIG", filepath.Join(t.TempDir(), "config"))
+	sock, _ := fakeDaemon(t)
+	t.Setenv("KERO_SOCKET", sock)
+	failCall(t, "state", "the state is gone")
+	c, err := client.ConnectVia(client.Local{NoStart: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	out := captureStdout(t, func() { remoteDaemonStatus(c) })
+	if !strings.Contains(out, "the state is gone") {
+		t.Errorf("no word of the state that failed:\n%s", out)
+	}
+	if strings.Contains(out, "sessions") {
+		t.Errorf("it counted the sessions it has none of:\n%s", out)
 	}
 }
 
