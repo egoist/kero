@@ -1331,6 +1331,10 @@ func orDash(s string) string {
 	return s
 }
 
+// parseTimeout is a timeout in milliseconds: a duration ("5s", "1m30s"),
+// or a number of seconds. A timeout of less than none is a usage error:
+// the daemon takes a timeout of none for "wait till it ends", so a
+// negative one would wait for ever, which is no timeout at all.
 func parseTimeout(s string) (int64, error) {
 	if s == "" {
 		return 0, nil
@@ -1342,6 +1346,9 @@ func parseTimeout(s string) (int64, error) {
 			return 0, usageErr("bad timeout %q", s)
 		}
 		d = time.Duration(n) * time.Second
+	}
+	if d < 0 {
+		return 0, usageErr("bad timeout %q: less than none", s)
 	}
 	return d.Milliseconds(), nil
 }

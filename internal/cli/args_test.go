@@ -121,6 +121,29 @@ func TestStatusArgsAreUsed(t *testing.T) {
 	}
 }
 
+// A timeout of less than none is a usage error: `kero wait -t -5s` took
+// it for no timeout at all, and kerod waits for the pane till it ends,
+// which is no end.
+func TestTimeoutArgsAreUsageErrors(t *testing.T) {
+	t.Setenv("KERO_CONFIG", filepath.Join(t.TempDir(), "config"))
+	sock, calls := fakeDaemon(t)
+	t.Setenv("KERO_SOCKET", sock)
+
+	for _, v := range []string{"-5s", "-5", "-0.5s"} {
+		if err := run([]string{"wait", "p1", "-t", v}, ""); !errors.Is(err, errUsage) {
+			t.Errorf("kero wait -t %s: %v, want a usage error", v, err)
+		}
+	}
+
+	// Nothing was waited for: the CLI said no before it asked the daemon
+	// of anything but the state.
+	for _, m := range calls() {
+		if m != "state" {
+			t.Errorf("the daemon was asked of %q, want only of the state", m)
+		}
+	}
+}
+
 // fakeDaemon is a kerod that answers what the CLI asks of it, and
 // remembers the calls it got. Its socket is the one the CLI is told of.
 func fakeDaemon(t *testing.T) (string, func() []string) {
