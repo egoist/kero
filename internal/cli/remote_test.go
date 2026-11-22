@@ -1,9 +1,34 @@
 package cli
 
 import (
+	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
+
+	"kero/internal/client"
 )
+
+// A host's kerod, whose state could not be read, is said: "0 sessions"
+// would tell the user theirs were gone.
+func TestHostsCheckSaysAFailedState(t *testing.T) {
+	t.Setenv("KERO_CONFIG", filepath.Join(t.TempDir(), "config"))
+	sock, _ := fakeDaemon(t)
+	t.Setenv("KERO_SOCKET", sock)
+	failCall(t, "state", "the state is gone")
+	c, err := client.ConnectVia(client.Local{NoStart: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	out := captureStdout(t, func() { hostDaemonState(c) })
+	if !strings.Contains(out, "the state is gone") {
+		t.Errorf("no word of the state that failed:\n%s", out)
+	}
+	if strings.Contains(out, "sessions") {
+		t.Errorf("it counted the sessions it has none of:\n%s", out)
+	}
+}
 
 func TestSplitHost(t *testing.T) {
 	t.Setenv("KERO_HOST", "")
