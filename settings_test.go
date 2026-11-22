@@ -79,6 +79,29 @@ func TestRecordShortcut(t *testing.T) {
 	shot(t, tt, "settings-keyboard-recorded")
 }
 
+// A shortcut needs a modifier, unless it is a function key: the letter
+// F is not one, and a shortcut of it would take the plain F keypress
+// everywhere, as a menu's accelerator does.
+func TestRecordShortcutLetterFNeedsAModifier(t *testing.T) {
+	a := &App{}
+	act, ok := actions.Find("session.new")
+	if !ok {
+		t.Fatal("no such action")
+	}
+	a.recordKey(act, 0, ui.KeyF)
+	if got := a.set.Shortcuts["session.new"]; got != "" {
+		t.Errorf("the letter F was recorded as a shortcut: %q", got)
+	}
+	if a.ss.notice == "" {
+		t.Error("no word that the shortcut needs a modifier")
+	}
+	// A function key is one.
+	a.recordKey(act, 0, ui.KeyF1)
+	if got := a.set.Shortcuts["session.new"]; got != "F1" {
+		t.Errorf("F1 was recorded as %q", got)
+	}
+}
+
 // A choice made in a segmented control stays, and is saved.
 func TestSegmentedChoiceSticks(t *testing.T) {
 	a := testApp(t)
