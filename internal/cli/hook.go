@@ -513,10 +513,21 @@ func agentHooks(agent string) []integration {
 	var out []integration
 	for _, a := range all {
 		switch {
-		case agent == a.agent,
-			a.agent == "claude" && agent == "",
-			a.agent != "claude" && (agent == "" || agent == "agents") && installed(a.dir):
+		case agent == a.agent:
+			// The agent that is named.
 			out = append(out, a.it)
+		case agent == "agents":
+			// The agents that share a skill directory: not Claude Code's
+			// and not CodeBuddy Code's, which have one of their own.
+			if a.agent != "claude" && a.agent != "codebuddy" && installed(a.dir) {
+				out = append(out, a.it)
+			}
+		case agent == "":
+			// Every agent that is there, and Claude Code's, which Kero
+			// talks to most.
+			if a.agent == "claude" || installed(a.dir) {
+				out = append(out, a.it)
+			}
 		}
 	}
 	return out
