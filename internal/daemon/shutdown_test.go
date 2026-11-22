@@ -1,0 +1,24 @@
+package daemon
+
+import (
+	"encoding/json"
+	"strings"
+	"testing"
+)
+
+// A daemon that is shutting down starts no session: the session would
+// go with it, and the user would hear of neither.
+func TestShutdownRefusesNewSessions(t *testing.T) {
+	d := testDaemon(t)
+	d.quit = make(chan struct{})
+	if _, err := d.call(nil, "shutdown", nil); err != nil {
+		t.Fatal(err)
+	}
+	_, err := d.call(nil, "create", json.RawMessage(`{"url":"localhost:3000"}`))
+	if err == nil {
+		t.Fatal("made a session while the daemon was shutting down")
+	}
+	if !strings.Contains(err.Error(), "shutting down") {
+		t.Errorf("the error of the refused session: %v", err)
+	}
+}
