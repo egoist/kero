@@ -253,6 +253,26 @@ func TestGitFailureIsNotAFileThatIsNotThere(t *testing.T) {
 	}
 }
 
+// The patch of a file too big to show whole, when it cannot be made: a
+// failure, not an empty patch.
+func TestFileTextSaysThePatchFailed(t *testing.T) {
+	r := repo(t, map[string]string{"big.txt": "small\n", "other.txt": "x\n"})
+	write(t, filepath.Join(r.Root, "big.txt"), strings.Repeat("x", 1<<20+1))
+	if err := os.Chmod(filepath.Join(r.Root, "other.txt"), 0o000); err != nil {
+		t.Fatal(err)
+	}
+	// On a system where a file with no read permission is still read
+	// (as root, or on Windows), the patch is made, and there is no
+	// failure to say.
+	if f, err := os.Open(filepath.Join(r.Root, "other.txt")); err == nil {
+		f.Close()
+		t.Skip("a file with no read permission is still read")
+	}
+	if text, err := r.FileText(context.Background(), "HEAD", "big.txt", ""); err == nil {
+		t.Errorf("the patch of the file too big to show: %+v", text)
+	}
+}
+
 func TestLocal(t *testing.T) {
 	r := repo(t, map[string]string{"a.txt": "a\n"})
 	outside := t.TempDir()
