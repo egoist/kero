@@ -733,7 +733,7 @@ func (d *Daemon) wait(c *controlConn, s *pane, p proto.WaitParams) (any, error) 
 	}
 	if p.Exit {
 		s.mu.Lock()
-		unmarked := s.info.CommandExit == nil && !s.awaiting && s.info.Status != proto.Exited
+		unmarked := s.info.CommandExit == nil && !s.ended && !s.awaiting && s.info.Status != proto.Exited
 		s.mu.Unlock()
 		if unmarked {
 			return nil, errors.New("no command to wait for: the pane wasn't started with one, or its shell (cmd) can't tell when it ends")
@@ -763,10 +763,16 @@ func (d *Daemon) wait(c *controlConn, s *pane, p proto.WaitParams) (any, error) 
 	}
 	for {
 		s.mu.Lock()
-		info, ch, closed := s.info, s.changed, s.closed
+		info, ch, closed, ended := s.info, s.changed, s.closed, s.ended
 		s.mu.Unlock()
 		if closed {
 			return info, errors.New("pane closed")
+		}
+		if p.Exit && ended && info.CommandExit == nil {
+			// The command ended, but its shell did not tell its status:
+			// saying it was 0 would be a lie, and waiting for a status
+			// that will not come would hang.
+			return info, errors.New("the command ended, but its shell did not tell its status")
 		}
 		if want(info) {
 			return info, nil
