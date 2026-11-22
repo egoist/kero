@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+	"sync"
 	"time"
 
 	"kero/internal/proto"
@@ -66,13 +67,17 @@ func (d *Daemon) saveLoop() {
 		select {
 		case <-d.saveCh:
 			time.Sleep(300 * time.Millisecond)
-			d.saveState()
-			d.noteConversations()
-			d.saveConversations()
+			d.saveSerialized(func() {
+				d.saveState()
+				d.noteConversations()
+				d.saveConversations()
+			})
 		case <-snaps.C:
-			d.saveHistories(false)
-			d.noteConversations()
-			d.saveConversations()
+			d.saveSerialized(func() {
+				d.saveHistories(false)
+				d.noteConversations()
+				d.saveConversations()
+			})
 		case <-d.quit:
 			return
 		}
@@ -138,6 +143,19 @@ func writeAtomic(path string, data []byte) error {
 		return err
 	}
 	return os.Rename(tmp, path)
+}
+
+// saveMu serializes the writes of the state, the conversations and the
+// panes' histories: the save loop, a stop's signal and the shutdown and
+// restart calls all save, and two of them writing one file's .tmp at
+// once would leave it half of each, which the rename then keeps.
+var saveMu sync.Mutex
+
+// saveSerialized runs one save of the daemon's files, one at a time.
+func (d *Daemon) saveSerialized(fn func()) {
+	saveMu.Lock()
+	defer saveMu.Unlock()
+	fn()
 }
 
 // restore starts again the sessions of the last daemon, which ended

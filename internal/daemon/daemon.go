@@ -202,9 +202,11 @@ func Run(opts Options) error {
 	go func() {
 		s := <-sigs
 		lg.Printf("%v: saving and exiting", s)
-		d.saveHistories(true)
-		d.saveState()
-		d.saveConversations()
+		d.saveSerialized(func() {
+			d.saveHistories(true)
+			d.saveState()
+			d.saveConversations()
+		})
 		d.stop()
 	}()
 

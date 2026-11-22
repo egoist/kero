@@ -468,13 +468,15 @@ func (d *Daemon) restart() (then func(), err error) {
 	d.log.Printf("restarting, as a client asked")
 	// Once the answer is written.
 	return func() {
-		d.saveHistories(true)
-		d.saveState()
-		// The conversations too, as a stop's: one remembered since the
-		// last snapshot would otherwise be left out of
-		// conversations.json, and the next kerod's kero history would
-		// not show it.
-		d.saveConversations()
+		d.saveSerialized(func() {
+			d.saveHistories(true)
+			d.saveState()
+			// The conversations too, as a stop's: one remembered since the
+			// last snapshot would otherwise be left out of
+			// conversations.json, and the next kerod's kero history would
+			// not show it.
+			d.saveConversations()
+		})
 		d.mu.Lock()
 		d.restarting = true
 		d.mu.Unlock()

@@ -5,7 +5,9 @@ import (
 	"log"
 	"os"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"kero/internal/proto"
 )
@@ -76,5 +78,37 @@ func TestUnreadableStateIsSaid(t *testing.T) {
 	d.restore()
 	if !strings.Contains(buf.String(), "state") {
 		t.Fatalf("the unreadable state was not said: %q", buf.String())
+	}
+}
+
+// Two saves of the same file at once do not leave it half of each: the
+// save loop's and a stop's, which both write state.json's .tmp, run one
+// at a time.
+func TestSavesDoNotOverlap(t *testing.T) {
+	d := testDaemon(t)
+	var inside sync.Mutex
+	var running, overlapped int
+	var wg sync.WaitGroup
+	for range 4 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			d.saveSerialized(func() {
+				inside.Lock()
+				running++
+				if running > 1 {
+					overlapped++
+				}
+				inside.Unlock()
+				time.Sleep(5 * time.Millisecond)
+				inside.Lock()
+				running--
+				inside.Unlock()
+			})
+		}()
+	}
+	wg.Wait()
+	if overlapped > 0 {
+		t.Errorf("%d saves ran at once", overlapped)
 	}
 }
