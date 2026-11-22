@@ -578,7 +578,7 @@ type changesFrame struct {
 	bases, labels, tips []string
 	pane                *proto.Pane // whose worktree, or turn, it lists
 	scope               string
-	remote              bool // the worktree is another machine's
+	remote              bool              // the worktree is another machine's
 	list                *proto.GitChanges // nil until one comes
 	held                bool              // list is another base's, faded for a moment
 	// rows are the viewer's rows this frame, heads the row of each file's
