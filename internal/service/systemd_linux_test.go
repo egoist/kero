@@ -84,3 +84,16 @@ func TestInstallTakesNoUnitWhenThereWasNone(t *testing.T) {
 		t.Error("the unit is there")
 	}
 }
+
+// A service that systemd did not stop is not one that was uninstalled:
+// the unit stays, and the error says what happened.
+func TestUninstallKeepsTheUnitWhenSystemdDoesNotStopIt(t *testing.T) {
+	oldUnit(t)
+	fakeSystemctl(t, "disable")
+	if err := Uninstall(); err == nil {
+		t.Fatal("the uninstall succeeded")
+	}
+	if _, err := os.Stat(file()); err != nil {
+		t.Fatalf("the unit is gone: %v", err)
+	}
+}
