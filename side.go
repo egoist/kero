@@ -1202,11 +1202,18 @@ func (a *App) fetchFile(sf *sideFile, known string) {
 // edits, so that the diff keeps where it was scrolled; the new side not
 // while the user has edits of it to write.
 func (a *App) showText(sf *sideFile, t proto.GitText) {
-	sf.text = proto.GitText{Binary: t.Binary, Large: t.Large}
-	if sf.d != nil && !sf.patch && !t.Binary && !t.Large && (sf.d.New.Modified() || sf.edits.saving) {
-		replaceText(sf.d.Old, t.Old)
+	if sf.d != nil && !sf.patch && (sf.d.New.Modified() || sf.edits.saving) {
+		// The user has edits of their own in this text: they stay as
+		// they are, and the file is as it was read, whether it grew too
+		// big to show or is no text at all. The hash stays as it was
+		// too, so that saving asks before it writes over a file that
+		// has changed.
+		if !t.Binary && !t.Large {
+			replaceText(sf.d.Old, t.Old)
+		}
 		return
 	}
+	sf.text = proto.GitText{Binary: t.Binary, Large: t.Large}
 	sf.hash = t.Hash
 	switch {
 	case t.Binary || t.Large && t.Patch == "":

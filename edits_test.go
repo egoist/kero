@@ -101,3 +101,30 @@ func TestEditOfAPaneGoneStaysBackedUp(t *testing.T) {
 		t.Errorf("backed up as %q %q, want box %q", kept.Host, kept.Scope, sf.scope)
 	}
 }
+
+// A file that grew too big to show, or turned binary, while the user has
+// edits of their own in its diff: the edits are the user's, and they stay
+// until the user saves them.
+func TestEditsStayWhenAFileTurnsLarge(t *testing.T) {
+	a := testApp(t)
+	sf := editedDiff(t, a, "/tmp/a", "main.go")
+	a.showText(sf, proto.GitText{Large: true, Patch: "@@ -1 +1 @@\n-package main\n+package main\n", Hash: "h2"})
+	if !a.diffTarget(sf).dirty() {
+		t.Fatal("the user's edits went with the file's new size")
+	}
+	if sf.hash != "h" {
+		t.Errorf("the hash is %q, want the hash the text was read at", sf.hash)
+	}
+	if sf.text.Large || sf.text.Binary {
+		t.Errorf("the file is shown as %+v", sf.text)
+	}
+	// And a file that is no text at all.
+	other := editedDiff(t, a, "/tmp/a", "other.go")
+	a.showText(other, proto.GitText{Binary: true, Hash: "h3"})
+	if !a.diffTarget(other).dirty() {
+		t.Fatal("the user's edits went with the file's new kind")
+	}
+	if other.hash != "h" {
+		t.Errorf("the hash is %q, want the hash the text was read at", other.hash)
+	}
+}
