@@ -2,11 +2,15 @@ package cli
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
+	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 
@@ -144,6 +148,30 @@ func TestTimeoutArgsAreUsageErrors(t *testing.T) {
 	}
 }
 
+// The daemon's state, which it could not give, is said: no sessions
+// would tell the user theirs were gone.
+func TestDaemonStatusSaysAFailedState(t *testing.T) {
+	t.Setenv("KERO_CONFIG", filepath.Join(t.TempDir(), "config"))
+	sock, calls := fakeDaemon(t)
+	t.Setenv("KERO_SOCKET", sock)
+	failCall(t, "state", "the state is gone")
+
+	out := captureStdout(t, func() {
+		if err := run([]string{"daemon", "status"}, ""); err != nil {
+			t.Errorf("kero daemon status: %v", err)
+		}
+	})
+	if !strings.Contains(out, "the state is gone") {
+		t.Errorf("no word of the state that failed:\n%s", out)
+	}
+	if strings.Contains(out, "sessions") {
+		t.Errorf("it counted the sessions it has none of:\n%s", out)
+	}
+	if m := calls(); len(m) == 0 || m[0] != "state" {
+		t.Errorf("the daemon was asked of %q, want of the state", m)
+	}
+}
+
 // fakeDaemon is a kerod that answers what the CLI asks of it, and
 // remembers the calls it got. Its socket is the one the CLI is told of.
 func fakeDaemon(t *testing.T) (string, func() []string) {
@@ -184,6 +212,10 @@ func fakeDaemon(t *testing.T) (string, func() []string) {
 					mu.Lock()
 					got = append(got, req.Method)
 					mu.Unlock()
+					if msg, failed := failing(req.Method); failed {
+						fmt.Fprintf(conn, `{"id":%d,"error":%q}`+"\n", req.ID, msg)
+						continue
+					}
 					res, _ := json.Marshal(fakeResult(req.Method))
 					fmt.Fprintf(conn, `{"id":%d,"result":%s}`+"\n", req.ID, res)
 				}
@@ -195,6 +227,55 @@ func fakeDaemon(t *testing.T) (string, func() []string) {
 		defer mu.Unlock()
 		return append([]string(nil), got...)
 	}
+}
+
+// failing is what the fake kerod answers a method with as an error, when
+// it answers with one: failCall says.
+func failing(method string) (string, bool) {
+	failMu.Lock()
+	defer failMu.Unlock()
+	msg, ok := failCalls[method]
+	return msg, ok
+}
+
+var (
+	failMu    sync.Mutex
+	failCalls = map[string]string{}
+)
+
+// failCall makes the fake kerod answer a method with an error, till the
+// test is over.
+func failCall(t *testing.T, method, msg string) {
+	t.Helper()
+	failMu.Lock()
+	defer failMu.Unlock()
+	failCalls[method] = msg
+	t.Cleanup(func() {
+		failMu.Lock()
+		defer failMu.Unlock()
+		delete(failCalls, method)
+	})
+}
+
+// captureStdout is what f wrote to the standard output.
+func captureStdout(t *testing.T, f func()) string {
+	t.Helper()
+	old := os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stdout = w
+	done := make(chan string, 1)
+	go func() {
+		var b bytes.Buffer
+		io.Copy(&b, r)
+		done <- b.String()
+	}()
+	f()
+	w.Close()
+	os.Stdout = old
+	return <-done
 }
 
 // fakeResult is what the fake kerod answers a call of the CLI with.

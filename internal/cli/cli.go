@@ -1017,14 +1017,20 @@ func daemonCmd(args []string, host string) error {
 			fmt.Println("kerod is not running")
 		} else {
 			defer c.Close()
+			running := fmt.Sprintf("kerod %d running (Kero %s, pid %d) for %s", c.Welcome.Version, orDash(c.Welcome.App), c.Welcome.PID,
+				time.Since(time.UnixMilli(c.Welcome.Started)).Round(time.Second))
 			var st proto.State
-			c.Call("state", nil, &st)
-			panes := 0
-			for _, s := range st.Sessions {
-				panes += len(s.Panes)
+			if err := c.Call("state", nil, &st); err != nil {
+				// No state is no sessions: saying of none would tell
+				// the user their sessions were gone.
+				fmt.Printf("%s\nits state: %v\n", running, err)
+			} else {
+				panes := 0
+				for _, s := range st.Sessions {
+					panes += len(s.Panes)
+				}
+				fmt.Printf("%s: %d sessions, %d panes\n", running, len(st.Sessions), panes)
 			}
-			fmt.Printf("kerod %d running (Kero %s, pid %d) for %s: %d sessions, %d panes\n", c.Welcome.Version, orDash(c.Welcome.App), c.Welcome.PID,
-				time.Since(time.UnixMilli(c.Welcome.Started)).Round(time.Second), len(st.Sessions), panes)
 		}
 		fmt.Println("socket:", proto.SocketPath())
 		if svc.Installed {
