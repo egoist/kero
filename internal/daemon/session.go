@@ -326,7 +326,7 @@ func (s *pane) tick(now time.Time) bool {
 	pg := s.proc.Foreground()
 	s.fgPGID = pg
 	proc, agent, runtime := "", "", ""
-	if pg != 0 && pg != s.shellPID {
+	if pg != 0 && pg != s.shellPID && groupAlive(pg) {
 		proc = procName(pg)
 		args := procArgs(pg)
 		agent = detectAgent(proc, args)
