@@ -245,7 +245,9 @@ func (it *paletteItem) kind() int {
 }
 
 // fuzzy scores how well query matches s, as its letters in order: higher
-// is better, -1 no match. Starts of words and runs score more.
+// is better, -1 no match. Starts of words and runs score more. A space
+// of the query is no letter: it takes none of the item's, which it did,
+// and an item whose words are further apart was not found.
 func fuzzy(query, s string) int {
 	if query == "" {
 		return 0
@@ -253,7 +255,7 @@ func fuzzy(query, s string) int {
 	q := []rune(strings.ToLower(query))
 	r := []rune(strings.ToLower(s))
 	score, qi, run := 0, 0, 0
-	for i := 0; i < len(r) && qi < len(q); i++ {
+	for i := 0; i < len(r) && qi < len(q); {
 		if q[qi] == ' ' {
 			qi++
 			continue
@@ -269,6 +271,7 @@ func fuzzy(query, s string) int {
 		} else {
 			run = 0
 		}
+		i++
 	}
 	if qi < len(q) {
 		return -1
