@@ -227,7 +227,11 @@ func (r Repo) FileText(ctx context.Context, rev, path, oldPath string) (Text, er
 		t.Binary = true
 	case len(ob) > maxText || len(nb) > maxText:
 		t.Large = true
-		t.Patch, _ = r.Patch(ctx, rev, "", path)
+		// The patch is the diff of a file too big to show whole: a
+		// failure to make it is a failure, not an empty patch.
+		if t.Patch, err = r.Patch(ctx, rev, "", path); err != nil {
+			return Text{}, err
+		}
 	default:
 		t.Old, t.New = string(ob), string(nb)
 	}
