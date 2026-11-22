@@ -74,13 +74,22 @@ func Install(exe string, stop func() error) error {
 	if err := os.MkdirAll(filepath.Dir(file()), 0o755); err != nil {
 		return err
 	}
+	// The unit that was there is kept: a failed install does not take
+	// away a service that worked.
+	old, err := os.ReadFile(file())
+	hadOld := err == nil
 	if err := os.WriteFile(file(), []byte(unit(exe)), 0o644); err != nil {
 		return err
 	}
 	// A unit that does not run is none: Installed would tell otherwise.
 	undo := func(err error) error {
-		systemctl("disable", Name()+".service")
-		os.Remove(file())
+		if !hadOld {
+			systemctl("disable", Name()+".service")
+			os.Remove(file())
+		} else {
+			os.WriteFile(file(), old, 0o644)
+			systemctl("enable", Name()+".service")
+		}
 		systemctl("daemon-reload")
 		return err
 	}
@@ -91,7 +100,11 @@ func Install(exe string, stop func() error) error {
 		return undo(err)
 	}
 	if stop != nil {
-		stop()
+		// A daemon that did not stop keeps running, and the service
+		// cannot take its place: the install did not work, and says so.
+		if err := stop(); err != nil {
+			return undo(err)
+		}
 	}
 	if _, err := systemctl("restart", Name()+".service"); err != nil {
 		return undo(err)
