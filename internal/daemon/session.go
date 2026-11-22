@@ -808,6 +808,17 @@ func (s *pane) detach(c *attachment) {
 	s.mu.Unlock()
 }
 
+// keepHistory says the pane's history is not saved yet, so that it is
+// saved again: a write that failed does not take the scrollback away.
+func (s *pane) keepHistory() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return
+	}
+	s.dirty = true
+}
+
 // history returns what to save of the session, when it changed: its
 // scrollback and screen down to the cursor (terminal.History), which a
 // restore shows above the new shell.
