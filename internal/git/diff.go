@@ -274,14 +274,25 @@ func (r Repo) Changed(ctx context.Context, rev, path string) (bool, error) {
 	}
 	// LC_ALL=C, as FileText's: what notInRev reads is git's English
 	// message, which a translated git would say otherwise.
-	ob, err := run(ctx, r.Root, cLocale, "cat-file", "blob", rev+":"+path)
-	if err != nil {
+	if _, err := run(ctx, r.Root, cLocale, "cat-file", "blob", rev+":"+path); err != nil {
 		if !notInRev(err) {
 			return false, err
 		}
 		return nb != nil, nil // not in rev: changed when it is now
 	}
-	return !bytes.Equal(ob, nb), nil
+	// The file is in the rev: a diff with it says whether it changed —
+	// the mode too, which the blob's bytes alone do not hold, and after
+	// the filters a checkout runs, which the bytes alone do not see. The
+	// answer is as the diff the user sees: --quiet gives nothing but the
+	// exit, 0 for the same and 1 for changed.
+	if _, err := run(ctx, r.Root, cLocale, "diff", "--quiet", "--no-ext-diff", "--no-textconv", rev, "--", path); err != nil {
+		var exit *exec.ExitError
+		if errors.As(err, &exit) && exit.ExitCode() == 1 {
+			return true, nil
+		}
+		return false, err
+	}
+	return false, nil
 }
 
 // notInRev tells whether err says the path is not in the rev, as git
