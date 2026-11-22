@@ -1450,7 +1450,12 @@ func (a *App) chooseNewSessionDir() {
 		return
 	}
 	a.ss.choosingDir = true
-	win := a.win
+	// The button lives in the Settings window: the dialog is its, not the
+	// main window's, which may be closed or behind it.
+	win := a.setWin
+	if win == nil {
+		win = a.win
+	}
 	go func() {
 		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{
 			Parent: win, Title: locales.NewSessionFolderTitle(), Directory: true, ButtonLabel: locales.CommonChoose(),
