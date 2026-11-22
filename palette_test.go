@@ -131,3 +131,22 @@ func TestConfirmEscapeCancels(t *testing.T) {
 		t.Fatalf("Escape ran the action %v and left the confirmation %v", ran, a.confirm)
 	}
 }
+
+// A space of the query is no letter of the item's: it takes none, which
+// it did, so a query with a space of its own found nothing.
+func TestFuzzySkipsQuerySpaces(t *testing.T) {
+	for _, c := range []struct{ query, s string }{
+		{"a b", "ab"},
+		{"new  session", "New Session"},
+		{"split right", "Split Right"},
+		{"my file", "myfile"},
+	} {
+		if got := fuzzy(c.query, c.s); got < 0 {
+			t.Errorf("fuzzy(%q, %q) = %d, want a match", c.query, c.s, got)
+		}
+	}
+	// What is no letter of the query in the item is still no match.
+	if got := fuzzy("a b", "ac"); got != -1 {
+		t.Errorf("fuzzy(%q, %q) = %d, want no match", "a b", "ac", got)
+	}
+}
