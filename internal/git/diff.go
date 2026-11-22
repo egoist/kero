@@ -330,18 +330,24 @@ func (r Repo) Write(path, hash, text string) error {
 
 // WriteFile writes text to a regular file, keeping its mode, when its
 // content still hashes to hash: one written meanwhile is left as it is
-// (ErrChanged).
+// (ErrChanged). A file that is not there is the empty content: one
+// written over a file that was deleted since it was read does not hash
+// to what was read, and is asked about, as one changed is.
 func WriteFile(full, hash, text string) error {
 	fi, err := os.Lstat(full)
-	if err != nil {
+	if err != nil && !os.IsNotExist(err) {
 		return err
 	}
-	if !fi.Mode().IsRegular() {
-		return errors.New("not a regular file")
-	}
-	b, err := os.ReadFile(full)
-	if err != nil {
-		return err
+	var b []byte
+	perm := fs.FileMode(0o644)
+	if err == nil {
+		if !fi.Mode().IsRegular() {
+			return errors.New("not a regular file")
+		}
+		if b, err = os.ReadFile(full); err != nil {
+			return err
+		}
+		perm = fi.Mode().Perm()
 	}
 	if Hash(b) != hash {
 		return ErrChanged
@@ -355,7 +361,7 @@ func WriteFile(full, hash, text string) error {
 		err = cerr
 	}
 	if err == nil {
-		err = os.Chmod(tmp.Name(), fi.Mode().Perm())
+		err = os.Chmod(tmp.Name(), perm)
 	}
 	if err == nil {
 		err = os.Rename(tmp.Name(), full)
@@ -394,17 +400,41 @@ func (r Repo) Mode(ctx context.Context, rev, path string) (fs.FileMode, error) {
 // Revert puts a file back as rev has it: its content as hash says it was
 // shown, and its execute bit as the rev's tree holds it — a file made to
 // run, and made not to, runs as the rev says again. The rest of the
-// mode is not git's to keep, and stays as the file has it.
+// mode is not git's to keep, and stays as the file has it. A file the
+// rev does not have is taken away; one the worktree does not have, the
+// rev's, is written anew.
 func (r Repo) Revert(ctx context.Context, rev, path, hash, text string) error {
+	full, err := r.local(path)
+	if err != nil {
+		return err
+	}
+	// LC_ALL=C, as Changed's: what notInRev reads is git's English
+	// message, which a translated git would say otherwise.
+	if _, err := run(ctx, r.Root, cLocale, "cat-file", "blob", rev+":"+path); err != nil {
+		if !notInRev(err) {
+			return err
+		}
+		// The rev has no file there: the change is the file's
+		// existence, and the revert takes the file away — of the
+		// content it was shown at, for one changed meanwhile is
+		// asked about, as a write is.
+		b, rerr := os.ReadFile(full)
+		if rerr != nil && !os.IsNotExist(rerr) {
+			return rerr
+		}
+		if Hash(b) != hash {
+			return ErrChanged
+		}
+		if err := os.Remove(full); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+		return nil
+	}
 	if err := r.Write(path, hash, text); err != nil {
 		return err
 	}
 	mode, err := r.Mode(ctx, rev, path)
 	if err != nil || mode == 0 {
-		return err
-	}
-	full, err := r.local(path)
-	if err != nil {
 		return err
 	}
 	fi, err := os.Stat(full)

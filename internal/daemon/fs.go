@@ -138,9 +138,11 @@ func (d *Daemon) fsWrite(p proto.FSWriteParams) (string, error) {
 	hash := p.Hash
 	if p.Force {
 		b, err := os.ReadFile(path)
-		if err != nil {
+		if err != nil && !os.IsNotExist(err) {
 			return "", err
 		}
+		// A file that is not there is the empty content: forcing a
+		// write over a file that was deleted writes it anew.
 		hash = git.Hash(b)
 	}
 	if err := git.WriteFile(path, hash, p.Text); err != nil {
