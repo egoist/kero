@@ -223,6 +223,15 @@ func Run(args []string) int {
 		return int(es)
 	}
 	fmt.Fprintln(os.Stderr, "kero:", err)
+	return exitCode(err)
+}
+
+// exitCode is the status kero exits with for an error.
+func exitCode(err error) int {
+	var es exitStatus
+	if errors.As(err, &es) {
+		return int(es)
+	}
 	switch {
 	case errors.Is(err, errUsage):
 		return 2
@@ -1146,7 +1155,21 @@ func daemonCmd(args []string, host string) error {
 	return usageErr("unknown daemon command %q", sub)
 }
 
-// remoteDaemonCmd is kero -H <host> daemon …: how kerod on the host is,
+// remoteDaemonConnect opens the connection to the kerod on the host: a
+// daemon that cannot be talked to is said, and the command fails, as
+// the local one does. The connection is given as a function, so that a
+// test can drive it.
+func remoteDaemonConnect(connect func() (*client.Client, error), host string) (*client.Client, error) {
+	c, err := connect()
+	if err == nil {
+		return c, nil
+	}
+	if errors.Is(err, client.ErrVersion) {
+		return nil, fmt.Errorf("%w: the running kerod is of another version: run `kero -H %s daemon restart` (it restarts sessions)", errUnreachable, host)
+	}
+	return nil, fmt.Errorf("%w: %v", errUnreachable, err)
+}
+
 // remoteDaemonStatus says how the kerod c reached stands: a state it
 // could not read is said, not counted as none — no sessions would tell
 // the user theirs were gone.
@@ -1161,6 +1184,7 @@ func remoteDaemonStatus(c *client.Client) {
 	fmt.Printf("%s: %d sessions\n", running, len(st.Sessions))
 }
 
+// remoteDaemonCmd is kero -H <host> daemon …: how kerod on the host is,
 // and restarting it, or updating Kero there, as the app does.
 func remoteDaemonCmd(sub string, args []string, host string) error {
 	rc, err := dialHost(host)
@@ -1174,10 +1198,9 @@ func remoteDaemonCmd(sub string, args []string, host string) error {
 	case "status":
 		h := rc.Welcome.Host
 		fmt.Printf("%s: %s (%s/%s), Kero %s (protocol %d)\n", host, h.Hostname, h.OS, h.Arch, orDash(h.Kero), h.Version)
-		c, err := client.ConnectVia(rc)
+		c, err := remoteDaemonConnect(func() (*client.Client, error) { return client.ConnectVia(rc) }, host)
 		if err != nil {
-			fmt.Println("kerod:", err)
-			return nil
+			return err
 		}
 		defer c.Close()
 		remoteDaemonStatus(c)
