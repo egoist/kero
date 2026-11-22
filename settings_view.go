@@ -2,6 +2,7 @@ package main
 
 import (
 	"cmp"
+	"errors"
 	"io"
 	"math"
 	"os"
@@ -168,21 +169,7 @@ func (a *App) refreshAgents() {
 // refreshService asks kerod how it is, off the main thread.
 func (a *App) refreshService() {
 	go func() {
-		line := locales.SvcNotRunning()
-		if c, err := client.Connect(true); err == nil {
-			var st proto.State
-			c.Call("state", nil, &st)
-			panes := 0
-			for _, s := range st.Sessions {
-				panes += len(s.Panes)
-			}
-			up := time.Since(time.UnixMilli(c.Welcome.Started)).Round(time.Minute)
-			line = locales.SvcRunning(strconv.Itoa(c.Welcome.PID), durationWords(up), len(st.Sessions), panes)
-			if kerodStale(c.Welcome.App, c.Welcome.Build) {
-				line += locales.SvcStale()
-			}
-			c.Close()
-		}
+		line := serviceLine()
 		a.update(func() {
 			a.ss.service = line
 			if a.setWin != nil {
@@ -190,6 +177,36 @@ func (a *App) refreshService() {
 			}
 		})
 	}()
+}
+
+// serviceLine asks kerod how it is and says so, for the Settings window.
+func serviceLine() string {
+	c, err := client.Connect(true)
+	switch {
+	case errors.Is(err, client.ErrVersion):
+		// kerod runs, of a version this one cannot talk to.
+		return locales.SvcAnotherVersion()
+	case err != nil:
+		return locales.SvcNotRunning()
+	}
+	defer c.Close()
+	up := time.Since(time.UnixMilli(c.Welcome.Started)).Round(time.Minute)
+	pid := strconv.Itoa(c.Welcome.PID)
+	var st proto.State
+	if err := c.Call("state", nil, &st); err != nil {
+		// kerod runs, but its state could not be read: "0 sessions"
+		// would tell the user theirs were gone.
+		return locales.SvcRunningUnreadable(pid, durationWords(up))
+	}
+	panes := 0
+	for _, s := range st.Sessions {
+		panes += len(s.Panes)
+	}
+	line := locales.SvcRunning(pid, durationWords(up), len(st.Sessions), panes)
+	if kerodStale(c.Welcome.App, c.Welcome.Build) {
+		line += locales.SvcStale()
+	}
+	return line
 }
 
 func durationWords(d time.Duration) string {

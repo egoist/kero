@@ -1992,6 +1992,28 @@ func (msgs Messages) SvcStale() string {
 	return Catalog.Format(msgs.locale, "svcStale", nil)
 }
 
+// SvcRunningUnreadable says "Running (pid {pid}) for {duration} · the sessions could not be read"
+// in the language the app shows.
+func SvcRunningUnreadable(pid string, duration string) string {
+	return In(i18n.Locale()).SvcRunningUnreadable(pid, duration)
+}
+
+// SvcRunningUnreadable says "Running (pid {pid}) for {duration} · the sessions could not be read"
+// in the language of msgs.
+func (msgs Messages) SvcRunningUnreadable(pid string, duration string) string {
+	return Catalog.Format(msgs.locale, "svcRunningUnreadable", map[string]any{"pid": pid, "duration": duration})
+}
+
+// SvcAnotherVersion says "Running · another version of Kero: restart it"
+// in the language the app shows.
+func SvcAnotherVersion() string { return In(i18n.Locale()).SvcAnotherVersion() }
+
+// SvcAnotherVersion says "Running · another version of Kero: restart it"
+// in the language of msgs.
+func (msgs Messages) SvcAnotherVersion() string {
+	return Catalog.Format(msgs.locale, "svcAnotherVersion", nil)
+}
+
 // DurUnderMinute says "under a minute"
 // in the language the app shows.
 func DurUnderMinute() string { return In(i18n.Locale()).DurUnderMinute() }

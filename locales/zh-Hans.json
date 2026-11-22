@@ -193,6 +193,18 @@
   "svcNotRunning": "未运行",
   "svcRunning": "已运行 {duration}（pid {pid}）· {sessions} 个会话，{panes} 个窗格",
   "svcStale": " · 仍是较早版本的 Kero：重启以更新",
+  "svcRunningUnreadable": "已运行 {duration}（pid {pid}）· 无法读取会话",
+  "@svcRunningUnreadable": {
+    "placeholders": {
+      "pid": {
+        "type": "String"
+      },
+      "duration": {
+        "type": "String"
+      }
+    }
+  },
+  "svcAnotherVersion": "运行中 · 另一个版本的 Kero：请重启",
   "durUnderMinute": "不到一分钟",
   "durMinutes": "{n} 分钟",
   "durHours": "{n} 小时",

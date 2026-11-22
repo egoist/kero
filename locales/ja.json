@@ -193,6 +193,18 @@
   "svcNotRunning": "停止中",
   "svcRunning": "{duration}実行中（pid {pid}）· {sessions} 個のセッション、{panes} 個のペイン",
   "svcStale": " · まだ以前の Kero です: 再起動してアップデートしてください",
+  "svcRunningUnreadable": "{duration}実行中（pid {pid}）· セッションを読み取れません",
+  "@svcRunningUnreadable": {
+    "placeholders": {
+      "pid": {
+        "type": "String"
+      },
+      "duration": {
+        "type": "String"
+      }
+    }
+  },
+  "svcAnotherVersion": "実行中 · 別バージョンの Kero です: 再起動してください",
   "durUnderMinute": "1分未満",
   "durMinutes": "{n}分",
   "durHours": "{n}時間",
