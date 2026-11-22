@@ -121,6 +121,31 @@ func TestFullResetClearsRecords(t *testing.T) {
 	}
 }
 
+// A full reset that ends a string is a full reset: what the string held
+// goes, as the records and the progress it would have cleared.
+func TestResetEndsAString(t *testing.T) {
+	var got []string
+	var o oscScanner
+	stream := "\x1b]9;4;1;40\x1bc"
+	// Byte at a time: the reset is found wherever the string is cut.
+	for i := range len(stream) {
+		o.scan([]byte{stream[i]}, func(b []byte) { got = append(got, string(b)) }, func() { got = append(got, "RIS") })
+	}
+	if strings.Join(got, "|") != "RIS" {
+		t.Fatalf("got %q, want the reset", got)
+	}
+
+	s := testPane(t)
+	s.output([]byte("\x1b]7501;state=working:id=build\x1b\\"))
+	if s.info.Status != proto.Working {
+		t.Fatalf("status %s, want working", s.info.Status)
+	}
+	s.output([]byte("\x1b]0;a title\x1bc"))
+	if len(s.info.Records) != 0 || s.info.Status != proto.Idle {
+		t.Fatalf("after the reset: records %v, status %s", s.info.Records, s.info.Status)
+	}
+}
+
 // Progress (OSC 9;4) is no work of itself, as Neovim's for its language
 // servers: only an agent's rules read it, as Kiro's, whose progress turns
 // while it works.
