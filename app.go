@@ -1698,11 +1698,44 @@ func (a *App) endAndQuit() {
 	a.ending = true
 	cl := a.local().cl
 	go func() {
-		if cl != nil {
-			cl.Call("shutdown", nil, nil)
+		if err := endSessions(cl); err != nil {
+			// The sessions were not ended: quitting now would leave them
+			// running, and the user would think they were ended. Say so,
+			// and let them quit anyway.
+			a.update(func() { a.endFailed(err) })
+			return
 		}
 		quitApp()
 	}()
+}
+
+// endSessions asks kerod to end this machine's sessions and to stop, and
+// returns what it could not do.
+func endSessions(cl *client.Client) error {
+	if cl == nil {
+		return nil
+	}
+	return cl.Call("shutdown", nil, nil)
+}
+
+// endFailed says that this machine's sessions were not ended, and asks
+// the user what to do: try again, or quit and leave them running.
+func (a *App) endFailed(err error) {
+	a.ending = false
+	a.confirm = &confirmation{
+		open:   true,
+		title:  locales.ConfirmEndFailedTitle(),
+		detail: locales.ConfirmEndFailedDetail(err.Error()),
+		action: locales.CommonTryAgain(),
+		run:    a.endAndQuit,
+		alt:    locales.CommonQuitAnyway(),
+		altRun: quitApp,
+	}
+	// The window that was closed is where the ask goes: open one, as
+	// the quit that asks first does.
+	if !a.winOpen {
+		a.showWindow()
+	}
 }
 
 // daemonStale reports whether kerod runs another version of Kero than

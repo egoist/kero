@@ -75,6 +75,50 @@ func TestSplitRightWithoutSessionStartsOne(t *testing.T) {
 	}
 }
 
+// The quit that ends the sessions does not go through as though it had
+// when the sessions could not be ended: the app stays, and says so.
+func TestEndFailureIsSaid(t *testing.T) {
+	oldQuit := quitApp
+	defer func() { quitApp = oldQuit }()
+	quits := make(chan struct{}, 4)
+	quitApp = func() { quits <- struct{}{} }
+
+	a := testApp(t)
+	cl, _ := projectClient(t, func(method string, raw json.RawMessage) (any, error) {
+		if method == "shutdown" {
+			return nil, errors.New("the daemon is busy")
+		}
+		return nil, errors.New("unexpected method " + method)
+	})
+	a.local().cl = cl
+
+	a.endAndQuit()
+	select {
+	case <-quits:
+		t.Fatal("the app quit as though the sessions had ended")
+	case <-time.After(500 * time.Millisecond):
+	}
+
+	// The failure is said: the app asks what to do.
+	a.endFailed(errors.New("the daemon is busy"))
+	if a.confirm == nil || !a.confirm.open {
+		t.Fatalf("the failure was not said: %+v", a.confirm)
+	}
+	if !strings.Contains(a.confirm.detail, "the daemon is busy") {
+		t.Errorf("the ask says %q, want the error in it", a.confirm.detail)
+	}
+	if a.ending {
+		t.Error("the app is still ending")
+	}
+	// "Quit anyway" quits, and the sessions keep running.
+	a.confirm.altRun()
+	select {
+	case <-quits:
+	case <-time.After(2 * time.Second):
+		t.Fatal("the app did not quit")
+	}
+}
+
 // projectClient speaks the real control protocol without starting the user's daemon.
 func projectClient(t *testing.T, handle func(string, json.RawMessage) (any, error)) (*client.Client, func()) {
 	t.Helper()

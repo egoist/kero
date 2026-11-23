@@ -49,6 +49,7 @@
   "commonRestart": "Restart",
   "commonRestartService": "Restart Service",
   "commonTryAgain": "Try Again",
+  "commonQuitAnyway": "Quit Anyway",
   "commonOpen": "Open",
   "commonChoose": "Choose",
   "commonShow": "Show",
@@ -132,6 +133,8 @@
     }
   },
   "confirmQuitAllAction": "End Sessions and Quit",
+  "confirmEndFailedTitle": "Couldn’t end the sessions",
+  "confirmEndFailedDetail": "Kero could not end this machine’s sessions, so they keep running: {error}",
   "confirmRestartServiceTitle": "Restart the background service?",
   "restartEarlierVersion": "an earlier version",
   "restartRunning": "{count, plural, one {A program is running in # session} other {Programs are running in # sessions}}",
