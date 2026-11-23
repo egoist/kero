@@ -152,7 +152,13 @@ func (d *Daemon) checkWorktree(ref string) (proto.WorktreeCheck, error) {
 	defer cancel()
 	r, err := git.Open(ctx, wt.Path)
 	if err != nil {
-		return wc, nil // gone already: nothing to lose
+		// A worktree that is gone already has nothing to lose; one that
+		// is there but cannot be read is a failure to say, not "nothing
+		// to lose" — removing it could lose what the read could not see.
+		if _, statErr := os.Lstat(wt.Path); os.IsNotExist(statErr) {
+			return wc, nil
+		}
+		return wc, err
 	}
 	st, err := r.State(ctx, wt.Branch, wt.Base)
 	if err != nil {
