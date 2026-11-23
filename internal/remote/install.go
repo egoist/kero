@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"os/exec"
+	"runtime"
 	"strings"
 	"unicode/utf16"
 
@@ -38,6 +39,9 @@ func InstallCommand(a Addr, version string, batch bool) (*exec.Cmd, error) {
 		cmd = exec.Command(SSHCommand(), append(installSSH(a, batch), "--", a.Host, run)...)
 		cmd.Env = sshEnv()
 	case "wsl":
+		if runtime.GOOS != "windows" {
+			return nil, errors.New("wsl:// addresses are of Windows")
+		}
 		wa := []string{}
 		if a.Host != "" {
 			wa = append(wa, "-d", a.Host)

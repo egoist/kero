@@ -43,8 +43,14 @@ func (a *App) openProjectOn(h *host) {
 		a.toast(locales.HostNotConnected(h.name))
 		return
 	}
-	a.picker = folderPicker{open: true, host: h}
+	gen := a.picker.gen
+	a.picker = folderPicker{open: true, host: h, gen: gen}
 	a.pickerGo("~")
+}
+
+func (a *App) resetPicker() {
+	gen := a.picker.gen + 1
+	a.picker = folderPicker{gen: gen}
 }
 
 // pickerGo lists a folder of the picker's host.
@@ -242,7 +248,7 @@ func (a *App) pickerView(c *ui.Context, pal *palette) {
 		a.pickerGo(goTo)
 	}
 	if !p.open {
-		a.picker = folderPicker{}
+		a.resetPicker()
 		if openDir == "" {
 			a.focusTerminal()
 		}

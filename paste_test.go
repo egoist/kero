@@ -624,3 +624,21 @@ func TestRemoteDrop(t *testing.T) {
 		t.Error("a drop on a local pane was taken")
 	}
 }
+
+// A path with a newline in it: a backslash before a newline is a line
+// continuation to a POSIX shell, and the path would name another file.
+func TestShellEscapeANewline(t *testing.T) {
+	p := "/tmp/a\nb.png"
+	got := shellEscape(p)
+	if got != "'/tmp/a\nb.png'" {
+		t.Errorf("shellEscape(%q) = %q", p, got)
+	}
+	sh, err := exec.LookPath("sh")
+	if err != nil {
+		t.Skip("no sh")
+	}
+	out, err := exec.Command(sh, "-c", "printf %s "+got).Output()
+	if err != nil || string(out) != p {
+		t.Errorf("the shell read %s as %q (%v), want %q", got, out, err, p)
+	}
+}

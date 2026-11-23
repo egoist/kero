@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -44,6 +45,18 @@ func TestSettingsPages(t *testing.T) {
 	}
 }
 
+func TestFontWeightShowsTheCurrentValue(t *testing.T) {
+	a := testApp(t)
+	a.ss.draft = map[string]string{}
+	a.ss.page = "terminal"
+	a.set.FontWeight = 700
+	tt := ui.NewTester(a.settingsView, 820, 900)
+	tt.Frame()
+	if !tt.HasText("700") {
+		t.Errorf("weight 700 is not named; texts %q", tt.Texts())
+	}
+}
+
 // A shortcut is typed into its chip, saved, and takes the keys from the
 // action that had them.
 func TestRecordShortcut(t *testing.T) {
@@ -77,6 +90,29 @@ func TestRecordShortcut(t *testing.T) {
 		t.Errorf("not saved: %v", saved.Shortcuts)
 	}
 	shot(t, tt, "settings-keyboard-recorded")
+}
+
+// A shortcut needs a modifier, unless it is a function key: the letter
+// F is not one, and a shortcut of it would take the plain F keypress
+// everywhere, as a menu's accelerator does.
+func TestRecordShortcutLetterFNeedsAModifier(t *testing.T) {
+	a := &App{}
+	act, ok := actions.Find("session.new")
+	if !ok {
+		t.Fatal("no such action")
+	}
+	a.recordKey(act, 0, ui.KeyF)
+	if got := a.set.Shortcuts["session.new"]; got != "" {
+		t.Errorf("the letter F was recorded as a shortcut: %q", got)
+	}
+	if a.ss.notice == "" {
+		t.Error("no word that the shortcut needs a modifier")
+	}
+	// A function key is one.
+	a.recordKey(act, 0, ui.KeyF1)
+	if got := a.set.Shortcuts["session.new"]; got != "F1" {
+		t.Errorf("F1 was recorded as %q", got)
+	}
 }
 
 // A choice made in a segmented control stays, and is saved.
@@ -795,6 +831,7 @@ func TestThemesDir(t *testing.T) {
 		{"no XDG_CONFIG_HOME on macOS", "darwin", "", win, home, atHome(filepath.Join(home, ".config"))},
 		{"LOCALAPPDATA on Windows", "windows", "", win, win, "~" + strings.TrimPrefix(themes(win), win)},
 		{"LOCALAPPDATA unset on Windows", "windows", "", "", win, "~" + strings.TrimPrefix(themes(filepath.Join(win, ".config")), win)},
+		{"a sibling of the home", "linux", filepath.Join("/home", "melissa", ".config"), win, home, themes(filepath.Join("/home", "melissa", ".config"))},
 		{"no home", "linux", "", "", "", ""},
 		{"no home on Windows", "windows", "", "", "", ""},
 	} {
@@ -813,5 +850,28 @@ func TestThemesDir(t *testing.T) {
 	t.Setenv("HOME", home)
 	if got, want := themesDir(), atHome(filepath.Join(home, ".config")); got != want {
 		t.Errorf("without XDG_CONFIG_HOME: %q, want %q", got, want)
+	}
+}
+
+// A setting that could not be saved is said in the Settings window,
+// where the change was made: the main window's toast is behind it.
+func TestSettingsSaveFailureIsSaidInTheSettingsWindow(t *testing.T) {
+	a := testApp(t)
+	a.ss.draft = map[string]string{}
+	// A file where the configuration's folder should be: there is no
+	// folder to write the configuration in.
+	blocker := filepath.Join(t.TempDir(), "blocker")
+	if err := os.WriteFile(blocker, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("KERO_CONFIG", filepath.Join(blocker, "config"))
+	// A setting the window applies: the controls edit a.set, and what
+	// changed applies and saves.
+	a.set.Scrollback = 8
+	tt := ui.NewTester(a.settingsView, 820, 900)
+	tt.Frame()
+	tt.Frame()
+	if !tt.HasText("save the settings") {
+		t.Errorf("the setting could not be saved, and the Settings window said nothing: %q", tt.Texts())
 	}
 }

@@ -266,6 +266,14 @@ func (d *Daemon) startPane(sid string, p proto.CreateParams, dir string) (*pane,
 
 // create starts a session, or a pane of one with p.Split.
 func (d *Daemon) create(p proto.CreateParams) (proto.Session, error) {
+	d.mu.Lock()
+	if d.ending {
+		// The daemon is shutting down: a session made now would go
+		// with it, and the user would hear of neither.
+		d.mu.Unlock()
+		return proto.Session{}, errors.New("kerod is shutting down")
+	}
+	d.mu.Unlock()
 	if p.Split != "" {
 		return d.split(p)
 	}
@@ -295,10 +303,20 @@ func (d *Daemon) create(p proto.CreateParams) (proto.Session, error) {
 	s := &session{id: newID(), project: project, name: strings.TrimSpace(p.Name), created: time.Now().UnixMilli(), worktree: wt}
 	pn, err := d.startPane(s.id, p, dir)
 	if err != nil {
+		// The pane never started, so no session holds the worktree: it
+		// goes with the pane, or the next try at the same branch finds
+		// it there already.
+		d.removeWorktree(wt)
 		return proto.Session{}, err
 	}
 	s.panes, s.focus = []*pane{pn}, pn.info.ID
 	d.mu.Lock()
+	if d.ending {
+		d.mu.Unlock()
+		pn.close()
+		d.removeWorktree(wt)
+		return proto.Session{}, errors.New("kerod is shutting down")
+	}
 	i := len(d.sessions)
 	if p.After != "" {
 		if after := d.findSessionLocked(p.After); after != nil {
@@ -317,6 +335,10 @@ func (d *Daemon) create(p proto.CreateParams) (proto.Session, error) {
 // split starts a pane beside another, in its session.
 func (d *Daemon) split(p proto.CreateParams) (proto.Session, error) {
 	d.mu.Lock()
+	if d.ending {
+		d.mu.Unlock()
+		return proto.Session{}, errors.New("kerod is shutting down")
+	}
 	at := d.findPaneLocked(p.Split)
 	var s *session
 	if at != nil {
@@ -328,6 +350,9 @@ func (d *Daemon) split(p proto.CreateParams) (proto.Session, error) {
 		d.mu.Unlock()
 		return proto.Session{}, fmt.Errorf("no session or pane %q", p.Split)
 	}
+	// The pane's own lock: its directory and its size change under it,
+	// as its shell changes directory and the clients resize it.
+	at.mu.Lock()
 	dir := at.info.Dir
 	if p.Cols == 0 {
 		// Half of the pane split, as a start: the view sets the size.
@@ -338,6 +363,7 @@ func (d *Daemon) split(p proto.CreateParams) (proto.Session, error) {
 			p.Cols = max(p.Cols/2, 10)
 		}
 	}
+	at.mu.Unlock()
 	sid, atID := s.id, at.info.ID
 	d.mu.Unlock()
 	if p.Dir != "" {
@@ -351,6 +377,11 @@ func (d *Daemon) split(p proto.CreateParams) (proto.Session, error) {
 		return proto.Session{}, err
 	}
 	d.mu.Lock()
+	if d.ending {
+		d.mu.Unlock()
+		pn.close()
+		return proto.Session{}, errors.New("kerod is shutting down")
+	}
 	if !slices.Contains(d.sessions, s) {
 		d.mu.Unlock()
 		pn.close()

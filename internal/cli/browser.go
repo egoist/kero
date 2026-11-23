@@ -88,14 +88,14 @@ func browserCmd(c *client.Client, st proto.State, args []string) error {
 			return usageErr("kero browser [target] %s takes no arguments", op)
 		}
 	case "text", "html", "snapshot":
-		if len(pos) > 1 || len(pos) == 1 && p.Ref != "" {
+		if len(pos) > 1 || len(pos) == 1 && p.Ref != "" || len(f.rest) > 0 {
 			return usageErr("kero browser [target] %s [selector | --ref ref]", op)
 		}
 		if len(pos) == 1 {
 			p.Selector = pos[0]
 		}
 	case "click":
-		if pos = sel(pos); len(pos) != 1 {
+		if pos = sel(pos); len(pos) != 1 || len(f.rest) > 0 {
 			return usageErr("kero browser [target] click <selector | --ref ref>")
 		}
 		p.Selector = pos[0]
@@ -108,7 +108,7 @@ func browserCmd(c *client.Client, st proto.State, args []string) error {
 			return err
 		}
 	case "wait":
-		if len(pos) > 1 || len(pos) == 1 && p.Ref != "" {
+		if len(pos) > 1 || len(pos) == 1 && p.Ref != "" || len(f.rest) > 0 {
 			return usageErr("kero browser [target] wait [selector | --ref ref] [--text text]")
 		}
 		if len(pos) == 1 {

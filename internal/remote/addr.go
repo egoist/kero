@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"strconv"
 	"strings"
 )
 
@@ -98,10 +99,11 @@ func ParseAddr(s string) (Addr, error) {
 		return Addr{}, fmt.Errorf("%q: kero= is an absolute path of letters, digits, dots, dashes and slashes, as /opt/kero/kero or C:/kero/kero.exe", raw)
 	}
 	if a.Port != "" {
-		for _, r := range a.Port {
-			if r < '0' || r > '9' {
-				return Addr{}, fmt.Errorf("%q: bad port", raw)
-			}
+		// A port is a number of a port: ssh and a URL say "bad port" for
+		// anything else, later and less clearly.
+		n, err := strconv.Atoi(a.Port)
+		if err != nil || n < 1 || n > 65535 {
+			return Addr{}, fmt.Errorf("%q: a port is 1 to 65535", raw)
 		}
 	}
 	return a, nil

@@ -53,6 +53,7 @@ func TestParseAddr(t *testing.T) {
 		}
 	}
 	for _, bad := range []string{"", "ftp://x", "-oProxyCommand=evil", "ssh://-x", "me:secret@host", "http://", "a b", "devbox/path", "http://x?kero=y", "host:port",
+		"host:0", "host:65536", "host:99999", "http://host:0", "host:99999999999999999999",
 		"dev$(id)box", "ssh://a;b@host", "x@host's", "host?kero=relative/kero", "host?kero=/opt/it's/kero", "wsl://Ubuntu;rm", "host?kero=C:", "host?kero=C:kero.exe", "host?kero=C:/a b/kero.exe", "host?kero=1:/kero"} {
 		if a, err := ParseAddr(bad); err == nil {
 			t.Errorf("%q read as %+v", bad, a)
@@ -534,5 +535,17 @@ func TestFlateCloseDuringRead(t *testing.T) {
 		case <-time.After(5 * time.Second):
 			t.Fatal("Read didn't end")
 		}
+	}
+}
+
+// A wsl:// address is of Windows: on another system the install says so,
+// as the connection to it does.
+func TestInstallOfAWslHostIsOfWindows(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows")
+	}
+	_, err := InstallCommand(Addr{Scheme: "wsl", Host: "Ubuntu"}, "", true)
+	if err == nil || !strings.Contains(err.Error(), "Windows") {
+		t.Fatalf("the install command: %v", err)
 	}
 }

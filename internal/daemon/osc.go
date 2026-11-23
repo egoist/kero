@@ -69,6 +69,13 @@ func (o *oscScanner) scan(p []byte, fn func(body []byte), reset func()) {
 					o.begin()
 				} else if b != 0x1b {
 					o.state = 0
+					if b == 'c' {
+						// A full reset that ends a string is a full
+						// reset: what the string held goes, as the
+						// records and the progress it would have
+						// cleared.
+						reset()
+					}
 				}
 			}
 		}
@@ -238,15 +245,36 @@ func (s *pane) handleOSC(body []byte) {
 		// A command ended, with its exit status: the first to, of a pane
 		// started with one, is that command (shellArgs).
 		if !s.awaiting {
-			return
+			// The command ended already: another marker of it does not
+			// change its status, unless this one has a status the last
+			// had not.
+			if !s.ended || s.info.CommandExit != nil {
+				return
+			}
 		}
 		s.awaiting = false
-		code, _, _ := strings.Cut(strings.TrimPrefix(string(body[5:]), ";"), ";")
-		n, _ := strconv.Atoi(code)
-		s.info.CommandExit = &n
+		s.ended = true
+		if n, ok := exitStatus(body[5:]); ok {
+			s.info.CommandExit = &n
+		}
 		s.wake()
 		s.d.changed()
 	}
+}
+
+// exitStatus is the status an OSC 133;D marker gives, when it gives one:
+// a marker may end a command without saying how it ended, and a status
+// that is not a number is no status at all.
+func exitStatus(body []byte) (int, bool) {
+	code, _, _ := strings.Cut(strings.TrimPrefix(string(body), ";"), ";")
+	if code == "" {
+		return 0, false
+	}
+	n, err := strconv.Atoi(code)
+	if err != nil || n < 0 {
+		return 0, false
+	}
+	return n, true
 }
 
 // fullReset forgets every record and the progress, as a full reset (RIS)

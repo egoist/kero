@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path"
@@ -213,8 +214,13 @@ func (r Repo) FileText(ctx context.Context, rev, path, oldPath string) (Text, er
 		return Text{}, err
 	}
 	t.Hash = Hash(nb)
-	ob, err := run(ctx, r.Root, nil, "cat-file", "blob", rev+":"+oldPath)
+	// LC_ALL=C: what notInRev reads is git's English message, which a
+	// translated git would say otherwise, as run takes the user's.
+	ob, err := run(ctx, r.Root, cLocale, "cat-file", "blob", rev+":"+oldPath)
 	if err != nil {
+		if !notInRev(err) {
+			return Text{}, err
+		}
 		ob = nil // added since
 	}
 	switch {
@@ -222,7 +228,11 @@ func (r Repo) FileText(ctx context.Context, rev, path, oldPath string) (Text, er
 		t.Binary = true
 	case len(ob) > maxText || len(nb) > maxText:
 		t.Large = true
-		t.Patch, _ = r.Patch(ctx, rev, "", path)
+		// The patch is the diff of a file too big to show whole: a
+		// failure to make it is a failure, not an empty patch.
+		if t.Patch, err = r.Patch(ctx, rev, "", path); err != nil {
+			return Text{}, err
+		}
 	default:
 		t.Old, t.New = string(ob), string(nb)
 	}
@@ -263,12 +273,46 @@ func (r Repo) Changed(ctx context.Context, rev, path string) (bool, error) {
 	if err != nil && !os.IsNotExist(err) {
 		return false, err
 	}
-	ob, err := run(ctx, r.Root, nil, "cat-file", "blob", rev+":"+path)
-	if err != nil {
+	// LC_ALL=C, as FileText's: what notInRev reads is git's English
+	// message, which a translated git would say otherwise.
+	if _, err := run(ctx, r.Root, cLocale, "cat-file", "blob", rev+":"+path); err != nil {
+		if !notInRev(err) {
+			return false, err
+		}
 		return nb != nil, nil // not in rev: changed when it is now
 	}
-	return !bytes.Equal(ob, nb), nil
+	// The file is in the rev: a diff with it says whether it changed —
+	// the mode too, which the blob's bytes alone do not hold, and after
+	// the filters a checkout runs, which the bytes alone do not see. The
+	// answer is as the diff the user sees: --quiet gives nothing but the
+	// exit, 0 for the same and 1 for changed.
+	if _, err := run(ctx, r.Root, cLocale, "diff", "--quiet", "--no-ext-diff", "--no-textconv", rev, "--", path); err != nil {
+		var exit *exec.ExitError
+		if errors.As(err, &exit) && exit.ExitCode() == 1 {
+			return true, nil
+		}
+		return false, err
+	}
+	return false, nil
 }
+
+// notInRev tells whether err says the path is not in the rev, as git
+// says it in English, which the call that failed was given LC_ALL=C for:
+// "fatal: path 'x' does not exist in 'HEAD'" when the file is not on
+// disk either, and "fatal: path 'x' exists on disk, but not in 'HEAD'"
+// when it is. Any other failure is a failure and not a file that is not
+// there: a timeout, a rev that is gone, a git that is broken.
+func notInRev(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "does not exist in") || strings.Contains(msg, "exists on disk, but not in")
+}
+
+// cLocale is the environment of the git calls whose words are read: it
+// keeps git's messages the English ones, whatever the user's locale is.
+var cLocale = []string{"LC_ALL=C"}
 
 // ErrChanged: the file isn't as it was when read.
 var ErrChanged = errors.New("the file changed since it was shown")
@@ -286,18 +330,24 @@ func (r Repo) Write(path, hash, text string) error {
 
 // WriteFile writes text to a regular file, keeping its mode, when its
 // content still hashes to hash: one written meanwhile is left as it is
-// (ErrChanged).
+// (ErrChanged). A file that is not there is the empty content: one
+// written over a file that was deleted since it was read does not hash
+// to what was read, and is asked about, as one changed is.
 func WriteFile(full, hash, text string) error {
 	fi, err := os.Lstat(full)
-	if err != nil {
+	if err != nil && !os.IsNotExist(err) {
 		return err
 	}
-	if !fi.Mode().IsRegular() {
-		return errors.New("not a regular file")
-	}
-	b, err := os.ReadFile(full)
-	if err != nil {
-		return err
+	var b []byte
+	perm := fs.FileMode(0o644)
+	if err == nil {
+		if !fi.Mode().IsRegular() {
+			return errors.New("not a regular file")
+		}
+		if b, err = os.ReadFile(full); err != nil {
+			return err
+		}
+		perm = fi.Mode().Perm()
 	}
 	if Hash(b) != hash {
 		return ErrChanged
@@ -311,7 +361,7 @@ func WriteFile(full, hash, text string) error {
 		err = cerr
 	}
 	if err == nil {
-		err = os.Chmod(tmp.Name(), fi.Mode().Perm())
+		err = os.Chmod(tmp.Name(), perm)
 	}
 	if err == nil {
 		err = os.Rename(tmp.Name(), full)
@@ -320,6 +370,80 @@ func WriteFile(full, hash, text string) error {
 		os.Remove(tmp.Name())
 	}
 	return err
+}
+
+// Mode returns the mode path has in rev, as git's tree holds it: the
+// permission bits a regular file of that tree is checked out with, and
+// 0 when the rev has no regular file there.
+func (r Repo) Mode(ctx context.Context, rev, path string) (fs.FileMode, error) {
+	if _, err := r.local(path); err != nil {
+		return 0, err
+	}
+	// "<mode> <type> <object>\t<path>": the mode is the first word of
+	// the one line of the file asked for, and there is no line when the
+	// rev has no file there.
+	out, err := run(ctx, r.Root, cLocale, "ls-tree", rev, "--", path)
+	if err != nil {
+		return 0, err
+	}
+	line, _, _ := strings.Cut(strings.TrimSpace(string(out)), "\n")
+	mode, _, _ := strings.Cut(line, " ")
+	switch mode {
+	case "100644":
+		return 0o644, nil
+	case "100755":
+		return 0o755, nil
+	}
+	return 0, nil // not a regular file of the rev: a symlink or a submodule
+}
+
+// Revert puts a file back as rev has it: its content as hash says it was
+// shown, and its execute bit as the rev's tree holds it — a file made to
+// run, and made not to, runs as the rev says again. The rest of the
+// mode is not git's to keep, and stays as the file has it. A file the
+// rev does not have is taken away; one the worktree does not have, the
+// rev's, is written anew.
+func (r Repo) Revert(ctx context.Context, rev, path, hash, text string) error {
+	full, err := r.local(path)
+	if err != nil {
+		return err
+	}
+	// LC_ALL=C, as Changed's: what notInRev reads is git's English
+	// message, which a translated git would say otherwise.
+	if _, err := run(ctx, r.Root, cLocale, "cat-file", "blob", rev+":"+path); err != nil {
+		if !notInRev(err) {
+			return err
+		}
+		// The rev has no file there: the change is the file's
+		// existence, and the revert takes the file away — of the
+		// content it was shown at, for one changed meanwhile is
+		// asked about, as a write is.
+		b, rerr := os.ReadFile(full)
+		if rerr != nil && !os.IsNotExist(rerr) {
+			return rerr
+		}
+		if Hash(b) != hash {
+			return ErrChanged
+		}
+		if err := os.Remove(full); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+		return nil
+	}
+	if err := r.Write(path, hash, text); err != nil {
+		return err
+	}
+	mode, err := r.Mode(ctx, rev, path)
+	if err != nil || mode == 0 {
+		return err
+	}
+	fi, err := os.Stat(full)
+	if err != nil {
+		return err
+	}
+	// Git records only the execute bit: take it from the rev, and leave
+	// the rest of the file's mode as it is.
+	return os.Chmod(full, fi.Mode().Perm()&^0o111|mode&0o111)
 }
 
 // local returns the file of the worktree a slash-separated path names,

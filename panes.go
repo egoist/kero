@@ -78,13 +78,106 @@ func (a *App) setFocus(s *proto.Session, pane string) {
 	a.call(s.ID, "focus", proto.FocusParams{Session: s.ID, Pane: pane}, nil)
 }
 
+// focusPane gives the keyboard to a pane, and remembers which pane has
+// it: a pane that goes away takes the keyboard with it (#390).
+func (a *App) focusPane(id string) {
+	a.keyPane = id
+	a.paneRef(id).Focus()
+}
+
+// focusGone gives the keyboard to the pane the user is in, when the pane
+// that had it is gone: a pane whose program exited, and that kerod closed,
+// takes the keyboard with it (#390).
+func (a *App) focusGone() {
+	// The panes that are gone leave the focus to the pane that took their
+	// place: kerod's, which the app follows.
+	for i := range a.st.Sessions {
+		s := &a.st.Sessions[i]
+		id := a.focus[s.ID]
+		if id == "" || s.PaneByID(id) != nil {
+			continue
+		}
+		if p := s.FocusPane(); p != nil {
+			a.focus[s.ID] = p.ID
+		} else {
+			delete(a.focus, s.ID)
+		}
+	}
+	if a.keyPane == "" || a.paneAlive(a.keyPane) {
+		return
+	}
+	// The keyboard the pane that is gone had goes to the pane the user is
+	// in now.
+	a.keyPane = ""
+	if s := a.session(a.selected); s != nil {
+		if id := a.focusOf(s); id != "" {
+			a.focusPane(id)
+		}
+	}
+}
+
+// paneAlive tells whether a pane is one the app knows.
+func (a *App) paneAlive(id string) bool {
+	for i := range a.st.Sessions {
+		if a.st.Sessions[i].PaneByID(id) != nil {
+			return true
+		}
+	}
+	return false
+}
+
 // focusTerminal gives the keyboard to the pane the user is in.
 func (a *App) focusTerminal() {
 	if s := a.session(a.selected); s != nil {
 		if id := a.focusOf(s); id != "" {
-			a.paneRef(id).Focus()
+			a.focusPane(id)
 		}
 		a.claimShown()
+	}
+}
+
+// keepsFocus tells whether a drag should leave the keyboard in the pane
+// the user is in. A browser's page cannot hold it while a button is
+// down: given the keyboard back, it takes the mouse capture with it, and
+// the drag ends (#394). So the drag gives the keyboard up, and
+// restoreFocus gives it back when the drag is over.
+func (a *App) keepsFocus() bool {
+	s := a.session(a.selected)
+	if s == nil {
+		return true
+	}
+	id := a.focusOf(s)
+	return id == "" || !a.isBrowser(id)
+}
+
+// restoreFocus gives the pane the user is in the keyboard a drag took.
+func (a *App) restoreFocus() {
+	if s := a.session(a.selected); s != nil {
+		if id := a.focusOf(s); id != "" {
+			a.paneRef(id).Focus()
+		}
+	}
+}
+
+// handlePress tells that a drag handle has the pointer, and gives the pane
+// the user is in its keyboard back when the handle lets it go. A browser's
+// page cannot hold the keyboard while the button is down (#394): the press
+// takes it, and a click without a drag must not take it for good (#398).
+func (a *App) handlePress(key string, h ui.Element) {
+	// The press lasts wherever the pointer goes, so a drag on its way
+	// does not give the keyboard back before it is over.
+	if b, ok := h.PressedButton(); ok && b == 0 {
+		a.pressHandle = key
+		return
+	}
+	if a.pressHandle != key {
+		return
+	}
+	a.pressHandle = ""
+	if !a.keepsFocus() {
+		// The pane the user is in takes the keyboard back, which the
+		// press took from it.
+		a.restoreFocus()
 	}
 }
 
@@ -140,8 +233,12 @@ func (a *App) layoutNode(c *ui.Context, pal *palette, bar ui.TitleBar, shown flo
 
 // divider is the gap between two panes, which a drag moves.
 func (a *App) divider(c *ui.Context, pal *palette, s *proto.Session, l *proto.Layout, key string) {
-	// A drag leaves the keyboard in the pane the user is in.
-	d := ui.Box(c.Key("div")).Shrink(0).KeepFocus()
+	// A drag leaves the keyboard in the pane the user is in, unless that
+	// pane is a browser: its page cannot hold it while the button is down.
+	d := ui.Box(c.Key("div")).Shrink(0)
+	if a.keepsFocus() {
+		d.KeepFocus()
+	}
 	if l.Row {
 		d.Width(paneGap).Cursor(ui.CursorResizeColumn)
 	} else {
@@ -188,6 +285,10 @@ func (a *App) divider(c *ui.Context, pal *palette, s *proto.Session, l *proto.La
 		l.Ratio = 0.5
 		a.call(s.ID, "layout", proto.LayoutParams{Session: s.ID, Layout: s.Layout.Clone()}, nil)
 	}
+	// The handle has the pointer, or had it and let it go: the pane the
+	// user is in takes the keyboard back, which the press took from it
+	// (#398).
+	a.handlePress(key, d)
 }
 
 // paneCard is a pane: a card with a header and the terminal. top, left and
@@ -216,7 +317,7 @@ func (a *App) paneCard(c *ui.Context, pal *palette, bar ui.TitleBar, shown float
 	// focuses the pane, rather than going on to what drags the window.
 	if card.Pressed() && !focused {
 		a.setFocus(s, p.ID)
-		a.paneRef(p.ID).Focus()
+		a.focusPane(p.ID)
 	}
 
 	// Another pane dragged over this one: where it would go.
@@ -296,7 +397,7 @@ func (a *App) followMouse(c *ui.Context, s *proto.Session, p *proto.Pane, card u
 	a.hoverPane = p.ID
 	if moved && !focused {
 		a.setFocus(s, p.ID)
-		a.paneRef(p.ID).Focus()
+		a.focusPane(p.ID)
 	}
 }
 
@@ -405,7 +506,7 @@ func (a *App) movePane(sid, pane, target string, zone dropZone) {
 	a.arrived[pane] = true
 	s.Zoomed = ""
 	a.setFocus(s, pane)
-	a.paneRef(pane).Focus()
+	a.focusPane(pane)
 	a.call(sid, "layout", proto.LayoutParams{Session: sid, Layout: s.Layout.Clone()}, nil)
 }
 
@@ -422,7 +523,7 @@ func (a *App) paneHeader(c *ui.Context, pal *palette, bar ui.TitleBar, shown flo
 	h := ui.Row(c.Key("hdr")).Height(headerH).Shrink(0).AlignItems(ui.Center).Padding(0, 10, 0, pad).Gap(8)
 	if h.Pressed() && !focused {
 		a.setFocus(s, p.ID)
-		a.paneRef(p.ID).Focus()
+		a.focusPane(p.ID)
 	}
 	h.Children(func() {
 		if top && left {
@@ -724,7 +825,7 @@ func (a *App) split(s *proto.Session, p proto.CreateParams) {
 				if !a.isBrowser(ns.Focus) {
 					// A browser takes the keyboard in its address bar, or
 					// its page once it has one.
-					a.paneRef(ns.Focus).Focus()
+					a.focusPane(ns.Focus)
 				}
 			}
 		})
@@ -815,7 +916,7 @@ func (a *App) zoomPane(s *proto.Session, pane string) {
 		a.setFocus(s, pane)
 	}
 	a.call(s.ID, "zoom", proto.FocusParams{Session: s.ID, Pane: pane}, nil)
-	a.paneRef(pane).Focus()
+	a.focusPane(pane)
 }
 
 // focusDirection moves into the pane next to the focused one.
@@ -826,7 +927,7 @@ func (a *App) focusDirection(dir string) {
 	}
 	if n := s.Layout.Neighbor(a.focusOf(s), dir); n != "" {
 		a.setFocus(s, n)
-		a.paneRef(n).Focus()
+		a.focusPane(n)
 	}
 }
 
@@ -845,7 +946,7 @@ func (a *App) cyclePane(d int) {
 	}
 	n := order[(i+d+len(order))%len(order)]
 	a.setFocus(s, n)
-	a.paneRef(n).Focus()
+	a.focusPane(n)
 }
 
 func itoa(n int) string {

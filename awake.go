@@ -19,8 +19,9 @@ const (
 )
 
 // keepAwake holds the computer awake, or lets it sleep, as the mode and
-// this machine's sessions ask: a session of another host's working
-// keeps that machine busy, not this one.
+// this machine's sessions ask, and its display on while it holds, if Keep
+// display on asks: a session of another host's working keeps that
+// machine busy, not this one.
 func (a *App) keepAwake() {
 	hold := false
 	switch a.set.KeepAwake {
@@ -29,7 +30,7 @@ func (a *App) keepAwake() {
 	case awakeAgents:
 		hold = anyWorking(a.st.Sessions, func(id string) bool { return !a.hostOf(id).remote() })
 	}
-	a.awake.hold(hold)
+	a.awake.hold(hold, a.set.KeepDisplayOn)
 }
 
 // anyWorking tells whether a pane of the sessions local takes is Working.
@@ -88,6 +89,14 @@ func (a *App) setKeepAwake(mode string) {
 	a.applySettings(s)
 }
 
+// setKeepDisplayOn chooses whether the display stays on while the
+// computer is kept awake, and saves it.
+func (a *App) setKeepDisplayOn(on bool) {
+	s := a.set
+	s.KeepDisplayOn = on
+	a.applySettings(s)
+}
+
 // awakeCommands are the palette's commands of Keep computer awake: one for
 // each mode but the one it is in.
 func (a *App) awakeCommands() []paletteItem {
@@ -104,7 +113,8 @@ func (a *App) awakeCommands() []paletteItem {
 }
 
 // awakeTrayItem is the tray menu's submenu of Keep computer awake, whose
-// items pick the mode.
+// items pick the mode, and, where a hold can keep the display on, turn
+// Keep display on on or off, while a mode keeps the computer awake.
 func (a *App) awakeTrayItem() *mygo.MenuItem {
 	var modes []*mygo.MenuItem
 	for _, mode := range settings.KeepAwakeModes {
@@ -113,6 +123,18 @@ func (a *App) awakeTrayItem() *mygo.MenuItem {
 			Type:    mygo.MenuItemRadio,
 			Checked: a.set.KeepAwake == mode,
 			Click:   func(*mygo.MenuItem, *mygo.Window) { a.update(func() { a.setKeepAwake(mode) }) },
+		})
+	}
+	if awakeDisplay {
+		modes = append(modes, mygo.Separator(), &mygo.MenuItem{
+			Label:    locales.AwakeDisplay(),
+			Type:     mygo.MenuItemCheckbox,
+			Checked:  a.set.KeepDisplayOn,
+			Disabled: a.set.KeepAwake == awakeOff,
+			Click: func(it *mygo.MenuItem, _ *mygo.Window) {
+				on := it.Checked
+				a.update(func() { a.setKeepDisplayOn(on) })
+			},
 		})
 	}
 	return &mygo.MenuItem{Label: locales.AwakeTitle(), Submenu: modes}

@@ -1,12 +1,65 @@
 package cli
 
 import (
+	"errors"
+	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
+
+	"kero/internal/client"
 )
+
+// A host's kerod, whose state could not be read, is said: "0 sessions"
+// would tell the user theirs were gone.
+func TestHostsCheckSaysAFailedState(t *testing.T) {
+	t.Setenv("KERO_CONFIG", filepath.Join(t.TempDir(), "config"))
+	sock, _ := fakeDaemon(t)
+	t.Setenv("KERO_SOCKET", sock)
+	failCall(t, "state", "the state is gone")
+	c, err := client.ConnectVia(client.Local{NoStart: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	out := captureStdout(t, func() { hostDaemonState(c) })
+	if !strings.Contains(out, "the state is gone") {
+		t.Errorf("no word of the state that failed:\n%s", out)
+	}
+	if strings.Contains(out, "sessions") {
+		t.Errorf("it counted the sessions it has none of:\n%s", out)
+	}
+}
+
+// A host's kerod that cannot be talked to fails the command: the local
+// `kero daemon status` exits 4 for the same trouble, and a script sees
+// the same exit status either way.
+func TestRemoteDaemonStatusFailsWhenTheDaemonCannotBeReached(t *testing.T) {
+	_, err := remoteDaemonConnect(func() (*client.Client, error) { return nil, client.ErrVersion }, "build")
+	if err == nil {
+		t.Fatal("no error")
+	}
+	if !errors.Is(err, errUnreachable) {
+		t.Fatalf("the error is not one of an unreachable daemon: %v", err)
+	}
+	if code := exitCode(err); code != 4 {
+		t.Errorf("the exit status is %d, want 4", code)
+	}
+	if !strings.Contains(err.Error(), "another version") {
+		t.Errorf("no word of the version that differs: %v", err)
+	}
+	// A daemon that is there but answers nothing is unreachable too.
+	_, err = remoteDaemonConnect(func() (*client.Client, error) { return nil, errors.New("the link broke") }, "build")
+	if !errors.Is(err, errUnreachable) {
+		t.Fatalf("the error is not one of an unreachable daemon: %v", err)
+	}
+}
 
 func TestSplitHost(t *testing.T) {
 	t.Setenv("KERO_HOST", "")
+	// The test runs where it runs: inside a pane of Kero, $KERO_PANE is
+	// set, and $KERO_HOST gives way to the pane's machine.
+	t.Setenv("KERO_PANE", "")
 	for _, c := range []struct {
 		args []string
 		host string
@@ -63,6 +116,32 @@ func TestRemoteRepoPath(t *testing.T) {
 	}
 	if _, err := repoPath("/srv/app", "/etc/passwd", true); err == nil {
 		t.Error("a path outside the worktree passes")
+	}
+	// The worktree itself is every file of it, as it is of this machine.
+	for _, root := range []string{"/srv/app", `C:\srv\app`} {
+		got, err := repoPath(root, root, true)
+		if err != nil || got != "" {
+			t.Errorf("repoPath(%q, %q) = %q, %v; want the empty path", root, root, got, err)
+		}
+	}
+	// A Windows host's worktree root has backslashes, and a path given of
+	// it may be a Windows one.
+	for in, want := range map[string]string{
+		`src\a.go`:            "src/a.go",
+		`C:\srv\app\src\a.go`: "src/a.go",
+		`C:/srv/app/src/a.go`: "src/a.go",
+	} {
+		got, err := repoPath(`C:\srv\app`, in, true)
+		if err != nil || got != want {
+			t.Errorf("repoPath(%q) = %q, %v; want %q", in, got, err, want)
+		}
+	}
+	// A Windows path of another tree is absolute as any other, and is
+	// not of the worktree.
+	for _, in := range []string{`C:\etc\passwd`, "C:/etc/passwd", `D:\srv\app\src\a.go`} {
+		if got, err := repoPath(`C:\srv\app`, in, true); err == nil {
+			t.Errorf("repoPath(%q) = %q, no error; want an error", in, got)
+		}
 	}
 }
 

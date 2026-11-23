@@ -31,16 +31,25 @@ func openPath(path string) { mygo.Shell.OpenPath(path) }
 func revealPath(path string) { mygo.Shell.ShowItemInFolder(path) }
 
 // openTextFile opens a text file, as the configuration, which has no
-// extension to tell its app by, in the text editor.
-func openTextFile(path string) {
+// extension to tell its app by, in the text editor. It says when the
+// editor could not be started.
+func openTextFile(path string) error {
+	var cmd *exec.Cmd
 	switch runtime.GOOS {
 	case "darwin":
-		exec.Command("/usr/bin/open", "-t", path).Start()
+		cmd = exec.Command("/usr/bin/open", "-t", path)
 	case "windows":
-		exec.Command("notepad.exe", path).Start()
+		cmd = exec.Command("notepad.exe", path)
 	default:
-		exec.Command("xdg-open", path).Start()
+		cmd = exec.Command("xdg-open", path)
 	}
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	// The editor is the user's to keep: wait for it aside, so that the
+	// process is reaped and its resources are released when it exits.
+	go cmd.Wait()
+	return nil
 }
 
 // ownControls tells that Kero draws the window controls itself: on

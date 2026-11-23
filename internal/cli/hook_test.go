@@ -125,6 +125,36 @@ func TestHookRefusesBadSettings(t *testing.T) {
 	}
 }
 
+// CodeBuddy Code has a skill and a hook of its own: it is not one of
+// the agents that share a directory with the others.
+func TestCodeBuddyIsNotAmongTheAgents(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("KERO_HOME", filepath.Join(home, "kero"))
+	for _, env := range []string{"CLAUDE_CONFIG_DIR", "CODEX_HOME", "PI_CODING_AGENT_DIR", "XDG_CONFIG_HOME", "CODEBUDDY_CONFIG_DIR"} {
+		t.Setenv(env, "")
+	}
+	if err := os.MkdirAll(filepath.Join(home, ".codebuddy"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	names := func(agent string) string {
+		var out []string
+		for _, it := range agentHooks(agent) {
+			out = append(out, it.name())
+		}
+		return strings.Join(out, ",")
+	}
+	if got := names("agents"); strings.Contains(got, "codebuddy") {
+		t.Errorf("the agents that share a directory include codebuddy: %s", got)
+	}
+	if got := names(""); !strings.Contains(got, "codebuddy") {
+		t.Errorf("every agent misses codebuddy: %s", got)
+	}
+	if got := names("codebuddy"); got != "codebuddy" {
+		t.Errorf("codebuddy alone = %s", got)
+	}
+}
+
 // Pi's and OpenCode's plugins go in when the agent is installed, run
 // Kero's own kero command, and come out whole.
 func TestAgentPlugins(t *testing.T) {
@@ -177,6 +207,66 @@ func TestAgentPlugins(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(home, ".pi", "agent", "extensions")); err != nil {
 		t.Fatal("Pi's extensions directory went with Kero's extension")
+	}
+}
+
+// A settings file that is a symlink, as of a dotfiles repo, is written
+// through: the symlink stays, and the file it points to changes.
+func TestHookInstallThroughASymlink(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("KERO_HOME", filepath.Join(home, "kero"))
+	dir := t.TempDir()
+	target := filepath.Join(dir, "dotfiles", "settings.json")
+	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(target, []byte("{}"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(dir, "link.json")
+	if err := os.Symlink(filepath.Join("dotfiles", "settings.json"), link); err != nil {
+		t.Skip(err) // Windows without the privilege
+	}
+	h := agentHook{"claude", link}
+	if err := h.install(); err != nil {
+		t.Fatal(err)
+	}
+	fi, err := os.Lstat(link)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fi.Mode()&os.ModeSymlink == 0 {
+		t.Fatal("the symlink was taken away by a plain file")
+	}
+	if got := read(t, target); !strings.Contains(got, "hook claude") {
+		t.Fatalf("the file it points to did not change:\n%s", got)
+	}
+}
+
+// A hook of another program is not kero's, even when its name has
+// "kero" in it: the user's own hook is not kero's to take away.
+func TestHookOfAnotherProgram(t *testing.T) {
+	h := agentHook{agent: "claude"}
+	for _, c := range []string{
+		"'/usr/local/bin/kero' hook claude",
+		"/usr/local/bin/kero hook claude",
+		"kero hook claude",
+		`"C:\Program Files\Kero\bin\kero.exe" hook claude`,
+		`cmd /d /c "C:\Program Files\Kero\bin\kero.exe" hook claude`,
+	} {
+		if !h.ours(c) {
+			t.Errorf("%q is kero's hook", c)
+		}
+	}
+	for _, c := range []string{
+		"/usr/local/bin/kerouac hook claude",
+		"/opt/kero-notes/hook claude",
+		"my-kero hook claude",
+		"kero hook codex",
+	} {
+		if h.ours(c) {
+			t.Errorf("%q is not kero's hook", c)
+		}
 	}
 }
 

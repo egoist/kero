@@ -147,6 +147,14 @@ func skillCmd(args []string) error {
 		sub = f.pos[0]
 	}
 	agent := strings.ToLower(f.vals["agent"])
+	if agent != "" {
+		// An agent skillDirs doesn't know gives every agent's
+		// directory, so a typo would install the skill everywhere; an
+		// agent it knows gives its own alone.
+		if dirs := skillDirs(agent); len(dirs) != 1 {
+			return usageErr("no agent %q (kero skill setup --agent claude|codebuddy|codex|pi|omp|pig|opencode|agents)", agent)
+		}
+	}
 	dirs, hooks := skillDirs(agent), hooksFor(agent)
 	switch sub {
 	case "show":

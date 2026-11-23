@@ -2,6 +2,7 @@ package settings
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -89,7 +90,10 @@ func numberKey(name, doc string, get func(*Settings) float64, set func(*Settings
 		get: func(s *Settings) []string { return []string{strconv.FormatFloat(get(s), 'f', -1, 64)} },
 		set: func(s *Settings, v []string) error {
 			n, err := strconv.ParseFloat(v[len(v)-1], 64)
-			if err != nil {
+			// NaN and the infinities are no numbers for a size or a
+			// limit: a check of theirs would pass them through, NaN
+			// less than nothing and more than anything at once.
+			if err != nil || math.IsNaN(n) || math.IsInf(n, 0) {
 				return fmt.Errorf("%q is not a number", v[len(v)-1])
 			}
 			set(s, n)
@@ -185,8 +189,9 @@ var keys = []key{
 	boolKey("session-history", "list the coding agents' ended conversations in the sidebar, to resume or archive", func(s *Settings) *bool { return &s.SessionHistory }),
 	choiceKey("macos-show-app-icon", "where Kero's icon shows; closing the window keeps Kero running in the menu bar while it shows there. Windows and Linux always show it in the notification area",
 		func(s *Settings) *string { return &s.AppIcon }, AppIcons...),
-	choiceKey("keep-computer-awake", "keep this computer from sleeping: never; as long as Kero runs; or while an agent on it works. Closing a Mac's lid still sleeps it",
+	choiceKey("keep-computer-awake", "keep this computer from sleeping: never; as long as Kero runs; or while an agent on it works. On AC power a Mac stays awake with its lid closed. On battery, closing the lid still sleeps it",
 		func(s *Settings) *string { return &s.KeepAwake }, KeepAwakeModes...),
+	boolKey("keep-display-on", "while keep-computer-awake keeps this computer awake, keep its display on too, for agents that look at the screen. macOS and Windows", func(s *Settings) *bool { return &s.KeepDisplayOn }),
 
 	choiceKey("window-theme", "the app's appearance", func(s *Settings) *string { return &s.Appearance }, "system", "light", "dark"),
 	choiceKey("language", "the app's language; system follows the system's", func(s *Settings) *string { return &s.Language }, append([]string{"system"}, Languages...)...),
@@ -268,7 +273,7 @@ var keys = []key{
 			val := v[len(v)-1]
 			n := func(t string) (float32, error) {
 				f, err := strconv.ParseFloat(strings.TrimSpace(t), 32)
-				if err != nil {
+				if err != nil || math.IsNaN(f) || math.IsInf(f, 0) {
 					return 0, fmt.Errorf("%q is not a number", strings.TrimSpace(t))
 				}
 				return float32(min(max(f, MinScrollMultiplier), MaxScrollMultiplier)), nil
@@ -305,12 +310,24 @@ var keys = []key{
 	{name: "env", doc: "added to every pane's environment, as NAME=value; repeat it", list: true,
 		get: func(s *Settings) []string { return slices.Clone(s.Env) },
 		set: func(s *Settings, v []string) error {
+			// Like the other lists: one bad value is said at the end and
+			// does not cost the ones after it, and an empty line clears
+			// the list.
 			s.Env = nil
+			var bad []string
 			for _, kv := range v {
+				if strings.TrimSpace(kv) == "" {
+					s.Env = nil
+					continue
+				}
 				if !strings.Contains(kv, "=") {
-					return fmt.Errorf("%q is not NAME=value", kv)
+					bad = append(bad, fmt.Sprintf("%q is not NAME=value", kv))
+					continue
 				}
 				s.Env = append(s.Env, kv)
+			}
+			if bad != nil {
+				return fmt.Errorf("%s", strings.Join(bad, "; "))
 			}
 			return nil
 		}},
@@ -421,7 +438,7 @@ var keys = []key{
 		}},
 	{name: "keybind", doc: "<keys>=<action>, over the defaults, as cmd+shift+d=pane.split.down; <keys>=unbind frees keys; see kero actions", list: true,
 		get: func(s *Settings) []string {
-			var out []string
+			var binds, frees []string
 			for _, a := range actions.All {
 				k, ok := s.Shortcuts[a.ID]
 				if !ok {
@@ -429,13 +446,17 @@ var keys = []key{
 				}
 				if k == "" {
 					if a.Keys != "" {
-						out = append(out, configKeys(a.Keys)+"=unbind")
+						frees = append(frees, configKeys(a.Keys)+"=unbind")
 					}
 					continue
 				}
-				out = append(out, configKeys(k)+"="+a.ID)
+				binds = append(binds, configKeys(k)+"="+a.ID)
 			}
-			return out
+			// The freeing of keys comes before the binding that takes
+			// them: the file is read in the order it has, as Ghostty
+			// reads its own, and a freeing that came last would take
+			// the keys from the action that had just taken them.
+			return append(frees, binds...)
 		},
 		set: func(s *Settings, v []string) error {
 			s.Shortcuts = nil
@@ -627,9 +648,14 @@ func parse(data string) (Settings, []string) {
 	return s, problems
 }
 
+// quote wraps a value the reader would take wrong: one with a # in it,
+// one with spaces at its edges, an empty one. The quotes are
+// delimiters — the reader strips them again — so the value goes in as
+// it lies: strconv.Quote escaped a backslash, which the reader never
+// unescaped, so a value with a # in it gained one on every save.
 func quote(v string) string {
 	if v == "" || strings.ContainsAny(v, "#") || strings.TrimSpace(v) != v {
-		return strconv.Quote(v)
+		return `"` + v + `"`
 	}
 	return v
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -363,10 +364,13 @@ func (d *Daemon) gitRevert(p proto.GitWriteParams) (string, error) {
 	if !changed {
 		return "", fmt.Errorf("%s has no changes to revert", p.Path)
 	}
-	if err := r.Write(p.Path, p.Hash, p.Text); err != nil {
+	if err := r.Revert(ctx, rev, p.Path, p.Hash, p.Text); err != nil {
 		return "", err
 	}
-	d.git.poke(r.Root)
+	// The panes of the file's worktree show their changes anew, as with
+	// a file written: a refresh is asked of a pane's own directory,
+	// which the worktree's root is not.
+	d.pokeAt(filepath.Join(r.Root, filepath.FromSlash(p.Path)))
 	return git.Hash([]byte(p.Text)), nil
 }
 

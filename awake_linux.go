@@ -5,12 +5,17 @@ import (
 	"syscall"
 )
 
+// awakeDisplay tells that a hold can keep the display on too: not here,
+// where the desktop, not systemd, turns the display off.
+const awakeDisplay = false
+
 // awakeHold keeps the machine from sleeping while it holds, by systemd's
 // inhibitor lock on idle and sleep, which a sleep under systemd-inhibit
 // holds until it is killed or Kero exits, as the kernel then kills it.
+// It leaves the display to the desktop.
 type awakeHold struct{ cmd *exec.Cmd }
 
-func (w *awakeHold) hold(on bool) {
+func (w *awakeHold) hold(on, _ bool) {
 	if on == (w.cmd != nil) {
 		return
 	}

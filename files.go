@@ -440,7 +440,7 @@ func (a *App) showFile(fv *fileView, data []byte) {
 	fv.hash = git.Hash(data)
 	showFileText(fv, string(data))
 	if first {
-		a.restoreEdit(sideFiles, a.hostOf(fv.pane), fv.path, fv.st.Buffer, &fv.hash)
+		a.restoreEdit(sideFiles, a.hostOf(fv.pane), "", fv.path, fv.st.Buffer, &fv.hash)
 	}
 }
 

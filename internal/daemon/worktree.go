@@ -73,8 +73,13 @@ func (d *Daemon) addWorktree(dir, branch, base string) (*proto.Worktree, error) 
 		}
 	}
 	if proto.Within(path, main) {
-		if err := r.Exclude("/" + strings.SplitN(worktreeDir, "/", 2)[0] + "/"); err != nil {
-			d.log.Printf("excluding %s: %v", worktreeDir, err)
+		// The worktrees of a repository's own sessions are not its
+		// changes: the folder they went into is excluded, wherever the
+		// user put them.
+		if top := topFolder(main, path); top != "" {
+			if err := r.Exclude("/" + top + "/"); err != nil {
+				d.log.Printf("excluding %s: %v", top, err)
+			}
 		}
 	}
 	if err := r.AddWorktree(ctx, path, branch, from); err != nil {
@@ -82,6 +87,19 @@ func (d *Daemon) addWorktree(dir, branch, base string) (*proto.Worktree, error) 
 	}
 	d.log.Printf("worktree %s added on %s from %q", path, branch, from)
 	return &proto.Worktree{Path: path, Branch: branch, Base: from, Main: main}, nil
+}
+
+// removeWorktree removes a worktree that no session holds: the one a
+// session's pane never started in goes with it.
+func (d *Daemon) removeWorktree(wt *proto.Worktree) {
+	if wt == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	if err := git.RemoveWorktree(ctx, wt.Main, wt.Path, wt.Branch, wt.Base); err != nil {
+		d.log.Printf("worktree %s stays: %v", wt.Path, err)
+	}
 }
 
 // worktreePath is where a worktree for branch goes: in the repository's
@@ -97,6 +115,21 @@ func worktreePath(main, branch, dir string) string {
 		return filepath.Join(dir, filepath.Base(main), name)
 	}
 	return filepath.Join(main, filepath.FromSlash(worktreeDir), name)
+}
+
+// topFolder is the name of the folder of the repository that holds the
+// path, as git takes it for an exclude: the first of the path's parts,
+// when the path is in the repository.
+func topFolder(main, path string) string {
+	rel, err := filepath.Rel(main, path)
+	if err != nil {
+		return ""
+	}
+	top, _, _ := strings.Cut(filepath.ToSlash(rel), "/")
+	if top == "" || top == "." || top == ".." {
+		return ""
+	}
+	return top
 }
 
 // checkWorktree tells what removing a session's worktree would lose.

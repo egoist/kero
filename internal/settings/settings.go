@@ -38,6 +38,7 @@ type Settings struct {
 	QuitEndsSessions  bool   `json:"quitEndsSessions"`  // quitting ends this machine's sessions and kerod, as Quit and End All does
 	AppIcon           string `json:"appIcon"`           // macOS: AppIcons; elsewhere the icon is always in the notification area
 	KeepAwake         string `json:"keepAwake"`         // one of KeepAwakeModes: while the computer is kept from sleeping
+	KeepDisplayOn     bool   `json:"keepDisplayOn"`     // while it is, its display stays on too: macOS and Windows
 
 	// Appearance
 	Appearance string `json:"appearance"` // "system", "light" or "dark"
@@ -360,8 +361,18 @@ func Save(s Settings) error {
 	if err := write(s); err != nil {
 		return err
 	}
-	c := clone(s)
-	cache, problems = &c, nil
+	// What the file holds now, not what was asked of it: format keeps
+	// the lines kero does not know, and one it still gets wrong is
+	// still a problem — saying none here would leave the file wrong
+	// with nothing to show for it, and the next Load takes the cache
+	// and would not look again.
+	if b, err := os.ReadFile(Path()); err == nil {
+		c, probs := parse(string(b))
+		cache, problems = &c, probs
+	} else {
+		c := clone(s)
+		cache, problems = &c, nil
+	}
 	if st, err := os.Stat(Path()); err == nil {
 		mtime = st.ModTime().UnixNano()
 	}

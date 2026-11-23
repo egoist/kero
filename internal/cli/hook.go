@@ -216,9 +216,28 @@ func anyShell(path string) string {
 	return filepath.ToSlash(path)
 }
 
-// ours tells kero's hook commands, of this kero or another's.
+// ours tells kero's hook commands, of this kero or another's: the
+// command of a program named kero, for this agent. A command of another
+// program that has "kero" in its name is not kero's, and the user's own
+// hook is not kero's to take away.
 func (h agentHook) ours(command string) bool {
-	return strings.Contains(command, "kero") && strings.HasSuffix(command, " hook "+h.agent)
+	suffix := " hook " + h.agent
+	if !strings.HasSuffix(command, suffix) {
+		return false
+	}
+	// The program the command names, without the quotes a shell reads
+	// its path in: the name of the program is what tells kero's own
+	// command from another's.
+	program := strings.Map(func(r rune) rune {
+		if r == '"' || r == '\'' {
+			return -1
+		}
+		return r
+	}, command[:len(command)-len(suffix)])
+	if i := strings.LastIndexAny(program, `/\`); i >= 0 {
+		program = program[i+1:]
+	}
+	return program == "kero" || program == "kero.exe"
 }
 
 // state is "current", "outdated" (kero's hook, of another command line)
@@ -513,10 +532,21 @@ func agentHooks(agent string) []integration {
 	var out []integration
 	for _, a := range all {
 		switch {
-		case agent == a.agent,
-			a.agent == "claude" && agent == "",
-			a.agent != "claude" && (agent == "" || agent == "agents") && installed(a.dir):
+		case agent == a.agent:
+			// The agent that is named.
 			out = append(out, a.it)
+		case agent == "agents":
+			// The agents that share a skill directory: not Claude Code's
+			// and not CodeBuddy Code's, which have one of their own.
+			if a.agent != "claude" && a.agent != "codebuddy" && installed(a.dir) {
+				out = append(out, a.it)
+			}
+		case agent == "":
+			// Every agent that is there, and Claude Code's, which Kero
+			// talks to most.
+			if a.agent == "claude" || installed(a.dir) {
+				out = append(out, a.it)
+			}
 		}
 	}
 	return out
@@ -614,8 +644,11 @@ func marshal(v any) json.RawMessage {
 	return bytes.TrimSpace(b.Bytes())
 }
 
-// writeFileAtomic replaces a file whole, keeping its mode.
+// writeFileAtomic replaces a file whole, keeping its mode. A file that is
+// a symlink is written through: the symlink stays a symlink, and the file
+// it points to changes.
 func writeFileAtomic(path string, b []byte) error {
+	path = linkTarget(path)
 	mode := os.FileMode(0o644)
 	if st, err := os.Stat(path); err == nil {
 		mode = st.Mode().Perm()
@@ -639,4 +672,22 @@ func writeFileAtomic(path string, b []byte) error {
 		return err
 	}
 	return os.Rename(tmp.Name(), path)
+}
+
+// linkTarget is the file a path's symlinks lead to, even one not there
+// yet, else the path itself. A settings file of a dotfiles repo, say, is
+// a symlink to the file the repo keeps, and writing the settings must
+// change that file and not take the symlink away.
+func linkTarget(path string) string {
+	for range 40 {
+		dest, err := os.Readlink(path)
+		if err != nil {
+			return path
+		}
+		if !filepath.IsAbs(dest) {
+			dest = filepath.Join(filepath.Dir(path), dest)
+		}
+		path = dest
+	}
+	return path
 }

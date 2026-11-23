@@ -76,6 +76,38 @@ func TestCommandExit(t *testing.T) {
 	}
 }
 
+// A marker that ends the command without saying how it ended leaves the
+// status unknown: it is not 0, which says the command went well.
+func TestCommandExitWithoutAStatus(t *testing.T) {
+	s := testPane(t)
+	s.awaiting = true
+	s.output([]byte("\x1b]133;D\a"))
+	if s.info.CommandExit != nil {
+		t.Fatalf("CommandExit = %v, want none", *s.info.CommandExit)
+	}
+	if !s.ended {
+		t.Error("the command did not end")
+	}
+	// A status that comes after it is the command's.
+	s.output([]byte("\x1b]133;D;5\a"))
+	if s.info.CommandExit == nil || *s.info.CommandExit != 5 {
+		t.Fatalf("CommandExit = %v, want 5", s.info.CommandExit)
+	}
+}
+
+// Waiting for a command that ended without a status says so, rather than
+// claiming it ended well, or waiting for a status that will not come.
+func TestWaitForACommandWithoutAStatus(t *testing.T) {
+	s := testPane(t)
+	s.awaiting = true
+	s.output([]byte("\x1b]133;D\a"))
+	c := &controlConn{done: make(chan struct{})}
+	_, err := s.d.wait(c, s, proto.WaitParams{ID: "p", Exit: true})
+	if err == nil || !strings.Contains(err.Error(), "did not tell its status") {
+		t.Fatalf("wait: %v", err)
+	}
+}
+
 // A full reset forgets the programs' reports.
 func TestFullResetClearsRecords(t *testing.T) {
 	s := testPane(t)
@@ -86,6 +118,31 @@ func TestFullResetClearsRecords(t *testing.T) {
 	s.output([]byte("\x1bc"))
 	if len(s.info.Records) != 0 || s.info.Status != proto.Idle || s.reported {
 		t.Fatalf("after RIS: records %v, status %s, reported %v", s.info.Records, s.info.Status, s.reported)
+	}
+}
+
+// A full reset that ends a string is a full reset: what the string held
+// goes, as the records and the progress it would have cleared.
+func TestResetEndsAString(t *testing.T) {
+	var got []string
+	var o oscScanner
+	stream := "\x1b]9;4;1;40\x1bc"
+	// Byte at a time: the reset is found wherever the string is cut.
+	for i := range len(stream) {
+		o.scan([]byte{stream[i]}, func(b []byte) { got = append(got, string(b)) }, func() { got = append(got, "RIS") })
+	}
+	if strings.Join(got, "|") != "RIS" {
+		t.Fatalf("got %q, want the reset", got)
+	}
+
+	s := testPane(t)
+	s.output([]byte("\x1b]7501;state=working:id=build\x1b\\"))
+	if s.info.Status != proto.Working {
+		t.Fatalf("status %s, want working", s.info.Status)
+	}
+	s.output([]byte("\x1b]0;a title\x1bc"))
+	if len(s.info.Records) != 0 || s.info.Status != proto.Idle {
+		t.Fatalf("after the reset: records %v, status %s", s.info.Records, s.info.Status)
 	}
 }
 

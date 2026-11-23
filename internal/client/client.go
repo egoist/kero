@@ -273,14 +273,21 @@ func (c *Client) Call(method string, params, out any) error {
 		c.mu.Unlock()
 		return err
 	}
-	res := <-ch
-	if res.err != nil {
-		return res.err
+	select {
+	case res := <-ch:
+		if res.err != nil {
+			return res.err
+		}
+		if out != nil && len(res.result) > 0 {
+			return json.Unmarshal(res.result, out)
+		}
+		return nil
+	case <-c.closed:
+		// The connection ended before the answer came: nobody will
+		// answer a call made after it ended, and a wait for an answer
+		// that never comes is a wait for ever.
+		return errors.New("kerod went away")
 	}
-	if out != nil && len(res.result) > 0 {
-		return json.Unmarshal(res.result, out)
-	}
-	return nil
 }
 
 // Go calls a method without waiting for its result, reporting an error to
@@ -307,6 +314,9 @@ type Stream struct {
 	wbuf   []byte
 	closed chan struct{}
 	once   sync.Once
+	// closeErr is the error of the close of the connection: the stream
+	// is closed once, and every close of it says the same.
+	closeErr error
 	// Gone is closed when the daemon closed the session (FrameClosed).
 	Gone     chan struct{}
 	goneOnce sync.Once
@@ -425,10 +435,9 @@ func (s *Stream) Clear(what byte) error {
 }
 
 func (s *Stream) Close() error {
-	var err error
 	s.once.Do(func() {
 		close(s.closed)
-		err = s.conn.Close()
+		s.closeErr = s.conn.Close()
 	})
-	return err
+	return s.closeErr
 }

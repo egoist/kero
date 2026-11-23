@@ -118,10 +118,15 @@ type App struct {
 	lru        []string
 	refs       map[string]*ui.Handle // panes' terminals, and splits, by id
 	focus      map[string]string     // the pane the user is in, by session
+	keyPane    string                // the pane that has the keyboard
 	layoutDrag struct {              // the split whose divider is dragged
 		session, split string
 		ratio          float64 // where the pointer puts it, past its bounds
 	}
+	// pressHandle is the drag handle the pointer is pressing: it took the
+	// keyboard from the pane the user is in, and gives it back when the
+	// pointer lets go (#398).
+	pressHandle string
 
 	active   bool
 	focused  bool
@@ -346,6 +351,7 @@ func (a *App) setState(h *host, st proto.State) {
 			a.dropWeb(id)
 		}
 	}
+	a.focusGone()
 	a.quickChanged()
 	if a.session(a.selected) == nil {
 		a.reselect()
@@ -924,16 +930,19 @@ func (a *App) zoom(steps int, reset bool) {
 
 // applySettings makes settings the app's, saving them: the terminals take
 // what changed at once, and are attached again for what only a new
-// terminal takes.
-func (a *App) applySettings(s settings.Settings) { a.apply(s, true) }
+// terminal takes. It says a save that failed, and returns the error, so
+// that the caller can say it where the change was made.
+func (a *App) applySettings(s settings.Settings) error { return a.apply(s, true) }
 
 // apply makes settings the app's, saving them to the configuration when
 // they come from the app rather than from the file.
-func (a *App) apply(s settings.Settings, save bool) {
+func (a *App) apply(s settings.Settings, save bool) error {
 	old := a.applied
 	a.set, a.applied = s, s.Clone()
+	var saveErr error
 	if save {
 		if err := settings.Save(s); err != nil {
+			saveErr = err
 			a.toast(locales.ToastSaveSettingsFailed(err.Error()))
 		}
 	}
@@ -1002,7 +1011,7 @@ func (a *App) apply(s settings.Settings, save bool) {
 	if old.DockBadge != s.DockBadge {
 		a.notify(true)
 	}
-	if old.KeepAwake != s.KeepAwake {
+	if old.KeepAwake != s.KeepAwake || old.KeepDisplayOn != s.KeepDisplayOn {
 		a.keepAwake()
 		if a.tray != nil {
 			a.tray.SetMenu(a.trayMenu())
@@ -1028,6 +1037,7 @@ func (a *App) apply(s settings.Settings, save bool) {
 	if a.quick.win != nil {
 		a.quick.win.Invalidate()
 	}
+	return saveErr
 }
 
 // watchConfig applies the configuration as the user saves it in an
@@ -1152,10 +1162,7 @@ func (a *App) openLink(id, link string) bool {
 // the directory of the program that printed it, or "" for no such file.
 // id is a pane's, or a session's for its pane in front.
 func (a *App) resolvePath(id, link string) string {
-	path := lineSuffix.ReplaceAllString(link, "")
-	if strings.HasPrefix(path, "~/") || runtime.GOOS == "windows" && strings.HasPrefix(path, `~`) {
-		path = filepath.Join(proto.Home(), path[2:])
-	}
+	path := expandHome(lineSuffix.ReplaceAllString(link, ""))
 	if !filepath.IsAbs(path) {
 		if dir := a.workDir(id); dir != "" {
 			path = filepath.Join(dir, path)
@@ -1266,11 +1273,16 @@ func (a *App) newSessionOn(h *host, projectID string) {
 
 // expandHome makes a path of ~/… this machine's home's.
 func expandHome(p string) string {
+	return expandHomeForOS(p, proto.Home(), runtime.GOOS)
+}
+
+// expandHomeForOS expands a home-relative path using the given home and platform.
+func expandHomeForOS(p, home, goos string) string {
 	if p == "~" {
-		return proto.Home()
+		return home
 	}
-	if strings.HasPrefix(p, "~/") || runtime.GOOS == "windows" && strings.HasPrefix(p, `~\`) {
-		return filepath.Join(proto.Home(), p[2:])
+	if strings.HasPrefix(p, "~/") || goos == "windows" && strings.HasPrefix(p, `~\`) {
+		return filepath.Join(home, p[2:])
 	}
 	return p
 }
@@ -1554,12 +1566,26 @@ func (a *App) jumpTo(want func(*proto.Session) bool) bool {
 	for k := 1; k <= len(ids); k++ {
 		id := ids[(i+k+len(ids))%len(ids)]
 		if s := a.session(id); s != nil && id != a.selected && want(s) {
-			delete(a.prefs.Collapsed, s.Project)
+			delete(a.prefs.Collapsed, a.groupKey(s))
 			a.selectSession(id)
 			return true
 		}
 	}
 	return false
+}
+
+// groupKey is what the collapse of the group the session is in is
+// remembered by: its project's id, and for a remote host's sessions of no
+// project, its host's.
+func (a *App) groupKey(s *proto.Session) string {
+	for _, g := range a.groups() {
+		for _, x := range g.sessions {
+			if x.ID == s.ID {
+				return g.key()
+			}
+		}
+	}
+	return s.Project
 }
 
 // jumpToAttention goes to the next session that needs the user, after the

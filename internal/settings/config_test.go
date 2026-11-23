@@ -2,6 +2,7 @@ package settings
 
 import (
 	"encoding/json"
+	"math"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -77,6 +78,32 @@ func TestFormatNewFileHasOnlyChanges(t *testing.T) {
 	}
 }
 
+// A quoted value is unquoted as it is read: quote escapes a backslash,
+// so only stripping the quotes left a doubled one, and a value with a
+// # in it — which quote always escapes — gained a backslash on every
+// save. A quoted value whose escape is none is read as it lies.
+func TestQuotedValueRoundTrip(t *testing.T) {
+	const file = "worktree-dir = C:\\Users\\me\\#work\n" // one backslash each, as the file has them
+	s, probs := parse(file)
+	if len(probs) != 0 || s.WorktreeDir != `C:\Users\me\#work` {
+		t.Fatalf("parsed %q, problems %q", s.WorktreeDir, probs)
+	}
+	// Save after save: the value stands, instead of gaining a
+	// backslash each time.
+	for i := 0; i < 3; i++ {
+		back, _ := parse(format(s, file))
+		if back.WorktreeDir != s.WorktreeDir {
+			t.Fatalf("save %d read back %q, want %q", i+1, back.WorktreeDir, s.WorktreeDir)
+		}
+		s = back
+	}
+	// A hand's own quoting, whose escape is none, is read as it lies.
+	hand, _ := parse(`worktree-dir = "C:\path\to"` + "\n")
+	if hand.WorktreeDir != `C:\path\to` {
+		t.Errorf("a value a hand quoted: %q", hand.WorktreeDir)
+	}
+}
+
 func TestKeybinds(t *testing.T) {
 	s, probs := parse("keybind = cmd+shift+x=pane.split.right\nkeybind = cmd+d=unbind\nkeybind = cmd+==text.bigger\nkeybind = ctrl+q=nope\n")
 	if s.Shortcuts["pane.split.right"] != "CmdOrCtrl+Shift+X" {
@@ -103,6 +130,47 @@ func TestKeybinds(t *testing.T) {
 	}
 }
 
+// A shortcut that takes another action's keys survives the file: the
+// other action gives them up, and the one that took them keeps them.
+func TestKeybindTakesKeys(t *testing.T) {
+	down, _ := actions.Find("pane.split.down")
+	s := Default()
+	s.Shortcuts = map[string]string{
+		"pane.split.right": down.Keys, // the keys of Split Down
+		"pane.split.down":  "",        // and Split Down has none now
+	}
+	out := format(s, "")
+	back, probs := parse(out)
+	if len(probs) != 0 {
+		t.Errorf("problems %q", probs)
+	}
+	if back.Shortcuts["pane.split.right"] != down.Keys {
+		t.Errorf("the shortcut that took the keys: %q", back.Shortcuts["pane.split.right"])
+	}
+	if v, ok := back.Shortcuts["pane.split.down"]; !ok || v != "" {
+		t.Errorf("split down %q %v", v, ok)
+	}
+	// The freeing comes first in the file, which is read in its order:
+	// the action that takes the keys is bound after it.
+	low := strings.ToLower(out)
+	frees, binds := strings.Index(low, "=unbind"), strings.Index(low, "=pane.split.right")
+	if frees < 0 || binds < 0 || frees > binds {
+		t.Errorf("the freeing does not come before the binding:\n%s", out)
+	}
+}
+
+// A file that binds keys and frees them after is read in the order it
+// has, as Ghostty reads its own: the keys are free at the end.
+func TestKeybindUnbindComesLast(t *testing.T) {
+	s, probs := parse("keybind = " + `alt+shift+-=pane.split.right` + "\nkeybind = alt+shift+-=unbind\n")
+	if len(probs) != 0 {
+		t.Fatalf("problems %q", probs)
+	}
+	if v, ok := s.Shortcuts["pane.split.right"]; !ok || v != "" {
+		t.Errorf("split right %q %v, want no keys: the file freed them last", v, ok)
+	}
+}
+
 // Ghostty's global: prefix binds the quick terminal as Ghostty's
 // configuration writes it.
 func TestGlobalKeybind(t *testing.T) {
@@ -123,6 +191,35 @@ func TestBadValuesKeepDefaults(t *testing.T) {
 	}
 	if len(probs) != 3 {
 		t.Errorf("problems %q", probs)
+	}
+}
+
+// A number that is no number — NaN, or past the end of what a float
+// holds — keeps the default, and the line is a problem. A size of NaN
+// would size a terminal of nothing: it is less than nothing and more
+// than anything at once, and every check of it passes.
+func TestNotANumberKeepsDefaults(t *testing.T) {
+	d := Default()
+	for _, c := range []struct {
+		line string
+		got  func(Settings) float64
+		want float64
+	}{
+		{"font-size = NaN", func(s Settings) float64 { return float64(s.FontSize) }, float64(d.FontSize)},
+		{"line-height = nan", func(s Settings) float64 { return float64(s.LineHeight) }, float64(d.LineHeight)},
+		{"font-weight = NaN", func(s Settings) float64 { return float64(s.FontWeight) }, float64(d.FontWeight)},
+		{"minimum-contrast = +Inf", func(s Settings) float64 { return float64(s.MinContrast) }, float64(d.MinContrast)},
+		{"scrollback-limit = -Inf", func(s Settings) float64 { return float64(s.Scrollback) }, float64(d.Scrollback)},
+		{"mouse-scroll-multiplier = NaN", func(s Settings) float64 { return float64(s.ScrollPrecision) }, float64(d.ScrollPrecision)},
+		{"mouse-scroll-multiplier = precision:nan,discrete:1", func(s Settings) float64 { return float64(s.ScrollDiscrete) }, float64(d.ScrollDiscrete)},
+	} {
+		s, probs := parse(c.line + "\n")
+		if got := c.got(s); got != c.want || math.IsNaN(got) {
+			t.Errorf("%s: %v, want %v", c.line, got, c.want)
+		}
+		if len(probs) != 1 || !strings.Contains(probs[0], "not a number") {
+			t.Errorf("%s: problems %q", c.line, probs)
+		}
 	}
 }
 
@@ -268,6 +365,59 @@ func TestAdLists(t *testing.T) {
 	}
 }
 
+// A line the file still gets wrong stays a problem after the settings
+// are saved: format keeps the lines kero does not know, so the file is
+// still wrong, and a save that said "no problems" would leave it wrong
+// with nothing to show for it — the next Load takes the cache and does
+// not look again.
+func TestSaveKeepsProblems(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config")
+	if err := os.WriteFile(path, []byte("font-size = 14\nsome-future-key = yes\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("KERO_HOME", dir)
+	t.Setenv("KERO_CONFIG", path)
+	mu.Lock()
+	cache = nil
+	mu.Unlock()
+
+	Load()
+	if got := Problems(); len(got) != 1 || !strings.Contains(got[0], "some-future-key") {
+		t.Fatalf("problems %q", got)
+	}
+	s := Load()
+	s.FontSize = 15
+	if err := Save(s); err != nil {
+		t.Fatal(err)
+	}
+	if got := Problems(); len(got) != 1 || !strings.Contains(got[0], "some-future-key") {
+		t.Errorf("after a save: problems %q, want the unknown key still named", got)
+	}
+	// The next Load takes the cache: it must say the same.
+	if got := Problems(); len(got) != 1 || !strings.Contains(got[0], "some-future-key") {
+		t.Errorf("after Load: problems %q", got)
+	}
+	// And a cold Load says it too: the key is still in the file.
+	mu.Lock()
+	cache = nil
+	mu.Unlock()
+	Load()
+	if got := Problems(); len(got) != 1 || !strings.Contains(got[0], "some-future-key") {
+		t.Errorf("after a fresh Load: problems %q", got)
+	}
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(b), "some-future-key") {
+		t.Errorf("the unknown key left the file:\n%s", b)
+	}
+	if !strings.Contains(string(b), "font-size = 15") {
+		t.Errorf("the saved setting is not in the file:\n%s", b)
+	}
+}
+
 func TestSaveKeepsASymlinkedConfig(t *testing.T) {
 	dir := t.TempDir()
 	dotfiles := filepath.Join(dir, "dotfiles", "kero", "config")
@@ -374,6 +524,32 @@ func TestFontFeature(t *testing.T) {
 	}
 	if out := format(Default(), ""); strings.Contains(out, "font-feature") {
 		t.Errorf("a new file sets font-feature:\n%s", out)
+	}
+}
+
+// env keeps the good values even when a line among them is not
+// NAME=value, and says the bad one at the end; an empty line clears the
+// list, as the other lists do.
+func TestEnvKeepsTheGoodValues(t *testing.T) {
+	for _, c := range []struct {
+		file     string
+		want     []string
+		problems int
+	}{
+		{"", nil, 0},
+		{"env = A=1", []string{"A=1"}, 0},
+		{"env = A=1\nenv = B=2", []string{"A=1", "B=2"}, 0},
+		{"env = A=1\nenv =\nenv = B=2", []string{"B=2"}, 0},
+		{"env = A=1\nenv = BAD\nenv = B=2", []string{"A=1", "B=2"}, 1},
+	} {
+		s, probs := parse(c.file + "\n")
+		if !reflect.DeepEqual(s.Env, c.want) || len(probs) != c.problems {
+			t.Errorf("%q: env %q, problems %q; want %q", c.file, s.Env, probs, c.want)
+		}
+	}
+	_, probs := parse("env = A=1\nenv = BAD\nenv = B=2\n")
+	if len(probs) != 1 || !strings.Contains(probs[0], "BAD") {
+		t.Errorf("problems %q, want one naming BAD", probs)
 	}
 }
 
