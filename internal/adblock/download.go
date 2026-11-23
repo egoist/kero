@@ -72,6 +72,7 @@ func Load(ctx context.Context, dir string, sources []Source) ([]string, error) {
 	}
 	var lists []string
 	var errs []error
+	var said []error
 	for _, s := range sources {
 		path := filepath.Join(dir, s.file())
 		info, statErr := os.Stat(path)
@@ -86,14 +87,21 @@ func Load(ctx context.Context, dir string, sources []Source) ([]string, error) {
 		}
 		b, err := os.ReadFile(path)
 		if err != nil {
-			continue // not downloaded, which errs tells
+			// A list that is not there is the download's error to
+			// tell, when the download failed and nothing serves. One
+			// that is there and cannot be read is always told: it is
+			// there, not served.
+			if !os.IsNotExist(err) {
+				said = append(said, fmt.Errorf("%s: %w", s.ID, err))
+			}
+			continue
 		}
 		lists = append(lists, string(b))
 	}
 	if len(lists) == 0 {
-		return nil, errors.Join(errs...)
+		return nil, errors.Join(append(errs, said...)...)
 	}
-	return lists, nil
+	return lists, errors.Join(said...)
 }
 
 // download saves url's body at path, unless it did not change since a

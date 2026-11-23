@@ -93,3 +93,27 @@ func TestFind(t *testing.T) {
 		}
 	}
 }
+
+// A list that is there and cannot be read is said: (nil, nil) would leave
+// the ads unblocked with nothing said anywhere.
+func TestLoadSaysAnUnreadableList(t *testing.T) {
+	dir := t.TempDir()
+	// A directory in the list's place: fresh, so no download runs —
+	// nothing to say would be the download's — and unreadable on every
+	// system, as root too.
+	if err := os.MkdirAll(filepath.Join(dir, "list.txt"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	sources := []Source{{"list", "List", "https://lists.example/a.txt"}}
+	lists, err := Load(context.Background(), dir, sources)
+	if err == nil {
+		t.Errorf("a list that could not be read was no trouble: %d lists", len(lists))
+	}
+	// A list that did load is kept with the error: its filters still work.
+	os.WriteFile(filepath.Join(dir, "other.txt"), []byte("[Adblock Plus 2.0]\n"), 0o600)
+	both := []Source{{"list", "List", "https://lists.example/a.txt"}, {"other", "Other", "https://lists.example/b.txt"}}
+	lists, err = Load(context.Background(), dir, both)
+	if err == nil || len(lists) != 1 {
+		t.Errorf("the list that loaded with one unreadable: %d lists, err %v", len(lists), err)
+	}
+}
