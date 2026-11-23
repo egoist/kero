@@ -69,6 +69,8 @@
   "windowRestore": "向下还原",
   "toastCopied": "已复制",
   "toastCopiedToClipboard": "已复制到剪贴板",
+  "toastPrefsUnreadable": "无法读取偏好设置：{error}",
+  "toastPrefsUnsaved": "无法保存偏好设置：{error}",
   "toastSaveSettingsFailed": "无法保存设置：{error}",
   "toastOpenConfigFailed": "无法打开配置：{error}",
   "toastBackupUnreadable": "无法恢复未保存的编辑：{error}",

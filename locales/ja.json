@@ -69,6 +69,8 @@
   "windowRestore": "元に戻す（縮小）",
   "toastCopied": "コピーしました",
   "toastCopiedToClipboard": "クリップボードにコピーしました",
+  "toastPrefsUnreadable": "環境設定を読み込めませんでした: {error}",
+  "toastPrefsUnsaved": "環境設定を保存できませんでした: {error}",
   "toastSaveSettingsFailed": "設定を保存できませんでした: {error}",
   "toastOpenConfigFailed": "設定を開けませんでした: {error}",
   "toastBackupUnreadable": "保存されていない編集を復元できませんでした: {error}",
