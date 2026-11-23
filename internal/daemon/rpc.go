@@ -588,7 +588,7 @@ func (d *Daemon) call(c *controlConn, method string, raw json.RawMessage) (any, 
 		if err := decode(&p); err != nil {
 			return nil, err
 		}
-		return fsStat(p), nil
+		return fsStat(p)
 
 	case "fs.read":
 		var p proto.FSReadParams

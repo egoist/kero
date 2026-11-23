@@ -62,12 +62,15 @@ func TestFSListAndStat(t *testing.T) {
 	if _, err := fsList(proto.FSListParams{Dir: filepath.Join(dir, "none")}); err == nil {
 		t.Error("listed a directory that is none")
 	}
-	st := fsStat(proto.FSStatParams{Path: "file.txt", Base: dir})
+	st, err := fsStat(proto.FSStatParams{Path: "file.txt", Base: dir})
+	if err != nil {
+		t.Fatal(err)
+	}
 	if !st.Exists || st.Dir || st.Size != 2 || st.Path != filepath.Join(dir, "file.txt") {
 		t.Errorf("stat %+v", st)
 	}
-	if st := fsStat(proto.FSStatParams{Path: "nope", Base: dir}); st.Exists {
-		t.Errorf("stat of nothing %+v", st)
+	if st, err := fsStat(proto.FSStatParams{Path: "nope", Base: dir}); err != nil || st.Exists {
+		t.Errorf("stat of nothing %+v, %v", st, err)
 	}
 	if r, err := fsRead(proto.FSReadParams{Path: filepath.Join(dir, "file.txt")}); err != nil || string(r.Data) != "hi" {
 		t.Errorf("read %q, %v", r.Data, err)
@@ -261,5 +264,47 @@ func TestFSCreateRenameDelete(t *testing.T) {
 		if err := d.fsDelete(proto.FSDeleteParams{Path: p}); err == nil {
 			t.Errorf("deleted %q", p)
 		}
+	}
+}
+
+// A stat that failed is not "no such file": a path the daemon could not
+// read — no permission, a parent that is a file — is said as the failure
+// it is, so the app names it instead of telling the user the path is not
+// there. A path that is not there is still "no such file".
+func TestFSStatThatFailedIsSaid(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "file.txt")
+	if err := os.WriteFile(file, []byte("hi"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range []struct{ name, path string }{
+		{"a parent that is a file", filepath.Join(file, "child")},
+		{"a path with a NUL byte", "a\x00b"},
+	} {
+		if _, err := fsStat(proto.FSStatParams{Path: c.path, Base: dir}); err == nil {
+			t.Errorf("%s: the stat failed, and nothing was said", c.name)
+		}
+	}
+	if _, err := fsStat(proto.FSStatParams{Path: "nope", Base: dir}); err != nil {
+		t.Errorf("a path that is not there: %v, want no error", err)
+	}
+
+	if os.Getuid() == 0 {
+		t.Skip("root reads a path with no read permission")
+	}
+	sub := filepath.Join(dir, "sub")
+	if err := os.Mkdir(sub, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	in := filepath.Join(sub, "in.txt")
+	if err := os.WriteFile(in, []byte("hi"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(sub, 0o000); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chmod(sub, 0o755)
+	if _, err := fsStat(proto.FSStatParams{Path: in, Base: dir}); err == nil {
+		t.Error("a path that could not be read is said as one that is not there")
 	}
 }
