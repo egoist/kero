@@ -435,7 +435,9 @@ func run(args []string, host string) error {
 			return err
 		}
 		if f.set["focus"] {
-			c.Call("select", proto.FocusParams{Session: s.ID}, nil)
+			if err := c.Call("select", proto.FocusParams{Session: s.ID}, nil); err != nil {
+				return err
+			}
 		}
 		if f.set["json"] {
 			if err := printJSON(s); err != nil {
@@ -482,7 +484,9 @@ func run(args []string, host string) error {
 			return err
 		}
 		if f.set["focus"] {
-			c.Call("select", proto.FocusParams{Session: s.ID, Pane: s.Focus}, nil)
+			if err := c.Call("select", proto.FocusParams{Session: s.ID, Pane: s.Focus}, nil); err != nil {
+				return err
+			}
 		}
 		if f.set["json"] {
 			if err := printJSON(s); err != nil {
@@ -755,7 +759,9 @@ func run(args []string, host string) error {
 			return err
 		}
 		if f.set["focus"] {
-			c.Call("select", proto.FocusParams{Session: s.ID}, nil)
+			if err := c.Call("select", proto.FocusParams{Session: s.ID}, nil); err != nil {
+				return err
+			}
 		}
 		if f.set["json"] {
 			return printJSON(s)
