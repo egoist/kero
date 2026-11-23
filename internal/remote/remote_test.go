@@ -420,7 +420,9 @@ func TestMuxOtherVersion(t *testing.T) {
 }
 
 func TestMuxHandshakeTimesOut(t *testing.T) {
-	cl, _ := pipes()
+	cl, sv := pipes()
+	defer cl.Close()
+	defer sv.Close()
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
 	start := time.Now()
