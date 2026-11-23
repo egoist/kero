@@ -13,6 +13,7 @@ import (
 	"github.com/egoist/mygo/ui/editor"
 
 	"kero/internal/proto"
+	"kero/locales"
 )
 
 // The viewer's edits not saved outlast the app, as VS Code's hot exit
@@ -87,14 +88,20 @@ type backupState struct {
 }
 
 // loadBackup reads the viewers and the edits the app left as it last
-// quit.
+// quit. A backup that could not be read is said: the edits the user made
+// are in it, and the app shows none of them without it. A backup that is
+// not there is no news: there was none to restore.
 func (a *App) loadBackup() {
 	b, err := os.ReadFile(backupPath())
 	if err != nil {
+		if !os.IsNotExist(err) {
+			a.toast(locales.ToastBackupUnreadable(err.Error()))
+		}
 		return
 	}
 	var vb viewerBackup
-	if json.Unmarshal(b, &vb) != nil {
+	if err := json.Unmarshal(b, &vb); err != nil {
+		a.toast(locales.ToastBackupUnreadable(err.Error()))
 		return
 	}
 	a.side.backup.unsaved = map[string]unsavedText{}

@@ -750,6 +750,18 @@ func (msgs Messages) ToastOpenConfigFailed(error string) string {
 	return Catalog.Format(msgs.locale, "toastOpenConfigFailed", map[string]any{"error": error})
 }
 
+// ToastBackupUnreadable says "Couldn’t restore your unsaved edits: {error}"
+// in the language the app shows.
+func ToastBackupUnreadable(error string) string {
+	return In(i18n.Locale()).ToastBackupUnreadable(error)
+}
+
+// ToastBackupUnreadable says "Couldn’t restore your unsaved edits: {error}"
+// in the language of msgs.
+func (msgs Messages) ToastBackupUnreadable(error string) string {
+	return Catalog.Format(msgs.locale, "toastBackupUnreadable", map[string]any{"error": error})
+}
+
 // ToastPasteImageFailed says "Couldn’t paste the image: {error}. Try again, or drop the image file on the pane."
 // in the language the app shows.
 func ToastPasteImageFailed(error string) string {

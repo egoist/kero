@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -130,5 +131,65 @@ func TestBackupWriteIsRetried(t *testing.T) {
 	json.Unmarshal(b, &vb)
 	if len(vb.Unsaved) != 1 || vb.Unsaved[0].Path != "/tmp/demo/main.go" {
 		t.Errorf("backed up %+v", vb.Unsaved)
+	}
+}
+
+// A backup that could not be read is said: the edits the user made are
+// in it, and the app shows none of them without it. A backup that is not
+// there is no news: there was none to restore.
+func TestUnreadableBackupIsSaid(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("KERO_HOME", home)
+	t.Setenv("KERO_CONFIG", filepath.Join(home, "config"))
+	// The backup cannot be read: the path is a directory.
+	if err := os.MkdirAll(backupPath(), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	a := newApp()
+	if !strings.Contains(a.pendingToast, "unsaved") {
+		t.Errorf("the unreadable backup was not said: %q", a.pendingToast)
+	}
+
+	// The backup is there, and is not what the app wrote: it is said too.
+	home = t.TempDir()
+	t.Setenv("KERO_HOME", home)
+	t.Setenv("KERO_CONFIG", filepath.Join(home, "config"))
+	if err := os.WriteFile(backupPath(), []byte(`{"unsaved": [`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	a = newApp()
+	if !strings.Contains(a.pendingToast, "unsaved") {
+		t.Errorf("the corrupt backup was not said: %q", a.pendingToast)
+	}
+	if len(a.side.backup.unsaved) != 0 {
+		t.Errorf("the corrupt backup was read: %+v", a.side.backup.unsaved)
+	}
+
+	// And a backup that is not there is no news.
+	home = t.TempDir()
+	t.Setenv("KERO_HOME", home)
+	t.Setenv("KERO_CONFIG", filepath.Join(home, "config"))
+	a = newApp()
+	if a.pendingToast != "" {
+		t.Errorf("the missing backup was said: %q", a.pendingToast)
+	}
+
+	// A backup the app wrote is read, and said nothing about.
+	home = t.TempDir()
+	t.Setenv("KERO_HOME", home)
+	t.Setenv("KERO_CONFIG", filepath.Join(home, "config"))
+	b, err := json.Marshal(viewerBackup{Unsaved: []unsavedText{{Kind: sideFiles, Path: "/tmp/demo/main.go", Hash: "h", Text: "// mine\n"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(backupPath(), b, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	a = newApp()
+	if a.pendingToast != "" {
+		t.Errorf("the backup was said: %q", a.pendingToast)
+	}
+	if len(a.side.backup.unsaved) != 1 {
+		t.Errorf("the backup was not read: %+v", a.side.backup.unsaved)
 	}
 }
