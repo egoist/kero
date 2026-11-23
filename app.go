@@ -212,9 +212,18 @@ func newApp() *App {
 
 func prefsPath() string { return filepath.Join(proto.Dir(), "app.json") }
 
+// loadPrefs reads the preferences the app remembers between runs. A
+// preference file that could not be read is said: the app forgets what it
+// remembered, and the user is told nothing of it otherwise. A file that is
+// not there is no news: there was nothing to remember.
 func (a *App) loadPrefs() {
-	if b, err := os.ReadFile(prefsPath()); err == nil {
-		json.Unmarshal(b, &a.prefs)
+	b, err := os.ReadFile(prefsPath())
+	if err != nil {
+		if !os.IsNotExist(err) {
+			a.toast(locales.ToastPrefsUnreadable(err.Error()))
+		}
+	} else if err := json.Unmarshal(b, &a.prefs); err != nil {
+		a.toast(locales.ToastPrefsUnreadable(err.Error()))
 	}
 	if a.prefs.SidebarWidth == 0 {
 		a.prefs.SidebarWidth = defaultSidebar
@@ -231,17 +240,29 @@ func (a *App) loadPrefs() {
 	}
 }
 
+// savePrefs writes the preferences the app remembers between runs. A
+// write that fails is said: the app forgets what it remembered.
 func (a *App) savePrefs() {
 	a.prefs.Selected = a.selected
-	b, err := json.MarshalIndent(a.prefs, "", "  ")
+	if err := writePrefs(a.prefs); err != nil {
+		a.toast(locales.ToastPrefsUnsaved(err.Error()))
+	}
+}
+
+// writePrefs writes the preferences, and says whether it wrote them.
+func writePrefs(p prefs) error {
+	b, err := json.MarshalIndent(p, "", "  ")
 	if err != nil {
-		return
+		return err
 	}
-	os.MkdirAll(proto.Dir(), 0o700)
+	if err := os.MkdirAll(proto.Dir(), 0o700); err != nil {
+		return err
+	}
 	tmp := prefsPath() + ".tmp"
-	if os.WriteFile(tmp, b, 0o600) == nil {
-		os.Rename(tmp, prefsPath())
+	if err := os.WriteFile(tmp, b, 0o600); err != nil {
+		return err
 	}
+	return os.Rename(tmp, prefsPath())
 }
 
 // update runs fn on the main thread, and draws.

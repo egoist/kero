@@ -726,6 +726,26 @@ func (msgs Messages) ToastCopiedToClipboard() string {
 	return Catalog.Format(msgs.locale, "toastCopiedToClipboard", nil)
 }
 
+// ToastPrefsUnreadable says "Couldn’t read your preferences: {error}"
+// in the language the app shows.
+func ToastPrefsUnreadable(error string) string { return In(i18n.Locale()).ToastPrefsUnreadable(error) }
+
+// ToastPrefsUnreadable says "Couldn’t read your preferences: {error}"
+// in the language of msgs.
+func (msgs Messages) ToastPrefsUnreadable(error string) string {
+	return Catalog.Format(msgs.locale, "toastPrefsUnreadable", map[string]any{"error": error})
+}
+
+// ToastPrefsUnsaved says "Couldn’t save your preferences: {error}"
+// in the language the app shows.
+func ToastPrefsUnsaved(error string) string { return In(i18n.Locale()).ToastPrefsUnsaved(error) }
+
+// ToastPrefsUnsaved says "Couldn’t save your preferences: {error}"
+// in the language of msgs.
+func (msgs Messages) ToastPrefsUnsaved(error string) string {
+	return Catalog.Format(msgs.locale, "toastPrefsUnsaved", map[string]any{"error": error})
+}
+
 // ToastSaveSettingsFailed says "Couldn’t save the settings: {error}"
 // in the language the app shows.
 func ToastSaveSettingsFailed(error string) string {
