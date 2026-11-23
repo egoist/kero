@@ -252,7 +252,7 @@ func TestHostShortDir(t *testing.T) {
 		`C:\Temp\$(calc).png`:                   `'C:\Temp\$(calc).png'`,
 		"C:\\Temp\\it\u2019s.png":               "'C:\\Temp\\it\u2019\u2019s.png'",
 	} {
-		if got := pastedPath(w, in); got != want {
+		if got := pastedPath(w.windows(), in); got != want {
 			t.Errorf("pastedPath(%q) = %q, want %q", in, got, want)
 		}
 	}

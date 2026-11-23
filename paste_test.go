@@ -21,6 +21,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"kero/internal/client"
+	"kero/internal/shell"
 )
 
 // fakePNG is not a picture, and need not be: the paste carries its bytes
@@ -640,5 +641,19 @@ func TestShellEscapeANewline(t *testing.T) {
 	out, err := exec.Command(sh, "-c", "printf %s "+got).Output()
 	if err != nil || string(out) != p {
 		t.Errorf("the shell read %s as %q (%v), want %q", got, out, err, p)
+	}
+}
+
+// A path pasted to a host is quoted for its system: a POSIX shell's, or
+// PowerShell's, as the host is. The system is the one the paste was made
+// for, and not the one the host may have become by the time the path
+// comes back.
+func TestPastedPathIsQuotedForTheHost(t *testing.T) {
+	p := `C:\Users\me\a b.txt`
+	if got, want := pastedPath(false, p), shellEscape(p); got != want {
+		t.Errorf("a POSIX shell's path is %q, want %q", got, want)
+	}
+	if got, want := pastedPath(true, p), shell.PSQuote(p); got != want {
+		t.Errorf("a Windows path is %q, want %q", got, want)
 	}
 }
