@@ -256,37 +256,46 @@ func (a *App) attachQuick() {
 			return
 		}
 		g := &gated{Stream: stream, ready: make(chan struct{})}
-		o := a.termOptions(id, g)
-		o.ResizeByConn = true
-		// No card under it: the terminal paints its background.
-		o.Transparent = false
-		o.Padding = terminal.Padding{X: 16, Y: 10}
-		o.OnCopy = nil // the window's toast is not in sight
-		term, err := terminal.New(o)
-		if err != nil {
-			stream.Close()
-			q.win.Update(func() {
+		// The terminal is made where the options may read the app: the
+		// main thread's, delivered here when it is registered.
+		reg := make(chan *terminal.Terminal, 1)
+		q.win.Update(func() {
+			if q.e != e {
+				stream.Close()
+				reg <- nil
+				return
+			}
+			// The options take the app's state, which is the main
+			// thread's alone: the goroutine may only dial.
+			o := a.termOptions(id, g)
+			o.ResizeByConn = true
+			// No card under it: the terminal paints its background.
+			o.Transparent = false
+			o.Padding = terminal.Padding{X: 16, Y: 10}
+			o.OnCopy = nil // the window's toast is not in sight
+			term, err := terminal.New(o)
+			if err != nil {
+				stream.Close()
 				if q.e == e {
 					e.err = err.Error()
 				}
-			})
-			return
-		}
-		term.Resize(stream.Welcome.Cols, stream.Welcome.Rows)
-		stream.OnResized = term.Resize
-		close(g.ready)
-		q.win.Update(func() {
-			if q.e != e {
-				term.Close()
-				stream.Close()
+				reg <- nil
 				return
 			}
+			term.Resize(stream.Welcome.Cols, stream.Welcome.Rows)
+			stream.OnResized = term.Resize
+			close(g.ready)
 			e.term, e.stream = term, stream
 			// It takes the panel's size, which another window may have
 			// given another.
 			go stream.Claim()
 			q.ref.Focus()
+			reg <- term
 		})
+		term := <-reg
+		if term == nil {
+			return
+		}
 		// The pane ended, as its shell exited: the next show starts
 		// another, or shows the session's next pane.
 		<-term.Done()

@@ -660,31 +660,30 @@ func (a *App) ensureTerm(id string) {
 			return
 		}
 		g := &gated{Stream: stream, ready: make(chan struct{})}
-		o := a.termOptions(id, g)
-		// The terminal shows kerod's frames: kerod's terminal is the
-		// session's, ours shows what it shows, cell for cell, and lays out
-		// nothing of the program's own. It takes the sizes kerod's does,
-		// between the frames of one size and the next.
-		o.ResizeByConn = true
-		term, err := terminal.New(o)
-		if err != nil {
-			stream.Close()
-			a.update(func() {
-				if a.terms[id] == e {
-					e.err = err.Error()
-				}
-			})
-			return
-		}
-		term.Resize(stream.Welcome.Cols, stream.Welcome.Rows)
-		stream.OnResized = term.Resize
-		close(g.ready)
 		a.update(func() {
 			if a.terms[id] != e {
-				term.Close()
 				stream.Close()
 				return
 			}
+			// The options take the app's state, which is the main
+			// thread's alone: the goroutine above may only dial.
+			o := a.termOptions(id, g)
+			// The terminal shows kerod's frames: kerod's terminal is the
+			// session's, ours shows what it shows, cell for cell, and lays out
+			// nothing of the program's own. It takes the sizes kerod's does,
+			// between the frames of one size and the next.
+			o.ResizeByConn = true
+			term, err := terminal.New(o)
+			if err != nil {
+				stream.Close()
+				if a.terms[id] == e {
+					e.err = err.Error()
+				}
+				return
+			}
+			term.Resize(stream.Welcome.Cols, stream.Welcome.Rows)
+			stream.OnResized = term.Resize
+			close(g.ready)
 			e.term, e.stream = term, stream
 			// Shown, it takes the window's size (claimShown).
 			if s := a.session(a.selected); s != nil && a.here() && slices.Contains(shownPanes(s), id) {
@@ -817,6 +816,8 @@ func macKeySend(mods ui.Modifiers, key ui.Key) []byte {
 	return nil
 }
 
+// termOptions builds a terminal's options. It reads the app's state and
+// so runs on the main thread, where the attach goroutines hand it over.
 func (a *App) termOptions(id string, conn *gated) terminal.Options {
 	light, dark := a.termThemes()
 	o := terminal.Options{
