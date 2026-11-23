@@ -299,7 +299,14 @@ func Load() Settings {
 	migrate()
 	st, err := os.Stat(Path())
 	if err != nil {
-		cache, problems = nil, nil
+		// No configuration is no news; one that is there but cannot be
+		// told of is said, as a file that cannot be read is below.
+		if os.IsNotExist(err) {
+			cache, problems = nil, nil
+		} else {
+			cache = nil
+			problems = []string{fmt.Sprintf("the configuration could not be read: %v", err)}
+		}
 		return Default()
 	}
 	if cache != nil && st.ModTime().UnixNano() == mtime {
@@ -307,6 +314,9 @@ func Load() Settings {
 	}
 	b, err := os.ReadFile(Path())
 	if err != nil {
+		// The file is there but cannot be read: the defaults stand in,
+		// and the failure is said, as the parse's problems are.
+		problems = []string{fmt.Sprintf("the configuration could not be read: %v", err)}
 		return Default()
 	}
 	s, probs := parse(string(b))
@@ -384,7 +394,12 @@ func Save(s Settings) error {
 // points to is what changes.
 func write(s Settings) error {
 	path := Target()
-	old, _ := os.ReadFile(path)
+	old, err := os.ReadFile(path)
+	if err != nil && !os.IsNotExist(err) {
+		// A configuration that cannot be read is not replaced with what
+		// it never held: the user's own lines would be lost.
+		return err
+	}
 	data := format(s, string(old))
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err

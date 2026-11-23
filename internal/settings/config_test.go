@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -669,4 +670,71 @@ func TestDockBadgeModes(t *testing.T) {
 			t.Errorf("%s: dockBadge %q, want %q", tt.in, old.Settings.DockBadge, tt.want)
 		}
 	}
+}
+
+// A configuration that is there but cannot be read is said, and never
+// replaced with what it never held: the user's own lines would be lost.
+func TestUnreadableConfigIsSaidAndKept(t *testing.T) {
+	t.Run("a directory", func(t *testing.T) {
+		dir := t.TempDir()
+		path := filepath.Join(dir, "config")
+		if err := os.Mkdir(path, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		t.Setenv("KERO_HOME", dir)
+		t.Setenv("KERO_CONFIG", path)
+		mu.Lock()
+		cache = nil
+		mu.Unlock()
+		Load()
+		if got := Problems(); len(got) == 0 {
+			t.Fatal("a configuration that could not be read is said as the defaults, with nothing said")
+		}
+		s := Load()
+		if err := Save(s); err == nil {
+			t.Error("a save over a configuration it could not read")
+		}
+	})
+
+	t.Run("no read permission", func(t *testing.T) {
+		if os.Getuid() == 0 {
+			t.Skip("root reads a file with no read permission")
+		}
+		if runtime.GOOS == "windows" {
+			t.Skip("Windows reads a file with no read permission")
+		}
+		dir := t.TempDir()
+		path := filepath.Join(dir, "config")
+		if err := os.WriteFile(path, []byte("# mine\nfont-size = 14\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		t.Setenv("KERO_HOME", dir)
+		t.Setenv("KERO_CONFIG", path)
+		mu.Lock()
+		cache = nil
+		mu.Unlock()
+
+		// The file is there, but reading it is refused.
+		if err := os.Chmod(path, 0o000); err != nil {
+			t.Fatal(err)
+		}
+		s := Load()
+		if got := Problems(); len(got) == 0 {
+			t.Fatal("a configuration that could not be read is said as the defaults, with nothing said")
+		}
+		// A save must not replace it with what it never held.
+		if err := Save(s); err == nil {
+			t.Error("a save over a configuration it could not read")
+		}
+		if err := os.Chmod(path, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		b, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(string(b), "# mine") {
+			t.Errorf("the user's own lines are gone:\n%s", b)
+		}
+	})
 }
