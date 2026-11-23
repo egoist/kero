@@ -84,7 +84,10 @@ type backupState struct {
 	// sig is what the backup is of, as last seen, changed when it
 	// changed; written what the file has.
 	sig, written string
-	changed      time.Time
+	// said is the failure last said, so that a failure that goes on is
+	// said once, not once a second.
+	said    string
+	changed time.Time
 }
 
 // loadBackup reads the viewers and the edits the app left as it last
@@ -224,9 +227,16 @@ func (a *App) backupEdits(c *ui.Context) {
 	if err := writeBackup(a.backupNow()); err != nil {
 		// Nothing was written, so the backup is still owed: another
 		// moment on, and it tries again — not as though it were done.
+		// The user's edits are not backed up: say it, once per trouble,
+		// and not once a second.
+		if err.Error() != bs.said {
+			bs.said = err.Error()
+			a.toast(locales.ToastBackupFailed(err.Error()))
+		}
 		c.After(backupDelay)
 		return
 	}
+	bs.said = ""
 	bs.written = sig
 }
 

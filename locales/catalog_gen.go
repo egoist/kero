@@ -878,6 +878,16 @@ func (msgs Messages) ToastNothingNeedsYou() string {
 	return Catalog.Format(msgs.locale, "toastNothingNeedsYou", nil)
 }
 
+// ToastBackupFailed says "Couldn’t back up your unsaved edits: {error}"
+// in the language the app shows.
+func ToastBackupFailed(error string) string { return In(i18n.Locale()).ToastBackupFailed(error) }
+
+// ToastBackupFailed says "Couldn’t back up your unsaved edits: {error}"
+// in the language of msgs.
+func (msgs Messages) ToastBackupFailed(error string) string {
+	return Catalog.Format(msgs.locale, "toastBackupFailed", map[string]any{"error": error})
+}
+
 // CliInstallFailed says "Couldn’t install the command line tool"
 // in the language the app shows.
 func CliInstallFailed() string { return In(i18n.Locale()).CliInstallFailed() }
