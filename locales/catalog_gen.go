@@ -46,11 +46,11 @@ func (msgs Messages) SetOpenTargets() string {
 	return Catalog.Format(msgs.locale, "setOpenTargets", nil)
 }
 
-// SetOpenTargetsDetail says "Command-click (Control-click on other platforms) in terminals."
+// SetOpenTargetsDetail says "Choose how web links and file paths in terminals open."
 // in the language the app shows.
 func SetOpenTargetsDetail() string { return In(i18n.Locale()).SetOpenTargetsDetail() }
 
-// SetOpenTargetsDetail says "Command-click (Control-click on other platforms) in terminals."
+// SetOpenTargetsDetail says "Choose how web links and file paths in terminals open."
 // in the language of msgs.
 func (msgs Messages) SetOpenTargetsDetail() string {
 	return Catalog.Format(msgs.locale, "setOpenTargetsDetail", nil)
