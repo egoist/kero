@@ -1,7 +1,7 @@
 {
   "@@locale": "en",
   "setOpenTargets": "Open with",
-  "setOpenTargetsDetail": "Command-click (Control-click on other platforms) in terminals.",
+  "setOpenTargetsDetail": "Choose how web links and file paths in terminals open.",
   "setLinkOpenTarget": "Web links",
   "setFileOpenTarget": "File paths",
   "setOpenInKero": "Kero",

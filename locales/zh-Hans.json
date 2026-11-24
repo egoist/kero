@@ -1,7 +1,7 @@
 {
   "@@locale": "zh-Hans",
   "setOpenTargets": "打开方式",
-  "setOpenTargetsDetail": "控制终端中的 Command+点击（其他平台为 Control+点击）。",
+  "setOpenTargetsDetail": "选择终端中的网页链接和文件路径的打开方式。",
   "setLinkOpenTarget": "网页链接",
   "setFileOpenTarget": "文件路径",
   "setOpenInKero": "Kero",

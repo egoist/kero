@@ -1,7 +1,7 @@
 {
   "@@locale": "ja",
   "setOpenTargets": "開く方法",
-  "setOpenTargetsDetail": "ターミナルでの Command+クリック（他のプラットフォームでは Control+クリック）。",
+  "setOpenTargetsDetail": "ターミナル内の Web リンクとファイルパスを開く方法を選択します。",
   "setLinkOpenTarget": "Web リンク",
   "setFileOpenTarget": "ファイルのパス",
   "setOpenInKero": "Kero",
