@@ -13,6 +13,34 @@ import (
 	"kero/internal/actions"
 )
 
+func TestOpenTargets(t *testing.T) {
+	d := Default()
+	if d.LinkOpenTarget != "system" || d.FileOpenTarget != "system" {
+		t.Fatal("defaults changed")
+	}
+	for _, link := range []string{"system", "kero"} {
+		for _, file := range []string{"system", "kero"} {
+			s, problems := parse("link-open-target = " + link + "\nfile-open-target = " + file + "\n")
+			if len(problems) != 0 || s.LinkOpenTarget != link || s.FileOpenTarget != file {
+				t.Fatalf("parse: %+v, %v", s, problems)
+			}
+			back, problems := parse(format(s, ""))
+			if len(problems) != 0 || back.LinkOpenTarget != link || back.FileOpenTarget != file {
+				t.Fatal("round trip failed")
+			}
+		}
+	}
+	s, problems := parse("link-open-target = unknown\nfile-open-target = unknown\n")
+	if len(problems) != 2 || s.LinkOpenTarget != "system" || s.FileOpenTarget != "system" {
+		t.Fatal("invalid values accepted")
+	}
+	s.LinkOpenTarget, s.FileOpenTarget = "unknown", "unknown"
+	s.normalize()
+	if s.LinkOpenTarget != "system" || s.FileOpenTarget != "system" {
+		t.Fatal("invalid values not normalized")
+	}
+}
+
 func TestFormatKeepsTheUsersFile(t *testing.T) {
 	file := `# my kero
 font-size = 14

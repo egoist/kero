@@ -176,6 +176,8 @@ func IsFolderPath(p string) bool {
 // `kero config show` list them.
 var keys = []key{
 	newSessionDirKey,
+	choiceKey("link-open-target", "where terminal HTTP(S) links open", func(s *Settings) *string { return &s.LinkOpenTarget }, "system", "kero"),
+	choiceKey("file-open-target", "where terminal file paths open", func(s *Settings) *string { return &s.FileOpenTarget }, "system", "kero"),
 	choiceKey("session-name", "what names a session you or an agent didn't: the program in the pane you're in, else in the one that most needs you; the program in the one that most needs you; or the first pane's folder",
 		func(s *Settings) *string { return &s.SessionName }, proto.NameFocused, proto.NameLead, proto.NameFolder),
 	choiceKey("sidebar-rows", "how the sidebar shows a session: detailed, with its status message, else its branch and changes, on a second line; or compact, on one line",

@@ -41,6 +41,8 @@ kero config check             # report unknown keys and bad values, and agents.t
 
 | Key                     | Default   | Description                                                   |
 | ----------------------- | --------- | ------------------------------------------------------------- |
+| `link-open-target` | `system` | Where Command-click (Control-click elsewhere) opens terminal HTTP(S) links: `system` or `kero` |
+| `file-open-target` | `system` | Where terminal file paths open: `system` or `kero` (the Files editor) |
 | `new-session-directory` | `current` | Where a new session starts: `current`, `project`, `home`, or a folder such as `~/Developer` |
 | `session-name`          | `focused` | What names a session you haven't: `focused`, `lead` or `folder` ([more](./sessions.md#how-an-unnamed-session-is-named)) |
 | `sidebar-rows`          | `detailed` | How the sidebar shows a session: `detailed`, with its status message, else its branch and changes, on a second line; or `compact`, on one line |

@@ -598,6 +598,20 @@ func (a *App) generalPage(c *ui.Context, pal *palette) {
 			toggle(c.Key("wrap-lines"), &s.WrapLines, pal)
 		})
 	})
+	settingsGroup(c, pal, locales.SetOpenTargets(), locales.SetOpenTargetsDetail(), func() {
+		name := func(id string) string {
+			if id == "kero" {
+				return locales.SetOpenInKero()
+			}
+			return locales.SetOpenInSystem()
+		}
+		settingRow(c, pal, locales.SetLinkOpenTarget(), "", func() {
+			popup(c, "link-open-target", &s.LinkOpenTarget, []string{"system", "kero"}, name, 200, pal)
+		})
+		settingRow(c, pal, locales.SetFileOpenTarget(), "", func() {
+			popup(c, "file-open-target", &s.FileOpenTarget, []string{"system", "kero"}, name, 200, pal)
+		})
+	})
 	settingsGroup(c, pal, "", "", func() {
 		settingRow(c, pal, locales.AwakeTitle(), locales.AwakeDetail(), func() {
 			popup(c, "keep-awake", &s.KeepAwake, settings.KeepAwakeModes, awakeModeName, 200, pal)

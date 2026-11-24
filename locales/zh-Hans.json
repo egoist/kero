@@ -1,5 +1,11 @@
 {
   "@@locale": "zh-Hans",
+  "setOpenTargets": "打开方式",
+  "setOpenTargetsDetail": "控制终端中的 Command+点击（其他平台为 Control+点击）。",
+  "setLinkOpenTarget": "网页链接",
+  "setFileOpenTarget": "文件路径",
+  "setOpenInKero": "Kero",
+  "setOpenInSystem": "系统默认",
   "actionSettings": "设置…",
   "actionInstallCli": "安装命令行工具…",
   "actionQuitAll": "退出并结束所有会话…",

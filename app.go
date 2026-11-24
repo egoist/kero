@@ -1146,10 +1146,28 @@ func vibrancyFor(s settings.Settings) mygo.Vibrancy {
 
 var lineSuffix = regexp.MustCompile(`(:\d+){1,2}$`)
 
-// openLink opens what a Command+click opens: URLs with the system, and
-// file paths printed in the session, relative to its directory, in the
-// app that opens them.
+// openLink routes terminal links according to the user's opening preferences.
+// Returning false leaves a URL to the terminal's system opener.
 func (a *App) openLink(id, link string) bool {
+	if u, err := url.Parse(link); err == nil && u.Host != "" &&
+		(strings.EqualFold(u.Scheme, "http") || strings.EqualFold(u.Scheme, "https")) {
+		if a.set.LinkOpenTarget != "kero" {
+			return false
+		}
+		s := a.sessionOfPane(id)
+		if s == nil {
+			s = a.session(id)
+		}
+		if s == nil {
+			return false
+		}
+		at := id
+		if s.PaneByID(at) == nil {
+			at = a.focusOf(s)
+		}
+		a.split(s, proto.CreateParams{Split: at, Direction: "right", URL: link})
+		return true
+	}
 	if h := a.hostOf(id); h.remote() {
 		// A link another machine's program printed opens here only as a
 		// web page; a file:// one, and any path, are the host's; any other,
@@ -1170,14 +1188,55 @@ func (a *App) openLink(id, link string) bool {
 		return true
 	}
 	if strings.Contains(link, "://") {
-		return false
+		if a.set.FileOpenTarget != "kero" {
+			return false
+		}
+		path, ok := fileLinkPath(link)
+		if !ok {
+			return false
+		}
+		link = path
 	}
 	path := a.resolvePath(id, link)
 	if path == "" {
 		return false
 	}
+	if a.set.FileOpenTarget == "kero" && !isDir(path) {
+		s := a.sessionOfPane(id)
+		if s == nil {
+			s = a.session(id)
+		}
+		if s != nil {
+			pid := id
+			if s.PaneByID(pid) == nil {
+				pid = a.focusOf(s)
+			}
+			rel, err := filepath.Rel(a.workDir(pid), path)
+			if err != nil {
+				rel = path
+			}
+			a.openFileView(s.ID, pid, path, filepath.ToSlash(rel))
+			return true
+		}
+	}
 	openPath(path)
 	return true
+}
+
+// fileLinkPath decodes file URLs without treating another host's
+// filesystem as ours. Other URLs remain the system opener's responsibility.
+func fileLinkPath(link string) (string, bool) {
+	u, err := url.Parse(link)
+	if err != nil || !strings.EqualFold(u.Scheme, "file") || u.User != nil ||
+		(u.Host != "" && !strings.EqualFold(u.Host, "localhost")) || u.RawQuery != "" || u.Fragment != "" {
+		return "", false
+	}
+	p := u.Path
+	if runtime.GOOS == "windows" && len(p) >= 3 && p[0] == '/' && p[2] == ':' {
+		p = p[1:]
+	}
+	p = filepath.FromSlash(p)
+	return p, filepath.IsAbs(p)
 }
 
 // resolvePath returns the file a path printed in a pane names, relative to

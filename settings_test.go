@@ -19,6 +19,26 @@ import (
 	"kero/locales"
 )
 
+func TestOpenTargetSettingsUI(t *testing.T) {
+	a := testApp(t)
+	a.ss.draft = map[string]string{}
+	a.ss.page = "general"
+	tt := ui.NewTester(a.settingsView, 900, 1000)
+	tt.Frame()
+	shot(t, tt, "settings-open-targets")
+	for _, label := range []string{locales.SetLinkOpenTarget(), locales.SetFileOpenTarget()} {
+		if !tt.HasText(label) {
+			t.Fatalf("missing setting %s", label)
+		}
+	}
+	for _, query := range []string{"link-open-target", "file-open-target"} {
+		if len(searchResults(query, a.set.Shortcuts)["general"]) == 0 {
+			t.Fatalf("not searchable: %s", query)
+		}
+	}
+	tt.Frame()
+}
+
 // Every page builds, and shows its settings.
 func TestSettingsPages(t *testing.T) {
 	a := testApp(t)
