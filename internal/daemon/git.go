@@ -42,6 +42,10 @@ type repoStatus struct {
 	info  *proto.GitInfo // replaced whole on a change, never changed
 	stamp string
 	at    time.Time
+	// failed is true of a status ask that did not answer: it backs off
+	// the next ask to gitWorkingStep, as a stamp that does not move would
+	// otherwise ask again every second.
+	failed bool
 	// slow counts the refreshes in a row that ran out of time, past two
 	// of which only a poke refreshes it: a huge repository, or one on a
 	// network's disk.
@@ -165,7 +169,11 @@ func (g *gitFollow) look(now time.Time) {
 			branch = rs.info.Branch
 		}
 		stamp := rs.repo.Stamp(branch)
-		due := rs.info == nil || u.poked || stamp != rs.stamp ||
+		// A stamp that does not move is asked of again only after a step:
+		// a failed ask left it where it was, and asking it every second
+		// would run git status of a broken repository forever.
+		due := rs.info == nil || u.poked ||
+			stamp != rs.stamp && (!rs.failed || now.Sub(rs.at) >= gitWorkingStep) ||
 			u.working && now.Sub(rs.at) >= gitWorkingStep || now.Sub(rs.at) >= gitIdleStep
 		if !due || rs.slow >= 2 && !u.poked {
 			continue
@@ -228,6 +236,7 @@ func (g *gitFollow) refresh(rs *repoStatus, stamp string, now time.Time) {
 	st, err := rs.repo.Status(ctx)
 	rs.at = now
 	if err != nil {
+		rs.failed = true
 		if errors.Is(err, context.DeadlineExceeded) {
 			rs.slow++
 			g.d.log.Printf("git status of %s took over %v", rs.repo.Root, gitTimeout)
@@ -235,6 +244,7 @@ func (g *gitFollow) refresh(rs *repoStatus, stamp string, now time.Time) {
 		return
 	}
 	rs.stamp = stamp
+	rs.failed = false
 	rs.slow = 0
 	info := &proto.GitInfo{
 		Root: rs.repo.Root, Branch: st.Branch, Head: st.Head, Upstream: st.Upstream,
