@@ -35,8 +35,8 @@ type peek struct {
 // peekable are the extensions of the images ui.DecodeBitmap reads.
 var peekable = map[string]bool{".png": true, ".jpg": true, ".jpeg": true, ".gif": true, ".webp": true, ".bmp": true}
 
-// filePeekPath returns the host path of a file:// hyperlink. URL.Path is
-// already decoded once; decoding it again would corrupt literal percent
+// filePeekPath decodes file:// paths for preview handling and opening links.
+// URL.Path is already decoded once; decoding it again would corrupt literal percent
 // escapes in a name. Windows conversion follows the pane's host, which may
 // not be the machine showing it.
 func filePeekPath(link string, windows bool) (string, bool) {

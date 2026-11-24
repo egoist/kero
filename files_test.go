@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -20,6 +21,38 @@ import (
 	"kero/internal/proto"
 	"kero/locales"
 )
+
+// File URLs must preserve literal suffixes, even when the stripped file exists.
+func TestTerminalFileURLExactPath(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("colon is not a Windows filename character")
+	}
+	a := testApp(t)
+	a.set.FileOpenTarget = "kero"
+	dir := t.TempDir()
+	for _, name := range []string{"report", "report:12", "report:12:3", "a%20b", "a b", "a#b", "a?b"} {
+		path := filepath.Join(dir, name)
+		if err := os.WriteFile(path, []byte(name), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, name := range []string{"report:12", "report:12:3", "a%20b", "a b", "a#b", "a?b"} {
+		path := filepath.Join(dir, name)
+		link := (&url.URL{Scheme: "file", Path: path}).String()
+		if !a.openLink("b", link) {
+			t.Fatalf("not handled: %s", link)
+		}
+		if got := a.viewOf(a.session("s1")).file.path; got != path {
+			t.Fatalf("opened %q, want %q", got, path)
+		}
+	}
+	if !a.openLink("b", filepath.Join(dir, "report")+":8:2") {
+		t.Fatal("plain path not handled")
+	}
+	if got := a.viewOf(a.session("s1")).file.path; got != filepath.Join(dir, "report") {
+		t.Fatalf("opened %q", got)
+	}
+}
 
 func TestTerminalFileOpenTarget(t *testing.T) {
 	a := testApp(t)

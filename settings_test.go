@@ -39,6 +39,56 @@ func TestOpenTargetSettingsUI(t *testing.T) {
 	tt.Frame()
 }
 
+// Each opening preference is independently selectable and survives reload.
+func TestOpenTargetSettingsChoices(t *testing.T) {
+	a := testApp(t)
+	a.ss.draft = map[string]string{}
+	a.ss.page = "general"
+	tt := ui.NewTester(a.settingsView, 900, 1000)
+	choose := func(query, label string, key ui.Key) {
+		t.Helper()
+		a.ss.query = query
+		for range 3 {
+			tt.Frame()
+		}
+		r, ok := tt.Find(label)
+		if !ok {
+			t.Fatalf("missing %s", label)
+		}
+		// The popup sits at the right edge of the setting's row.
+		tt.ClickAt(800, r.Y+r.H/2)
+		tt.Frame()
+		tt.Key(0, key)
+		tt.Key(0, ui.KeyEnter)
+		for range 3 {
+			tt.Frame()
+		}
+	}
+	check := func(link, file string) {
+		t.Helper()
+		if a.set.LinkOpenTarget != link || a.set.FileOpenTarget != file {
+			t.Fatalf("current targets: %s, %s; want %s, %s", a.set.LinkOpenTarget, a.set.FileOpenTarget, link, file)
+		}
+		saved := settings.Load()
+		if saved.LinkOpenTarget != link || saved.FileOpenTarget != file {
+			t.Fatalf("saved targets: %s, %s; want %s, %s", saved.LinkOpenTarget, saved.FileOpenTarget, link, file)
+		}
+	}
+	choose("link-open-target", locales.SetLinkOpenTarget(), ui.KeyDown)
+	check("kero", "system")
+	choose("file-open-target", locales.SetFileOpenTarget(), ui.KeyDown)
+	check("kero", "kero")
+	choose("link-open-target", locales.SetLinkOpenTarget(), ui.KeyUp)
+	check("system", "kero")
+	// A new app reads the choices from disk, not the old UI's state.
+	reloaded := newApp()
+	if reloaded.set.LinkOpenTarget != "system" || reloaded.set.FileOpenTarget != "kero" {
+		t.Fatal("opening preferences did not survive a new app")
+	}
+	choose("file-open-target", locales.SetFileOpenTarget(), ui.KeyUp)
+	check("system", "system")
+}
+
 // Every page builds, and shows its settings.
 func TestSettingsPages(t *testing.T) {
 	a := testApp(t)

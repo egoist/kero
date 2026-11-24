@@ -1187,17 +1187,23 @@ func (a *App) openLink(id, link string) bool {
 		a.openRemotePath(h, id, link)
 		return true
 	}
+	var path string
 	if strings.Contains(link, "://") {
 		if a.set.FileOpenTarget != "kero" {
 			return false
 		}
-		path, ok := fileLinkPath(link)
+		var ok bool
+		path, ok = fileLinkPath(link)
 		if !ok {
 			return false
 		}
-		link = path
+		// A URL names an exact file: a trailing :12 is not a line number.
+		if _, err := os.Stat(path); err != nil {
+			return false
+		}
+	} else {
+		path = a.resolvePath(id, link)
 	}
-	path := a.resolvePath(id, link)
 	if path == "" {
 		return false
 	}
@@ -1226,14 +1232,14 @@ func (a *App) openLink(id, link string) bool {
 // fileLinkPath decodes file URLs without treating another host's
 // filesystem as ours. Other URLs remain the system opener's responsibility.
 func fileLinkPath(link string) (string, bool) {
-	u, err := url.Parse(link)
-	if err != nil || !strings.EqualFold(u.Scheme, "file") || u.User != nil ||
-		(u.Host != "" && !strings.EqualFold(u.Host, "localhost")) || u.RawQuery != "" || u.Fragment != "" {
+	// Clicking leaves URLs with query/fragment semantics to the system.
+	// Encoded question marks and hashes remain part of the filename.
+	if strings.ContainsAny(link, "?#") {
 		return "", false
 	}
-	p := u.Path
-	if runtime.GOOS == "windows" && len(p) >= 3 && p[0] == '/' && p[2] == ':' {
-		p = p[1:]
+	p, ok := filePeekPath(link, runtime.GOOS == "windows")
+	if !ok {
+		return "", false
 	}
 	p = filepath.FromSlash(p)
 	return p, filepath.IsAbs(p)
