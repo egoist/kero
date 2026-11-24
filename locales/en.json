@@ -49,6 +49,7 @@
   "commonRestart": "Restart",
   "commonRestartService": "Restart Service",
   "commonTryAgain": "Try Again",
+  "commonQuitAnyway": "Quit Anyway",
   "commonOpen": "Open",
   "commonChoose": "Choose",
   "commonShow": "Show",
@@ -69,7 +70,11 @@
   "windowRestore": "Restore Down",
   "toastCopied": "Copied",
   "toastCopiedToClipboard": "Copied to clipboard",
+  "toastPrefsUnreadable": "Couldn’t read your preferences: {error}",
+  "toastPrefsUnsaved": "Couldn’t save your preferences: {error}",
   "toastSaveSettingsFailed": "Couldn’t save the settings: {error}",
+  "toastOpenConfigFailed": "Couldn’t open the configuration: {error}",
+  "toastBackupUnreadable": "Couldn’t restore your unsaved edits: {error}",
   "toastPasteImageFailed": "Couldn’t paste the image: {error}. Try again, or drop the image file on the pane.",
   "toastPasteImageDenied": "Couldn’t paste the image: Kero can’t write to {dir}. Make it writable, or drop the image file on the pane.",
   "toastPasteImageDiskFull": "Couldn’t paste the image: the disk is full. Free some space and try again.",
@@ -128,6 +133,8 @@
     }
   },
   "confirmQuitAllAction": "End Sessions and Quit",
+  "confirmEndFailedTitle": "Couldn’t end the sessions",
+  "confirmEndFailedDetail": "Kero could not end this machine’s sessions, so they keep running: {error}",
   "confirmRestartServiceTitle": "Restart the background service?",
   "restartEarlierVersion": "an earlier version",
   "restartRunning": "{count, plural, one {A program is running in # session} other {Programs are running in # sessions}}",
@@ -291,6 +298,7 @@
   },
   "paneForegroundTip": "Running in the foreground",
   "paneCantShow": "Can’t show this pane",
+  "quickPaneIsBrowser": "The pane in focus is a browser — focus a terminal pane of the session",
   "paneAttaching": "Attaching",
   "pageGeneral": "General",
   "pageAppearance": "Appearance",
@@ -319,6 +327,18 @@
     }
   },
   "svcStale": " · still an earlier Kero: restart it to update",
+  "svcRunningUnreadable": "Running (pid {pid}) for {duration} · the sessions could not be read",
+  "@svcRunningUnreadable": {
+    "placeholders": {
+      "pid": {
+        "type": "String"
+      },
+      "duration": {
+        "type": "String"
+      }
+    }
+  },
+  "svcAnotherVersion": "Running · another version of Kero: restart it",
   "durUnderMinute": "under a minute",
   "durMinutes": "{n} min",
   "@durMinutes": {
@@ -392,7 +412,9 @@
   "awakeOff": "Off",
   "awakeOn": "Always",
   "awakeAgents": "While agents work",
-  "awakeDetail": "Kero keeps this computer from sleeping as long as it runs, or while an agent on it works. Closing a Mac’s lid still puts it to sleep.",
+  "awakeDetail": "Kero keeps this computer from sleeping as long as it runs, or while an agent on it works. On battery, closing a Mac’s lid still puts it to sleep.",
+  "awakeDisplay": "Keep display on",
+  "awakeDisplayDetail": "While Kero keeps this computer awake, the display stays on too, for agents that look at the screen.",
   "trayOpen": "Open {app}",
   "setVersionNoUpdate": " · this copy can’t update itself",
   "setVersionNotChecked": " · not checked yet",

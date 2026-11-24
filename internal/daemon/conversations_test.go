@@ -1,7 +1,10 @@
 package daemon
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"slices"
@@ -11,6 +14,62 @@ import (
 
 	"kero/internal/proto"
 )
+
+// A restart as a client asks saves the conversations too, as a stop
+// does: one remembered since the last snapshot would otherwise be left
+// out of conversations.json, and the next kerod's kero history would not
+// show it.
+func TestRestartSavesConversations(t *testing.T) {
+	d := testDaemon(t)
+	d.quit = make(chan struct{}) // as a kerod running has
+	d.convs.note(proto.Conversation{Agent: "claude", ID: "13b997c3", Dir: "/src/app", Project: "pr"}, time.Now().UnixMilli())
+	if _, err := os.Stat(d.convPath()); err == nil {
+		t.Fatal("the conversations were written before the restart")
+	}
+	then, err := d.restart()
+	if err != nil {
+		t.Fatal(err)
+	}
+	then()
+	b, err := os.ReadFile(d.convPath())
+	if err != nil {
+		t.Fatalf("the restart left the conversations unwritten: %v", err)
+	}
+	var list []proto.Conversation
+	if err := json.Unmarshal(b, &list); err != nil {
+		t.Fatalf("the conversations written are no list: %v", err)
+	}
+	if len(list) != 1 || list[0].ID != "13b997c3" {
+		t.Errorf("written %+v", list)
+	}
+}
+
+// A shutdown as the app asks saves the conversations too, as a stop and
+// a restart do: one remembered since the last snapshot would otherwise
+// be left out of conversations.json, and the next kerod's kero history
+// would not show it.
+func TestShutdownSavesConversations(t *testing.T) {
+	d := testDaemon(t)
+	d.quit = make(chan struct{}) // as a kerod running has
+	d.convs.note(proto.Conversation{Agent: "claude", ID: "13b997c3", Dir: "/src/app", Project: "pr"}, time.Now().UnixMilli())
+	if _, err := os.Stat(d.convPath()); err == nil {
+		t.Fatal("the conversations were written before the shutdown")
+	}
+	if _, err := d.call(nil, "shutdown", nil); err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(d.convPath())
+	if err != nil {
+		t.Fatalf("the shutdown left the conversations unwritten: %v", err)
+	}
+	var list []proto.Conversation
+	if err := json.Unmarshal(b, &list); err != nil {
+		t.Fatalf("the conversations written are no list: %v", err)
+	}
+	if len(list) != 1 || list[0].ID != "13b997c3" {
+		t.Errorf("written %+v", list)
+	}
+}
 
 // A conversation is remembered once, the last to run first, with what
 // each sighting tells, and no more of them than kerod keeps.
@@ -201,4 +260,45 @@ func TestClaudeTitle(t *testing.T) {
 func timeAfter(path string) time.Time {
 	st, _ := os.Stat(path)
 	return st.ModTime().Add(time.Second)
+}
+
+// A conversations file that could not be written is said: the
+// conversations are the ones the next kerod starts with, and a lost
+// write is lost for good. They are written again on the next save.
+func TestFailedConversationSaveIsSaid(t *testing.T) {
+	d := testDaemon(t)
+	var buf bytes.Buffer
+	d.log = log.New(&buf, "", 0)
+	// The path of the conversations is a directory: the write cannot
+	// put it there.
+	if err := os.MkdirAll(d.convPath(), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	d.convs.note(proto.Conversation{Agent: "claude", ID: "13b997c3"}, time.Now().UnixMilli())
+	d.saveConversations()
+	if !strings.Contains(buf.String(), "conversations") {
+		t.Fatalf("the failed write was not said: %q", buf.String())
+	}
+	d.convs.mu.Lock()
+	dirty := d.convs.dirty
+	d.convs.mu.Unlock()
+	if !dirty {
+		t.Error("the conversations are marked written though the write failed")
+	}
+}
+
+// Conversations that could not be read are said: they are the ones the
+// app's palette and `kero history` list, and nobody is told they are
+// gone.
+func TestUnreadableConversationsAreSaid(t *testing.T) {
+	d := testDaemon(t)
+	var buf bytes.Buffer
+	d.log = log.New(&buf, "", 0)
+	if err := os.WriteFile(d.convPath(), []byte("{not json"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	d.loadConversations()
+	if !strings.Contains(buf.String(), "conversations") {
+		t.Fatalf("the unreadable conversations were not said: %q", buf.String())
+	}
 }

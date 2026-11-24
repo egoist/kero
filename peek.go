@@ -2,6 +2,7 @@ package main
 
 import (
 	"math"
+	"net/url"
 	"os"
 	pathpkg "path"
 	"path/filepath"
@@ -33,6 +34,34 @@ type peek struct {
 
 // peekable are the extensions of the images ui.DecodeBitmap reads.
 var peekable = map[string]bool{".png": true, ".jpg": true, ".jpeg": true, ".gif": true, ".webp": true, ".bmp": true}
+
+// filePeekPath returns the host path of a file:// hyperlink. URL.Path is
+// already decoded once; decoding it again would corrupt literal percent
+// escapes in a name. Windows conversion follows the pane's host, which may
+// not be the machine showing it.
+func filePeekPath(link string, windows bool) (string, bool) {
+	if len(link) < len("file://") || !strings.EqualFold(link[:len("file://")], "file://") {
+		return "", false
+	}
+	u, err := url.Parse(link)
+	if err != nil || !strings.EqualFold(u.Scheme, "file") || u.Opaque != "" || u.User != nil {
+		return "", false
+	}
+	p, local := u.Path, strings.EqualFold(u.Host, "localhost")
+	if u.Host != "" && !local {
+		return "", false
+	}
+	if windows && len(p) >= 2 && (p[0] == '/' || p[0] == '\\') && (p[1] == '/' || p[1] == '\\') {
+		// An empty or localhost authority can still leave a UNC path.
+		return "", false
+	}
+	if windows && len(p) >= 3 && p[0] == '/' && p[2] == ':' &&
+		('a' <= p[1] && p[1] <= 'z' || 'A' <= p[1] && p[1] <= 'Z') {
+		// file:///C:/… has a URI slash, not part of the drive path.
+		p = p[1:]
+	}
+	return p, p != ""
+}
 
 // maxPeekBytes keeps a huge file from being read whole for a glance.
 const maxPeekBytes = 64 << 20

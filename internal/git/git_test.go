@@ -2,6 +2,7 @@ package git
 
 import (
 	"context"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -187,6 +188,91 @@ func TestWrite(t *testing.T) {
 	}
 }
 
+// A git that fails is a failure, not a file that is not in the rev: the
+// diff of a file that is there showed the whole file as new, and a file
+// that was clean looked changed, both without an error.
+func TestGitFailureIsNotAFileThatIsNotThere(t *testing.T) {
+	r := repo(t, map[string]string{"a.txt": "one\n"})
+	write(t, filepath.Join(r.Root, "a.txt"), "two\n")
+	// A context that is done: git fails at once, as it does when the
+	// daemon's fifteen seconds are up.
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	text, err := r.FileText(ctx, "HEAD", "a.txt", "")
+	if err == nil {
+		t.Errorf("the text of the file: %+v", text)
+	}
+	changed, err := r.Changed(ctx, "HEAD", "a.txt")
+	if err == nil {
+		t.Errorf("the file looks changed: %v", changed)
+	}
+	// A file that is not in the rev is not a failure: it was added.
+	write(t, filepath.Join(r.Root, "new.txt"), "new\n")
+	text, err = r.FileText(context.Background(), "HEAD", "new.txt", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if text.Old != "" || text.New != "new\n" {
+		t.Errorf("a file that was added: %+v", text)
+	}
+	changed, err = r.Changed(context.Background(), "HEAD", "new.txt")
+	if err != nil || !changed {
+		t.Errorf("a file that was added is changed: %v, %v", changed, err)
+	}
+	// The words that tell a file that is not in the rev are git's English
+	// ones, which the call is given LC_ALL=C for: a git of another locale
+	// says them otherwise, and every file that was added would read as a
+	// failure.
+	t.Setenv("LANG", "de_DE.UTF-8")
+	t.Setenv("LANGUAGE", "de")
+	t.Setenv("LC_MESSAGES", "de_DE.UTF-8")
+	text, err = r.FileText(context.Background(), "HEAD", "new.txt", "")
+	if err != nil {
+		t.Errorf("the text of a file that was added, in another locale: %v", err)
+	}
+	if text.Old != "" || text.New != "new\n" {
+		t.Errorf("a file that was added, in another locale: %+v", text)
+	}
+	changed, err = r.Changed(context.Background(), "HEAD", "new.txt")
+	if err != nil || !changed {
+		t.Errorf("a file that was added, in another locale, is changed: %v, %v", changed, err)
+	}
+	// A failure is a failure there too.
+	ctx2, cancel2 := context.WithCancel(context.Background())
+	cancel2()
+	if _, err := r.FileText(ctx2, "HEAD", "a.txt", ""); err == nil {
+		t.Error("the text of the file, in another locale: no error")
+	}
+	if _, err := r.Changed(ctx2, "HEAD", "a.txt"); err == nil {
+		t.Error("the file looks changed, in another locale: no error")
+	}
+	// A git that says it in its own language says nothing that is read:
+	// the calls are given LC_ALL=C, so that git says it in English.
+	if notInRev(errors.New("git cat-file: fatal: Pfad 'x' existiert nicht in 'HEAD'")) {
+		t.Error("a message of another language reads as a file that is not there")
+	}
+}
+
+// The patch of a file too big to show whole, when it cannot be made: a
+// failure, not an empty patch.
+func TestFileTextSaysThePatchFailed(t *testing.T) {
+	r := repo(t, map[string]string{"big.txt": "small\n", "other.txt": "x\n"})
+	write(t, filepath.Join(r.Root, "big.txt"), strings.Repeat("x", 1<<20+1))
+	if err := os.Chmod(filepath.Join(r.Root, "other.txt"), 0o000); err != nil {
+		t.Fatal(err)
+	}
+	// On a system where a file with no read permission is still read
+	// (as root, or on Windows), the patch is made, and there is no
+	// failure to say.
+	if f, err := os.Open(filepath.Join(r.Root, "other.txt")); err == nil {
+		f.Close()
+		t.Skip("a file with no read permission is still read")
+	}
+	if text, err := r.FileText(context.Background(), "HEAD", "big.txt", ""); err == nil {
+		t.Errorf("the patch of the file too big to show: %+v", text)
+	}
+}
+
 func TestLocal(t *testing.T) {
 	r := repo(t, map[string]string{"a.txt": "a\n"})
 	outside := t.TempDir()
@@ -203,5 +289,124 @@ func TestLocal(t *testing.T) {
 	}
 	if _, err := r.FileText(context.Background(), "HEAD", "../outside", ""); err == nil {
 		t.Error("FileText read outside the worktree")
+	}
+}
+
+// A change of a file's mode is a change, as git shows it, though the
+// file's bytes are as they were.
+func TestChangedSeesAModeChange(t *testing.T) {
+	r := repo(t, map[string]string{"f.txt": "line\n"})
+	if err := os.Chmod(filepath.Join(r.Root, "f.txt"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// On a system where a file's mode is not kept — Windows, or a
+	// filesystem with no permissions — git sees no change either.
+	if out := gitIn(t, r.Root, "status", "--porcelain"); out == "" {
+		t.Skip("the mode is not tracked here")
+	}
+	if changed, err := r.Changed(context.Background(), "HEAD", "f.txt"); err != nil || !changed {
+		t.Errorf("a change of the mode: %v, %v", changed, err)
+	}
+	if err := os.Chmod(filepath.Join(r.Root, "f.txt"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if changed, err := r.Changed(context.Background(), "HEAD", "f.txt"); err != nil || changed {
+		t.Errorf("the mode as it was: %v, %v", changed, err)
+	}
+}
+
+// git records only the execute bit: a revert takes it from the rev and
+// leaves the rest of the file's mode as it is.
+func TestRevertKeepsTheRestOfTheMode(t *testing.T) {
+	r := repo(t, map[string]string{"a.txt": "one\n"})
+	full := filepath.Join(r.Root, "a.txt")
+	// A group-writable file, made to run.
+	if err := os.Chmod(full, 0o774); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.Revert(context.Background(), "HEAD", "a.txt", Hash([]byte("one\n")), "one\n"); err != nil {
+		t.Fatal(err)
+	}
+	fi, err := os.Stat(full)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The rev has no execute bit (100644), so the +x goes; the group
+	// write is not git's to take.
+	if fi.Mode().Perm() != 0o664 {
+		t.Errorf("the mode after the revert: %v", fi.Mode())
+	}
+}
+
+// A file the agent deleted, reverted: written anew as the rev has it.
+func TestRevertRestoresADeletedFile(t *testing.T) {
+	r := repo(t, map[string]string{"a.txt": "one\n"})
+	full := filepath.Join(r.Root, "a.txt")
+	if err := os.Remove(full); err != nil {
+		t.Fatal(err)
+	}
+	// The hash the diff shows of a file that is not there: the empty
+	// content's.
+	if err := r.Revert(context.Background(), "HEAD", "a.txt", Hash(nil), "one\n"); err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(full)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(b) != "one\n" {
+		t.Errorf("restored %q", b)
+	}
+	fi, err := os.Stat(full)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fi.Mode().Perm() != 0o644 {
+		t.Errorf("the mode of the file written anew: %v", fi.Mode())
+	}
+	// One changed meanwhile is asked about, as a write is.
+	if err := os.Remove(full); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.Revert(context.Background(), "HEAD", "a.txt", Hash([]byte("other\n")), "one\n"); err != ErrChanged {
+		t.Errorf("a file that went another way: %v", err)
+	}
+}
+
+// A file the agent added, reverted: taken away, as the rev has none.
+func TestRevertRemovesAFileNotInTheRev(t *testing.T) {
+	r := repo(t, map[string]string{"a.txt": "one\n"})
+	write(t, filepath.Join(r.Root, "new.txt"), "new\n")
+	if err := r.Revert(context.Background(), "HEAD", "new.txt", Hash([]byte("new\n")), ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(r.Root, "new.txt")); !os.IsNotExist(err) {
+		t.Errorf("the file the rev does not have stays: %v", err)
+	}
+	// One changed meanwhile is asked about, as a write is.
+	write(t, filepath.Join(r.Root, "new.txt"), "other\n")
+	if err := r.Revert(context.Background(), "HEAD", "new.txt", Hash([]byte("new\n")), ""); err != ErrChanged {
+		t.Errorf("a file that went another way: %v", err)
+	}
+}
+
+// A file that is not there is the empty content to a write: one over a
+// file deleted since it was read is asked about, and one of the empty
+// content's hash writes it anew.
+func TestWriteFileOverADeletedFile(t *testing.T) {
+	dir := t.TempDir()
+	full := filepath.Join(dir, "f.txt")
+	if err := WriteFile(full, Hash([]byte("read\n")), "text\n"); err != ErrChanged {
+		t.Errorf("a file that is not there, with the hash of one that was: %v", err)
+	}
+	if err := WriteFile(full, Hash(nil), "text\n"); err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(full)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(b) != "text\n" {
+		t.Errorf("wrote %q", b)
 	}
 }

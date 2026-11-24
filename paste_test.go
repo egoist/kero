@@ -21,6 +21,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"kero/internal/client"
+	"kero/internal/shell"
 )
 
 // fakePNG is not a picture, and need not be: the paste carries its bytes
@@ -622,5 +623,37 @@ func TestRemoteDrop(t *testing.T) {
 	}
 	if a.remoteDrop("b", []string{f}) {
 		t.Error("a drop on a local pane was taken")
+	}
+}
+
+// A path with a newline in it: a backslash before a newline is a line
+// continuation to a POSIX shell, and the path would name another file.
+func TestShellEscapeANewline(t *testing.T) {
+	p := "/tmp/a\nb.png"
+	got := shellEscape(p)
+	if got != "'/tmp/a\nb.png'" {
+		t.Errorf("shellEscape(%q) = %q", p, got)
+	}
+	sh, err := exec.LookPath("sh")
+	if err != nil {
+		t.Skip("no sh")
+	}
+	out, err := exec.Command(sh, "-c", "printf %s "+got).Output()
+	if err != nil || string(out) != p {
+		t.Errorf("the shell read %s as %q (%v), want %q", got, out, err, p)
+	}
+}
+
+// A path pasted to a host is quoted for its system: a POSIX shell's, or
+// PowerShell's, as the host is. The system is the one the paste was made
+// for, and not the one the host may have become by the time the path
+// comes back.
+func TestPastedPathIsQuotedForTheHost(t *testing.T) {
+	p := `C:\Users\me\a b.txt`
+	if got, want := pastedPath(false, p), shellEscape(p); got != want {
+		t.Errorf("a POSIX shell's path is %q, want %q", got, want)
+	}
+	if got, want := pastedPath(true, p), shell.PSQuote(p); got != want {
+		t.Errorf("a Windows path is %q, want %q", got, want)
 	}
 }

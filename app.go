@@ -118,10 +118,15 @@ type App struct {
 	lru        []string
 	refs       map[string]*ui.Handle // panes' terminals, and splits, by id
 	focus      map[string]string     // the pane the user is in, by session
+	keyPane    string                // the pane that has the keyboard
 	layoutDrag struct {              // the split whose divider is dragged
 		session, split string
 		ratio          float64 // where the pointer puts it, past its bounds
 	}
+	// pressHandle is the drag handle the pointer is pressing: it took the
+	// keyboard from the pane the user is in, and gives it back when the
+	// pointer lets go (#398).
+	pressHandle string
 
 	active   bool
 	focused  bool
@@ -208,9 +213,18 @@ func newApp() *App {
 
 func prefsPath() string { return filepath.Join(proto.Dir(), "app.json") }
 
+// loadPrefs reads the preferences the app remembers between runs. A
+// preference file that could not be read is said: the app forgets what it
+// remembered, and the user is told nothing of it otherwise. A file that is
+// not there is no news: there was nothing to remember.
 func (a *App) loadPrefs() {
-	if b, err := os.ReadFile(prefsPath()); err == nil {
-		json.Unmarshal(b, &a.prefs)
+	b, err := os.ReadFile(prefsPath())
+	if err != nil {
+		if !os.IsNotExist(err) {
+			a.toast(locales.ToastPrefsUnreadable(err.Error()))
+		}
+	} else if err := json.Unmarshal(b, &a.prefs); err != nil {
+		a.toast(locales.ToastPrefsUnreadable(err.Error()))
 	}
 	if a.prefs.SidebarWidth == 0 {
 		a.prefs.SidebarWidth = defaultSidebar
@@ -227,17 +241,29 @@ func (a *App) loadPrefs() {
 	}
 }
 
+// savePrefs writes the preferences the app remembers between runs. A
+// write that fails is said: the app forgets what it remembered.
 func (a *App) savePrefs() {
 	a.prefs.Selected = a.selected
-	b, err := json.MarshalIndent(a.prefs, "", "  ")
+	if err := writePrefs(a.prefs); err != nil {
+		a.toast(locales.ToastPrefsUnsaved(err.Error()))
+	}
+}
+
+// writePrefs writes the preferences, and says whether it wrote them.
+func writePrefs(p prefs) error {
+	b, err := json.MarshalIndent(p, "", "  ")
 	if err != nil {
-		return
+		return err
 	}
-	os.MkdirAll(proto.Dir(), 0o700)
+	if err := os.MkdirAll(proto.Dir(), 0o700); err != nil {
+		return err
+	}
 	tmp := prefsPath() + ".tmp"
-	if os.WriteFile(tmp, b, 0o600) == nil {
-		os.Rename(tmp, prefsPath())
+	if err := os.WriteFile(tmp, b, 0o600); err != nil {
+		return err
 	}
+	return os.Rename(tmp, prefsPath())
 }
 
 // update runs fn on the main thread, and draws.
@@ -347,6 +373,7 @@ func (a *App) setState(h *host, st proto.State) {
 			a.dropWeb(id)
 		}
 	}
+	a.focusGone()
 	a.quickChanged()
 	if a.session(a.selected) == nil {
 		a.reselect()
@@ -655,31 +682,30 @@ func (a *App) ensureTerm(id string) {
 			return
 		}
 		g := &gated{Stream: stream, ready: make(chan struct{})}
-		o := a.termOptions(id, g)
-		// The terminal shows kerod's frames: kerod's terminal is the
-		// session's, ours shows what it shows, cell for cell, and lays out
-		// nothing of the program's own. It takes the sizes kerod's does,
-		// between the frames of one size and the next.
-		o.ResizeByConn = true
-		term, err := terminal.New(o)
-		if err != nil {
-			stream.Close()
-			a.update(func() {
-				if a.terms[id] == e {
-					e.err = err.Error()
-				}
-			})
-			return
-		}
-		term.Resize(stream.Welcome.Cols, stream.Welcome.Rows)
-		stream.OnResized = term.Resize
-		close(g.ready)
 		a.update(func() {
 			if a.terms[id] != e {
-				term.Close()
 				stream.Close()
 				return
 			}
+			// The options take the app's state, which is the main
+			// thread's alone: the goroutine above may only dial.
+			o := a.termOptions(id, g)
+			// The terminal shows kerod's frames: kerod's terminal is the
+			// session's, ours shows what it shows, cell for cell, and lays out
+			// nothing of the program's own. It takes the sizes kerod's does,
+			// between the frames of one size and the next.
+			o.ResizeByConn = true
+			term, err := terminal.New(o)
+			if err != nil {
+				stream.Close()
+				if a.terms[id] == e {
+					e.err = err.Error()
+				}
+				return
+			}
+			term.Resize(stream.Welcome.Cols, stream.Welcome.Rows)
+			stream.OnResized = term.Resize
+			close(g.ready)
 			e.term, e.stream = term, stream
 			// Shown, it takes the window's size (claimShown).
 			if s := a.session(a.selected); s != nil && a.here() && slices.Contains(shownPanes(s), id) {
@@ -812,6 +838,8 @@ func macKeySend(mods ui.Modifiers, key ui.Key) []byte {
 	return nil
 }
 
+// termOptions builds a terminal's options. It reads the app's state and
+// so runs on the main thread, where the attach goroutines hand it over.
 func (a *App) termOptions(id string, conn *gated) terminal.Options {
 	light, dark := a.termThemes()
 	o := terminal.Options{
@@ -925,16 +953,19 @@ func (a *App) zoom(steps int, reset bool) {
 
 // applySettings makes settings the app's, saving them: the terminals take
 // what changed at once, and are attached again for what only a new
-// terminal takes.
-func (a *App) applySettings(s settings.Settings) { a.apply(s, true) }
+// terminal takes. It says a save that failed, and returns the error, so
+// that the caller can say it where the change was made.
+func (a *App) applySettings(s settings.Settings) error { return a.apply(s, true) }
 
 // apply makes settings the app's, saving them to the configuration when
 // they come from the app rather than from the file.
-func (a *App) apply(s settings.Settings, save bool) {
+func (a *App) apply(s settings.Settings, save bool) error {
 	old := a.applied
 	a.set, a.applied = s, s.Clone()
+	var saveErr error
 	if save {
 		if err := settings.Save(s); err != nil {
+			saveErr = err
 			a.toast(locales.ToastSaveSettingsFailed(err.Error()))
 		}
 	}
@@ -1003,7 +1034,7 @@ func (a *App) apply(s settings.Settings, save bool) {
 	if old.DockBadge != s.DockBadge {
 		a.notify(true)
 	}
-	if old.KeepAwake != s.KeepAwake {
+	if old.KeepAwake != s.KeepAwake || old.KeepDisplayOn != s.KeepDisplayOn {
 		a.keepAwake()
 		if a.tray != nil {
 			a.tray.SetMenu(a.trayMenu())
@@ -1029,6 +1060,7 @@ func (a *App) apply(s settings.Settings, save bool) {
 	if a.quick.win != nil {
 		a.quick.win.Invalidate()
 	}
+	return saveErr
 }
 
 // watchConfig applies the configuration as the user saves it in an
@@ -1153,10 +1185,7 @@ func (a *App) openLink(id, link string) bool {
 // the directory of the program that printed it, or "" for no such file.
 // id is a pane's, or a session's for its pane in front.
 func (a *App) resolvePath(id, link string) string {
-	path := lineSuffix.ReplaceAllString(link, "")
-	if strings.HasPrefix(path, "~/") || runtime.GOOS == "windows" && strings.HasPrefix(path, `~`) {
-		path = filepath.Join(proto.Home(), path[2:])
-	}
+	path := expandHome(lineSuffix.ReplaceAllString(link, ""))
 	if !filepath.IsAbs(path) {
 		if dir := a.workDir(id); dir != "" {
 			path = filepath.Join(dir, path)
@@ -1267,11 +1296,16 @@ func (a *App) newSessionOn(h *host, projectID string) {
 
 // expandHome makes a path of ~/… this machine's home's.
 func expandHome(p string) string {
+	return expandHomeForOS(p, proto.Home(), runtime.GOOS)
+}
+
+// expandHomeForOS expands a home-relative path using the given home and platform.
+func expandHomeForOS(p, home, goos string) string {
 	if p == "~" {
-		return proto.Home()
+		return home
 	}
-	if strings.HasPrefix(p, "~/") || runtime.GOOS == "windows" && strings.HasPrefix(p, `~\`) {
-		return filepath.Join(proto.Home(), p[2:])
+	if strings.HasPrefix(p, "~/") || goos == "windows" && strings.HasPrefix(p, `~\`) {
+		return filepath.Join(home, p[2:])
 	}
 	return p
 }
@@ -1555,12 +1589,26 @@ func (a *App) jumpTo(want func(*proto.Session) bool) bool {
 	for k := 1; k <= len(ids); k++ {
 		id := ids[(i+k+len(ids))%len(ids)]
 		if s := a.session(id); s != nil && id != a.selected && want(s) {
-			delete(a.prefs.Collapsed, s.Project)
+			delete(a.prefs.Collapsed, a.groupKey(s))
 			a.selectSession(id)
 			return true
 		}
 	}
 	return false
+}
+
+// groupKey is what the collapse of the group the session is in is
+// remembered by: its project's id, and for a remote host's sessions of no
+// project, its host's.
+func (a *App) groupKey(s *proto.Session) string {
+	for _, g := range a.groups() {
+		for _, x := range g.sessions {
+			if x.ID == s.ID {
+				return g.key()
+			}
+		}
+	}
+	return s.Project
 }
 
 // jumpToAttention goes to the next session that needs the user, after the
@@ -1651,11 +1699,44 @@ func (a *App) endAndQuit() {
 	a.ending = true
 	cl := a.local().cl
 	go func() {
-		if cl != nil {
-			cl.Call("shutdown", nil, nil)
+		if err := endSessions(cl); err != nil {
+			// The sessions were not ended: quitting now would leave them
+			// running, and the user would think they were ended. Say so,
+			// and let them quit anyway.
+			a.update(func() { a.endFailed(err) })
+			return
 		}
 		quitApp()
 	}()
+}
+
+// endSessions asks kerod to end this machine's sessions and to stop, and
+// returns what it could not do.
+func endSessions(cl *client.Client) error {
+	if cl == nil {
+		return nil
+	}
+	return cl.Call("shutdown", nil, nil)
+}
+
+// endFailed says that this machine's sessions were not ended, and asks
+// the user what to do: try again, or quit and leave them running.
+func (a *App) endFailed(err error) {
+	a.ending = false
+	a.confirm = &confirmation{
+		open:   true,
+		title:  locales.ConfirmEndFailedTitle(),
+		detail: locales.ConfirmEndFailedDetail(err.Error()),
+		action: locales.CommonTryAgain(),
+		run:    a.endAndQuit,
+		alt:    locales.CommonQuitAnyway(),
+		altRun: quitApp,
+	}
+	// The window that was closed is where the ask goes: open one, as
+	// the quit that asks first does.
+	if !a.winOpen {
+		a.showWindow()
+	}
 }
 
 // daemonStale reports whether kerod runs another version of Kero than

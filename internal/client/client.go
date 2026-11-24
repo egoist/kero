@@ -273,14 +273,21 @@ func (c *Client) Call(method string, params, out any) error {
 		c.mu.Unlock()
 		return err
 	}
-	res := <-ch
-	if res.err != nil {
-		return res.err
+	select {
+	case res := <-ch:
+		if res.err != nil {
+			return res.err
+		}
+		if out != nil && len(res.result) > 0 {
+			return json.Unmarshal(res.result, out)
+		}
+		return nil
+	case <-c.closed:
+		// The connection ended before the answer came: nobody will
+		// answer a call made after it ended, and a wait for an answer
+		// that never comes is a wait for ever.
+		return errors.New("kerod went away")
 	}
-	if out != nil && len(res.result) > 0 {
-		return json.Unmarshal(res.result, out)
-	}
-	return nil
 }
 
 // Go calls a method without waiting for its result, reporting an error to
@@ -304,8 +311,12 @@ type Stream struct {
 
 	wmu    sync.Mutex
 	buf    []byte
+	wbuf   []byte
 	closed chan struct{}
 	once   sync.Once
+	// closeErr is the error of the close of the connection: the stream
+	// is closed once, and every close of it says the same.
+	closeErr error
 	// Gone is closed when the daemon closed the session (FrameClosed).
 	Gone     chan struct{}
 	goneOnce sync.Once
@@ -359,10 +370,27 @@ func (s *Stream) Read(p []byte) (int, error) {
 func (s *Stream) Write(p []byte) (int, error) {
 	s.wmu.Lock()
 	defer s.wmu.Unlock()
-	if err := proto.WriteFrame(s.conn, proto.FrameInput, p); err != nil {
+	if err := s.write(proto.FrameInput, p); err != nil {
 		return 0, err
 	}
 	return len(p), nil
+}
+
+// writeBufKeep is the largest buffer a stream keeps for the frames it
+// writes: a paste of a megabyte or more takes a buffer of its own, which
+// is dropped, as a frame past what the pool keeps is.
+const writeBufKeep = 1 << 20
+
+// write writes a frame to the connection, into the buffer the stream
+// keeps, so that a frame costs no allocation: a client sends a frame for
+// every keystroke, every resize and every mouse report. s.wmu is held.
+func (s *Stream) write(kind byte, payload []byte) error {
+	s.wbuf = proto.AppendFrames(s.wbuf[:0], kind, payload)
+	_, err := s.conn.Write(s.wbuf)
+	if cap(s.wbuf) > writeBufKeep {
+		s.wbuf = nil // a buffer of its own for a paste, not kept
+	}
+	return err
 }
 
 // ResizePixels tells the daemon the terminal's size, and its cells' in
@@ -370,7 +398,7 @@ func (s *Stream) Write(p []byte) (int, error) {
 func (s *Stream) ResizePixels(cols, rows, cellWidth, cellHeight int) error {
 	s.wmu.Lock()
 	defer s.wmu.Unlock()
-	return proto.WriteFrame(s.conn, proto.FrameResize, proto.ResizePixelsPayload(cols, rows, cellWidth, cellHeight))
+	return s.write(proto.FrameResize, proto.ResizePixelsPayload(cols, rows, cellWidth, cellHeight))
 }
 
 // Claim tells the daemon the user moved into this terminal, which the
@@ -378,7 +406,7 @@ func (s *Stream) ResizePixels(cols, rows, cellWidth, cellHeight int) error {
 func (s *Stream) Claim() error {
 	s.wmu.Lock()
 	defer s.wmu.Unlock()
-	return proto.WriteFrame(s.conn, proto.FrameClaim, nil)
+	return s.write(proto.FrameClaim, nil)
 }
 
 // UseTheme tells the daemon the colors the terminal shows, which programs
@@ -394,7 +422,7 @@ func (s *Stream) UseTheme(theme *terminal.Theme) error {
 	}
 	s.wmu.Lock()
 	defer s.wmu.Unlock()
-	return proto.WriteFrame(s.conn, proto.FrameTheme, t.Payload())
+	return s.write(proto.FrameTheme, t.Payload())
 }
 
 // Clear asks the session's terminal to clear, what being
@@ -403,14 +431,13 @@ func (s *Stream) UseTheme(theme *terminal.Theme) error {
 func (s *Stream) Clear(what byte) error {
 	s.wmu.Lock()
 	defer s.wmu.Unlock()
-	return proto.WriteFrame(s.conn, proto.FrameClear, []byte{what})
+	return s.write(proto.FrameClear, []byte{what})
 }
 
 func (s *Stream) Close() error {
-	var err error
 	s.once.Do(func() {
 		close(s.closed)
-		err = s.conn.Close()
+		s.closeErr = s.conn.Close()
 	})
-	return err
+	return s.closeErr
 }

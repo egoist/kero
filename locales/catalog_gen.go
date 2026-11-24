@@ -526,6 +526,16 @@ func (msgs Messages) CommonTryAgain() string {
 	return Catalog.Format(msgs.locale, "commonTryAgain", nil)
 }
 
+// CommonQuitAnyway says "Quit Anyway"
+// in the language the app shows.
+func CommonQuitAnyway() string { return In(i18n.Locale()).CommonQuitAnyway() }
+
+// CommonQuitAnyway says "Quit Anyway"
+// in the language of msgs.
+func (msgs Messages) CommonQuitAnyway() string {
+	return Catalog.Format(msgs.locale, "commonQuitAnyway", nil)
+}
+
 // CommonOpen says "Open"
 // in the language the app shows.
 func CommonOpen() string { return In(i18n.Locale()).CommonOpen() }
@@ -726,6 +736,26 @@ func (msgs Messages) ToastCopiedToClipboard() string {
 	return Catalog.Format(msgs.locale, "toastCopiedToClipboard", nil)
 }
 
+// ToastPrefsUnreadable says "Couldn’t read your preferences: {error}"
+// in the language the app shows.
+func ToastPrefsUnreadable(error string) string { return In(i18n.Locale()).ToastPrefsUnreadable(error) }
+
+// ToastPrefsUnreadable says "Couldn’t read your preferences: {error}"
+// in the language of msgs.
+func (msgs Messages) ToastPrefsUnreadable(error string) string {
+	return Catalog.Format(msgs.locale, "toastPrefsUnreadable", map[string]any{"error": error})
+}
+
+// ToastPrefsUnsaved says "Couldn’t save your preferences: {error}"
+// in the language the app shows.
+func ToastPrefsUnsaved(error string) string { return In(i18n.Locale()).ToastPrefsUnsaved(error) }
+
+// ToastPrefsUnsaved says "Couldn’t save your preferences: {error}"
+// in the language of msgs.
+func (msgs Messages) ToastPrefsUnsaved(error string) string {
+	return Catalog.Format(msgs.locale, "toastPrefsUnsaved", map[string]any{"error": error})
+}
+
 // ToastSaveSettingsFailed says "Couldn’t save the settings: {error}"
 // in the language the app shows.
 func ToastSaveSettingsFailed(error string) string {
@@ -736,6 +766,30 @@ func ToastSaveSettingsFailed(error string) string {
 // in the language of msgs.
 func (msgs Messages) ToastSaveSettingsFailed(error string) string {
 	return Catalog.Format(msgs.locale, "toastSaveSettingsFailed", map[string]any{"error": error})
+}
+
+// ToastOpenConfigFailed says "Couldn’t open the configuration: {error}"
+// in the language the app shows.
+func ToastOpenConfigFailed(error string) string {
+	return In(i18n.Locale()).ToastOpenConfigFailed(error)
+}
+
+// ToastOpenConfigFailed says "Couldn’t open the configuration: {error}"
+// in the language of msgs.
+func (msgs Messages) ToastOpenConfigFailed(error string) string {
+	return Catalog.Format(msgs.locale, "toastOpenConfigFailed", map[string]any{"error": error})
+}
+
+// ToastBackupUnreadable says "Couldn’t restore your unsaved edits: {error}"
+// in the language the app shows.
+func ToastBackupUnreadable(error string) string {
+	return In(i18n.Locale()).ToastBackupUnreadable(error)
+}
+
+// ToastBackupUnreadable says "Couldn’t restore your unsaved edits: {error}"
+// in the language of msgs.
+func (msgs Messages) ToastBackupUnreadable(error string) string {
+	return Catalog.Format(msgs.locale, "toastBackupUnreadable", map[string]any{"error": error})
 }
 
 // ToastPasteImageFailed says "Couldn’t paste the image: {error}. Try again, or drop the image file on the pane."
@@ -1052,6 +1106,28 @@ func ConfirmQuitAllAction() string { return In(i18n.Locale()).ConfirmQuitAllActi
 // in the language of msgs.
 func (msgs Messages) ConfirmQuitAllAction() string {
 	return Catalog.Format(msgs.locale, "confirmQuitAllAction", nil)
+}
+
+// ConfirmEndFailedTitle says "Couldn’t end the sessions"
+// in the language the app shows.
+func ConfirmEndFailedTitle() string { return In(i18n.Locale()).ConfirmEndFailedTitle() }
+
+// ConfirmEndFailedTitle says "Couldn’t end the sessions"
+// in the language of msgs.
+func (msgs Messages) ConfirmEndFailedTitle() string {
+	return Catalog.Format(msgs.locale, "confirmEndFailedTitle", nil)
+}
+
+// ConfirmEndFailedDetail says "Kero could not end this machine’s sessions, so they keep running: {error}"
+// in the language the app shows.
+func ConfirmEndFailedDetail(error string) string {
+	return In(i18n.Locale()).ConfirmEndFailedDetail(error)
+}
+
+// ConfirmEndFailedDetail says "Kero could not end this machine’s sessions, so they keep running: {error}"
+// in the language of msgs.
+func (msgs Messages) ConfirmEndFailedDetail(error string) string {
+	return Catalog.Format(msgs.locale, "confirmEndFailedDetail", map[string]any{"error": error})
 }
 
 // ConfirmRestartServiceTitle says "Restart the background service?"
@@ -1858,6 +1934,16 @@ func (msgs Messages) PaneCantShow() string {
 	return Catalog.Format(msgs.locale, "paneCantShow", nil)
 }
 
+// QuickPaneIsBrowser says "The pane in focus is a browser — focus a terminal pane of the session"
+// in the language the app shows.
+func QuickPaneIsBrowser() string { return In(i18n.Locale()).QuickPaneIsBrowser() }
+
+// QuickPaneIsBrowser says "The pane in focus is a browser — focus a terminal pane of the session"
+// in the language of msgs.
+func (msgs Messages) QuickPaneIsBrowser() string {
+	return Catalog.Format(msgs.locale, "quickPaneIsBrowser", nil)
+}
+
 // PaneAttaching says "Attaching"
 // in the language the app shows.
 func PaneAttaching() string { return In(i18n.Locale()).PaneAttaching() }
@@ -1978,6 +2064,28 @@ func SvcStale() string { return In(i18n.Locale()).SvcStale() }
 // in the language of msgs.
 func (msgs Messages) SvcStale() string {
 	return Catalog.Format(msgs.locale, "svcStale", nil)
+}
+
+// SvcRunningUnreadable says "Running (pid {pid}) for {duration} · the sessions could not be read"
+// in the language the app shows.
+func SvcRunningUnreadable(pid string, duration string) string {
+	return In(i18n.Locale()).SvcRunningUnreadable(pid, duration)
+}
+
+// SvcRunningUnreadable says "Running (pid {pid}) for {duration} · the sessions could not be read"
+// in the language of msgs.
+func (msgs Messages) SvcRunningUnreadable(pid string, duration string) string {
+	return Catalog.Format(msgs.locale, "svcRunningUnreadable", map[string]any{"pid": pid, "duration": duration})
+}
+
+// SvcAnotherVersion says "Running · another version of Kero: restart it"
+// in the language the app shows.
+func SvcAnotherVersion() string { return In(i18n.Locale()).SvcAnotherVersion() }
+
+// SvcAnotherVersion says "Running · another version of Kero: restart it"
+// in the language of msgs.
+func (msgs Messages) SvcAnotherVersion() string {
+	return Catalog.Format(msgs.locale, "svcAnotherVersion", nil)
 }
 
 // DurUnderMinute says "under a minute"
@@ -2500,14 +2608,34 @@ func (msgs Messages) AwakeAgents() string {
 	return Catalog.Format(msgs.locale, "awakeAgents", nil)
 }
 
-// AwakeDetail says "Kero keeps this computer from sleeping as long as it runs, or while an agent on it works. Closing a Mac’s lid still…"
+// AwakeDetail says "Kero keeps this computer from sleeping as long as it runs, or while an agent on it works. On battery, closing a Mac…"
 // in the language the app shows.
 func AwakeDetail() string { return In(i18n.Locale()).AwakeDetail() }
 
-// AwakeDetail says "Kero keeps this computer from sleeping as long as it runs, or while an agent on it works. Closing a Mac’s lid still…"
+// AwakeDetail says "Kero keeps this computer from sleeping as long as it runs, or while an agent on it works. On battery, closing a Mac…"
 // in the language of msgs.
 func (msgs Messages) AwakeDetail() string {
 	return Catalog.Format(msgs.locale, "awakeDetail", nil)
+}
+
+// AwakeDisplay says "Keep display on"
+// in the language the app shows.
+func AwakeDisplay() string { return In(i18n.Locale()).AwakeDisplay() }
+
+// AwakeDisplay says "Keep display on"
+// in the language of msgs.
+func (msgs Messages) AwakeDisplay() string {
+	return Catalog.Format(msgs.locale, "awakeDisplay", nil)
+}
+
+// AwakeDisplayDetail says "While Kero keeps this computer awake, the display stays on too, for agents that look at the screen."
+// in the language the app shows.
+func AwakeDisplayDetail() string { return In(i18n.Locale()).AwakeDisplayDetail() }
+
+// AwakeDisplayDetail says "While Kero keeps this computer awake, the display stays on too, for agents that look at the screen."
+// in the language of msgs.
+func (msgs Messages) AwakeDisplayDetail() string {
+	return Catalog.Format(msgs.locale, "awakeDisplayDetail", nil)
 }
 
 // TrayOpen says "Open {app}"

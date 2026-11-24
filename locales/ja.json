@@ -49,6 +49,7 @@
   "commonRestart": "再起動",
   "commonRestartService": "サービスを再起動",
   "commonTryAgain": "再試行",
+  "commonQuitAnyway": "このまま終了",
   "commonOpen": "開く",
   "commonChoose": "選択",
   "commonShow": "表示",
@@ -69,7 +70,11 @@
   "windowRestore": "元に戻す（縮小）",
   "toastCopied": "コピーしました",
   "toastCopiedToClipboard": "クリップボードにコピーしました",
+  "toastPrefsUnreadable": "環境設定を読み込めませんでした: {error}",
+  "toastPrefsUnsaved": "環境設定を保存できませんでした: {error}",
   "toastSaveSettingsFailed": "設定を保存できませんでした: {error}",
+  "toastOpenConfigFailed": "設定を開けませんでした: {error}",
+  "toastBackupUnreadable": "保存されていない編集を復元できませんでした: {error}",
   "toastPasteImageFailed": "画像をペーストできませんでした: {error}。もう一度試すか、画像ファイルをペインにドロップしてください。",
   "toastPasteImageDenied": "画像をペーストできませんでした: Kero は {dir} に書き込めません。書き込み可能にするか、画像ファイルをペインにドロップしてください。",
   "toastPasteImageDiskFull": "画像をペーストできませんでした: ディスクがいっぱいです。空き容量を増やしてから、もう一度試してください。",
@@ -100,6 +105,8 @@
   "confirmQuitAllTitle": "終了してすべてのセッションを終えますか？",
   "confirmQuitAllDetail": "Kero は終了してもセッションを実行し続けます。この操作では {count} 個のセッションすべてと、そこで実行中のものが終了します。",
   "confirmQuitAllAction": "セッションを終えて終了",
+  "confirmEndFailedTitle": "セッションを終えられませんでした",
+  "confirmEndFailedDetail": "Kero はこのマシンのセッションを終えられなかったため、実行を続けます: {error}",
   "confirmRestartServiceTitle": "バックグラウンドサービスを再起動しますか？",
   "restartEarlierVersion": "以前のバージョン",
   "restartRunning": "{count} 個のセッションでプログラムが実行中です",
@@ -180,6 +187,7 @@
   "paneExited": "終了コード {code}",
   "paneForegroundTip": "フォアグラウンドで実行中",
   "paneCantShow": "このペインを表示できません",
+  "quickPaneIsBrowser": "フォーカスされているペインはブラウザです — セッションのターミナルペインにフォーカスしてください",
   "paneAttaching": "接続中",
   "pageGeneral": "一般",
   "pageAppearance": "外観",
@@ -192,6 +200,18 @@
   "svcNotRunning": "停止中",
   "svcRunning": "{duration}実行中（pid {pid}）· {sessions} 個のセッション、{panes} 個のペイン",
   "svcStale": " · まだ以前の Kero です: 再起動してアップデートしてください",
+  "svcRunningUnreadable": "{duration}実行中（pid {pid}）· セッションを読み取れません",
+  "@svcRunningUnreadable": {
+    "placeholders": {
+      "pid": {
+        "type": "String"
+      },
+      "duration": {
+        "type": "String"
+      }
+    }
+  },
+  "svcAnotherVersion": "実行中 · 別バージョンの Kero です: 再起動してください",
   "durUnderMinute": "1分未満",
   "durMinutes": "{n}分",
   "durHours": "{n}時間",
@@ -244,7 +264,9 @@
   "awakeOff": "オフ",
   "awakeOn": "常に",
   "awakeAgents": "エージェントの作業中",
-  "awakeDetail": "Kero の実行中、またはこのコンピュータでエージェントが作業している間、スリープさせません。Mac の蓋を閉じるとスリープします。",
+  "awakeDetail": "Kero の実行中、またはこのコンピュータでエージェントが作業している間、スリープさせません。バッテリー駆動中は、Mac の蓋を閉じるとスリープします。",
+  "awakeDisplay": "ディスプレイをオフにしない",
+  "awakeDisplayDetail": "Kero がこのコンピュータをスリープさせない間、ディスプレイもオンのままにします。画面を見るエージェントのためです。",
   "trayOpen": "{app}を開く",
   "setVersionNoUpdate": " · このコピーは自動でアップデートできません",
   "setVersionNotChecked": " · まだ確認していません",

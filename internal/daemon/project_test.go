@@ -328,3 +328,30 @@ func TestProjectMovePersists(t *testing.T) {
 		t.Errorf("restored order %v, want b a c", got)
 	}
 }
+
+// A project that is not there is not renamed or moved: the call says so,
+// rather than that it did what it was asked.
+func TestProjectForAnUnknownID(t *testing.T) {
+	d := projectDaemon(t)
+	if _, err := createProject(t, d, proto.ProjectParams{Name: "a"}); err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range []struct {
+		method string
+		params any
+	}{
+		{"project.rename", proto.ProjectParams{ID: "nope", Name: "b"}},
+		{"project.move", proto.MoveProjectParams{ID: "nope", Index: 0}},
+	} {
+		raw, err := json.Marshal(c.params)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := d.call(nil, c.method, raw); err == nil {
+			t.Errorf("%s: no error for a project that is not there", c.method)
+		}
+	}
+	if got := d.state().Projects; len(got) != 1 || got[0].Name != "a" {
+		t.Errorf("projects = %+v, want the one there", got)
+	}
+}

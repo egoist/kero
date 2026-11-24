@@ -2,9 +2,12 @@ package daemon
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
+	"sync"
 	"time"
 
 	"kero/internal/proto"
@@ -31,6 +34,7 @@ type savedSession struct {
 	Created    int64           `json:"created"`
 	Layout     *proto.Layout   `json:"layout,omitempty"`
 	Focus      string          `json:"focus,omitempty"`
+	Zoomed     string          `json:"zoomed,omitempty"`
 	Panes      []savedPane     `json:"panes"`
 	Worktree   *proto.Worktree `json:"worktree,omitempty"`
 }
@@ -63,13 +67,17 @@ func (d *Daemon) saveLoop() {
 		select {
 		case <-d.saveCh:
 			time.Sleep(300 * time.Millisecond)
-			d.saveState()
-			d.noteConversations()
-			d.saveConversations()
+			d.saveSerialized(func() {
+				d.saveState()
+				d.noteConversations()
+				d.saveConversations()
+			})
 		case <-snaps.C:
-			d.saveHistories(false)
-			d.noteConversations()
-			d.saveConversations()
+			d.saveSerialized(func() {
+				d.saveHistories(false)
+				d.noteConversations()
+				d.saveConversations()
+			})
 		case <-d.quit:
 			return
 		}
@@ -80,7 +88,7 @@ func (d *Daemon) saveState() {
 	d.mu.Lock()
 	st := savedState{Version: 2, Projects: d.projects, Saved: time.Now().UnixMilli()}
 	for _, s := range d.sessions {
-		ss := savedSession{ID: s.id, Project: s.project, Name: s.name, AgentNamed: s.agentNamed, Created: s.created, Layout: s.layout, Focus: s.focus, Worktree: s.worktree}
+		ss := savedSession{ID: s.id, Project: s.project, Name: s.name, AgentNamed: s.agentNamed, Created: s.created, Layout: s.layout, Focus: s.focus, Zoomed: s.zoomed, Worktree: s.worktree}
 		for _, p := range s.panes {
 			p.mu.Lock()
 			sp := savedPane{ID: p.info.ID, Dir: p.info.Dir, Command: p.info.Command, URL: p.info.URL,
@@ -97,9 +105,15 @@ func (d *Daemon) saveState() {
 	data, err := json.MarshalIndent(st, "", "  ")
 	d.mu.Unlock()
 	if err != nil {
+		d.log.Printf("the state: %v", err)
 		return
 	}
-	writeAtomic(d.statePath(), data)
+	if err := writeAtomic(d.statePath(), data); err != nil {
+		// The state stays as it was: the sessions it holds are the
+		// ones the next daemon starts again, and a failure to write
+		// them is said, not swallowed.
+		d.log.Printf("writing the state: %v", err)
+	}
 }
 
 // saveHistories writes the panes' histories that changed, or all.
@@ -112,7 +126,13 @@ func (d *Daemon) saveHistories(force bool) {
 	d.mu.Unlock()
 	for _, p := range panes {
 		if h := p.history(force); h != nil {
-			writeAtomic(d.historyPath(p.info.ID), h)
+			if err := writeAtomic(d.historyPath(p.info.ID), h); err != nil {
+				// The scrollback is the pane's still: a write that
+				// failed does not take it away, and it is saved
+				// again the next time.
+				d.log.Printf("the history of %s: %v", p.info.ID, err)
+				p.keepHistory()
+			}
 		}
 	}
 }
@@ -125,15 +145,39 @@ func writeAtomic(path string, data []byte) error {
 	return os.Rename(tmp, path)
 }
 
+// saveMu serializes the writes of the state, the conversations and the
+// panes' histories: the save loop, a stop's signal and the shutdown and
+// restart calls all save, and two of them writing one file's .tmp at
+// once would leave it half of each, which the rename then keeps.
+var saveMu sync.Mutex
+
+// saveSerialized runs one save of the daemon's files, one at a time.
+func (d *Daemon) saveSerialized(fn func()) {
+	saveMu.Lock()
+	defer saveMu.Unlock()
+	fn()
+}
+
 // restore starts again the sessions of the last daemon, which ended
 // without closing them.
 func (d *Daemon) restore() {
+	// The daemon's lock: the network listeners are up already, and a
+	// remote client that connects now must not read the state as it is
+	// restored.
+	d.mu.Lock()
+	defer d.mu.Unlock()
 	data, err := os.ReadFile(d.statePath())
 	if err != nil {
+		if !errors.Is(err, os.ErrNotExist) {
+			// No state file is a daemon that never ran; a file that
+			// cannot be read is one that is there and is lost.
+			d.log.Printf("reading the state: %v", err)
+		}
 		return
 	}
 	var st savedState
-	if json.Unmarshal(data, &st) != nil {
+	if err := json.Unmarshal(data, &st); err != nil {
+		d.log.Printf("the state of the last daemon could not be read: %v", err)
 		return
 	}
 	set := settings.Load()
@@ -168,6 +212,12 @@ func (d *Daemon) restore() {
 				}
 				s.layout = s.layout.Split(s.panes[0].info.ID, p.info.ID, "right", 0.5)
 			}
+		}
+		// The zoomed pane, when it is one that came back: a pane that did
+		// not (an agent's shell that failed, a browser's page not loaded)
+		// is no pane to zoom.
+		if ss.Zoomed != "" && slices.ContainsFunc(s.panes, func(p *pane) bool { return p.info.ID == ss.Zoomed }) {
+			s.zoomed = ss.Zoomed
 		}
 		d.sessions = append(d.sessions, s)
 		d.log.Printf("session %s restored, %d panes", s.id, len(s.panes))
@@ -206,10 +256,18 @@ func (d *Daemon) restorePane(sid string, sp savedPane, when string, resumeAgents
 	// new shell under it: what a program drew below the cursor, as an
 	// agent's status bar, goes, rather than show under the new shell's
 	// prompt. History carries no modes and no cursor to undo.
-	if h, err := os.ReadFile(d.historyPath(sp.ID)); err == nil && len(h) > 0 {
+	h, err := os.ReadFile(d.historyPath(sp.ID))
+	if err == nil && len(h) > 0 {
 		p.term.Feed(h)
 		p.term.Feed([]byte("\x1b[2m── restored · session ended " + when + " ──\x1b[0m\r\n"))
+	} else if err != nil && !os.IsNotExist(err) {
+		// The pane restores without its scrollback, and the log says so.
+		d.log.Printf("restoring the history of %s: %v", sp.ID, err)
 	}
+	// Marked for the history's save before the shell starts: the pump
+	// that reads its output marks the pane under its lock, and a mark
+	// written after the start would race the pump's.
+	p.dirty = true
 	// The shell alone: what ran in it may not want to run again unasked.
 	// But an agent's conversation, which only waits for the user.
 	if err := p.start(command, nil); err != nil {
@@ -220,7 +278,6 @@ func (d *Daemon) restorePane(sid string, sp savedPane, when string, resumeAgents
 	if reason != "" {
 		d.log.Printf("pane %s restored as shell: %s", sp.ID, reason)
 	}
-	p.dirty = true
 	return p
 }
 

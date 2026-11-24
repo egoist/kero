@@ -49,6 +49,7 @@
   "commonRestart": "重启",
   "commonRestartService": "重启服务",
   "commonTryAgain": "重试",
+  "commonQuitAnyway": "仍然退出",
   "commonOpen": "打开",
   "commonChoose": "选择",
   "commonShow": "显示",
@@ -69,7 +70,11 @@
   "windowRestore": "向下还原",
   "toastCopied": "已复制",
   "toastCopiedToClipboard": "已复制到剪贴板",
+  "toastPrefsUnreadable": "无法读取偏好设置：{error}",
+  "toastPrefsUnsaved": "无法保存偏好设置：{error}",
   "toastSaveSettingsFailed": "无法保存设置：{error}",
+  "toastOpenConfigFailed": "无法打开配置：{error}",
+  "toastBackupUnreadable": "无法恢复未保存的编辑：{error}",
   "toastPasteImageFailed": "无法粘贴图片：{error}。请重试，或把图片文件拖到窗格上。",
   "toastPasteImageDenied": "无法粘贴图片：Kero 没有权限写入 {dir}。请让该文件夹可写，或把图片文件拖到窗格上。",
   "toastPasteImageDiskFull": "无法粘贴图片：磁盘空间已满。请释放空间后重试。",
@@ -100,6 +105,8 @@
   "confirmQuitAllTitle": "退出并结束所有会话？",
   "confirmQuitAllDetail": "Kero 退出时会保持会话运行。此操作会结束全部 {count} 个会话，以及在其中运行的程序。",
   "confirmQuitAllAction": "结束会话并退出",
+  "confirmEndFailedTitle": "无法结束会话",
+  "confirmEndFailedDetail": "Kero 无法结束此机器上的会话，因此它们会继续运行：{error}",
   "confirmRestartServiceTitle": "重启后台服务？",
   "restartEarlierVersion": "较早的版本",
   "restartRunning": "有 {count} 个会话中正在运行程序",
@@ -180,6 +187,7 @@
   "paneExited": "已退出 {code}",
   "paneForegroundTip": "正在前台运行",
   "paneCantShow": "无法显示此窗格",
+  "quickPaneIsBrowser": "当前聚焦的窗格是浏览器——请聚焦该会话的终端窗格",
   "paneAttaching": "正在连接",
   "pageGeneral": "通用",
   "pageAppearance": "外观",
@@ -192,6 +200,18 @@
   "svcNotRunning": "未运行",
   "svcRunning": "已运行 {duration}（pid {pid}）· {sessions} 个会话，{panes} 个窗格",
   "svcStale": " · 仍是较早版本的 Kero：重启以更新",
+  "svcRunningUnreadable": "已运行 {duration}（pid {pid}）· 无法读取会话",
+  "@svcRunningUnreadable": {
+    "placeholders": {
+      "pid": {
+        "type": "String"
+      },
+      "duration": {
+        "type": "String"
+      }
+    }
+  },
+  "svcAnotherVersion": "运行中 · 另一个版本的 Kero：请重启",
   "durUnderMinute": "不到一分钟",
   "durMinutes": "{n} 分钟",
   "durHours": "{n} 小时",
@@ -244,7 +264,9 @@
   "awakeOff": "关闭",
   "awakeOn": "始终",
   "awakeAgents": "智能体工作时",
-  "awakeDetail": "在 Kero 运行期间，或本机有智能体工作时，阻止电脑睡眠。合上 Mac 的盖子仍会让它睡眠。",
+  "awakeDetail": "在 Kero 运行期间，或本机有智能体工作时，阻止电脑睡眠。使用电池时，合上 Mac 的盖子仍会让它睡眠。",
+  "awakeDisplay": "保持显示器开启",
+  "awakeDisplayDetail": "Kero 阻止电脑睡眠期间，显示器也保持开启，方便需要查看屏幕的智能体。",
   "trayOpen": "打开 {app}",
   "setVersionNoUpdate": " · 此副本无法自动更新",
   "setVersionNotChecked": " · 尚未检查",

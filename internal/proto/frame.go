@@ -70,7 +70,13 @@ func WriteFrame(w io.Writer, kind byte, payload []byte) error {
 	buf[0] = kind
 	binary.BigEndian.PutUint32(buf[1:5], uint32(len(payload)))
 	copy(buf[5:], payload)
-	_, err := w.Write(buf)
+	n, err := w.Write(buf)
+	if err == nil && n < len(buf) {
+		// A writer that takes less than it is given, and says nothing,
+		// would leave a frame cut in half: the stream is broken, and the
+		// reader of it cannot tell what it missed.
+		err = io.ErrShortWrite
+	}
 	return err
 }
 
@@ -80,12 +86,15 @@ const maxOutput = 1 << 20
 
 // AppendFrames appends the frames that carry payload: output past
 // maxOutput, as a terminal's frame with the pixels of images, goes in
-// frames of its own.
+// frames of its own, and any payload past maxFrame goes in frames the
+// reader will take, as a frame past it would end the connection.
 func AppendFrames(dst []byte, kind byte, payload []byte) []byte {
 	for {
 		n := len(payload)
 		if kind == FrameOutput {
 			n = min(n, maxOutput)
+		} else {
+			n = min(n, maxFrame)
 		}
 		dst = append(dst, kind, byte(n>>24), byte(n>>16), byte(n>>8), byte(n))
 		dst = append(dst, payload[:n]...)

@@ -3,6 +3,7 @@ package proto
 import (
 	"net"
 	"net/url"
+	"strconv"
 	"strings"
 )
 
@@ -79,8 +80,59 @@ func localHost(host string) bool {
 	if host == "localhost" || strings.HasSuffix(host, ".localhost") || strings.HasSuffix(host, ".test") {
 		return true
 	}
-	ip := net.ParseIP(host)
+	ip := hostIP(host)
 	return ip != nil && (ip.IsLoopback() || ip.IsPrivate() || ip.IsUnspecified())
+}
+
+// hostIP is the address of a host, in the shorthand forms a browser
+// takes: "127.1" is 127.0.0.1, and "2130706433" is it too.
+func hostIP(host string) net.IP {
+	if ip := net.ParseIP(host); ip != nil {
+		return ip
+	}
+	parts := strings.Split(host, ".")
+	if len(parts) > 4 {
+		return nil
+	}
+	// The parts fill the address from the right, the last one taking
+	// the bytes that are left: "127.1" is 127.0.0.1.
+	nums := make([]uint64, len(parts))
+	for i, p := range parts {
+		if p == "" || len(p) > 1 && p[0] == '0' {
+			return nil
+		}
+		n, err := strconv.ParseUint(p, 10, 64)
+		if err != nil {
+			return nil
+		}
+		nums[i] = n
+	}
+	var v uint64
+	switch len(parts) {
+	case 1:
+		if nums[0] > 0xFFFFFFFF {
+			return nil
+		}
+		v = nums[0]
+	case 2:
+		if nums[0] > 0xFF || nums[1] > 0xFFFFFF {
+			return nil
+		}
+		v = nums[0]<<24 | nums[1]
+	case 3:
+		if nums[0] > 0xFF || nums[1] > 0xFFFF || nums[2] > 0xFF {
+			return nil
+		}
+		v = nums[0]<<24 | nums[1]<<8 | nums[2]
+	default:
+		for _, n := range nums {
+			if n > 0xFF {
+				return nil
+			}
+		}
+		v = nums[0]<<24 | nums[1]<<16 | nums[2]<<8 | nums[3]
+	}
+	return net.IPv4(byte(v>>24), byte(v>>16), byte(v>>8), byte(v))
 }
 
 // URLHost is the host of a URL to show for its page, as "localhost:3000",

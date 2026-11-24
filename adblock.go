@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"path/filepath"
@@ -94,9 +95,12 @@ func compileAdBlock(ids []string) ([]*mygo.ContentRules, error) {
 		return nil, nil
 	}
 	filters, err := adblock.Load(context.Background(), filepath.Join(proto.Dir(), "adblock"), sources)
-	if err != nil {
+	if err != nil && len(filters) == 0 {
 		return nil, err
 	}
+	// The lists that did load are compiled with the error kept: compileAds
+	// says the error and applies what compiled, as a failed list compile
+	// is kept too.
 	var r adblock.Rules
 	for _, f := range filters {
 		r.Convert(f)
@@ -105,7 +109,7 @@ func compileAdBlock(ids []string) ([]*mygo.ContentRules, error) {
 	for i, list := range r.Lists() {
 		cr, cerr := mygo.CompileContentRules(fmt.Sprintf("kero-ads-%d", i), list)
 		if cerr != nil {
-			err = cerr
+			err = errors.Join(err, cerr)
 			continue
 		}
 		rules = append(rules, cr)

@@ -100,13 +100,19 @@ func fsList(p proto.FSListParams) (proto.FSList, error) {
 	return out, nil
 }
 
-func fsStat(p proto.FSStatParams) proto.FSStat {
+func fsStat(p proto.FSStatParams) (proto.FSStat, error) {
 	path := hostPath(p.Path, p.Base)
 	st, err := os.Stat(path)
 	if err != nil {
-		return proto.FSStat{Path: path}
+		// A path that is not there is "no such file"; one the daemon
+		// could not read at all is a failure to say, not an answer
+		// about the path.
+		if os.IsNotExist(err) {
+			return proto.FSStat{Path: path}, nil
+		}
+		return proto.FSStat{}, fmt.Errorf("%s: %w", p.Path, err)
 	}
-	return proto.FSStat{Path: path, Exists: true, Dir: st.IsDir(), Size: st.Size()}
+	return proto.FSStat{Path: path, Exists: true, Dir: st.IsDir(), Size: st.Size()}, nil
 }
 
 // maxRead bounds what fs.read reads: an image to preview.
@@ -138,9 +144,11 @@ func (d *Daemon) fsWrite(p proto.FSWriteParams) (string, error) {
 	hash := p.Hash
 	if p.Force {
 		b, err := os.ReadFile(path)
-		if err != nil {
+		if err != nil && !os.IsNotExist(err) {
 			return "", err
 		}
+		// A file that is not there is the empty content: forcing a
+		// write over a file that was deleted writes it anew.
 		hash = git.Hash(b)
 	}
 	if err := git.WriteFile(path, hash, p.Text); err != nil {

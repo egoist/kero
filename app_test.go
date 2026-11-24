@@ -6,8 +6,10 @@ import (
 	"io"
 	"math"
 	"net"
+	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"sync"
 	"syscall"
 	"testing"
@@ -70,6 +72,50 @@ func TestSplitRightWithoutSessionStartsOne(t *testing.T) {
 		}
 	case <-time.After(time.Second):
 		t.Fatal("Split Right did not split the session")
+	}
+}
+
+// The quit that ends the sessions does not go through as though it had
+// when the sessions could not be ended: the app stays, and says so.
+func TestEndFailureIsSaid(t *testing.T) {
+	oldQuit := quitApp
+	defer func() { quitApp = oldQuit }()
+	quits := make(chan struct{}, 4)
+	quitApp = func() { quits <- struct{}{} }
+
+	a := testApp(t)
+	cl, _ := projectClient(t, func(method string, raw json.RawMessage) (any, error) {
+		if method == "shutdown" {
+			return nil, errors.New("the daemon is busy")
+		}
+		return nil, errors.New("unexpected method " + method)
+	})
+	a.local().cl = cl
+
+	a.endAndQuit()
+	select {
+	case <-quits:
+		t.Fatal("the app quit as though the sessions had ended")
+	case <-time.After(500 * time.Millisecond):
+	}
+
+	// The failure is said: the app asks what to do.
+	a.endFailed(errors.New("the daemon is busy"))
+	if a.confirm == nil || !a.confirm.open {
+		t.Fatalf("the failure was not said: %+v", a.confirm)
+	}
+	if !strings.Contains(a.confirm.detail, "the daemon is busy") {
+		t.Errorf("the ask says %q, want the error in it", a.confirm.detail)
+	}
+	if a.ending {
+		t.Error("the app is still ending")
+	}
+	// "Quit anyway" quits, and the sessions keep running.
+	a.confirm.altRun()
+	select {
+	case <-quits:
+	case <-time.After(2 * time.Second):
+		t.Fatal("the app did not quit")
 	}
 }
 
@@ -384,4 +430,45 @@ func TestQuitEndsSessions(t *testing.T) {
 		default:
 		}
 	})
+}
+
+// The preferences that could not be read or written are said: the app
+// forgets what it remembered, and the user is told so. Preferences that
+// are not there are no news: there was nothing to remember.
+func TestPrefsUnreadableAndUnwritableAreSaid(t *testing.T) {
+	// The preferences cannot be read: the file is not what the app wrote.
+	home := t.TempDir()
+	t.Setenv("KERO_HOME", home)
+	t.Setenv("KERO_CONFIG", filepath.Join(home, "config"))
+	if err := os.WriteFile(filepath.Join(home, "app.json"), []byte(`{"selected":`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	a := newApp()
+	if !strings.Contains(a.pendingToast, "read") {
+		t.Errorf("the preferences that could not be read were not said: %q", a.pendingToast)
+	}
+
+	// And they cannot be written: where they go is a folder, not a file.
+	home = t.TempDir()
+	t.Setenv("KERO_HOME", home)
+	t.Setenv("KERO_CONFIG", filepath.Join(home, "config"))
+	if err := os.MkdirAll(filepath.Join(home, "app.json"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	a = newApp()
+	a.pendingToast = ""
+	a.savePrefs()
+	if !strings.Contains(a.pendingToast, "save") {
+		t.Errorf("the preferences that could not be written were not said: %q", a.pendingToast)
+	}
+
+	// And no preferences at all are no news.
+	home = t.TempDir()
+	t.Setenv("KERO_HOME", home)
+	t.Setenv("KERO_CONFIG", filepath.Join(home, "config"))
+	a = newApp()
+	a.savePrefs()
+	if a.pendingToast != "" {
+		t.Errorf("the preferences were said: %q", a.pendingToast)
+	}
 }

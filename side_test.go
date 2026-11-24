@@ -14,6 +14,7 @@ import (
 
 	"kero/internal/git"
 	"kero/internal/proto"
+	"kero/locales"
 )
 
 // A session in a worktree of its own shows its branch by its name, and
@@ -605,5 +606,67 @@ func TestWithinDir(t *testing.T) {
 		if got := withinDir(c.dir, c.root); got != c.want {
 			t.Errorf("withinDir(%q, %q) = %v", c.dir, c.root, got)
 		}
+	}
+}
+
+// The Changes tab of a session on another machine lists that machine's
+// files: their "open" button would open this machine's file of the same
+// path — or nothing — so it is not there, as the Files view's is not.
+func TestChangesOpenFileIsOfThisMachineOnly(t *testing.T) {
+	a := testApp(t)
+	s := &a.st.Sessions[0]
+	g := &proto.GitInfo{Root: "/tmp/demo", Branch: "fix-login", Default: "main", Head: "0123456789abcdef", Ahead: 2, Files: 1, Added: 30, Removed: 2}
+	s.Panes[0].Git = g
+	s.Panes[0].Agent, s.Panes[0].Process = "claude", "claude"
+	s.Pane = s.Panes[0]
+	a.toggleSide(sideChanges)
+
+	ch := &a.side.changes
+	ch.base, ch.scope, ch.stamp = git.BaseHead, changesScopeOn("", &s.Panes[0], git.BaseHead), gitStamp(g)
+	ch.res = &proto.GitChanges{Root: "/tmp/demo", Files: []proto.GitFile{{Path: "main.go", Status: "modified", Added: 30, Removed: 2}}}
+	ch.fetched = time.Now()
+	ch.lists = map[string]*proto.GitChanges{}
+
+	tt := ui.NewTester(a.view, 1280, 720)
+	tt.Frame()
+	if _, ok := tt.Find(locales.ChangesOpenFile()); !ok {
+		t.Error("this machine's changes show no button to open a file")
+	}
+
+	// The same session on a remote host: the button is gone.
+	a.side.changes.res = nil
+	a.side.changes.scope = ""
+	a.side.cf = nil
+	withHost(t, a, "build")
+	var rs *proto.Session
+	for i := range a.st.Sessions {
+		if a.st.Sessions[i].ID == "rs-build" {
+			rs = &a.st.Sessions[i]
+		}
+	}
+	if rs == nil {
+		t.Fatal("the remote host's session is not in the state")
+	}
+	rs.Panes[0].Git = g
+	rs.Panes[0].Agent, rs.Panes[0].Process = "claude", "claude"
+	rs.Pane = rs.Panes[0]
+	a.selectSession("rs-build")
+	a.toggleSide(sideChanges)
+	a.openView(rs, sideChanges, nil)
+
+	ch = &a.side.changes
+	ch.base, ch.stamp = git.BaseHead, gitStamp(g)
+	ch.scope = changesScopeOn("build", &rs.Panes[0], git.BaseHead)
+	ch.res = &proto.GitChanges{Root: "/home/me/api", Files: []proto.GitFile{{Path: "main.go", Status: "modified", Added: 30, Removed: 2}}}
+	ch.fetched = time.Now()
+	a.side.cf = nil
+
+	tt = ui.NewTester(a.view, 1280, 720)
+	tt.Frame()
+	if !tt.HasText("main.go") {
+		t.Fatalf("the remote host's changes did not show; texts %q", tt.Texts())
+	}
+	if _, ok := tt.Find(locales.ChangesOpenFile()); ok {
+		t.Error("a remote host's changes show a button that opens this machine's file of the same path")
 	}
 }

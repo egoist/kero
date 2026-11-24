@@ -123,6 +123,9 @@ func (a *App) uploadPaste(id string, files []string, image pasteUpload) {
 		a.toast(locales.PasteUploading(h.name))
 	}
 	dialer := h.dialer()
+	// The host's system, as it is now: the paths come back quoted for
+	// it, and the host may be another one by the time they do.
+	windows := h.windows()
 	go func() {
 		paths, err := sendPaste(dialer, ups)
 		if err != nil {
@@ -131,7 +134,7 @@ func (a *App) uploadPaste(id string, files []string, image pasteUpload) {
 		}
 		quoted := make([]string, len(paths))
 		for i, p := range paths {
-			quoted[i] = pastedPath(h, p)
+			quoted[i] = pastedPath(windows, p)
 		}
 		a.update(func() {
 			if e := a.terms[id]; e != nil && e.term != nil {
@@ -171,6 +174,13 @@ var sendPaste = func(dialer client.Dialer, ups []pasteUpload) ([]string, error) 
 // shellEscape writes a path as one word of a POSIX shell, as dropped
 // files' are: a backslash before what the shell would read otherwise.
 func shellEscape(p string) string {
+	// A backslash before a newline is a line continuation to a POSIX
+	// shell: both go, and the words around them join, so the path would
+	// name another file. A path in single quotes carries the newline as
+	// it is.
+	if strings.ContainsRune(p, '\n') {
+		return "'" + strings.ReplaceAll(p, "'", `'\''`) + "'"
+	}
 	var b strings.Builder
 	for _, r := range p {
 		safe := r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || strings.ContainsRune("/._-+@%:,=", r) || r > 0x7f
@@ -185,9 +195,10 @@ func shellEscape(p string) string {
 // pastedPath writes a path of a host as one word of its shells: of a
 // POSIX shell, else, on Windows, of PowerShell, the shell of its panes:
 // in single quotes, in which nothing expands, unless it is all letters,
-// digits and . _ - : \ /.
-func pastedPath(h *host, p string) string {
-	if !h.windows() {
+// digits and . _ - : \ /. The host's system is told, not asked for: the
+// host may be another one by the time the path is quoted.
+func pastedPath(windows bool, p string) string {
+	if !windows {
 		return shellEscape(p)
 	}
 	for _, r := range p {
@@ -426,11 +437,11 @@ func (a *App) insertPath(sid, id string, d fileDrag) {
 	}
 	q := quotePath(runtime.GOOS, a.paneShell(id), d.path)
 	if h := a.hostOf(id); h.remote() {
-		q = pastedPath(h, d.path)
+		q = pastedPath(h.windows(), d.path)
 	}
 	e.term.Paste(q)
 	if s := a.session(sid); s != nil {
 		a.setFocus(s, id)
-		a.paneRef(id).Focus()
+		a.focusPane(id)
 	}
 }

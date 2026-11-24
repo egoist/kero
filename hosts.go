@@ -47,11 +47,12 @@ type host struct {
 	loaded    bool   // a state came
 	// convs are the conversations the host's kerod remembers, for the
 	// sidebar, as of its count of their changes convGen; convAsked tells
-	// that they're asked for.
+	// that they're asked for, and convAt when they were asked for last.
 	convs     []proto.Conversation
 	convGen   uint64
 	convKnown bool
 	convAsked bool
+	convAt    time.Time
 	viewSent  *string
 	// busy is what the app does on the host for the user: install, update
 	// or restart.

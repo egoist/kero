@@ -2,6 +2,7 @@ package main
 
 import (
 	"cmp"
+	"errors"
 	"io"
 	"math"
 	"os"
@@ -168,21 +169,7 @@ func (a *App) refreshAgents() {
 // refreshService asks kerod how it is, off the main thread.
 func (a *App) refreshService() {
 	go func() {
-		line := locales.SvcNotRunning()
-		if c, err := client.Connect(true); err == nil {
-			var st proto.State
-			c.Call("state", nil, &st)
-			panes := 0
-			for _, s := range st.Sessions {
-				panes += len(s.Panes)
-			}
-			up := time.Since(time.UnixMilli(c.Welcome.Started)).Round(time.Minute)
-			line = locales.SvcRunning(strconv.Itoa(c.Welcome.PID), durationWords(up), len(st.Sessions), panes)
-			if kerodStale(c.Welcome.App, c.Welcome.Build) {
-				line += locales.SvcStale()
-			}
-			c.Close()
-		}
+		line := serviceLine()
 		a.update(func() {
 			a.ss.service = line
 			if a.setWin != nil {
@@ -190,6 +177,36 @@ func (a *App) refreshService() {
 			}
 		})
 	}()
+}
+
+// serviceLine asks kerod how it is and says so, for the Settings window.
+func serviceLine() string {
+	c, err := client.Connect(true)
+	switch {
+	case errors.Is(err, client.ErrVersion):
+		// kerod runs, of a version this one cannot talk to.
+		return locales.SvcAnotherVersion()
+	case err != nil:
+		return locales.SvcNotRunning()
+	}
+	defer c.Close()
+	up := time.Since(time.UnixMilli(c.Welcome.Started)).Round(time.Minute)
+	pid := strconv.Itoa(c.Welcome.PID)
+	var st proto.State
+	if err := c.Call("state", nil, &st); err != nil {
+		// kerod runs, but its state could not be read: "0 sessions"
+		// would tell the user theirs were gone.
+		return locales.SvcRunningUnreadable(pid, durationWords(up))
+	}
+	panes := 0
+	for _, s := range st.Sessions {
+		panes += len(s.Panes)
+	}
+	line := locales.SvcRunning(pid, durationWords(up), len(st.Sessions), panes)
+	if kerodStale(c.Welcome.App, c.Welcome.Build) {
+		line += locales.SvcStale()
+	}
+	return line
 }
 
 func durationWords(d time.Duration) string {
@@ -323,7 +340,11 @@ func (a *App) settingsView(c *ui.Context) {
 	}
 	// The controls edit a.set: what changed applies, and saves.
 	if !reflect.DeepEqual(a.set, a.applied) {
-		a.applySettings(a.set)
+		if err := a.applySettings(a.set); err != nil {
+			// The Settings window is where the change was made, and
+			// it says so there: the main window's toast is behind it.
+			a.ss.toast = locales.ToastSaveSettingsFailed(err.Error())
+		}
 	}
 }
 
@@ -584,6 +605,11 @@ func (a *App) generalPage(c *ui.Context, pal *palette) {
 		settingRow(c, pal, locales.AwakeTitle(), locales.AwakeDetail(), func() {
 			popup(c, "keep-awake", &s.KeepAwake, settings.KeepAwakeModes, awakeModeName, 200, pal)
 		})
+		if awakeDisplay && s.KeepAwake != awakeOff {
+			settingRow(c, pal, locales.AwakeDisplay(), locales.AwakeDisplayDetail(), func() {
+				toggle(c.Key("keep-display-on"), &s.KeepDisplayOn, pal)
+			})
+		}
 	})
 	// Windows and Linux always show the icon, in the notification area.
 	if runtime.GOOS == "darwin" {
@@ -782,7 +808,9 @@ func themesDirFor(goos, xdg, localappdata, home string) string {
 		dir = filepath.Join(home, ".config")
 	}
 	path := filepath.Join(dir, "ghostty", "themes")
-	if home != "" && strings.HasPrefix(path, home) {
+	// The home goes as ~, but only when the path is under it: a sibling
+	// directory that starts with the same letters is not under it.
+	if home != "" && (path == home || strings.HasPrefix(path, home+string(filepath.Separator))) {
 		path = "~" + strings.TrimPrefix(path, home)
 	}
 	return path
@@ -960,9 +988,23 @@ func (a *App) terminalPage(c *ui.Context, pal *palette) {
 			slider(c, "lh", &v, 1, 2, 160, pal).OnChange(func() { a.set.LineHeight = float32(int(v*100+0.5)) / 100 })
 			ui.Textf(c, "%.2f×", s.LineHeight).FontSize(12.5).TextColor(pal.textMuted).Width(40).FontFeatures("tnum")
 		})
+		weights := []int{300, 400, 500, 600}
+		if !slices.Contains(weights, s.FontWeight) {
+			weights = append(weights, s.FontWeight)
+			slices.Sort(weights)
+		}
+		// The usual weights are named; a configured one between them shows
+		// its number rather than a blank face.
+		weightNames := map[int]string{
+			300: locales.SetWeightLight(), 400: locales.SetWeightRegular(),
+			500: locales.SetWeightMedium(), 600: locales.SetWeightSemibold(),
+		}
 		settingRow(c, pal, locales.SetWeight(), "", func() {
-			popup(c, "weight", &s.FontWeight, []int{300, 400, 500, 600}, func(w int) string {
-				return map[int]string{300: locales.SetWeightLight(), 400: locales.SetWeightRegular(), 500: locales.SetWeightMedium(), 600: locales.SetWeightSemibold()}[w]
+			popup(c, "weight", &s.FontWeight, weights, func(w int) string {
+				if name, ok := weightNames[w]; ok {
+					return name
+				}
+				return strconv.Itoa(w)
 			}, 140, pal)
 		})
 		settingRow(c, pal, locales.SetLigatures(), locales.SetLigaturesDetail(), func() {
@@ -1348,8 +1390,11 @@ func (a *App) advancedPage(c *ui.Context, pal *palette) {
 	settingsGroup(c, pal, locales.SetConfiguration(), locales.SetConfigurationDetail(), func() {
 		settingRow(c, pal, locales.SetConfigFile(), proto.ShortDir(settings.Path()), func() {
 			if button(c, "reveal-config", locales.CommonShowIn(fileManager()), "", false, pal) {
-				a.ensureConfig()
-				revealPath(settings.Path())
+				if err := a.ensureConfig(); err != nil {
+					a.ss.toast = locales.ToastSaveSettingsFailed(err.Error())
+				} else {
+					revealPath(settings.Path())
+				}
 			}
 			if button(c, "edit-config", locales.CommonOpen(), "", true, pal) {
 				a.openConfig()
@@ -1389,7 +1434,11 @@ func (a *App) advancedPage(c *ui.Context, pal *palette) {
 			if button(c, "reset", locales.SetResetButton(), "", false, pal) {
 				a.ss.confirm = &confirmation{
 					open: true, title: locales.SetResetTitle(), detail: locales.SetResetConfirmDetail(), action: locales.SetResetAction(), destroy: true,
-					run: func() { a.applySettings(settings.Default()) },
+					run: func() {
+						if err := a.applySettings(settings.Default()); err != nil {
+							a.ss.toast = locales.ToastSaveSettingsFailed(err.Error())
+						}
+					},
 				}
 			}
 		})
@@ -1404,7 +1453,12 @@ func (a *App) chooseNewSessionDir() {
 		return
 	}
 	a.ss.choosingDir = true
-	win := a.win
+	// The button lives in the Settings window: the dialog is its, not the
+	// main window's, which may be closed or behind it.
+	win := a.setWin
+	if win == nil {
+		win = a.win
+	}
 	go func() {
 		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{
 			Parent: win, Title: locales.NewSessionFolderTitle(), Directory: true, ButtonLabel: locales.CommonChoose(),
@@ -1423,17 +1477,28 @@ func (a *App) chooseNewSessionDir() {
 }
 
 // ensureConfig writes the configuration file, with its header, when
-// there is none yet, so that there is a file to open.
-func (a *App) ensureConfig() {
-	if _, err := os.Stat(settings.Path()); err != nil {
-		settings.Save(a.set)
+// there is none yet, so that there is a file to open. It says when it
+// could not: a configuration that was not written is not one to open,
+// and the editor would open a file of its own making instead.
+func (a *App) ensureConfig() error {
+	if _, err := os.Stat(settings.Path()); err == nil {
+		return nil
 	}
+	return settings.Save(a.set)
 }
 
-// openConfig opens the configuration in the user's text editor.
+// openConfig opens the configuration in the user's text editor. It is
+// the Settings window's own toast that says when it could not: the
+// button that asks is there, and the main window's toast is not shown
+// in it.
 func (a *App) openConfig() {
-	a.ensureConfig()
-	openTextFile(settings.Path())
+	if err := a.ensureConfig(); err != nil {
+		a.ss.toast = locales.ToastSaveSettingsFailed(err.Error())
+		return
+	}
+	if err := openTextFile(settings.Path()); err != nil {
+		a.ss.toast = locales.ToastOpenConfigFailed(err.Error())
+	}
 }
 
 // toastIn shows a short message in the window c is of.
@@ -1579,7 +1644,10 @@ func (a *App) recordKey(act actions.Action, mods ui.Modifiers, key ui.Key) bool 
 	if !ok {
 		return false // a modifier alone, or a key menus can't take
 	}
-	if mods&(ui.Super|ui.Ctrl|ui.Alt) == 0 && !strings.HasPrefix(name, "F") {
+	// A shortcut needs a modifier, unless it is a function key: the
+	// letter F is not one, and a shortcut of it would take the plain F
+	// keypress everywhere, as a menu's accelerator does.
+	if mods&(ui.Super|ui.Ctrl|ui.Alt) == 0 && (key < ui.KeyF1 || key > ui.KeyF12) {
 		a.ss.notice = shortcutNeeds()
 		return true
 	}

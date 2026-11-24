@@ -95,6 +95,30 @@ type Options struct {
 	Listen []string
 }
 
+// beginShutdown makes create refuse new sessions and returns the ones the
+// shutdown RPC closes. Signal and restart shutdowns keep them to restore.
+func (d *Daemon) beginShutdown() []string {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.ending = true
+	ids := make([]string, 0, len(d.sessions))
+	for _, s := range d.sessions {
+		ids = append(ids, s.id)
+	}
+	return ids
+}
+
+func (d *Daemon) shutdownOnSignal(s os.Signal) {
+	d.log.Printf("%v: saving and exiting", s)
+	d.beginShutdown()
+	d.saveSerialized(func() {
+		d.saveHistories(true)
+		d.saveState()
+		d.saveConversations()
+	})
+	d.stop()
+}
+
 // Run runs the daemon until it is told to shut down, or, unless it serves
 // (Options.Serve) or listens on the network, has had no session and no
 // client for a while.
@@ -200,12 +224,7 @@ func Run(opts Options) error {
 	notifyStop(sigs)
 	heapdump.Enable()
 	go func() {
-		s := <-sigs
-		lg.Printf("%v: saving and exiting", s)
-		d.saveHistories(true)
-		d.saveState()
-		d.saveConversations()
-		d.stop()
+		d.shutdownOnSignal(<-sigs)
 	}()
 
 	go d.broadcastLoop()
@@ -797,8 +816,17 @@ func (d *Daemon) serveAttach(conn net.Conn, r *bufio.Reader, hello proto.Hello, 
 		return
 	}
 	go a.write()
+	d.serveFrames(s, a, proto.NewFrameReader(r))
+}
+
+// serveFrames reads the frames a client sends a session and does with them
+// what the session does with what a client asks. The frames are read into
+// the one buffer the reader keeps, so that a frame costs no allocation: a
+// client sends a frame for every keystroke, every resize and every mouse
+// report.
+func (d *Daemon) serveFrames(s *pane, a *attachment, frames *proto.FrameReader) {
 	for {
-		kind, payload, err := proto.ReadFrame(r)
+		kind, payload, err := frames.Read()
 		if err != nil {
 			return
 		}

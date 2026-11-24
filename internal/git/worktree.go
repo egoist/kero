@@ -116,7 +116,13 @@ func (r Repo) State(ctx context.Context, branch, base string) (WorktreeState, er
 // branch, when base has every commit of it.
 func RemoveWorktree(ctx context.Context, main, path, branch, base string) error {
 	if _, err := run(ctx, main, nil, "worktree", "remove", "--force", "--", path); err != nil {
-		return err
+		// A worktree that is not there is not a worktree that stays:
+		// the user removed it, or another session's close did, and
+		// git says of the one that is gone that it is no working
+		// tree. There is nothing left to remove.
+		if _, statErr := os.Lstat(path); statErr == nil {
+			return err
+		}
 	}
 	if branch == "" || base == "" {
 		return nil
