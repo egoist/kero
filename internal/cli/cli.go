@@ -428,7 +428,14 @@ func run(args []string, host string) error {
 		// Here, unless the session is of another machine, whose kerod
 		// then starts it in the project's directory, or the home.
 		if dir == "" && f.vals["project"] == "" && host == "" {
-			dir, _ = os.Getwd()
+			var err error
+			dir, err = os.Getwd()
+			if err != nil {
+				// The directory the command ran from is gone: starting
+				// the session in the home instead would put it somewhere
+				// the user did not pick, with no word about it.
+				return fmt.Errorf("the current directory could not be read: %w", err)
+			}
 		}
 		var s proto.Session
 		if err := c.Call("create", proto.CreateParams{
