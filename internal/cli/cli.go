@@ -13,6 +13,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -132,6 +133,8 @@ Usage:
   kero report <state> [message] [--kind k] [--progress n] [--app a] [--id i]
                                 report this program's status (OSC 7501):
                                 idle, working, done, blocked, error, clear
+                                (--kind is of a blocked report; --progress
+                                is 0-100, of a working or blocked one)
   kero do <action> [key=value…]  run an action of the app, as its menus do
                                 (needs Remote Control, in Settings › Agents)
   kero actions                  list the actions kero do runs
@@ -1499,6 +1502,59 @@ func parseProgress(s string) (int, error) {
 	return n, nil
 }
 
+// reportNameRe is a segment of a report's id, and its app's name, as
+// kerod reads them (internal/daemon/osc.go): at most 32 letters, digits
+// and . _ + -.
+var reportNameRe = regexp.MustCompile(`^[A-Za-z0-9_.+-]{1,32}$`)
+
+// reportValues checks a report's values by the rule kerod reads them with
+// (internal/daemon/osc.go). A value that breaks the rule is dropped
+// there: an id loses the whole report with it, and a kind, an app or a
+// progress of the wrong state loses only its own value — and the report
+// says less than the program meant, with nothing said where it was
+// written.
+func reportValues(state string, vals map[string]string) error {
+	if p := vals["progress"]; p != "" {
+		if _, err := parseProgress(p); err != nil {
+			return err
+		}
+		// A progress is of the work a report is of, and kerod reads one
+		// only where there is work to be part way through.
+		if state != "working" && state != "blocked" {
+			return usageErr("kero report --progress is of a report that is working or blocked, not one that is %s", state)
+		}
+	}
+	if k := vals["kind"]; k != "" {
+		switch k {
+		case "permission", "question", "auth":
+		default:
+			return usageErr("kero report --kind takes permission, question or auth, not %q", k)
+		}
+		// A kind is what the program waits for, and it waits only when it
+		// is blocked.
+		if state != "blocked" {
+			return usageErr("kero report --kind is of a report that is blocked, not one that is %s", state)
+		}
+	}
+	if id := vals["id"]; id != "" {
+		// kerod splits the id on "/" and keeps eight segments of at most
+		// 32 each, 128 in all: an id past that is not read as a shorter
+		// one, the whole report is dropped.
+		if len(id) > 128 || strings.Count(id, "/") > 7 {
+			return usageErr("kero report --id takes up to 8 segments and 128 characters, not %q", id)
+		}
+		for _, seg := range strings.Split(id, "/") {
+			if !reportNameRe.MatchString(seg) {
+				return usageErr("kero report --id takes segments of at most 32 letters, digits and . _ + -, not %q", id)
+			}
+		}
+	}
+	if app := vals["app"]; app != "" && !reportNameRe.MatchString(app) {
+		return usageErr("kero report --app takes at most 32 letters, digits and . _ + -, not %q", app)
+	}
+	return nil
+}
+
 func printJSON(v any) error {
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
@@ -1576,7 +1632,7 @@ func report(args []string) error {
 	if !slices.Contains([]string{"idle", "working", "done", "blocked", "error", "clear"}, state) {
 		return usageErr("unknown state %q", state)
 	}
-	if _, err := parseProgress(f.vals["progress"]); err != nil {
+	if err := reportValues(state, f.vals); err != nil {
 		return err
 	}
 	pairs := []string{"state=" + state}
