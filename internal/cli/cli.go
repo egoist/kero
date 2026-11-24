@@ -812,13 +812,22 @@ func run(args []string, host string) error {
 			return err
 		}
 		remove := f.set["remove"]
+		// A restart starts the pane's shell again, and keeps everything
+		// else: it takes none of a close's flags, which it would answer
+		// with while doing nothing about them.
+		if cmd == "restart" {
+			if remove {
+				return usageErr("--remove-worktree is close's")
+			}
+			if f.set["force"] {
+				return usageErr("--force is close's")
+			}
+			return c.Call("restart", proto.IDParams{ID: t.ref()}, nil)
+		}
 		if remove && t.s.Worktree == nil {
 			return fmt.Errorf("session %s has no worktree of its own", t.s.ID)
 		}
-		switch {
-		case cmd == "restart":
-			return c.Call("restart", proto.IDParams{ID: t.ref()}, nil)
-		case t.pane != "" && len(t.s.Panes) > 1 && !remove:
+		if t.pane != "" && len(t.s.Panes) > 1 && !remove {
 			return c.Call("pane.close", proto.IDParams{ID: t.pane}, nil)
 		}
 		return c.Call("close", proto.CloseParams{ID: t.s.ID, RemoveWorktree: remove, Force: f.set["force"]}, nil)
