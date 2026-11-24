@@ -846,6 +846,18 @@ func (msgs Messages) ToastPasteImageUnsupported(format string) string {
 	return Catalog.Format(msgs.locale, "toastPasteImageUnsupported", map[string]any{"format": format})
 }
 
+// ToastPasteReadFailed says "Couldn’t paste {name}: {error}"
+// in the language the app shows.
+func ToastPasteReadFailed(name string, error string) string {
+	return In(i18n.Locale()).ToastPasteReadFailed(name, error)
+}
+
+// ToastPasteReadFailed says "Couldn’t paste {name}: {error}"
+// in the language of msgs.
+func (msgs Messages) ToastPasteReadFailed(name string, error string) string {
+	return Catalog.Format(msgs.locale, "toastPasteReadFailed", map[string]any{"name": name, "error": error})
+}
+
 // ToastConfigProblems says "{count, plural, one {Your config has # problem: see Settings › Advanced} other {Your config has # problems: see Set…"
 // in the language the app shows.
 func ToastConfigProblems(count int) string { return In(i18n.Locale()).ToastConfigProblems(count) }

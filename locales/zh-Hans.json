@@ -80,6 +80,7 @@
   "toastPasteImageDiskFull": "无法粘贴图片：磁盘空间已满。请释放空间后重试。",
   "toastPasteClipboardUnreadable": "无法读取剪贴板。请重新复制后再粘贴。",
   "toastPasteImageUnsupported": "无法粘贴图片：不支持 {format}。请复制为 PNG 或 JPEG，或把图片文件拖到窗格上。",
+  "toastPasteReadFailed": "无法粘贴 {name}：{error}",
   "toastConfigProblems": "配置文件有 {count} 个问题：请查看 设置 › 高级",
   "toastNothingNeedsYou": "没有需要你处理的会话",
   "cliInstallFailed": "无法安装命令行工具",

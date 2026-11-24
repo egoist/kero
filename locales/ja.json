@@ -80,6 +80,7 @@
   "toastPasteImageDiskFull": "画像をペーストできませんでした: ディスクがいっぱいです。空き容量を増やしてから、もう一度試してください。",
   "toastPasteClipboardUnreadable": "クリップボードを読み取れませんでした。もう一度コピーしてからペーストしてください。",
   "toastPasteImageUnsupported": "画像をペーストできませんでした: {format} には対応していません。PNG か JPEG としてコピーするか、画像ファイルをペインにドロップしてください。",
+  "toastPasteReadFailed": "{name} をペーストできませんでした: {error}",
   "toastConfigProblems": "設定ファイルに {count} 件の問題があります: 設定 › 詳細 を確認してください",
   "toastNothingNeedsYou": "対応が必要なものはありません",
   "cliInstallFailed": "コマンドラインツールをインストールできませんでした",

@@ -108,7 +108,12 @@ func (a *App) uploadPaste(id string, files []string, image pasteUpload) {
 	}
 	for _, f := range files {
 		st, err := os.Stat(f)
-		if err != nil || st.IsDir() {
+		if err != nil {
+			// A file that could not be read is a failure, not a folder.
+			a.toast(locales.ToastPasteReadFailed(filepath.Base(f), err.Error()))
+			return
+		}
+		if st.IsDir() {
 			a.toast(locales.PasteNotAFile(filepath.Base(f)))
 			return
 		}
