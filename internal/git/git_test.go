@@ -410,3 +410,32 @@ func TestWriteFileOverADeletedFile(t *testing.T) {
 		t.Errorf("wrote %q", b)
 	}
 }
+
+// NoWorktree tells git's answer for a directory no worktree holds —
+// outside a repository, a bare one, or gone — from its other failures:
+// the common case for a pane's directory, which a caller that only
+// wanted to know keeps quiet about.
+func TestNoWorktree(t *testing.T) {
+	for _, msg := range []string{
+		"git rev-parse: exit status 128: fatal: not a git repository (or any of the parent directories): .git",
+		"git rev-parse: exit status 128: fatal: not a git repository (or any parent up to mount point /)",
+		"git rev-parse: exit status 128: fatal: this operation must be run in a work tree",
+		"git rev-parse: exit status 128: fatal: cannot change to '/gone': No such file or directory",
+	} {
+		if !NoWorktree(errors.New(msg)) {
+			t.Errorf("%q was not git's answer for no worktree", msg)
+		}
+	}
+	for _, msg := range []string{
+		// A .git file pointing nowhere names a gitdir: a read that failed.
+		"git rev-parse: exit status 128: fatal: not a git repository: /nonexistent",
+		"git rev-parse: context deadline exceeded",
+	} {
+		if NoWorktree(errors.New(msg)) {
+			t.Errorf("%q was taken for no worktree", msg)
+		}
+	}
+	if NoWorktree(nil) {
+		t.Error("no error was taken for no worktree")
+	}
+}

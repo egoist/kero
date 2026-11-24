@@ -215,6 +215,13 @@ func (g *gitFollow) repoOf(dir string, now time.Time, again bool) git.Repo {
 	defer cancel()
 	r, err := git.Open(ctx, dir)
 	if err != nil {
+		// A directory no worktree holds is the common case — a pane in a
+		// plain folder — and is no failure; a git that cannot be read is,
+		// and the pane's worktree would never be followed, with no word
+		// why: said once per asking, as the status's own failures are.
+		if !git.NoWorktree(err) {
+			g.d.log.Printf("git of %s: %v", dir, err)
+		}
 		r = git.Repo{}
 	}
 	g.mu.Lock()
@@ -271,6 +278,12 @@ func (g *gitFollow) snapshot(p *pane, dir string, at time.Time) {
 	defer cancel()
 	r, err := git.Open(ctx, dir)
 	if err != nil {
+		// The same split as repoOf's: a directory no worktree holds is
+		// no failure to say; a git that cannot be read is, and the
+		// turn's changes would show as none, with no word why.
+		if !git.NoWorktree(err) {
+			g.d.log.Printf("snapshot of %s: %v", dir, err)
+		}
 		return
 	}
 	tree, err := r.Snapshot(ctx)
