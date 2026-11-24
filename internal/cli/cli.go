@@ -471,11 +471,17 @@ func run(args []string, host string) error {
 		if err != nil {
 			return err
 		}
-		dir := "right"
-		for _, d := range []string{"down", "left", "up"} {
+		dir := ""
+		for _, d := range []string{"right", "down", "left", "up"} {
 			if f.set[d] {
+				if dir != "" {
+					return usageErr("kero split: one of --right, --down, --left or --up, not several")
+				}
 				dir = d
 			}
+		}
+		if dir == "" {
+			dir = "right" // the split's own answer
 		}
 		ratio, err := parseRatio(f.vals["ratio"])
 		if err != nil {
