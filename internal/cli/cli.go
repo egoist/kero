@@ -1483,6 +1483,22 @@ func parseStatuses(cmd, v string) ([]string, error) {
 	return want, nil
 }
 
+// parseProgress is a percentage of the work a report is of: a number
+// between none and all. A progress that is no number is a usage error,
+// and one out of the share a report can have too: kerod takes only a
+// number between 0 and 100, and drops the rest, so the report would say
+// nothing of the work it is of.
+func parseProgress(s string) (int, error) {
+	if s == "" {
+		return 0, nil
+	}
+	n, err := strconv.Atoi(s)
+	if err != nil || n < 0 || n > 100 {
+		return 0, usageErr("kero report --progress takes a percentage between 0 and 100, not %q", s)
+	}
+	return n, nil
+}
+
 func printJSON(v any) error {
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
@@ -1559,6 +1575,9 @@ func report(args []string) error {
 	state := f.pos[0]
 	if !slices.Contains([]string{"idle", "working", "done", "blocked", "error", "clear"}, state) {
 		return usageErr("unknown state %q", state)
+	}
+	if _, err := parseProgress(f.vals["progress"]); err != nil {
+		return err
 	}
 	pairs := []string{"state=" + state}
 	for _, k := range []string{"id", "kind", "progress", "app"} {
