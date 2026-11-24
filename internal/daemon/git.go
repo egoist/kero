@@ -218,12 +218,15 @@ func (g *gitFollow) repoOf(dir string, now time.Time, again bool) git.Repo {
 	return r
 }
 
-// refresh finds a worktree's status anew.
+// refresh finds a worktree's status anew. The try counts — a worktree's
+// status is not asked again the next second because one ask failed — but
+// the stamp is the one a status answered for: a failed ask took none, or
+// the last good numbers would stand as the worktree's own.
 func (g *gitFollow) refresh(rs *repoStatus, stamp string, now time.Time) {
 	ctx, cancel := context.WithTimeout(context.Background(), gitTimeout)
 	defer cancel()
 	st, err := rs.repo.Status(ctx)
-	rs.at, rs.stamp = now, stamp
+	rs.at = now
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
 			rs.slow++
@@ -231,6 +234,7 @@ func (g *gitFollow) refresh(rs *repoStatus, stamp string, now time.Time) {
 		}
 		return
 	}
+	rs.stamp = stamp
 	rs.slow = 0
 	info := &proto.GitInfo{
 		Root: rs.repo.Root, Branch: st.Branch, Head: st.Head, Upstream: st.Upstream,
