@@ -77,7 +77,11 @@ func StartDaemon() error {
 	// manager starts the service's for, again and again. But Task
 	// Scheduler's, which starts none while no one is logged on to the
 	// machine, and never again: a kerod of its own then.
-	if service.Installed() {
+	installed, err := service.CheckInstalled()
+	if err != nil {
+		return fmt.Errorf("checking kerod's service: %w", err)
+	}
+	if installed {
 		err := service.Start()
 		if err == nil {
 			return nil
