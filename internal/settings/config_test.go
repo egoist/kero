@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"kero/internal/actions"
 )
@@ -737,4 +738,49 @@ func TestUnreadableConfigIsSaidAndKept(t *testing.T) {
 			t.Errorf("the user's own lines are gone:\n%s", b)
 		}
 	})
+}
+
+// A configuration that is there but cannot be read is not a configuration
+// that says nothing: the settings as they were last read stand, so that
+// what the user set is not forgotten by a reader that could not read the
+// file.
+func TestUnreadableConfigKeepsTheLastSettings(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config")
+	if err := os.WriteFile(path, []byte("font-size = 21\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("KERO_HOME", dir)
+	t.Setenv("KERO_CONFIG", path)
+	mu.Lock()
+	cache, mtime = nil, 0
+	mu.Unlock()
+	t.Cleanup(func() {
+		mu.Lock()
+		cache, mtime = nil, 0
+		mu.Unlock()
+	})
+	if s := Load(); s.FontSize != 21 {
+		t.Fatalf("loaded %v, want 21", s.FontSize)
+	}
+	// The file is there, and cannot be read: a directory where it was.
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(path, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// Its own time, so that the file that was read is not taken for the
+	// one that is there.
+	at := time.Now().Add(time.Hour)
+	if err := os.Chtimes(path, at, at); err != nil {
+		t.Fatal(err)
+	}
+	s := Load()
+	if got := Problems(); len(got) == 0 {
+		t.Fatal("a configuration that could not be read is said as nothing")
+	}
+	if s.FontSize != 21 {
+		t.Errorf("the settings as they were last read: %v, want 21", s.FontSize)
+	}
 }
