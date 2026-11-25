@@ -20,9 +20,12 @@ type session struct {
 	created           int64
 	restored          bool
 	panes             []*pane
-	layout            *proto.Layout
-	focus, zoomed     string
-	worktree          *proto.Worktree // made for it (proto.Session.Worktree)
+	// lost are saved panes that did not come back this start: they are
+	// saved again with the session, so the next daemon can try them.
+	lost          []savedPane
+	layout        *proto.Layout
+	focus, zoomed string
+	worktree      *proto.Worktree // made for it (proto.Session.Worktree)
 }
 
 // state returns what the subscribers see.

@@ -160,8 +160,23 @@ func (s *pane) start(command []string, env []string) error {
 		env = append(env[:len(env):len(env)], zshEnv(zdot)...)
 	}
 	dir := s.info.Dir
-	if st, err := os.Stat(dir); dir == "" || err != nil || !st.IsDir() {
+	if dir == "" {
 		dir = proto.Home()
+	} else {
+		st, err := os.Stat(dir)
+		switch {
+		case err != nil && !os.IsNotExist(err):
+			// It is there but cannot be looked into — no permission, a
+			// parent of a kind that is no folder — which is not "no
+			// directory": the look says what it is, and a shell in the
+			// home directory would run the user's commands in the
+			// wrong place.
+			return err
+		case err != nil || !st.IsDir():
+			// The directory is gone: the pane starts in the home
+			// directory, as it did before.
+			dir = proto.Home()
+		}
 	}
 	proc, err := startPTY(ptyOptions{
 		Path: shell, Args: args, Dir: dir,
