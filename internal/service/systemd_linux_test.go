@@ -126,3 +126,14 @@ func TestUninstallKeepsTheUnitWhenSystemdDoesNotStopIt(t *testing.T) {
 		t.Fatalf("the unit is gone: %v", err)
 	}
 }
+
+// A systemd that did not take the unit's removal is not an uninstall
+// that worked: systemd keeps the removed unit in memory and still lists
+// it, so the error says what happened.
+func TestUninstallSaysWhenDaemonReloadFails(t *testing.T) {
+	oldUnit(t)
+	fakeSystemctl(t, "daemon-reload")
+	if err := Uninstall(); err == nil {
+		t.Fatal("the uninstall succeeded")
+	}
+}

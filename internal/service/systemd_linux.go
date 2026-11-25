@@ -154,7 +154,9 @@ func Uninstall() error {
 	if err := os.Remove(file()); err != nil {
 		return err
 	}
-	systemctl("daemon-reload")
+	if _, err := systemctl("daemon-reload"); err != nil {
+		return fmt.Errorf("systemd did not take the unit's removal: %w", err)
+	}
 	return nil
 }
 
