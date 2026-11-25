@@ -165,7 +165,11 @@ func putInPlace(tmp, to string, over bool) error {
 	if st, err := os.Lstat(to); err == nil {
 		if !over || !st.Mode().IsRegular() {
 			if err := os.RemoveAll(to); err != nil {
-				return err
+				// What was there is what it now is — the removal may have
+				// taken part of it — and the copy is whole where it is:
+				// it is the user's, and the failure names it, as the
+				// rename's failure names it.
+				return fmt.Errorf("%s: the copy is at %s: %w", to, tmp, err)
 			}
 		}
 	}

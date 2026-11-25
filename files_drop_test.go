@@ -190,3 +190,48 @@ func TestCopyEntryKeepsWhatIsThereWhenAFolderCopyFails(t *testing.T) {
 		}
 	}
 }
+
+// A replacement that fails after the copy is made says where the whole
+// copy is: the part of what was there that could not be taken away stays,
+// and the copy is not silently left as an orphan either — it is the
+// user's, named in the failure the toast shows.
+func TestCopyEntrySaysWhereAFailedRemoveLeftTheCopy(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("permissions are Unix's")
+	}
+	if os.Geteuid() == 0 {
+		t.Skip("root enters a directory with no search permission")
+	}
+	src, dst := t.TempDir(), t.TempDir()
+	in := filepath.Join(src, "d", "in")
+	if err := os.MkdirAll(in, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(in, "b.txt"), []byte("new"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// What is there: a folder holding a folder whose entries cannot be
+	// reached, so the removal of it fails part way.
+	old := filepath.Join(dst, "d", "locked")
+	if err := os.MkdirAll(old, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(old, "b.txt"), []byte("old"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(old, 0o000); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chmod(old, 0o755) })
+	err := copyEntry(filepath.Join(src, "d"), filepath.Join(dst, "d"), true)
+	if err == nil {
+		t.Fatal("a copy over a folder whose removal failed was put in place")
+	}
+	if !strings.Contains(err.Error(), ".kero-copy-") {
+		t.Errorf("the failure does not say where the whole copy is: %v", err)
+	}
+	// The part of the old folder that could not be taken away stays.
+	if _, statErr := os.Stat(old); statErr != nil {
+		t.Errorf("the locked part is gone: %v", statErr)
+	}
+}
