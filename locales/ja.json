@@ -83,6 +83,7 @@
   "toastPasteReadFailed": "{name} をペーストできませんでした: {error}",
   "toastConfigProblems": "設定ファイルに {count} 件の問題があります: 設定 › 詳細 を確認してください",
   "toastNothingNeedsYou": "対応が必要なものはありません",
+  "toastBackupFailed": "保存されていない編集をバックアップできませんでした: {error}",
   "cliInstallFailed": "コマンドラインツールをインストールできませんでした",
   "cliInstalledIn": "kero コマンドを {dir} にインストールしました",
   "cliAddedToPath": "kero コマンドを PATH に追加しました: 新しいターミナルで使えます",

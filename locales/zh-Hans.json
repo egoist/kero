@@ -83,6 +83,7 @@
   "toastPasteReadFailed": "无法粘贴 {name}：{error}",
   "toastConfigProblems": "配置文件有 {count} 个问题：请查看 设置 › 高级",
   "toastNothingNeedsYou": "没有需要你处理的会话",
+  "toastBackupFailed": "无法备份未保存的编辑：{error}",
   "cliInstallFailed": "无法安装命令行工具",
   "cliInstalledIn": "已将 kero 命令安装到 {dir}",
   "cliAddedToPath": "已将 kero 命令添加到 PATH：新开的终端即可使用",

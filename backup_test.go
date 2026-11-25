@@ -193,3 +193,56 @@ func TestUnreadableBackupIsSaid(t *testing.T) {
 		t.Errorf("the backup was not read: %+v", a.side.backup.unsaved)
 	}
 }
+
+// A backup that could not be written is said: the user's edits are not
+// backed up, and a crash loses them. It is said once, and not once a
+// second while the trouble goes on.
+func TestUnwritableBackupIsSaid(t *testing.T) {
+	a := testApp(t)
+	s := &a.st.Sessions[0]
+	g := &proto.GitInfo{Root: "/tmp/demo", Branch: "main", Default: "main", Files: 1, Added: 1}
+	s.Panes[0].Git, s.Panes[1].Git = g, g
+	a.prefs.Side = sideFiles
+	disk := []byte("package main\n")
+	fv := &fileView{pane: "a", path: "/tmp/demo/main.go", rel: "main.go", fetched: time.Now(), stamp: gitStamp(g)}
+	a.showFile(fv, disk)
+	a.openView(s, sideFiles, fv)
+	fv.st.Buffer.Edit(editor.Edit{Start: 12, End: 12, Text: "\n\nfunc main() {}"})
+
+	// Nothing can be written where the backup's temp file goes.
+	if err := os.MkdirAll(backupPath()+".tmp", 0o700); err != nil {
+		t.Fatal(err)
+	}
+	// The toasts the window shows, as it shows them.
+	var said []string
+	tt := ui.NewTester(func(c *ui.Context) {
+		if a.pendingToast != "" {
+			said = append(said, a.pendingToast)
+		}
+		a.view(c)
+	}, 1280, 720)
+	tt.Frame()
+	tt.Advance(2 * time.Second)
+	tt.Frame()
+	if n := countToast(said, "unsaved"); n != 1 {
+		t.Errorf("the backup that could not be written was said %d times: %q", n, said)
+	}
+	// The trouble goes on, and the backup is tried again every second: it
+	// is not said again.
+	tt.Advance(4 * time.Second)
+	tt.Frame()
+	if n := countToast(said, "unsaved"); n != 1 {
+		t.Errorf("the backup was said again: %q", said)
+	}
+}
+
+// countToast is how many of the toasts say what.
+func countToast(said []string, what string) int {
+	var n int
+	for _, s := range said {
+		if strings.Contains(s, what) {
+			n++
+		}
+	}
+	return n
+}

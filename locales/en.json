@@ -90,6 +90,7 @@
     }
   },
   "toastNothingNeedsYou": "Nothing needs you",
+  "toastBackupFailed": "Couldn’t back up your unsaved edits: {error}",
   "cliInstallFailed": "Couldn’t install the command line tool",
   "cliInstalledIn": "Installed the kero command in {dir}",
   "cliAddedToPath": "Added the kero command to your PATH: new terminals have it",
