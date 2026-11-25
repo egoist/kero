@@ -304,24 +304,35 @@ func Load() Settings {
 		if os.IsNotExist(err) {
 			cache, problems = nil, nil
 		} else {
-			cache = nil
 			problems = []string{fmt.Sprintf("the configuration could not be read: %v", err)}
 		}
-		return Default()
+		return lastRead()
 	}
 	if cache != nil && st.ModTime().UnixNano() == mtime {
 		return clone(*cache)
 	}
 	b, err := os.ReadFile(Path())
 	if err != nil {
-		// The file is there but cannot be read: the defaults stand in,
-		// and the failure is said, as the parse's problems are.
+		// The file is there but cannot be read: the settings as they
+		// were last read stand, and the failure is said, as the parse's
+		// problems are.
 		problems = []string{fmt.Sprintf("the configuration could not be read: %v", err)}
-		return Default()
+		return lastRead()
 	}
 	s, probs := parse(string(b))
 	cache, mtime, problems = &s, st.ModTime().UnixNano(), probs
 	return clone(s)
+}
+
+// lastRead returns the settings as they were last read, or the defaults
+// when there are none: a configuration that cannot be read is not a
+// configuration that says nothing, and a reader that could not read it
+// keeps what the user set.
+func lastRead() Settings {
+	if cache != nil {
+		return clone(*cache)
+	}
+	return Default()
 }
 
 // Problems returns what the file got wrong, as of the last Load: keys
