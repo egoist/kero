@@ -1327,8 +1327,7 @@ func (a *App) agentsPage(c *ui.Context, pal *palette) {
 				label = locales.CommonReinstall()
 			}
 			if button(c, "cli", label, "", a.ss.cliPath == "", pal) {
-				a.installCLI()
-				time.AfterFunc(1500*time.Millisecond, func() { a.update(a.refreshAgents) })
+				a.installCLI(true)
 			}
 		})
 	})

@@ -21,10 +21,10 @@ func cliBin() string { return filepath.Join(proto.Dir(), "bin") }
 
 // installCLI puts the kero command on the user's PATH, for terminals
 // started from now on.
-func (a *App) installCLI() {
+func (a *App) installCLI(fromSettings bool) {
 	exe, err := os.Executable()
 	if err != nil {
-		a.toast(err.Error())
+		a.cliInstallResult(fromSettings, err.Error())
 		return
 	}
 	go func() {
@@ -34,10 +34,10 @@ func (a *App) installCLI() {
 		}
 		a.update(func() {
 			if err != nil {
-				a.toast(locales.CliInstallFailed())
+				a.cliInstallResult(fromSettings, locales.CliInstallFailed())
 				return
 			}
-			a.toast(locales.CliAddedToPath())
+			a.cliInstallResult(fromSettings, locales.CliAddedToPath())
 		})
 	}()
 }

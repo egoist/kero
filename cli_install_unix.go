@@ -22,10 +22,10 @@ func cliLinks() []string {
 // installCLI links the kero command to this executable: /usr/local/bin's
 // on macOS, asking for an administrator's password when the directory
 // needs it; ~/.local/bin's on Linux, which needs none.
-func (a *App) installCLI() {
+func (a *App) installCLI(fromSettings bool) {
 	exe, err := os.Executable()
 	if err != nil {
-		a.toast(err.Error())
+		a.cliInstallResult(fromSettings, err.Error())
 		return
 	}
 	go func() {
@@ -47,10 +47,10 @@ func (a *App) installCLI() {
 		}
 		a.update(func() {
 			if err != nil {
-				a.toast(locales.CliInstallFailed())
+				a.cliInstallResult(fromSettings, locales.CliInstallFailed())
 				return
 			}
-			a.toast(locales.CliInstalledIn(proto.ShortDir(filepath.Dir(link))))
+			a.cliInstallResult(fromSettings, locales.CliInstalledIn(proto.ShortDir(filepath.Dir(link))))
 		})
 	}()
 }
