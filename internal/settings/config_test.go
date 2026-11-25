@@ -106,6 +106,24 @@ func TestQuotedValueRoundTrip(t *testing.T) {
 	}
 }
 
+func TestValueWithItsOwnQuotesSurvivesSave(t *testing.T) {
+	for _, value := range []string{`"quoted"`, `""`} {
+		t.Run(value, func(t *testing.T) {
+			s := Default()
+			s.FontFamily = value
+			file := ""
+			for i := 0; i < 3; i++ {
+				file = format(s, file)
+				back, problems := parse(file)
+				if len(problems) != 0 || back.FontFamily != value {
+					t.Fatalf("save %d read %q, problems %q; want %q", i+1, back.FontFamily, problems, value)
+				}
+				s = back
+			}
+		})
+	}
+}
+
 func TestKeybinds(t *testing.T) {
 	s, probs := parse("keybind = cmd+shift+x=pane.split.right\nkeybind = cmd+d=unbind\nkeybind = cmd+==text.bigger\nkeybind = ctrl+q=nope\n")
 	if s.Shortcuts["pane.split.right"] != "CmdOrCtrl+Shift+X" {
