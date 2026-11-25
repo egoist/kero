@@ -237,7 +237,17 @@ func (d *Daemon) cleanDir(dir string) (string, error) {
 	if abs, err := filepath.Abs(dir); err == nil {
 		dir = abs
 	}
-	if st, err := os.Stat(dir); err != nil || !st.IsDir() {
+	st, err := os.Stat(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", fmt.Errorf("no directory %s", dir)
+		}
+		// It is there but cannot be looked into — no permission, a
+		// parent of a kind that is no folder — which is not "no
+		// directory": the look says what it is.
+		return "", err
+	}
+	if !st.IsDir() {
 		return "", fmt.Errorf("no directory %s", dir)
 	}
 	return dir, nil
