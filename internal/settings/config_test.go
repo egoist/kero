@@ -784,3 +784,47 @@ func TestUnreadableConfigKeepsTheLastSettings(t *testing.T) {
 		t.Errorf("the settings as they were last read: %v, want 21", s.FontSize)
 	}
 }
+
+// A configuration that could not be read is said while it cannot be;
+// when it can be read again the trouble is over, though the file did not
+// change under it — the cache hit takes the problems of the read it
+// holds, not the ones the failed look left.
+func TestUnreadableConfigProblemGoesWhenAccessReturns(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("root enters a directory with no search permission")
+	}
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows enters a directory with no search permission")
+	}
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config")
+	if err := os.WriteFile(path, []byte("font-size = 14\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("KERO_HOME", dir)
+	t.Setenv("KERO_CONFIG", path)
+	mu.Lock()
+	cache, problems = nil, nil
+	mu.Unlock()
+	Load()
+	if got := Problems(); len(got) != 0 {
+		t.Fatalf("a configuration that reads says %v", got)
+	}
+	// The folder cannot be entered, so the look at the file fails for a
+	// reason that is not "there is none".
+	if err := os.Chmod(dir, 0o000); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chmod(dir, 0o755) })
+	Load()
+	if got := Problems(); len(got) == 0 {
+		t.Fatal("a configuration that could not be read is said")
+	}
+	if err := os.Chmod(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	Load()
+	if got := Problems(); len(got) != 0 {
+		t.Errorf("the configuration reads again, and still says %v", got)
+	}
+}
