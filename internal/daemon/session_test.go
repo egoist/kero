@@ -292,3 +292,44 @@ func TestAgentPane(t *testing.T) {
 	a.shellPID = os.Getpid()
 	check("under the app server a's Codex started", server.Process.Pid, "", "b", true)
 }
+
+// A restart that failed leaves the pane as it was: it does not say it
+// restarted, it does not go idle with no shell to run, and it keeps the
+// exit code it had — a wait for it would say it is idle, and it is not.
+func TestRestartThatFailedLeavesThePaneAsItWas(t *testing.T) {
+	dir := t.TempDir()
+	// A shell that cannot be run: the file is there, and it may not be
+	// run.
+	shell := filepath.Join(dir, "shell")
+	if err := os.WriteFile(shell, []byte("#!/bin/sh\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	s := testPane(t)
+	t.Setenv("KERO_CONFIG", filepath.Join(dir, "config"))
+	if err := os.WriteFile(filepath.Join(dir, "config"), []byte("command = "+shell+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	s.mu.Lock()
+	s.info.Status = proto.Exited
+	s.info.ExitCode = 3
+	s.mu.Unlock()
+	if err := s.restart(); err == nil {
+		t.Fatal("the restart succeeded with a shell that cannot be run")
+	}
+	s.mu.Lock()
+	status, code := s.info.Status, s.info.ExitCode
+	s.mu.Unlock()
+	if status != proto.Exited {
+		t.Errorf("the pane is %s, want it to stay exited", status)
+	}
+	if code != 3 {
+		t.Errorf("the exit code = %d, want 3", code)
+	}
+	text := s.term.Text()
+	if !strings.Contains(text, "[Restarted]") {
+		t.Errorf("the scrollback does not say the restart was asked for:\n%s", text)
+	}
+	if !strings.Contains(text, "[Restart failed: ") {
+		t.Errorf("the scrollback does not say the restart failed:\n%s", text)
+	}
+}

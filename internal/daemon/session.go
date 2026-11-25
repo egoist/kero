@@ -735,20 +735,31 @@ func (s *pane) exited(proc *ptyProc) {
 	s.d.changed()
 }
 
-// restart starts a shell again in a session that exited.
+// restart starts a shell again in a session that exited. The pane says
+// it restarted as the restart is asked for — the new shell's own first
+// bytes would land after the banner otherwise — and a restart that
+// failed puts the exit it ended on back and says why.
 func (s *pane) restart() error {
 	s.mu.Lock()
 	if s.proc != nil || s.term == nil {
 		s.mu.Unlock()
 		return fmt.Errorf("session %s is running", s.info.ID)
 	}
-	banner := "\r\n\x1b[0;2m[Restarted]\x1b[0m\r\n"
-	s.term.Feed([]byte(banner))
+	was := s.info
+	s.term.Feed([]byte("\r\n\x1b[0;2m[Restarted]\x1b[0m\r\n"))
 	s.frame()
 	s.setStatus(proto.Idle)
 	s.info.Unread, s.info.Message, s.info.ExitCode = false, "", 0
 	s.mu.Unlock()
 	if err := s.start(nil, nil); err != nil {
+		s.mu.Lock()
+		s.setStatus(was.Status)
+		s.info.Since = was.Since
+		s.info.Unread, s.info.Message, s.info.ExitCode = was.Unread, was.Message, was.ExitCode
+		s.term.Feed([]byte("\r\n\x1b[0;2m[Restart failed: " + err.Error() + "]\x1b[0m\r\n"))
+		s.frame()
+		s.mu.Unlock()
+		s.d.changed()
 		return err
 	}
 	s.d.changed()
