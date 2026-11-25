@@ -145,8 +145,15 @@ func lingering(name string) bool {
 // what happened — a service that is there and says it is not is one the
 // user cannot get rid of.
 func Uninstall() error {
-	if !Installed() {
-		return nil
+	// A unit that is not there is none; one that is there but cannot be
+	// read is not known to be none — the install's rule, the other side
+	// of it: an uninstall that cannot read the unit reports a service
+	// gone that systemd still has registered.
+	if _, err := os.Stat(file()); err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
 	}
 	if _, err := systemctl("disable", "--now", Name()+".service"); err != nil {
 		return err

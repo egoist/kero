@@ -137,3 +137,36 @@ func TestUninstallSaysWhenDaemonReloadFails(t *testing.T) {
 		t.Fatal("the uninstall succeeded")
 	}
 }
+
+// A unit that is there but cannot be read is not one that is not there:
+// the uninstall says the read failed instead of reporting a service gone
+// that systemd still has registered.
+func TestUninstallSaysAUnitItCannotRead(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root enters a directory with no search permission")
+	}
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	dir := filepath.Dir(file())
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(file(), []byte("# the unit\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// The unit is there, and its directory cannot be entered: the stat
+	// fails for a reason that is not "no such file".
+	if err := os.Chmod(dir, 0o000); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chmod(dir, 0o755) })
+	fakeSystemctl(t, "")
+	if err := Uninstall(); err == nil {
+		t.Fatal("the uninstall succeeded over a unit it could not read")
+	}
+	if err := os.Chmod(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if b, err := os.ReadFile(file()); err != nil || string(b) != "# the unit\n" {
+		t.Errorf("the unit = %q (%v): it was taken away, or never looked at", b, err)
+	}
+}
