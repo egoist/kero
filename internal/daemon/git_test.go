@@ -226,9 +226,8 @@ func TestGitStatusThatFailedIsSaid(t *testing.T) {
 	}
 }
 
-// A file the agent renamed, reverted: put back under the name the rev
-// has it, and the new name taken away.
-func TestRevertPutsARenamedFileBackUnderItsOldName(t *testing.T) {
+// Reverting a hunk of a renamed file writes to its current name.
+func TestRevertHunkOfRenamedFile(t *testing.T) {
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("no git")
 	}
@@ -253,10 +252,10 @@ func TestRevertPutsARenamedFileBackUnderItsOldName(t *testing.T) {
 	if _, err := d.gitRevert(proto.GitWriteParams{Pane: "p", Base: git.BaseHead, Path: "b.txt", OldPath: "a.txt", Hash: txt.Hash, Text: txt.Old}); err != nil {
 		t.Fatal(err)
 	}
-	if b, err := os.ReadFile(filepath.Join(repo, "a.txt")); err != nil || string(b) != "one\n" {
-		t.Errorf("the old name is not put back: %q, %v", b, err)
+	if b, err := os.ReadFile(filepath.Join(repo, "b.txt")); err != nil || string(b) != "one\n" {
+		t.Errorf("current file: %q, %v", b, err)
 	}
-	if _, err := os.Stat(filepath.Join(repo, "b.txt")); !os.IsNotExist(err) {
-		t.Errorf("the new name stays: %v", err)
+	if _, err := os.Stat(filepath.Join(repo, "a.txt")); !os.IsNotExist(err) {
+		t.Errorf("old name unexpectedly restored: %v", err)
 	}
 }

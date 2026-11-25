@@ -392,10 +392,8 @@ func TestRevertRemovesAFileNotInTheRev(t *testing.T) {
 	}
 }
 
-// A file the agent renamed, reverted: put back under the name the rev
-// has it, and the new name taken away. The rename is undone, not the
-// file's content alone.
-func TestRevertPutsARenamedFileBackUnderItsOldName(t *testing.T) {
+// Reverting a hunk of a renamed file keeps its current name and other edits.
+func TestRevertHunkOfRenamedFile(t *testing.T) {
 	r := repo(t, map[string]string{"a.txt": "one\n"})
 	if err := os.Rename(filepath.Join(r.Root, "a.txt"), filepath.Join(r.Root, "b.txt")); err != nil {
 		t.Fatal(err)
@@ -408,20 +406,16 @@ func TestRevertPutsARenamedFileBackUnderItsOldName(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(r.Root, "b.txt")); err != nil {
 		t.Errorf("the file the rev does not have is taken away: %v", err)
 	}
-	// The rev has the file as a.txt: it is written back there, and the
-	// new name is taken away.
-	if err := r.Revert(context.Background(), "HEAD", "b.txt", "a.txt", Hash([]byte("one\n")), "one\n"); err != nil {
+	// The result of reverting one hunk can still contain another edit.
+	if err := r.Revert(context.Background(), "HEAD", "b.txt", "a.txt", Hash([]byte("one\n")), "one\nother edit\n"); err != nil {
 		t.Fatal(err)
 	}
-	b, err := os.ReadFile(filepath.Join(r.Root, "a.txt"))
-	if err != nil {
-		t.Fatal(err)
+	b, err := os.ReadFile(filepath.Join(r.Root, "b.txt"))
+	if err != nil || string(b) != "one\nother edit\n" {
+		t.Fatalf("current file: %q, %v", b, err)
 	}
-	if string(b) != "one\n" {
-		t.Errorf("restored %q", b)
-	}
-	if _, err := os.Stat(filepath.Join(r.Root, "b.txt")); !os.IsNotExist(err) {
-		t.Errorf("the new name stays: %v", err)
+	if _, err := os.Stat(filepath.Join(r.Root, "a.txt")); !os.IsNotExist(err) {
+		t.Errorf("old name unexpectedly restored: %v", err)
 	}
 	// One changed meanwhile is asked about, as a write is.
 	write(t, filepath.Join(r.Root, "b.txt"), "other\n")

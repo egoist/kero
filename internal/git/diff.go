@@ -415,9 +415,8 @@ func (r Repo) inRev(ctx context.Context, rev, path string) (bool, error) {
 // run, and made not to, runs as the rev says again. The rest of the
 // mode is not git's to keep, and stays as the file has it. A file the
 // rev does not have is taken away; one the worktree does not have, the
-// rev's, is written anew. A renamed file is put back under the name the
-// rev has it: oldPath is the name it had there, and the file is written
-// anew under it, and the new name taken away.
+// rev's, is written anew. For a rename, oldPath names the base file;
+// individual changes are written to the file at its current path.
 func (r Repo) Revert(ctx context.Context, rev, path, oldPath, hash, text string) error {
 	full, err := r.local(path)
 	if err != nil {
@@ -429,6 +428,9 @@ func (r Repo) Revert(ctx context.Context, rev, path, oldPath, hash, text string)
 	// name is the one to look for.
 	revPath, renamed := path, false
 	if oldPath != "" {
+		if _, err := r.local(oldPath); err != nil {
+			return err
+		}
 		in, err := r.inRev(ctx, rev, path)
 		if err != nil {
 			return err
@@ -463,13 +465,10 @@ func (r Repo) Revert(ctx context.Context, rev, path, oldPath, hash, text string)
 		}
 		return nil
 	}
-	if renamed {
-		return r.revertRename(ctx, rev, path, oldPath, hash, text)
-	}
 	if err := r.Write(path, hash, text); err != nil {
 		return err
 	}
-	mode, err := r.Mode(ctx, rev, path)
+	mode, err := r.Mode(ctx, rev, revPath)
 	if err != nil || mode == 0 {
 		return err
 	}
@@ -480,54 +479,6 @@ func (r Repo) Revert(ctx context.Context, rev, path, oldPath, hash, text string)
 	// Git records only the execute bit: take it from the rev, and leave
 	// the rest of the file's mode as it is.
 	return os.Chmod(full, fi.Mode().Perm()&^0o111|mode&0o111)
-}
-
-// revertRename puts a renamed file back as the rev has it: the text
-// under the name the rev has it, and the new name taken away. The
-// rename is undone, not the file's content alone.
-func (r Repo) revertRename(ctx context.Context, rev, path, oldPath, hash, text string) error {
-	full, err := r.local(path)
-	if err != nil {
-		return err
-	}
-	oldFull, err := r.local(oldPath)
-	if err != nil {
-		return err
-	}
-	// The new name is taken away as it was shown: one changed meanwhile
-	// is asked about, as a write is.
-	b, rerr := os.ReadFile(full)
-	if rerr != nil && !os.IsNotExist(rerr) {
-		return rerr
-	}
-	if Hash(b) != hash {
-		return ErrChanged
-	}
-	// The old name is written anew: it is not there, the file was
-	// renamed away from it. One written there since is left as it is.
-	if _, err := os.Lstat(oldFull); err == nil {
-		return errors.New("there is a file at " + oldPath + " now")
-	} else if !os.IsNotExist(err) {
-		return err
-	}
-	if err := WriteFile(oldFull, Hash(nil), text); err != nil {
-		return err
-	}
-	mode, err := r.Mode(ctx, rev, oldPath)
-	if err != nil {
-		return err
-	}
-	if mode != 0 {
-		if err := os.Chmod(oldFull, mode); err != nil {
-			return err
-		}
-	}
-	// The old name is written, and the new one taken away: the file is
-	// there as the rev has it, and where the rev has it.
-	if err := os.Remove(full); err != nil && !os.IsNotExist(err) {
-		return err
-	}
-	return nil
 }
 
 // local returns the file of the worktree a slash-separated path names,
