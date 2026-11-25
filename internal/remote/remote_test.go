@@ -173,6 +173,11 @@ func TestDialWindows(t *testing.T) {
 		t.Setenv("KERO_TEST_SHELL", shell)
 		t.Setenv("KERO_TEST_SSH_LOG", log)
 		a := Addr{Scheme: "ssh", Host: fmt.Sprintf("devbox%d", i)}
+		// The remembered shell is the process's own: a second run of the
+		// tests in one process (go test -count=2) would find it and start
+		// with the shell's bridge, so the first of the two dials would
+		// probe nothing. Each host starts clean.
+		shells.Delete(a.String())
 		for range 2 {
 			ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 			_, err := Dial(ctx, a, Options{})
