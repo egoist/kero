@@ -134,3 +134,41 @@ func TestExcludeSaysAnExcludeItCannotRead(t *testing.T) {
 		t.Errorf("exclude:\n%s", b)
 	}
 }
+
+// A worktree git refused is not one that is gone: a look at it that
+// fails for a reason other than "there is none" says so, rather than
+// reporting a removal that did not happen.
+func TestRemoveWorktreeSaysAPathItCannotLookAt(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("permissions are Unix's")
+	}
+	if os.Geteuid() == 0 {
+		t.Skip("root enters a directory with no search permission")
+	}
+	ctx := context.Background()
+	r := repo(t, map[string]string{"a.txt": "a\n"})
+	path := filepath.Join(r.Root, ".kero", "worktrees", "fix-login")
+	if err := r.AddWorktree(ctx, path, "fix/login", "main"); err != nil {
+		t.Fatal(err)
+	}
+	// Its entry in .git/worktrees is gone, so git refuses the worktree,
+	// and the folder it is in cannot be entered, so the look at the
+	// path fails for that reason — which is not "there is none".
+	if err := os.RemoveAll(filepath.Join(r.Common, "worktrees", "fix-login")); err != nil {
+		t.Fatal(err)
+	}
+	parent := filepath.Dir(path)
+	if err := os.Chmod(parent, 0o000); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chmod(parent, 0o755) })
+	if err := RemoveWorktree(ctx, r.Root, path, "", ""); err == nil {
+		t.Fatal("a worktree git refused, behind a folder that cannot be entered, was removed")
+	}
+	if err := os.Chmod(parent, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Lstat(path); err != nil {
+		t.Errorf("the worktree is gone: %v", err)
+	}
+}

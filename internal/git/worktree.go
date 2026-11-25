@@ -126,8 +126,10 @@ func RemoveWorktree(ctx context.Context, main, path, branch, base string) error 
 		// A worktree that is not there is not a worktree that stays:
 		// the user removed it, or another session's close did, and
 		// git says of the one that is gone that it is no working
-		// tree. There is nothing left to remove.
-		if _, statErr := os.Lstat(path); statErr == nil {
+		// tree. There is nothing left to remove. A look that failed
+		// for any other reason — the folder cannot be entered — says
+		// neither, which is a failure to say, not "it is gone".
+		if _, statErr := os.Lstat(path); statErr == nil || !errors.Is(statErr, fs.ErrNotExist) {
 			return err
 		}
 	}
