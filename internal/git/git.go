@@ -19,6 +19,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
 
 // ErrNoGit: git isn't installed, or on macOS only as the stub that asks to
@@ -59,6 +60,10 @@ func runInput(ctx context.Context, dir string, env []string, stdin []byte, args 
 		return nil, ErrNoGit
 	}
 	cmd := exec.CommandContext(ctx, git, append([]string{"--no-optional-locks", "-c", "core.quotepath=false", "-c", "color.ui=false"}, args...)...)
+	// The context kills git. A child it left holding the output, as a
+	// core.fsmonitor hook, would otherwise keep the caller until that
+	// child exits. The wait is bounded, as the other command runners are.
+	cmd.WaitDelay = time.Second
 	cmd.Dir = dir
 	cmd.Env = append(os.Environ(), "GIT_OPTIONAL_LOCKS=0", "GIT_TERMINAL_PROMPT=0")
 	cmd.Env = append(cmd.Env, env...)
