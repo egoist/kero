@@ -297,7 +297,14 @@ var (
 func Load() Settings {
 	mu.Lock()
 	defer mu.Unlock()
-	migrate()
+	if err := migrate(); err != nil {
+		// The file kero kept before its configuration is there, and it
+		// cannot be read. It is not one that says nothing: the settings
+		// as they were last read stand, and the failure is said. The
+		// file stays, so a later read can still take it.
+		problems = []string{err.Error()}
+		return lastRead()
+	}
 	st, err := os.Stat(Path())
 	if err != nil {
 		// No configuration is no news; one that is there but cannot be
@@ -350,14 +357,20 @@ func Problems() []string {
 }
 
 // migrate moves the settings of the JSON file kero kept before into the
-// configuration, once; mu is held.
-func migrate() {
+// configuration, once; mu is held. A file that is there but cannot be
+// read is said, and left where it is: one value of the wrong type would
+// otherwise drop the shell, the themes and the hosts with it, and every
+// later start would try the same file again and say nothing.
+func migrate() error {
 	if _, err := os.Stat(Path()); err == nil {
-		return
+		return nil
 	}
 	b, err := os.ReadFile(legacyPath())
 	if err != nil {
-		return
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("the settings kero kept before its configuration could not be read: %w", err)
 	}
 	// Then, the themes were "kero" for background's.
 	old := struct {
@@ -365,8 +378,8 @@ func migrate() {
 		Background string `json:"background"`
 	}{Settings: Default()}
 	old.LightTheme, old.DarkTheme = "kero", "kero"
-	if json.Unmarshal(b, &old) != nil {
-		return
+	if err := json.Unmarshal(b, &old); err != nil {
+		return fmt.Errorf("the settings kero kept before its configuration could not be read: %w", err)
 	}
 	s := old.Settings
 	if bg := keroThemeName(old.Background); bg != "" {
@@ -376,6 +389,7 @@ func migrate() {
 	if write(s) == nil {
 		os.Rename(legacyPath(), legacyPath()+".migrated")
 	}
+	return nil
 }
 
 // Save writes the settings into the configuration, keeping what the user
