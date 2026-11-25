@@ -284,10 +284,11 @@ func Path() string { return ConfigPath() }
 func legacyPath() string { return filepath.Join(proto.Dir(), "settings.json") }
 
 var (
-	mu       sync.Mutex
-	cache    *Settings
-	mtime    int64
-	problems []string
+	mu            sync.Mutex
+	cache         *Settings
+	cacheProblems []string
+	mtime         int64
+	problems      []string
 )
 
 // Load returns the settings, the defaults where the file says nothing.
@@ -302,13 +303,17 @@ func Load() Settings {
 		// No configuration is no news; one that is there but cannot be
 		// told of is said, as a file that cannot be read is below.
 		if os.IsNotExist(err) {
-			cache, problems = nil, nil
+			cache, cacheProblems, problems = nil, nil, nil
 		} else {
 			problems = []string{fmt.Sprintf("the configuration could not be read: %v", err)}
 		}
 		return lastRead()
 	}
 	if cache != nil && st.ModTime().UnixNano() == mtime {
+		// The problems of the read the cache holds, not the ones a look
+		// that failed on the way here left: the trouble they named is
+		// over, though the file did not change under it.
+		problems = cacheProblems
 		return clone(*cache)
 	}
 	b, err := os.ReadFile(Path())
@@ -320,7 +325,7 @@ func Load() Settings {
 		return lastRead()
 	}
 	s, probs := parse(string(b))
-	cache, mtime, problems = &s, st.ModTime().UnixNano(), probs
+	cache, cacheProblems, mtime, problems = &s, probs, st.ModTime().UnixNano(), probs
 	return clone(s)
 }
 
@@ -389,10 +394,10 @@ func Save(s Settings) error {
 	// and would not look again.
 	if b, err := os.ReadFile(Path()); err == nil {
 		c, probs := parse(string(b))
-		cache, problems = &c, probs
+		cache, cacheProblems, problems = &c, probs, probs
 	} else {
 		c := clone(s)
-		cache, problems = &c, nil
+		cache, cacheProblems, problems = &c, nil, nil
 	}
 	if st, err := os.Stat(Path()); err == nil {
 		mtime = st.ModTime().UnixNano()
