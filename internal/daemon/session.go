@@ -742,15 +742,18 @@ func (s *pane) restart() error {
 		s.mu.Unlock()
 		return fmt.Errorf("session %s is running", s.info.ID)
 	}
-	banner := "\r\n\x1b[0;2m[Restarted]\x1b[0m\r\n"
-	s.term.Feed([]byte(banner))
-	s.frame()
-	s.setStatus(proto.Idle)
-	s.info.Unread, s.info.Message, s.info.ExitCode = false, "", 0
 	s.mu.Unlock()
 	if err := s.start(nil, nil); err != nil {
 		return err
 	}
+	s.mu.Lock()
+	// The shell runs: say it restarted, and take the exit it ended on
+	// away — a restart that failed says neither.
+	s.term.Feed([]byte("\r\n\x1b[0;2m[Restarted]\x1b[0m\r\n"))
+	s.frame()
+	s.setStatus(proto.Idle)
+	s.info.Unread, s.info.Message, s.info.ExitCode = false, "", 0
+	s.mu.Unlock()
 	s.d.changed()
 	return nil
 }
