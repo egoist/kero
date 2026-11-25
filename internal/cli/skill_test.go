@@ -243,7 +243,46 @@ func TestSkillUnknownAgent(t *testing.T) {
 	if err := skillCmd([]string{"status", "--agent", "codex"}); err != nil {
 		t.Errorf("codex: %v", err)
 	}
+	if err := skillCmd([]string{"status", "--agent", "agy"}); err != nil {
+		t.Errorf("agy: %v", err)
+	}
 	if err := skillCmd([]string{"status", "--agent", "claude"}); err != nil {
 		t.Errorf("claude: %v", err)
+	}
+}
+
+// Antigravity shares ~/.agents/skills/kero and puts its hook in
+// ~/.gemini/config/hooks.json, only when Antigravity itself (and not
+// Gemini CLI alone) is installed.
+func TestAntigravityHook(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("KERO_HOME", filepath.Join(home, "kero"))
+	for _, env := range []string{"CLAUDE_CONFIG_DIR", "CODEX_HOME", "PI_CODING_AGENT_DIR", "XDG_CONFIG_HOME", "CODEBUDDY_CONFIG_DIR"} {
+		t.Setenv(env, "")
+	}
+	// ~/.gemini alone (Gemini CLI) does not install Antigravity's hook.
+	os.MkdirAll(filepath.Join(home, ".gemini"), 0o755)
+	if len(agentHooks("agents")) != 0 {
+		t.Fatalf("hooks installed for ~/.gemini alone: %v", agentHooks("agents"))
+	}
+	// ~/.gemini/antigravity-cli marks Antigravity CLI as installed.
+	os.MkdirAll(filepath.Join(home, ".gemini", "antigravity-cli"), 0o755)
+	hooks := agentHooks("agents")
+	if len(hooks) != 1 || hooks[0].name() != "agy" {
+		t.Fatalf("hooks %v, want [agy]", hooks)
+	}
+	wantFile := filepath.Join(home, ".gemini", "config", "hooks.json")
+	if hooks[0].path() != wantFile {
+		t.Fatalf("path %q, want %q", hooks[0].path(), wantFile)
+	}
+	if err := hooks[0].install(); err != nil {
+		t.Fatal(err)
+	}
+	if hooks[0].state() != "current" {
+		t.Errorf("state %s", hooks[0].state())
+	}
+	if dir := skillDirs("agy")["agents"]; dir != filepath.Join(home, ".agents", "skills", "kero") {
+		t.Errorf("skill %q", dir)
 	}
 }

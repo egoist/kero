@@ -621,7 +621,7 @@ func expandHome(p string) string {
 // their executable or script, besides those of the user's manifests
 // (detect.UserFile).
 var agents = []string{
-	"claude", "codex", "gemini", "opencode", "amp", "aider", "cursor-agent", "droid",
+	"claude", "codex", "gemini", "agy", "opencode", "amp", "aider", "cursor-agent", "droid",
 	"qwen", "goose", "crush", "copilot", "kiro-cli", "cline", "auggie", "kimi", "pi", "omp",
 	"codebuddy", "pig",
 }

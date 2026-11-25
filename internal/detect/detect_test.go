@@ -14,7 +14,7 @@ func TestManifestsCompile(t *testing.T) {
 	if err := Load(); err != nil {
 		t.Fatal(err)
 	}
-	for _, a := range []string{"claude", "codex", "codebuddy", "gemini", "opencode", "amp", "cursor-agent", "droid", "qwen", "copilot", "kiro-cli", "cline", "kimi", "pi", "pig"} {
+	for _, a := range []string{"claude", "codex", "codebuddy", "gemini", "agy", "opencode", "amp", "cursor-agent", "droid", "qwen", "copilot", "kiro-cli", "cline", "kimi", "pi", "pig"} {
 		if !Known(a) {
 			t.Errorf("no rules for %s", a)
 		}
@@ -115,6 +115,27 @@ func TestPiG(t *testing.T) {
 	} {
 		if got := Detect("pig", Input{Screen: c.screen}); got.State != c.state {
 			t.Errorf("%q: %s (rule %q), want %s", c.screen, got.State, got.Rule, c.state)
+		}
+	}
+}
+
+// Antigravity CLI's screens when OSC 7501 is off.
+func TestAntigravity(t *testing.T) {
+	const promptBox = "────────────────\n>\n────────────────\nGemini 4 Carbon (High) · 5h 99%\n"
+	cases := []struct {
+		name  string
+		in    Input
+		state State
+	}{
+		{"asking to proceed", Input{Screen: "Do you want to proceed?\nYes, accept this change\nNo, deny access\n" + promptBox}, Blocked},
+		{"asking to proceed, the title turning", Input{Screen: "Do you want to proceed?\nYes, accept this change\n", Title: "⠂ agy"}, Blocked},
+		{"working", Input{Screen: "⢿  Working...\n" + promptBox}, Working},
+		{"working above checklist", Input{Screen: "⣽  1/4 steps · Running command... 1s\n  ⎿  ✓ Inspect repo\n     ● Run tests\n" + promptBox}, Working},
+		{"idle at prompt", Input{Screen: promptBox}, Idle},
+	}
+	for _, c := range cases {
+		if got := Detect("agy", c.in); got.State != c.state {
+			t.Errorf("%s: %s (rule %q), want %s", c.name, got.State, got.Rule, c.state)
 		}
 	}
 }

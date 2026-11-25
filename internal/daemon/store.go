@@ -298,10 +298,8 @@ func resumeCommandWithReason(a *proto.AgentSession) ([]string, string) {
 		return nil, "invalid agent session ID"
 	}
 	switch a.Agent {
-	case "claude":
-		return []string{"claude", "--resume", a.ID}, ""
-	case "codebuddy":
-		return []string{"codebuddy", "--resume", a.ID}, ""
+	case "claude", "codebuddy", "agy":
+		return []string{a.Agent, "--resume", a.ID}, ""
 	case "codex":
 		return []string{"codex", "resume", a.ID}, ""
 	case "pi", "omp", "opencode", "pig":
