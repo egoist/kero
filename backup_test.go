@@ -250,10 +250,6 @@ func countToast(said []string, what string) int {
 	return n
 }
 
-// A backup that could not be removed is not one that was written: it is
-// said, and the backup is still owed, or the stale edits it holds come
-// back after a restart — as a write that could not be made is said since
-// #505.
 // An unreadable backup is the user's only copy of edits the app could
 // not read: the next backup writes over a file it can read, not over the
 // one it cannot. The old file moves aside, so a hand can still get the
@@ -310,6 +306,10 @@ func TestWriteBackupKeepsAnUnreadableBackup(t *testing.T) {
 	}
 }
 
+// A backup that could not be removed is not one that was written: it is
+// said, and the backup is still owed, or the stale edits it holds come
+// back after a restart — as a write that could not be made is said since
+// #505.
 func TestBackupThatCannotBeRemovedIsSaid(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("permissions are Unix's")
