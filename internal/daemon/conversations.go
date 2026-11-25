@@ -338,7 +338,17 @@ func (d *Daemon) resumeConversation(p proto.ConversationParams) (proto.Session, 
 	}
 	d.mu.Unlock()
 	if c.Dir != "" {
-		if st, err := os.Stat(c.Dir); err != nil || !st.IsDir() {
+		st, err := os.Stat(c.Dir)
+		if err != nil {
+			if os.IsNotExist(err) {
+				return proto.Session{}, fmt.Errorf("the conversation's directory %s is gone", proto.ShortDir(c.Dir))
+			}
+			// It is there but cannot be looked into — no permission, a
+			// parent of a kind that is no folder — which is not "gone",
+			// and the files in it are not lost: the look says what it is.
+			return proto.Session{}, err
+		}
+		if !st.IsDir() {
 			return proto.Session{}, fmt.Errorf("the conversation's directory %s is gone", proto.ShortDir(c.Dir))
 		}
 	}

@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -215,6 +216,36 @@ func TestResumeConversationDirGone(t *testing.T) {
 	d.convs.note(proto.Conversation{Agent: "codex", ID: "019a", Dir: gone}, 1)
 	if _, err := d.resumeConversation(proto.ConversationParams{Agent: "codex", ID: "019a"}); err == nil || !strings.Contains(err.Error(), "gone") {
 		t.Errorf("err %v", err)
+	}
+	if len(d.sessions) != 0 {
+		t.Error("started a session")
+	}
+}
+
+// A directory that is there but cannot be looked into is not gone: the
+// stat's failure is said as the failure it is, not "the directory is
+// gone", which would tell the user to let go of files that are safe.
+func TestResumeConversationDirItCannotLookAt(t *testing.T) {
+	if runtime.GOOS == "windows" || os.Geteuid() == 0 {
+		t.Skip("requires Unix directory permissions without root privileges")
+	}
+	d := testDaemon(t)
+	parent := t.TempDir()
+	dir := filepath.Join(parent, "work")
+	if err := os.Mkdir(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(parent, 0); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chmod(parent, 0o700) })
+	d.convs.note(proto.Conversation{Agent: "codex", ID: "019a", Dir: dir}, 1)
+	_, err := d.resumeConversation(proto.ConversationParams{Agent: "codex", ID: "019a"})
+	if err == nil {
+		t.Fatal("a directory that could not be looked into: resumed")
+	}
+	if strings.Contains(err.Error(), "gone") {
+		t.Errorf("said %v of a directory that is there", err)
 	}
 	if len(d.sessions) != 0 {
 		t.Error("started a session")
