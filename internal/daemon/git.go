@@ -244,9 +244,15 @@ func (g *gitFollow) refresh(rs *repoStatus, stamp string, now time.Time) {
 	rs.at = now
 	if err != nil {
 		rs.failed = true
-		if errors.Is(err, context.DeadlineExceeded) {
+		switch {
+		case errors.Is(err, context.DeadlineExceeded):
 			rs.slow++
 			g.d.log.Printf("git status of %s took over %v", rs.repo.Root, gitTimeout)
+		case !git.NoWorktree(err):
+			// A worktree that is there but cannot be read is a failure to
+			// say, as finding it is: the pane keeps the numbers it last
+			// showed, and nothing would say why they never move again.
+			g.d.log.Printf("git status of %s: %v", rs.repo.Root, err)
 		}
 		return
 	}
