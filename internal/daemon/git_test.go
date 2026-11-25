@@ -225,3 +225,38 @@ func TestGitStatusThatFailedIsSaid(t *testing.T) {
 		t.Errorf("a status that failed was not said: %q", logs.String())
 	}
 }
+
+// A file the agent renamed, reverted: put back under the name the rev
+// has it, and the new name taken away.
+func TestRevertPutsARenamedFileBackUnderItsOldName(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("no git")
+	}
+	p := testPane(t)
+	d := p.d
+	d.log = log.New(io.Discard, "", 0)
+	d.panes = map[string]*pane{"p": p}
+	repo := realPath(t, t.TempDir())
+	gitIn(t, repo, "init", "-q")
+	os.WriteFile(filepath.Join(repo, "a.txt"), []byte("one\n"), 0o644)
+	gitIn(t, repo, "add", "-A")
+	gitIn(t, repo, "commit", "-q", "-m", "first")
+	p.info.Dir = repo
+	// The agent renamed the file.
+	if err := os.Rename(filepath.Join(repo, "a.txt"), filepath.Join(repo, "b.txt")); err != nil {
+		t.Fatal(err)
+	}
+	txt, err := d.gitText(proto.GitParams{Pane: "p", Base: git.BaseHead, Path: "b.txt", OldPath: "a.txt"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := d.gitRevert(proto.GitWriteParams{Pane: "p", Base: git.BaseHead, Path: "b.txt", OldPath: "a.txt", Hash: txt.Hash, Text: txt.Old}); err != nil {
+		t.Fatal(err)
+	}
+	if b, err := os.ReadFile(filepath.Join(repo, "a.txt")); err != nil || string(b) != "one\n" {
+		t.Errorf("the old name is not put back: %q, %v", b, err)
+	}
+	if _, err := os.Stat(filepath.Join(repo, "b.txt")); !os.IsNotExist(err) {
+		t.Errorf("the new name stays: %v", err)
+	}
+}
