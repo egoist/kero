@@ -152,16 +152,20 @@ func (d *Daemon) call(c *controlConn, method string, raw json.RawMessage) (any, 
 		}
 		d.mu.Lock()
 		s := d.findSessionLocked(p.Session)
-		if s != nil {
+		ok := s != nil && (p.Pane == "" || slices.ContainsFunc(s.panes, func(o *pane) bool { return o.info.ID == p.Pane }))
+		if ok {
 			if p.Pane == "" || s.zoomed == p.Pane {
 				s.zoomed = ""
-			} else if slices.ContainsFunc(s.panes, func(o *pane) bool { return o.info.ID == p.Pane }) {
+			} else {
 				s.zoomed, s.focus = p.Pane, p.Pane
 			}
 		}
 		d.mu.Unlock()
 		if s == nil {
 			return nil, fmt.Errorf("no session %q", p.Session)
+		}
+		if !ok {
+			return nil, fmt.Errorf("no pane %q in session %q", p.Pane, p.Session)
 		}
 		d.changed()
 		return true, nil
