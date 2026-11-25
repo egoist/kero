@@ -266,6 +266,25 @@ func writeBackup(vb viewerBackup) error {
 	if err := os.MkdirAll(proto.Dir(), 0o700); err != nil {
 		return err
 	}
+	// An unreadable or corrupt backup is the user's only copy of edits the
+	// app could not read: it moves aside before the new file takes its
+	// place, so a hand can still get the edits out of it. One that cannot
+	// even be moved aside is not written over.
+	old, err := os.ReadFile(path)
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+	case err == nil:
+		var held viewerBackup
+		if err := json.Unmarshal(old, &held); err != nil {
+			if err := os.Rename(path, path+".broken"); err != nil {
+				return err
+			}
+		}
+	default:
+		if err := os.Rename(path, path+".broken"); err != nil {
+			return fmt.Errorf("the backup that is there cannot be read or moved aside: %w", err)
+		}
+	}
 	tmp := path + ".tmp"
 	if err := os.WriteFile(tmp, b, 0o600); err != nil {
 		return err

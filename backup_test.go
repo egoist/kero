@@ -2,6 +2,8 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -252,6 +254,62 @@ func countToast(said []string, what string) int {
 // said, and the backup is still owed, or the stale edits it holds come
 // back after a restart — as a write that could not be made is said since
 // #505.
+// An unreadable backup is the user's only copy of edits the app could
+// not read: the next backup writes over a file it can read, not over the
+// one it cannot. The old file moves aside, so a hand can still get the
+// edits out of it.
+func TestWriteBackupKeepsAnUnreadableBackup(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("KERO_HOME", dir)
+	path := backupPath()
+	broken := path + ".broken"
+	for _, old := range []string{`{"unsaved": [`, "not json at all"} {
+		if err := os.WriteFile(path, []byte(old), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		vb := viewerBackup{Unsaved: []unsavedText{{Kind: sideFiles, Path: "/tmp/main.go", Hash: "h", Text: "new"}}}
+		if err := writeBackup(vb); err != nil {
+			t.Fatalf("the write failed: %v", err)
+		}
+		b, err := os.ReadFile(broken)
+		if err != nil || string(b) != old {
+			t.Fatalf("the unreadable backup: %q, %v — want %q kept", b, err, old)
+		}
+		if nb, err := os.ReadFile(path); err != nil || !strings.Contains(string(nb), `"text":"new"`) {
+			t.Fatalf("the new backup was not written: %q, %v", nb, err)
+		}
+		os.Remove(broken)
+	}
+	// One that cannot be read at all is kept too, where permissions hold.
+	if runtime.GOOS != "windows" && os.Geteuid() != 0 {
+		if err := os.WriteFile(path, []byte("no read"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Chmod(path, 0); err != nil {
+			t.Fatal(err)
+		}
+		vb := viewerBackup{Unsaved: []unsavedText{{Kind: sideFiles, Path: "/tmp/main.go", Hash: "h", Text: "new"}}}
+		if err := writeBackup(vb); err != nil {
+			t.Fatalf("the write failed: %v", err)
+		}
+		// Its mode moved with it: make it readable to check it is there.
+		if err := os.Chmod(broken, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if b, err := os.ReadFile(broken); err != nil || string(b) != "no read" {
+			t.Fatalf("the unreadable backup: %q, %v", b, err)
+		}
+		os.Remove(broken)
+	}
+	// A backup that reads fine is written over as it always was.
+	if err := writeBackup(viewerBackup{Unsaved: []unsavedText{{Kind: sideFiles, Path: "/tmp/m.go", Hash: "h", Text: "newer"}}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Lstat(path + ".broken"); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("a readable backup moved aside: %v", err)
+	}
+}
+
 func TestBackupThatCannotBeRemovedIsSaid(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("permissions are Unix's")
