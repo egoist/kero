@@ -2,7 +2,9 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
@@ -247,8 +249,13 @@ func writeBackup(vb viewerBackup) error {
 	path := backupPath()
 	if len(vb.Views) == 0 && len(vb.Unsaved) == 0 {
 		// Nothing of the user's to keep; a file that isn't there is
-		// the answer already.
-		os.Remove(path)
+		// the answer already. One that is there but cannot be taken
+		// away is a failure to say, not "the backup is gone": the stale
+		// edits it holds would come back after the next start, as though
+		// they had never been saved and closed.
+		if err := os.Remove(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
+			return err
+		}
 		return nil
 	}
 	b, err := json.Marshal(vb)
