@@ -276,6 +276,34 @@ func TestWriteBackupKeepsAnUnreadableBackup(t *testing.T) {
 		}
 		os.Remove(broken)
 	}
+	// With nothing new to keep, a corrupt backup must still be moved aside.
+	if err := os.WriteFile(path, []byte("broken on startup"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeBackup(viewerBackup{}); err != nil {
+		t.Fatal(err)
+	}
+	if b, err := os.ReadFile(broken); err != nil || string(b) != "broken on startup" {
+		t.Fatalf("the empty backup did not keep the broken one: %q, %v", b, err)
+	}
+	if err := os.WriteFile(path, []byte("another broken backup"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeBackup(viewerBackup{}); err == nil {
+		t.Fatal("overwrote an earlier broken backup")
+	}
+	if b, err := os.ReadFile(broken); err != nil || string(b) != "broken on startup" {
+		t.Fatalf("the earlier broken backup changed: %q, %v", b, err)
+	}
+	if b, err := os.ReadFile(path); err != nil || string(b) != "another broken backup" {
+		t.Fatalf("the later broken backup changed: %q, %v", b, err)
+	}
+	if err := os.Remove(broken); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
 	// One that cannot be read at all is kept too, where permissions hold.
 	if runtime.GOOS != "windows" && os.Geteuid() != 0 {
 		if err := os.WriteFile(path, []byte("no read"), 0o600); err != nil {

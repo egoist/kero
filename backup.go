@@ -247,6 +247,9 @@ func (a *App) backupEdits(c *ui.Context) {
 // so that one that was not is tried again.
 func writeBackup(vb viewerBackup) error {
 	path := backupPath()
+	if err := keepBrokenBackup(path); err != nil {
+		return err
+	}
 	if len(vb.Views) == 0 && len(vb.Unsaved) == 0 {
 		// Nothing of the user's to keep; a file that isn't there is
 		// the answer already. One that is there but cannot be taken
@@ -266,30 +269,36 @@ func writeBackup(vb viewerBackup) error {
 	if err := os.MkdirAll(proto.Dir(), 0o700); err != nil {
 		return err
 	}
-	// An unreadable or corrupt backup is the user's only copy of edits the
-	// app could not read: it moves aside before the new file takes its
-	// place, so a hand can still get the edits out of it. One that cannot
-	// even be moved aside is not written over.
-	old, err := os.ReadFile(path)
-	switch {
-	case errors.Is(err, fs.ErrNotExist):
-	case err == nil:
-		var held viewerBackup
-		if err := json.Unmarshal(old, &held); err != nil {
-			if err := os.Rename(path, path+".broken"); err != nil {
-				return err
-			}
-		}
-	default:
-		if err := os.Rename(path, path+".broken"); err != nil {
-			return fmt.Errorf("the backup that is there cannot be read or moved aside: %w", err)
-		}
-	}
 	tmp := path + ".tmp"
 	if err := os.WriteFile(tmp, b, 0o600); err != nil {
 		return err
 	}
 	return os.Rename(tmp, path)
+}
+
+// keepBrokenBackup moves an unreadable backup aside before removing or
+// replacing it, without overwriting an earlier backup kept there.
+func keepBrokenBackup(path string) error {
+	old, err := os.ReadFile(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
+	if err == nil {
+		var held viewerBackup
+		if json.Unmarshal(old, &held) == nil {
+			return nil
+		}
+	}
+	broken := path + ".broken"
+	if _, err := os.Lstat(broken); err == nil {
+		return fmt.Errorf("cannot move the unreadable backup aside: %s already exists", broken)
+	} else if !errors.Is(err, fs.ErrNotExist) {
+		return err
+	}
+	if err := os.Rename(path, broken); err != nil {
+		return fmt.Errorf("the backup that is there cannot be read or moved aside: %w", err)
+	}
+	return nil
 }
 
 // backupOnQuit writes the backup as the app quits: nothing retries this
