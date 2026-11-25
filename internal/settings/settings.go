@@ -416,6 +416,12 @@ func write(s Settings) error {
 		// it never held: the user's own lines would be lost.
 		return err
 	}
+	// A value the file cannot hold is said, and nothing is written: the
+	// file would be two lines where one was asked for, and the second
+	// one a setting of its own.
+	if err := checkWritable(s); err != nil {
+		return err
+	}
 	data := format(s, string(old))
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
