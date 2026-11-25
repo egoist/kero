@@ -325,7 +325,11 @@ func TestRestartThatFailedLeavesThePaneAsItWas(t *testing.T) {
 	if code != 3 {
 		t.Errorf("the exit code = %d, want 3", code)
 	}
-	if strings.Contains(s.term.Text(), "[Restarted]") {
-		t.Errorf("the scrollback says it restarted:\n%s", s.term.Text())
+	text := s.term.Text()
+	if !strings.Contains(text, "[Restarted]") {
+		t.Errorf("the scrollback does not say the restart was asked for:\n%s", text)
+	}
+	if !strings.Contains(text, "[Restart failed: ") {
+		t.Errorf("the scrollback does not say the restart failed:\n%s", text)
 	}
 }
