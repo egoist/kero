@@ -78,6 +78,19 @@ func TestWorktree(t *testing.T) {
 		t.Fatal("deleted a branch with commits main doesn't have")
 	}
 
+	// A base that is gone — its branch deleted meanwhile — is not "not
+	// merged": the question had no answer, which is said; the branch
+	// stays either way.
+	if err := r.AddWorktree(ctx, path, "fix/login", ""); err != nil {
+		t.Fatal(err)
+	}
+	if err := RemoveWorktree(ctx, r.Root, path, "fix/login", "gone-base"); err == nil {
+		t.Fatal("a base that is gone read as not merged")
+	}
+	if !r.HasBranch("fix/login") {
+		t.Fatal("deleted a branch whose merge with a gone base could not be told")
+	}
+
 	// Merged: the branch goes too.
 	gitIn(t, r.Root, "merge", "-q", "--ff-only", "fix/login")
 	if err := r.AddWorktree(ctx, path, "fix/login", ""); err != nil {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -129,7 +130,13 @@ func RemoveWorktree(ctx context.Context, main, path, branch, base string) error 
 	}
 	ref := "refs/heads/" + branch
 	if _, err := run(ctx, main, nil, "merge-base", "--is-ancestor", ref, base); err != nil {
-		return nil // not merged: the branch stays, with its commits
+		var ee *exec.ExitError
+		if errors.As(err, &ee) && ee.ExitCode() == 1 {
+			return nil // not merged: the branch stays, with its commits
+		}
+		// The question had no answer — a base that is gone, a git that
+		// is broken — which is a failure, not "not merged": say it.
+		return err
 	}
 	_, err := run(ctx, main, nil, "branch", "-D", "--", branch)
 	return err

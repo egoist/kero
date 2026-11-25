@@ -98,7 +98,7 @@ func (d *Daemon) removeWorktree(wt *proto.Worktree) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	if err := git.RemoveWorktree(ctx, wt.Main, wt.Path, wt.Branch, wt.Base); err != nil {
-		d.log.Printf("worktree %s stays: %v", wt.Path, err)
+		d.log.Printf("worktree %s or its branch stays: %v", wt.Path, err)
 	}
 }
 
@@ -218,7 +218,7 @@ func (d *Daemon) closeSession(p proto.CloseParams) error {
 	// go of the worktree, as Windows wants of a folder to remove.
 	time.Sleep(200 * time.Millisecond)
 	if err := git.RemoveWorktree(ctx, wc.Main, wc.Path, wc.Branch, wc.Base); err != nil {
-		return fmt.Errorf("the session closed, but its worktree stays: %w", err)
+		return fmt.Errorf("the session closed, but its worktree or branch stays: %w", err)
 	}
 	d.log.Printf("worktree %s removed", wc.Path)
 	return nil
