@@ -247,6 +247,9 @@ func (a *App) backupEdits(c *ui.Context) {
 // so that one that was not is tried again.
 func writeBackup(vb viewerBackup) error {
 	path := backupPath()
+	if err := keepBrokenBackup(path); err != nil {
+		return err
+	}
 	if len(vb.Views) == 0 && len(vb.Unsaved) == 0 {
 		// Nothing of the user's to keep; a file that isn't there is
 		// the answer already. One that is there but cannot be taken
@@ -271,6 +274,31 @@ func writeBackup(vb viewerBackup) error {
 		return err
 	}
 	return os.Rename(tmp, path)
+}
+
+// keepBrokenBackup moves an unreadable backup aside before removing or
+// replacing it, without overwriting an earlier backup kept there.
+func keepBrokenBackup(path string) error {
+	old, err := os.ReadFile(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
+	if err == nil {
+		var held viewerBackup
+		if json.Unmarshal(old, &held) == nil {
+			return nil
+		}
+	}
+	broken := path + ".broken"
+	if _, err := os.Lstat(broken); err == nil {
+		return fmt.Errorf("cannot move the unreadable backup aside: %s already exists", broken)
+	} else if !errors.Is(err, fs.ErrNotExist) {
+		return err
+	}
+	if err := os.Rename(path, broken); err != nil {
+		return fmt.Errorf("the backup that is there cannot be read or moved aside: %w", err)
+	}
+	return nil
 }
 
 // backupOnQuit writes the backup as the app quits: nothing retries this
