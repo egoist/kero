@@ -3,6 +3,7 @@ package git
 import (
 	"context"
 	"errors"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -57,7 +58,12 @@ func (r Repo) AddWorktree(ctx context.Context, path, branch, base string) error 
 // it as .gitignore would, without a change of the repository's own.
 func (r Repo) Exclude(pattern string) error {
 	path := filepath.Join(r.Common, "info", "exclude")
-	b, _ := os.ReadFile(path)
+	b, err := os.ReadFile(path)
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		// An exclude that is there but cannot be read is not one with no
+		// rules in it: the write below would take the user's rules away.
+		return err
+	}
 	for _, l := range strings.Split(string(b), "\n") {
 		if strings.TrimSpace(l) == pattern {
 			return nil
