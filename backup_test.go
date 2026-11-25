@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -245,4 +246,37 @@ func countToast(said []string, what string) int {
 		}
 	}
 	return n
+}
+
+// A backup that could not be removed is not one that was written: it is
+// said, and the backup is still owed, or the stale edits it holds come
+// back after a restart — as a write that could not be made is said since
+// #505.
+func TestBackupThatCannotBeRemovedIsSaid(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("permissions are Unix's")
+	}
+	if os.Geteuid() == 0 {
+		t.Skip("root removes a file in a folder it cannot write")
+	}
+	dir := t.TempDir()
+	t.Setenv("KERO_HOME", dir)
+	if err := os.WriteFile(filepath.Join(dir, "unsaved.json"), []byte("old edits"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	// The file is there, and it cannot be taken away: nothing can be
+	// written to its folder.
+	if err := os.Chmod(dir, 0o500); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chmod(dir, 0o700) })
+	if err := writeBackup(viewerBackup{}); err == nil {
+		t.Fatal("a backup that could not be removed was removed")
+	}
+	if err := os.Chmod(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if b, _ := os.ReadFile(filepath.Join(dir, "unsaved.json")); string(b) != "old edits" {
+		t.Errorf("the backup was taken away: %q", b)
+	}
 }
