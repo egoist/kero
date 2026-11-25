@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -101,5 +102,35 @@ func TestWorktree(t *testing.T) {
 	}
 	if r.HasBranch("fix/login") {
 		t.Error("kept a merged branch")
+	}
+}
+
+// The rules the user wrote in info/exclude are not taken away by what
+// kero adds to it: an exclude that is there but cannot be read is said,
+// not written from empty.
+func TestExcludeSaysAnExcludeItCannotRead(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("permissions are Unix's")
+	}
+	if os.Geteuid() == 0 {
+		t.Skip("root reads a file with no read permission")
+	}
+	r := repo(t, map[string]string{"a.txt": "a\n"})
+	path := filepath.Join(r.Common, "info", "exclude")
+	if err := os.WriteFile(path, []byte("*.log\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// Write-only: it is there, and it cannot be read.
+	if err := os.Chmod(path, 0o200); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.Exclude("/.kero/"); err == nil {
+		t.Fatal("an exclude that could not be read was written anyway")
+	}
+	if err := os.Chmod(path, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if b, _ := os.ReadFile(path); string(b) != "*.log\n" {
+		t.Errorf("exclude:\n%s", b)
 	}
 }
