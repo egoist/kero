@@ -551,3 +551,35 @@ func TestInstallOfAWslHostIsOfWindows(t *testing.T) {
 		t.Fatalf("the install command: %v", err)
 	}
 }
+
+// A host that has answered and ended takes the hello nowhere: the write
+// to its closed pipe fails with a broken pipe. That is the program's
+// end read early — what the program said last (here: no kero there) is
+// the why, not the write's "broken pipe". The Windows shell probe dials
+// twice, and the second bridge can end before the hello reaches it.
+func TestHandshakeReadsAWriteToAnEndedBridgeAsItsEnd(t *testing.T) {
+	if _, err := exec.LookPath("sh"); err != nil {
+		t.Skip("no sh")
+	}
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.Close() // no reader: a write fails with a broken pipe
+	cmd := exec.Command("sh", "-c", "echo 'kero is not installed on devbox' >&2; exit 127")
+	c := &cmdConn{cmd: cmd, ssh: true, stdin: w, eof: make(chan struct{}), done: make(chan struct{})}
+	cmd.Stderr = &c.stderr
+	runErr := cmd.Run()
+	if runErr == nil {
+		t.Fatal("the program was to end 127")
+	}
+	// The program is done and its end is known, as the bridge's goroutine
+	// records it once the pipes close.
+	c.err = runErr
+	close(c.done)
+
+	_, err = handshake(context.Background(), c, Addr{Scheme: "ssh", Host: "devbox"}, Options{})
+	if !errors.Is(err, ErrNotInstalled) {
+		t.Fatalf("%v, want ErrNotInstalled", err)
+	}
+}
