@@ -648,6 +648,22 @@ func parse(data string) (Settings, []string) {
 	return s, problems
 }
 
+// checkWritable says a value the file cannot hold: it is read a line at a
+// time, so a value with a line break in it would be two lines, and the
+// second one a setting of its own — the font size, where the user asked
+// for an environment variable.
+func checkWritable(s Settings) error {
+	for i := range keys {
+		k := &keys[i]
+		for _, v := range k.get(&s) {
+			if strings.Contains(v, "\n") {
+				return fmt.Errorf("the value of %s cannot hold a line break", k.name)
+			}
+		}
+	}
+	return nil
+}
+
 // quote wraps a value the reader would take wrong: one with a # in it,
 // one with spaces at its edges, an empty one. The quotes are
 // delimiters — the reader strips them again — so the value goes in as
