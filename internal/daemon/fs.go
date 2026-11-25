@@ -67,7 +67,10 @@ func fsList(p proto.FSListParams) (proto.FSList, error) {
 		}
 		if fe.Dir && repos < 500 {
 			repos++
-			if _, err := os.Stat(filepath.Join(dir, name, ".git")); err == nil {
+			// "no such file" is the only absence: a .git that is there
+			// but cannot be looked at (a locked worktree, one of the
+			// permissions) is a worktree's all the same.
+			if _, err := os.Stat(filepath.Join(dir, name, ".git")); err == nil || !os.IsNotExist(err) {
 				fe.Repo = true
 			}
 		}

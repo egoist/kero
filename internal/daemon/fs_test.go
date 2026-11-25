@@ -308,3 +308,31 @@ func TestFSStatThatFailedIsSaid(t *testing.T) {
 		t.Error("a path that could not be read is said as one that is not there")
 	}
 }
+
+// A .git that is there but cannot be looked at is a worktree too —
+// broken, or read-only — and its badge stays: "no such file" is the only
+// absence; anything else is a .git that is there.
+func TestFSListKeepsTheRepoBadgeOfAGitItCannotRead(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("a permission of none reads as open everywhere else")
+	}
+	if os.Geteuid() == 0 {
+		t.Skip("root reads a directory of no permission")
+	}
+	dir := t.TempDir()
+	os.MkdirAll(filepath.Join(dir, "locked", ".git"), 0o755)
+	os.WriteFile(filepath.Join(dir, "locked", ".git", "HEAD"), []byte("ref: refs/heads/main\n"), 0o644)
+	// The worktree's own directory, not the .git's: fsList must stat
+	// <entry>/.git, and this fails it while the .git is there.
+	os.Chmod(filepath.Join(dir, "locked"), 0o000)
+	t.Cleanup(func() { os.Chmod(filepath.Join(dir, "locked"), 0o755) })
+	l, err := fsList(proto.FSListParams{Dir: dir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range l.Entries {
+		if e.Name == "locked" && !e.Repo {
+			t.Error("a .git that cannot be read is no repository: the badge is gone")
+		}
+	}
+}
