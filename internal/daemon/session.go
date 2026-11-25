@@ -1,6 +1,7 @@
 package daemon
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -465,8 +466,13 @@ func (s *pane) screen() string {
 	return strings.Join(lines[max(0, len(lines)-s.info.Rows):], "\n") + "\n"
 }
 
+// errNoShell: the pane's shell ended, so input to it goes nowhere — a
+// pane that exited stays until the user closes or restarts it, and
+// typing into it is no failure, only nothing to write to.
+var errNoShell = errors.New("the pane's shell has ended")
+
 // input writes what the user typed to the program.
-func (s *pane) input(p []byte) {
+func (s *pane) input(p []byte) error {
 	s.mu.Lock()
 	proc := s.proc
 	changed := false
@@ -485,12 +491,17 @@ func (s *pane) input(p []byte) {
 		changed = true
 	}
 	s.mu.Unlock()
-	if proc != nil {
-		proc.Write(p)
+	if proc == nil {
+		if changed {
+			s.d.changed()
+		}
+		return errNoShell
 	}
+	_, err := proc.Write(p)
 	if changed {
 		s.d.changed()
 	}
+	return err
 }
 
 // setPage keeps the page a browser pane shows, as the app told it.

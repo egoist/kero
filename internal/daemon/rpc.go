@@ -203,7 +203,10 @@ func (d *Daemon) call(c *controlConn, method string, raw json.RawMessage) (any, 
 		if pn.term == nil {
 			return nil, fmt.Errorf("pane %s is a browser, which takes no input", pn.info.ID)
 		}
-		pn.input([]byte(p.Data))
+		// A write that failed is said: the send did not reach the pane.
+		if err := pn.input([]byte(p.Data)); err != nil {
+			return nil, err
+		}
 		return true, nil
 
 	case "pane.page":
