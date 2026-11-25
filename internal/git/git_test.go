@@ -3,6 +3,8 @@ package git
 import (
 	"context"
 	"errors"
+	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -408,5 +410,39 @@ func TestWriteFileOverADeletedFile(t *testing.T) {
 	}
 	if string(b) != "text\n" {
 		t.Errorf("wrote %q", b)
+	}
+}
+
+// NoWorktree tells "there is no worktree to follow" — git itself not
+// installed, a directory outside a repository, a bare one, or gone —
+// from git's other failures: the common case for a pane's directory,
+// which a caller that only wanted to know keeps quiet about.
+func TestNoWorktree(t *testing.T) {
+	for _, err := range []error{
+		ErrNoGit,
+		fmt.Errorf("git rev-parse: %w", ErrNoGit),
+		// A directory that is gone fails the chdir before git runs.
+		fmt.Errorf("git rev-parse: %w", &fs.PathError{Op: "chdir", Path: "/gone", Err: fs.ErrNotExist}),
+		errors.New("git rev-parse: exit status 128: fatal: not a git repository (or any of the parent directories): .git"),
+		errors.New("git rev-parse: exit status 128: fatal: not a git repository (or any parent up to mount point /)"),
+		errors.New("git rev-parse: exit status 128: fatal: this operation must be run in a work tree"),
+	} {
+		if !NoWorktree(err) {
+			t.Errorf("%v was not the answer for no worktree", err)
+		}
+	}
+	for _, err := range []error{
+		// A .git file pointing nowhere names a gitdir: a read that failed.
+		errors.New("git rev-parse: exit status 128: fatal: not a git repository: /nonexistent"),
+		errors.New("git rev-parse: context deadline exceeded"),
+		// A directory that is there but cannot be entered is said.
+		fmt.Errorf("git rev-parse: %w", &fs.PathError{Op: "chdir", Path: "/locked", Err: fs.ErrPermission}),
+	} {
+		if NoWorktree(err) {
+			t.Errorf("%v was taken for no worktree", err)
+		}
+	}
+	if NoWorktree(nil) {
+		t.Error("no error was taken for no worktree")
 	}
 }

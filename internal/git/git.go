@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -90,7 +91,9 @@ type Repo struct {
 
 // Open returns the worktree that holds dir.
 func Open(ctx context.Context, dir string) (Repo, error) {
-	out, err := run(ctx, dir, nil, "rev-parse", "--show-toplevel", "--absolute-git-dir", "--git-common-dir")
+	// The words of git's answer are read (NoWorktree), so git runs in the
+	// C locale, whatever the user's is.
+	out, err := run(ctx, dir, cLocale, "rev-parse", "--show-toplevel", "--absolute-git-dir", "--git-common-dir")
 	if err != nil {
 		return Repo{}, err
 	}
@@ -107,6 +110,25 @@ func Open(ctx context.Context, dir string) (Repo, error) {
 		return filepath.Clean(p)
 	}
 	return Repo{Root: path(lines[0]), GitDir: path(lines[1]), Common: path(lines[2])}, nil
+}
+
+// NoWorktree reports whether err says there is no worktree to follow:
+// git itself is not installed, or the directory is outside any
+// repository (up to its mount point, where git stops looking), a bare
+// one, or gone — the chdir to it fails before git runs, which for
+// finding a worktree is as good as none. A directory that is there but
+// whose git cannot be read (a .git file pointing nowhere, say) answers
+// differently, and is a failure to say, not an absence.
+func NoWorktree(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, ErrNoGit) || errors.Is(err, fs.ErrNotExist) {
+		return true
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "not a git repository (or any") ||
+		strings.Contains(msg, "must be run in a work tree")
 }
 
 // Ignored returns which of names, entries of dir, git ignores there: none
