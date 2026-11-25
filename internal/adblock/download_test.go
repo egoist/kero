@@ -117,3 +117,36 @@ func TestLoadSaysAnUnreadableList(t *testing.T) {
 		t.Errorf("the list that loaded with one unreadable: %d lists, err %v", len(lists), err)
 	}
 }
+
+// A list that could not be downloaded and has nothing to serve is said, even
+// when another list loaded: the ads of the missing one are not blocked.
+func TestLoadSaysAListThatCouldNotBeDownloaded(t *testing.T) {
+	body := "[Adblock Plus 2.0]\n||ads.example^\n"
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/down" {
+			http.Error(w, "down", http.StatusServiceUnavailable)
+			return
+		}
+		w.Write([]byte(body))
+	}))
+	defer server.Close()
+	dir := t.TempDir()
+	sources := []Source{
+		{"list", "List", server.URL + "/list"},
+		{"down", "Down", server.URL + "/down"},
+	}
+	lists, err := Load(context.Background(), dir, sources)
+	if err == nil {
+		t.Errorf("a list that could not be downloaded was no trouble: %d lists", len(lists))
+	}
+	if len(lists) != 1 || lists[0] != body {
+		t.Errorf("the list that did load: %q", lists)
+	}
+	// A list that is kept serves, so its refresh failing is no trouble.
+	kept := t.TempDir()
+	os.WriteFile(filepath.Join(kept, "list.txt"), []byte(body), 0o600)
+	one := []Source{{"list", "List", server.URL + "/down"}}
+	if lists, err := Load(context.Background(), kept, one); err != nil || len(lists) != 1 {
+		t.Errorf("a kept list that could not be refreshed: %d lists, err %v", len(lists), err)
+	}
+}
