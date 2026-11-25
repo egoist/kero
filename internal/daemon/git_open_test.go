@@ -35,6 +35,16 @@ func TestGitFollowSaysAGitThatCannotBeRead(t *testing.T) {
 		t.Errorf("a plain directory was said: %s", buf.String())
 	}
 
+	// A directory that is gone: quiet too — git cannot look in it, which
+	// for finding a worktree is as good as none.
+	gone := filepath.Join(plain, "gone")
+	if r := d.git.repoOf(gone, time.Now(), false); r.Root != "" {
+		t.Fatalf("a gone directory was taken for the worktree %q", r.Root)
+	}
+	if buf.Len() != 0 {
+		t.Errorf("a gone directory was said: %s", buf.String())
+	}
+
 	// A broken worktree, whose .git file points nowhere: said, as its
 	// status's own failures are.
 	broken := realPath(t, t.TempDir())
