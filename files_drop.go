@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"os"
@@ -96,26 +97,83 @@ func copyEntry(from, to string, replace bool) error {
 	if st.IsDir() && withinDir(filepath.Clean(to), filepath.Clean(from)) {
 		return errIntoItself
 	}
-	if _, err := os.Lstat(to); err == nil {
-		if !replace {
-			return nil
-		}
-		if err := os.RemoveAll(to); err != nil {
-			return err
-		}
+	if _, err := os.Lstat(to); err == nil && !replace {
+		return nil // what to names stays
 	}
+	// The copy is made whole beside what it lands on, and put in its
+	// place only then: a copy that fails leaves what was there.
 	switch {
 	case st.IsDir():
-		return os.CopyFS(to, os.DirFS(from))
+		tmp, err := freeName(filepath.Dir(to))
+		if err != nil {
+			return err
+		}
+		// The folder is made as CopyFS makes it: 0777 and the umask's.
+		if err := os.Mkdir(tmp, 0o777); err != nil {
+			os.RemoveAll(tmp)
+			return err
+		}
+		if err := os.CopyFS(tmp, os.DirFS(from)); err != nil {
+			os.RemoveAll(tmp)
+			return err
+		}
+		return putInPlace(tmp, to, false)
 	case st.Mode()&fs.ModeSymlink != 0:
 		target, err := os.Readlink(from)
 		if err != nil {
 			return err
 		}
-		return os.Symlink(target, to)
+		tmp, err := freeName(filepath.Dir(to))
+		if err != nil {
+			return err
+		}
+		if err := os.Symlink(target, tmp); err != nil {
+			return err
+		}
+		return putInPlace(tmp, to, true)
 	default:
-		return copyFile(from, to, st.Mode().Perm())
+		tmp, err := freeName(filepath.Dir(to))
+		if err != nil {
+			return err
+		}
+		if err := copyFile(from, tmp, st.Mode().Perm()); err != nil {
+			os.Remove(tmp)
+			return err
+		}
+		return putInPlace(tmp, to, true)
 	}
+}
+
+// freeName is a name in dir that nothing holds, for a copy made beside
+// what it lands on.
+func freeName(dir string) (string, error) {
+	f, err := os.CreateTemp(dir, ".kero-copy-*")
+	if err != nil {
+		return "", err
+	}
+	name := f.Name()
+	f.Close()
+	os.Remove(name)
+	return name, nil
+}
+
+// putInPlace puts what was copied at to, in place of what was there: a
+// file over a file by a rename, which the system's own, so that there is
+// no moment when neither is there; anything else takes what was there
+// away first, as a rename cannot put one over a folder.
+func putInPlace(tmp, to string, over bool) error {
+	if st, err := os.Lstat(to); err == nil {
+		if !over || !st.Mode().IsRegular() {
+			if err := os.RemoveAll(to); err != nil {
+				return err
+			}
+		}
+	}
+	if err := os.Rename(tmp, to); err != nil {
+		// The copy is whole and it stays where it is: it is the user's.
+		return fmt.Errorf("%s: the copy is at %s: %w", to, tmp, err)
+	}
+	return nil
 }
 
 // copyFile copies a file's bytes and permissions.
