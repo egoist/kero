@@ -38,10 +38,19 @@ type Status struct {
 
 // Installed reports whether kerod runs as a service.
 func Installed() bool {
+	installed, _ := CheckInstalled()
+	return installed
+}
+
+// CheckInstalled distinguishes a missing service from a failed check.
+func CheckInstalled() (bool, error) {
 	f := file()
 	if f == "" {
-		return false
+		return false, nil
 	}
 	_, err := os.Stat(f)
-	return err == nil
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	return err == nil, err
 }
