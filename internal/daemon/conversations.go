@@ -37,12 +37,12 @@ type convStore struct {
 	// a conversation added, forgotten, archived, ended or renamed, not
 	// one that runs on (State.Conversations).
 	gen uint64
-	// titles are Claude Code's titles of its conversations, as read from
-	// their transcripts at a modification time.
-	titles map[string]claudeTitle
+	// titles are agents' titles of their conversations, as read from
+	// their transcripts at a modification time, keyed by agent + "\x00" + id.
+	titles map[string]transcriptTitle
 }
 
-type claudeTitle struct {
+type transcriptTitle struct {
 	mod   time.Time
 	title string
 }
@@ -216,16 +216,22 @@ func paneConversation(p *pane, project, name string) *proto.Conversation {
 		return nil
 	}
 	c := &proto.Conversation{Agent: as.Agent, ID: as.ID, Dir: p.info.WorkDir(), Project: project, Name: name}
-	if t := proto.CleanTitle(p.info.Title); t != "" && !genericTitle(t, as.Agent) {
+	if t := proto.CleanTitle(p.info.Title); t != "" && !genericTitle(t, as.Agent, c.Dir) {
 		c.Title = t
 	}
 	return c
 }
 
 // genericTitle tells a title that says only which agent runs, as Claude
-// Code's before its conversation has one.
-func genericTitle(t, agent string) bool {
-	return strings.EqualFold(t, agent) || strings.EqualFold(t, proto.AgentNames[agent])
+// Code's before its conversation has one, or Pi's "π - <dir>".
+func genericTitle(t, agent, dir string) bool {
+	if strings.EqualFold(t, agent) || strings.EqualFold(t, proto.AgentNames[agent]) {
+		return true
+	}
+	if agent == "pi" {
+		return t == "π" || (dir != "" && t == "π - "+proto.DirName(dir))
+	}
+	return false
 }
 
 // noteConversations remembers what the panes' agents run now, with their
@@ -298,8 +304,16 @@ func (d *Daemon) conversations() []proto.Conversation {
 		if w, ok := running[proto.AgentSession{Agent: c.Agent, ID: c.ID}]; ok {
 			c.Session, c.Pane = w.session, w.pane
 		}
-		if c.Agent == "claude" {
+		if genericTitle(c.Title, c.Agent, c.Dir) {
+			c.Title = ""
+		}
+		switch c.Agent {
+		case "claude":
 			if t := d.convs.claudeTitle(c.ID); t != "" {
+				c.Title = t
+			}
+		case "pi":
+			if t := d.convs.piTitle(c.ID); t != "" {
 				c.Title = t
 			}
 		}
@@ -377,30 +391,55 @@ func (d *Daemon) resumeConversation(p proto.ConversationParams) (proto.Session, 
 	return info, nil
 }
 
-// errNoTranscript: Claude Code keeps no transcript of the conversation.
+// errNoTranscript: the agent keeps no transcript of the conversation.
 var errNoTranscript = errors.New("no transcript")
 
 // claudeTitle is Claude Code's title of one of its conversations: the one
 // the user gave it (/rename), else Claude's own; "" when it has none.
 func (cs *convStore) claudeTitle(id string) string {
-	path, mod, err := claudeTranscript(id)
+	return cs.transcriptTitle("claude", id, claudeTranscript, readClaudeTitle)
+}
+
+// piTitle is Pi's title of one of its conversations: the latest name
+// (/name / session_info), else the first user message; "" when it has none.
+func (cs *convStore) piTitle(id string) string {
+	return cs.transcriptTitle("pi", id, piTranscript, readPiTitle)
+}
+
+func (cs *convStore) transcriptTitle(agent, id string, find func(string) (string, time.Time, error), read func(string) string) string {
+	path, mod, err := find(id)
 	if err != nil {
 		return ""
 	}
+	key := agent + "\x00" + id
 	cs.mu.Lock()
-	t, ok := cs.titles[id]
+	t, ok := cs.titles[key]
 	cs.mu.Unlock()
 	if ok && t.mod.Equal(mod) {
 		return t.title
 	}
-	title := readClaudeTitle(path)
+	title := read(path)
 	cs.mu.Lock()
 	if cs.titles == nil {
-		cs.titles = map[string]claudeTitle{}
+		cs.titles = map[string]transcriptTitle{}
 	}
-	cs.titles[id] = claudeTitle{mod, title}
+	cs.titles[key] = transcriptTitle{mod, title}
 	cs.mu.Unlock()
 	return title
+}
+
+func findTranscript(id, pattern string) (string, time.Time, error) {
+	// id is a session's, as resumeCommand takes it: no pattern's letters.
+	if !agentSessionRe.MatchString(id) {
+		return "", time.Time{}, errNoTranscript
+	}
+	matches, _ := filepath.Glob(pattern)
+	for _, m := range matches {
+		if st, err := os.Stat(m); err == nil && st.Mode().IsRegular() {
+			return m, st.ModTime(), nil
+		}
+	}
+	return "", time.Time{}, errNoTranscript
 }
 
 // claudeTranscript finds the transcript of a Claude Code conversation, in
@@ -410,17 +449,17 @@ func claudeTranscript(id string) (string, time.Time, error) {
 	if dir == "" {
 		dir = filepath.Join(proto.Home(), ".claude")
 	}
-	// id is a session's, as resumeCommand takes it: no pattern's letters.
-	if !agentSessionRe.MatchString(id) {
-		return "", time.Time{}, errNoTranscript
+	return findTranscript(id, filepath.Join(dir, "projects", "*", id+".jsonl"))
+}
+
+// piTranscript finds the transcript of a Pi conversation and when it last
+// changed.
+func piTranscript(id string) (string, time.Time, error) {
+	dir := os.Getenv("PI_CODING_AGENT_DIR")
+	if dir == "" {
+		dir = filepath.Join(proto.Home(), ".pi", "agent")
 	}
-	matches, _ := filepath.Glob(filepath.Join(dir, "projects", "*", id+".jsonl"))
-	for _, m := range matches {
-		if st, err := os.Stat(m); err == nil && st.Mode().IsRegular() {
-			return m, st.ModTime(), nil
-		}
-	}
-	return "", time.Time{}, errNoTranscript
+	return findTranscript(id, filepath.Join(dir, "sessions", "*", "*_"+id+".jsonl"))
 }
 
 // readClaudeTitle reads a Claude Code transcript's title: its last
@@ -463,6 +502,71 @@ func readClaudeTitle(path string) string {
 		return titleLine(t)
 	}
 	return titleLine(strings.TrimSpace(ai))
+}
+
+// readPiTitle reads a Pi transcript's title: its latest session_info name,
+// else the first user message.
+func readPiTitle(path string) string {
+	f, err := os.Open(path)
+	if err != nil {
+		return ""
+	}
+	defer f.Close()
+	name, firstUser := "", ""
+	sc := bufio.NewScanner(f)
+	sc.Buffer(make([]byte, 0, 64<<10), 4<<20)
+	for sc.Scan() {
+		line := sc.Bytes()
+		switch {
+		case bytes.Contains(line, []byte(`"session_info"`)):
+			var e struct {
+				Type string `json:"type"`
+				Name string `json:"name"`
+			}
+			if json.Unmarshal(line, &e) == nil && e.Type == "session_info" {
+				name = strings.TrimSpace(e.Name)
+			}
+		case firstUser == "" && bytes.Contains(line, []byte(`"user"`)):
+			var e struct {
+				Type    string `json:"type"`
+				Message struct {
+					Role    string          `json:"role"`
+					Content json.RawMessage `json:"content"`
+				} `json:"message"`
+			}
+			if json.Unmarshal(line, &e) == nil && e.Type == "message" && e.Message.Role == "user" {
+				firstUser = titleLine(strings.Join(strings.Fields(piMessageText(e.Message.Content)), " "))
+			}
+		}
+	}
+	if name != "" {
+		return titleLine(name)
+	}
+	return firstUser
+}
+
+func piMessageText(raw json.RawMessage) string {
+	var s string
+	if json.Unmarshal(raw, &s) == nil {
+		return s
+	}
+	var parts []struct {
+		Type string `json:"type"`
+		Text string `json:"text"`
+	}
+	if json.Unmarshal(raw, &parts) == nil {
+		var b strings.Builder
+		for _, p := range parts {
+			if p.Type == "text" && p.Text != "" {
+				if b.Len() > 0 {
+					b.WriteByte(' ')
+				}
+				b.WriteString(p.Text)
+			}
+		}
+		return b.String()
+	}
+	return ""
 }
 
 // titleLine keeps a title to a line, and to 200 bytes.

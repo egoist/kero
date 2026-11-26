@@ -287,6 +287,46 @@ func TestClaudeTitle(t *testing.T) {
 	}
 }
 
+// Pi's title of a conversation is the latest session_info name (/name),
+// else the first user message.
+func TestPiTitle(t *testing.T) {
+	cfg := t.TempDir()
+	t.Setenv("PI_CODING_AGENT_DIR", cfg)
+	dir := filepath.Join(cfg, "sessions", "--src-app--")
+	os.MkdirAll(dir, 0o700)
+	id := "01a213c3-bb57-729c-87ce-ad4ca9a65b72"
+	path := filepath.Join(dir, "2026-11-25T17-32-04-311Z_"+id+".jsonl")
+	write := func(lines ...string) {
+		t.Helper()
+		if err := os.WriteFile(path, []byte(strings.Join(lines, "\n")+"\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var cs convStore
+	if got := cs.piTitle(id); got != "" {
+		t.Errorf("no transcript: %q", got)
+	}
+	write(`{"type":"session","version":3,"id":"`+id+`","cwd":"/src/app"}`,
+		`{"type":"message","id":"m1","message":{"role":"user","content":[{"type":"text","text":"fix the   login\nredirect"}]}}`,
+		`{"type":"message","id":"m2","message":{"role":"user","content":"second prompt"}}`)
+	if got := cs.piTitle(id); got != "fix the login redirect" {
+		t.Errorf("first user prompt: %q", got)
+	}
+	write(`{"type":"session","version":3,"id":"`+id+`","cwd":"/src/app"}`,
+		`{"type":"message","id":"m1","message":{"role":"user","content":"fix the login"}}`,
+		`{"type":"session_info","id":"s1","name":"auth work\nmore"}`)
+	os.Chtimes(path, timeAfter(path), timeAfter(path))
+	if got := cs.piTitle(id); got != "auth work" {
+		t.Errorf("session_info title: %q", got)
+	}
+	if got := cs.piTitle("../x"); got != "" {
+		t.Errorf("a path: %q", got)
+	}
+	if !genericTitle("π - app", "pi", "/src/app") || genericTitle("π - auth work - app", "pi", "/src/app") {
+		t.Error("genericTitle for pi")
+	}
+}
+
 // timeAfter is a second after a file's modification time.
 func timeAfter(path string) time.Time {
 	st, _ := os.Stat(path)
