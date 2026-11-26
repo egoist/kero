@@ -127,7 +127,12 @@ func Install(exe string, stop func() error) error {
 		return err
 	}
 	if stop != nil {
-		stop()
+		// A daemon that did not stop keeps running, and the task's
+		// kerod cannot take its place: the install did not work, and
+		// says so — as systemd's install says it too.
+		if err := stop(); err != nil {
+			return err
+		}
 	}
 	// Not waited for, nor needed: the task runs only while the user is
 	// logged on, and kerod else starts as Kero connects.

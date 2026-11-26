@@ -75,7 +75,12 @@ func Install(exe string, stop func() error) error {
 		return err
 	}
 	if stop != nil {
-		stop()
+		// A daemon that did not stop keeps running, and the agent's
+		// kerod cannot take its place: the install did not work, and
+		// says so — as systemd's install says it too.
+		if err := stop(); err != nil {
+			return err
+		}
 	}
 	return launchctl("bootstrap", domain(), file())
 }
