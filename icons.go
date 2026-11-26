@@ -81,6 +81,7 @@ func init() {
 	} {
 		programIcons[name] = glyph("si-" + logo)
 	}
+	programIcons["pi"] = glyph("pi")
 }
 
 // programIcon is the logo of the pane's foreground program, as Claude's
