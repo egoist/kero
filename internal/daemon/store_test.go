@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -46,6 +47,51 @@ func TestFailedHistorySaveKeepsIt(t *testing.T) {
 	p.mu.Unlock()
 	if dirty {
 		t.Error("the history was saved and the pane is still dirty")
+	}
+}
+
+// A history that cannot be taken away when its pane closes is said: the
+// pane is gone, nothing will try again, and the file would stay without
+// a word.
+func TestHistoryThatCannotBeRemovedIsSaid(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root takes a file from a folder that cannot be written")
+	}
+	var logs bytes.Buffer
+	d := testDaemon(t)
+	d.log = log.New(&logs, "", 0)
+	p, err := newPane(d, "s1", proto.Pane{ID: "a", Status: proto.Idle, Cols: 80, Rows: 24})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { p.term.Close() })
+	d.panes["a"] = p
+	p.show("hello")
+	if err := os.MkdirAll(filepath.Join(d.dir, "sessions"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	d.saveHistories(false)
+	if _, err := os.Stat(d.historyPath("a")); err != nil {
+		t.Fatal(err)
+	}
+	// The folder the histories are kept in takes no file away.
+	sessions := filepath.Join(d.dir, "sessions")
+	if err := os.Chmod(sessions, 0o500); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chmod(sessions, 0o700) })
+	raw, err := json.Marshal(proto.IDParams{ID: "a"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := d.call(nil, "pane.close", raw); err != nil {
+		t.Fatalf("pane.close: %v", err)
+	}
+	if _, err := os.Stat(d.historyPath("a")); err != nil {
+		t.Errorf("the history was taken away after all: %v", err)
+	}
+	if !strings.Contains(logs.String(), "the history of a") {
+		t.Errorf("a history that could not be removed was not said: %q", logs.String())
 	}
 }
 
