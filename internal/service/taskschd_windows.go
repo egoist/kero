@@ -144,12 +144,26 @@ func Install(exe string, stop func() error) error {
 // logged on.
 func EnableLinger() error { return nil }
 
-// Uninstall removes the task. Its kerod runs on, as any.
+// Uninstall removes the task. Its kerod runs on, as any. A task Task
+// Scheduler keeps, as one whose deletion was refused, is not said gone
+// with its file taken away: the uninstall did not happen, and says so,
+// and the file stays — as systemd's uninstall keeps the unit it could
+// not stop. Whether the task is still registered is asked, not read from
+// schtasks' words, which the machine may say in its own language.
 func Uninstall() error {
-	if !Installed() {
-		return nil
+	// A file that is not there is none; one that is there but cannot be
+	// read is not known to be none — systemd's uninstall rule.
+	if _, err := os.Stat(file()); err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
 	}
-	schtasks("/Delete", "/TN", task(), "/F")
+	if schtasks("/Query", "/TN", task()) == nil {
+		if err := schtasks("/Delete", "/TN", task(), "/F"); err != nil {
+			return err
+		}
+	}
 	return os.Remove(file())
 }
 
