@@ -140,6 +140,16 @@ func Keys(a Action, overrides map[string]string) string {
 	if k, ok := overrides[a.ID]; ok {
 		return k
 	}
+	if a.Keys == "" {
+		return ""
+	}
+	// The default is gone when another action holds its keys: the keys were
+	// taken, and the action that took them may let them go again.
+	for id, k := range overrides {
+		if id != a.ID && strings.EqualFold(k, a.Keys) {
+			return ""
+		}
+	}
 	return a.Keys
 }
 
