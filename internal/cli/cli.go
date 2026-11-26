@@ -1292,17 +1292,23 @@ func StopDaemon() error {
 	if client.Interrupt(p) != nil {
 		p.Kill()
 	}
+	var lastErr error
 	for range 100 {
 		pid, err := client.DaemonPID()
-		if err != nil {
-			// It is still there, and it did not say hello: it did not
-			// stop.
-			return fmt.Errorf("kerod did not stop: %w", err)
-		}
-		if pid == 0 {
+		if err == nil && pid == 0 {
 			return nil
 		}
+		if err != nil {
+			// It still answers, and it did not say hello: a kerod that is
+			// shutting down can still accept and close. Keep waiting for
+			// the socket to go quiet, and say the last trouble if it never
+			// does.
+			lastErr = err
+		}
 		time.Sleep(30 * time.Millisecond)
+	}
+	if lastErr != nil {
+		return fmt.Errorf("kerod did not stop: %w", lastErr)
 	}
 	return errors.New("kerod did not stop")
 }
