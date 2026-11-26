@@ -54,6 +54,8 @@ export default function (pi: any) {
     context = await hook(sessionID);
   };
   pi.on("session_start", (_event: any, ctx: any) => sync(ctx));
+  // Pi before 1.6.1: /resume fires session_switch; later builds fire
+  // session_start with a reason.
   pi.on("session_switch", (_event: any, ctx: any) => sync(ctx));
   pi.on("agent_end", (_event: any, ctx: any) => sync(ctx));
   pi.on("turn_end", (_event: any, ctx: any) => sync(ctx));
