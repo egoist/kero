@@ -1676,11 +1676,15 @@ func (a *App) setShortcut(id, accel string) {
 		sc[k] = v
 	}
 	a.ss.notice = ""
+	taken := ""
 	if accel != "" {
 		for _, other := range actions.All {
 			if other.ID != id && strings.EqualFold(actions.Keys(other, sc), accel) {
-				sc[other.ID] = ""
-				a.ss.notice = locales.SetShortcutTaken(actions.Glyphs(accel), strings.TrimSuffix(actionTitle(other.ID), "…"))
+				// The other action loses the keys: its own binding goes,
+				// and it falls back to its default — which is none of its
+				// own when the keys it had by default are the ones taken.
+				delete(sc, other.ID)
+				taken = other.ID
 			}
 		}
 	}
@@ -1694,6 +1698,14 @@ func (a *App) setShortcut(id, accel string) {
 		sc = nil
 	}
 	a.set.Shortcuts = sc
+	// The other action says it has none now, when it has none: the keys
+	// it had by default are the ones taken.
+	if taken != "" {
+		other, _ := actions.Find(taken)
+		if actions.Keys(other, a.set.Shortcuts) == "" {
+			a.ss.notice = locales.SetShortcutTaken(actions.Glyphs(accel), strings.TrimSuffix(actionTitle(other.ID), "…"))
+		}
+	}
 }
 
 // keyNames are the keys a shortcut takes, by their accelerator names.

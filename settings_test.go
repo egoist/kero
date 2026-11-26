@@ -80,8 +80,14 @@ func TestRecordShortcut(t *testing.T) {
 	if got := a.set.Shortcuts["pane.split.right"]; got != accel {
 		t.Fatalf("Split Right's shortcut %q", got)
 	}
-	if got, ok := a.set.Shortcuts["pane.split.down"]; !ok || got != "" {
+	down, _ := actions.Find("pane.split.down")
+	if got := actions.Keys(down, a.set.Shortcuts); got != "" {
 		t.Errorf("Split Down kept its keys: %q", got)
+	}
+	// The keys are not written down as unbound: Split Right holds them
+	// now, and Split Down has them again when it lets them go.
+	if got, ok := a.set.Shortcuts["pane.split.down"]; ok {
+		t.Errorf("Split Down's keys are written down: %q", got)
 	}
 	if !tt.HasText(actions.Glyphs(accel) + " was Split Down’s: it has none now.") {
 		t.Errorf("no word of the conflict; texts %q", tt.Texts())
@@ -89,7 +95,49 @@ func TestRecordShortcut(t *testing.T) {
 	if saved := settings.Load(); saved.Shortcuts["pane.split.right"] != accel {
 		t.Errorf("not saved: %v", saved.Shortcuts)
 	}
+	if got, ok := settings.Load().Shortcuts["pane.split.down"]; ok {
+		t.Errorf("Split Down's keys are saved: %q", got)
+	}
 	shot(t, tt, "settings-keyboard-recorded")
+}
+
+// The action that took the keys takes them for as long as it holds them:
+// when it lets them go, the other action has its own again.
+func TestShortcutTakenComesBack(t *testing.T) {
+	a := testApp(t)
+	down, _ := actions.Find("pane.split.down")
+	right, _ := actions.Find("pane.split.right")
+	a.setShortcut(right.ID, down.Keys)
+	if got := actions.Keys(down, a.set.Shortcuts); got != "" {
+		t.Fatalf("Split Down kept its keys: %q", got)
+	}
+	// Split Right lets the keys go: it has its own default now.
+	a.setShortcut(right.ID, right.Keys)
+	if got := actions.Keys(down, a.set.Shortcuts); got != down.Keys {
+		t.Errorf("Split Down did not get its keys back: %q", got)
+	}
+}
+
+// The keys the user gave an action away with are its own: the action has
+// none, and takes none back when the action that holds them lets them go.
+func TestShortcutUnboundStaysUnbound(t *testing.T) {
+	a := testApp(t)
+	down, _ := actions.Find("pane.split.down")
+	right, _ := actions.Find("pane.split.right")
+	a.setShortcut(down.ID, "")
+	if got := actions.Keys(down, a.set.Shortcuts); got != "" {
+		t.Fatalf("Split Down has keys: %q", got)
+	}
+	// Another action takes the keys Split Down had.
+	a.setShortcut(right.ID, down.Keys)
+	if got := actions.Keys(down, a.set.Shortcuts); got != "" {
+		t.Errorf("Split Down got keys: %q", got)
+	}
+	// The taker lets them go: Split Down, which the user unbound, has none.
+	a.setShortcut(right.ID, right.Keys)
+	if got := actions.Keys(down, a.set.Shortcuts); got != "" {
+		t.Errorf("Split Down got its keys back: %q", got)
+	}
 }
 
 // A shortcut needs a modifier, unless it is a function key: the letter
