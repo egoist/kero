@@ -1245,6 +1245,17 @@ func (a *App) callOn(h *host, method string, params any, done func(err error)) {
 
 func (a *App) toast(msg string) { a.pendingToast = msg }
 
+// cliInstallResult reports the result in the window that started the install.
+func (a *App) cliInstallResult(fromSettings bool, msg string) {
+	if fromSettings && a.setWin != nil {
+		a.refreshAgents()
+		a.ss.toast = msg
+		a.setWin.Invalidate()
+		return
+	}
+	a.toast(msg)
+}
+
 // newSession starts a session in a project: in the directory of the
 // session shown when it is the project's, as a terminal's new tab does,
 // else the project's. With no project, it is the shown session's host's.

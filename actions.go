@@ -25,7 +25,7 @@ func (a *App) run(id string, args map[string]string) {
 	case "settings.open":
 		a.openSettings("")
 	case "cli.install":
-		a.installCLI()
+		a.installCLI(false)
 	case "app.quitAll":
 		a.quitAndEnd()
 	case "session.new":
