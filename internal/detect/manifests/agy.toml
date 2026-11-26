@@ -1,0 +1,43 @@
+id = "agy"
+version = "2026.11.25.1"
+min_engine_version = 3
+updated_at = "2026-11-25T00:00:00Z"
+aliases = ["antigravity"]
+
+# Antigravity CLI (agy) reports its status over OSC 7501 when the
+# terminal answers its query, and draws its spinner and confirmation
+# dialogs above its prompt box when OSC 7501 is off.
+
+[[rules]]
+id = "permission_prompt"
+state = "blocked"
+priority = 1200
+region = "bottom_non_empty_lines(14)"
+visible_blocker = true
+any = [
+  { contains = ["do you want to proceed?"], any = [
+    { contains = ["yes"] },
+    { contains = ["allow"] },
+    { contains = ["esc to cancel"] },
+  ] },
+  { contains = ["yes, accept this change"] },
+  { contains = ["no, deny access"] },
+]
+
+[[rules]]
+id = "osc_title_working"
+state = "working"
+priority = 1100
+region = "osc_title"
+visible_working = true
+regex = ['^[\x{2800}-\x{28FF}] ']
+
+[[rules]]
+id = "turn_spinner_working"
+state = "working"
+priority = 900
+region = "bottom_non_empty_lines(16)"
+visible_working = true
+# The braille spinner line above the prompt box and step checklist:
+# "⢿  Working..." or "⣽  1/4 steps · Running command... 1s".
+line_regex = ['^[\x{2800}-\x{28FF}]  \S']

@@ -3,6 +3,7 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -277,4 +278,116 @@ func TestMain(m *testing.M) {
 		os.Exit(0)
 	}
 	os.Exit(m.Run())
+}
+
+// Antigravity's hooks.json maps hook names to flat SessionStart handler
+// lists: installing keeps the user's other hooks in order, re-enables a
+// disabled kero hook, and removing takes only kero's out.
+func TestAntigravityHookFile(t *testing.T) {
+	t.Setenv("KERO_HOME", filepath.Join(t.TempDir(), "kero home"))
+	h := agyHook{agentHook{"agy", filepath.Join(t.TempDir(), "hooks.json")}}
+	initial := `{
+  "linter": {
+    "PostToolUse": [{"matcher": "run_command", "hooks": [{"type": "command", "command": "echo lint"}]}]
+  },
+  "kero": {
+    "enabled": false,
+    "SessionStart": [{"type": "command", "command": "'/old/kero/bin/kero' hook agy", "timeout": 10}]
+  },
+  "reminder": {
+    "PreInvocation": [{"type": "command", "command": "echo remind"}]
+  }
+}
+`
+	if err := os.WriteFile(h.file, []byte(initial), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if st := h.state(); st != "outdated" {
+		t.Fatalf("state %s, want outdated", st)
+	}
+	if err := h.install(); err != nil {
+		t.Fatal(err)
+	}
+	got := read(t, h.file)
+	if h.state() != "current" {
+		t.Fatalf("state %s after install:\n%s", h.state(), got)
+	}
+	if i, j, k := strings.Index(got, `"linter"`), strings.Index(got, `"kero"`), strings.Index(got, `"reminder"`); !(i < j && j < k) {
+		t.Fatalf("keys out of order:\n%s", got)
+	}
+	if strings.Contains(got, "/old/kero") || strings.Contains(got, `"enabled"`) || !strings.Contains(got, "hook agy") {
+		t.Fatalf("unexpected content after install:\n%s", got)
+	}
+	if err := h.install(); err != nil {
+		t.Fatal(err)
+	}
+	if again := read(t, h.file); again != got {
+		t.Fatalf("installing again changed it:\n%s", again)
+	}
+	if err := h.remove(); err != nil {
+		t.Fatal(err)
+	}
+	removed := read(t, h.file)
+	if strings.Contains(removed, "kero") || !strings.Contains(removed, `"linter"`) || !strings.Contains(removed, `"reminder"`) {
+		t.Fatalf("after remove:\n%s", removed)
+	}
+	if h.state() != "missing" {
+		t.Fatalf("state %s after remove", h.state())
+	}
+}
+
+// Antigravity's SessionStart sends camelCase JSON and reads injectSteps;
+// subagents and nested agy runs say nothing.
+func TestAntigravityHookCmd(t *testing.T) {
+	t.Setenv("KERO_PANE", "p1")
+	t.Setenv("KERO_SESSION", "s1")
+	t.Setenv("KERO_SOCKET", filepath.Join(t.TempDir(), "none.sock"))
+	t.Setenv("ANTIGRAVITY_CONVERSATION_ID", "")
+
+	run := func(stdin string) string {
+		t.Helper()
+		inR, inW, err := os.Pipe()
+		if err != nil {
+			t.Fatal(err)
+		}
+		outR, outW, err := os.Pipe()
+		if err != nil {
+			t.Fatal(err)
+		}
+		oldIn, oldOut := os.Stdin, os.Stdout
+		os.Stdin, os.Stdout = inR, outW
+		defer func() { os.Stdin, os.Stdout = oldIn, oldOut }()
+		inW.WriteString(stdin)
+		inW.Close()
+		if err := hookCmd([]string{"agy"}); err != nil {
+			t.Fatal(err)
+		}
+		outW.Close()
+		b, err := io.ReadAll(outR)
+		if err != nil {
+			t.Fatal(err)
+		}
+		inR.Close()
+		outR.Close()
+		return string(b)
+	}
+
+	got := run(`{"conversationId":"92afe7ff-c16c-45ca-85e6-0d7d638435a5","cwd":"/repo","hookEventName":"SessionStart"}`)
+	var res struct {
+		InjectSteps []struct {
+			SystemMessage struct {
+				SystemMessage string `json:"systemMessage"`
+			} `json:"systemMessage"`
+		} `json:"injectSteps"`
+	}
+	if err := json.Unmarshal([]byte(got), &res); err != nil || len(res.InjectSteps) != 1 || !strings.Contains(res.InjectSteps[0].SystemMessage.SystemMessage, "session s1, pane p1") {
+		t.Fatalf("unexpected agy hook output: %q (%v)", got, err)
+	}
+	if sub := run(`{"conversationId":"sub-1","parentConversationId":"92afe7ff-c16c-45ca-85e6-0d7d638435a5","hookEventName":"SessionStart"}`); sub != "" {
+		t.Errorf("subagent output: %q", sub)
+	}
+	t.Setenv("ANTIGRAVITY_CONVERSATION_ID", "outer-conv")
+	if nested := run(`{"conversationId":"inner-conv","hookEventName":"SessionStart"}`); nested != "" {
+		t.Errorf("nested agy output: %q", nested)
+	}
 }

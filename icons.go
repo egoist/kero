@@ -81,6 +81,7 @@ func init() {
 	} {
 		programIcons[name] = glyph("si-" + logo)
 	}
+	programIcons["agy"] = glyph("bxl-google-antigravity")
 }
 
 // programIcon is the logo of the pane's foreground program, as Claude's
@@ -102,6 +103,7 @@ func programIcon(p *proto.Pane) *ui.SVG {
 // agentColors are the colors of coding agents whose logos have one of
 // their own, as Claude's orange; the others take the text's.
 var agentColors = map[string]ui.Color{
+	"agy":    ui.Hex("#3186ff"),
 	"claude": ui.Hex("#d97757"),
 	"gemini": ui.Hex("#3186ff"),
 }

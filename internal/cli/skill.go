@@ -152,7 +152,7 @@ func skillCmd(args []string) error {
 		// directory, so a typo would install the skill everywhere; an
 		// agent it knows gives its own alone.
 		if dirs := skillDirs(agent); len(dirs) != 1 {
-			return usageErr("no agent %q (kero skill setup --agent claude|codebuddy|codex|pi|omp|pig|opencode|agents)", agent)
+			return usageErr("no agent %q (kero skill setup --agent claude|codebuddy|codex|agy|pi|omp|pig|opencode|agents)", agent)
 		}
 	}
 	dirs, hooks := skillDirs(agent), hooksFor(agent)
@@ -216,7 +216,7 @@ func skillCmd(args []string) error {
 		}
 		return nil
 	}
-	return usageErr("kero skill setup|show|status|remove [--agent claude|codebuddy|codex|pi|omp|pig|opencode|agents] [--dry-run]")
+	return usageErr("kero skill setup|show|status|remove [--agent claude|codebuddy|codex|agy|pi|omp|pig|opencode|agents] [--dry-run]")
 }
 
 func sortedKeys(m map[string]string) []string {
@@ -308,11 +308,11 @@ func SyncSkill() {
 var adoptCopies = func() bool { return proto.Name() == "kero" && os.Getenv("KERO_HOME") == "" }
 
 // hooksFor returns the hooks that go with an --agent: Claude Code's and
-// CodeBuddy Code's, and Codex's, Pi's, OMP's, PiG's and OpenCode's with
-// the skill they share.
+// CodeBuddy Code's, and Codex's, Antigravity's, Pi's, OMP's, PiG's and
+// OpenCode's with the skill they share.
 func hooksFor(agent string) []integration {
 	switch agent {
-	case "", "claude", "codebuddy", "codex", "pi", "omp", "pig", "opencode", "agents":
+	case "", "claude", "codebuddy", "codex", "agy", "pi", "omp", "pig", "opencode", "agents":
 		return agentHooks(agent)
 	}
 	return nil
@@ -341,7 +341,7 @@ func skillDirs(agent string) map[string]string {
 		if d, ok := all[agent]; ok {
 			return map[string]string{agent: d}
 		}
-		if agent == "codex" || agent == "opencode" || agent == "pi" || agent == "omp" || agent == "pig" {
+		if agent == "codex" || agent == "agy" || agent == "opencode" || agent == "pi" || agent == "omp" || agent == "pig" {
 			return map[string]string{"agents": all["agents"]}
 		}
 	}
