@@ -5,9 +5,13 @@ package daemon
 import (
 	"encoding/json"
 	"os"
+	"path/filepath"
+	"slices"
 	"sync"
 	"testing"
 	"time"
+
+	"kero/internal/proto"
 )
 
 // The state is restored under the daemon's lock: the network listeners
@@ -105,4 +109,97 @@ func TestRestoredPaneIsMarkedBeforeItsShell(t *testing.T) {
 	// lock: the restore's mark, written after the shell started, raced
 	// the pump's, and `go test -race` says so.
 	time.Sleep(time.Second)
+}
+
+// A pane whose directory cannot be looked into is not restored in the
+// home directory: the user's commands would run in the wrong place, and
+// nothing said why.
+func TestRestoreKeepsAPaneOutOfTheHomeDirectory(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root looks into every directory")
+	}
+	d := testDaemon(t)
+	// A directory that is there and cannot be looked into: what is in
+	// it cannot be reached, and the look says so.
+	closed := filepath.Join(d.dir, "closed")
+	if err := os.Mkdir(closed, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(closed, 0o000); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chmod(closed, 0o700) })
+	saved := savedState{Version: 2, Projects: d.projects, Sessions: []savedSession{{
+		ID: "s1", Project: "pr", Name: "s1",
+		Panes: []savedPane{{ID: "p1", Dir: filepath.Join(closed, "sub"), Cols: 80, Rows: 24}},
+	}}}
+	data, err := json.Marshal(saved)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(d.statePath(), data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	d.restore()
+	if p := d.findPane("p1"); p != nil && p.info.Dir == proto.Home() {
+		t.Errorf("the pane was restored in the home directory: %q", p.info.Dir)
+	}
+}
+
+// A pane that did not come back with the others is saved again, so the
+// next daemon can try it.
+func TestRestoreKeepsThePaneItDidNotStart(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root looks into every directory")
+	}
+	d := testDaemon(t)
+	closed := filepath.Join(d.dir, "closed")
+	if err := os.Mkdir(closed, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(closed, 0o000); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chmod(closed, 0o700) })
+	badDir := filepath.Join(closed, "sub")
+	saved := savedState{Version: 2, Projects: d.projects, Sessions: []savedSession{{
+		ID: "s1", Project: "pr", Name: "s1",
+		Panes: []savedPane{
+			{ID: "p1", Dir: d.dir, Cols: 80, Rows: 24},
+			{ID: "p2", Dir: badDir, Cols: 80, Rows: 24},
+		},
+	}}}
+	data, err := json.Marshal(saved)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(d.statePath(), data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	d.restore()
+	if p := d.findPane("p2"); p != nil && p.info.Dir == proto.Home() {
+		t.Fatalf("the pane was restored in the home directory: %q", p.info.Dir)
+	}
+	if d.findPane("p1") == nil {
+		t.Fatal("the working pane did not come back")
+	}
+	d.saveState()
+	data, err = os.ReadFile(d.statePath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var st savedState
+	if err := json.Unmarshal(data, &st); err != nil {
+		t.Fatal(err)
+	}
+	if len(st.Sessions) != 1 || len(st.Sessions[0].Panes) != 2 {
+		t.Fatalf("saved panes %+v, want both panes kept", st.Sessions)
+	}
+	var dirs []string
+	for _, sp := range st.Sessions[0].Panes {
+		dirs = append(dirs, sp.Dir)
+	}
+	if !slices.Contains(dirs, badDir) {
+		t.Errorf("the pane that did not start was dropped: %v", dirs)
+	}
 }

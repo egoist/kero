@@ -99,6 +99,9 @@ func (d *Daemon) saveState() {
 			ss.Panes = append(ss.Panes, sp)
 			p.mu.Unlock()
 		}
+		// A pane that did not come back this start is still the
+		// session's: saved again so the next daemon can try it.
+		ss.Panes = append(ss.Panes, s.lost...)
 		st.Sessions = append(st.Sessions, ss)
 	}
 	st.Sessions = append(st.Sessions, d.unrestored...)
@@ -194,6 +197,8 @@ func (d *Daemon) restore() {
 			if p := d.restorePane(s.id, sp, when, set.ResumeAgents); p != nil {
 				s.panes = append(s.panes, p)
 				d.panes[p.info.ID] = p
+			} else {
+				s.lost = append(s.lost, sp)
 			}
 		}
 		if len(s.panes) == 0 {
