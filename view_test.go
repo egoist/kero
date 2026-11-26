@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/egoist/mygo"
+	"github.com/egoist/mygo/i18n"
 	"github.com/egoist/mygo/plugins/terminal"
 	"github.com/egoist/mygo/ui"
 
@@ -918,6 +919,45 @@ func TestSidebarRowKeepsTime(t *testing.T) {
 	t1, k1 := widths("Investigate why the session list truncates long generated titles")
 	if t1 < t0 || k1 < k0 {
 		t.Errorf("with a long name, the time is %g wide (want %g) and the shortcut %g (want %g)", t1, t0, k1, k0)
+	}
+}
+
+// A session's status stays in its row, whatever the language of its time,
+// a branch beside its name and the count of its panes take: what the row
+// can't fit gives way, as the branch does, rather than spill out of the
+// sidebar.
+func TestSidebarRowFitsNarrowSidebar(t *testing.T) {
+	shown := func(locale string) (status ui.Rect) {
+		i18n.SetLocaleFunc(func() string { return locale })
+		t.Cleanup(func() { i18n.SetLocaleFunc(nil) })
+		a := testApp(t)
+		a.prefs.SidebarWidth = minSidebar
+		a.set.SidebarRows = "compact"
+		s := &a.st.Sessions[0]
+		s.Name = "Investigate why the session list truncates long titles"
+		s.Git = &proto.GitInfo{Branch: "feature/long-branch-name", Default: "main"}
+		s.Status = proto.Working
+		s.Progress = -1
+		tt := ui.NewTester(a.view, 1100, 640)
+		s.Since = tt.Now().Add(-14 * time.Minute).UnixMilli()
+		tt.Frame()
+		shot(t, tt, "sidebar-row-fits-"+locale)
+		if _, ok := tt.Find(locales.In(locale).AgoMinutes(14)); !ok {
+			t.Fatalf("%s: no time shown: %q", locale, tt.Texts())
+		}
+		r, ok := tt.Find(locales.In(locale).StatusWorking())
+		if !ok {
+			t.Fatalf("%s: no status shown: %q", locale, tt.Texts())
+		}
+		return r
+	}
+	// The list keeps 10 on the right, where its rows end: the status stays
+	// inside the row, whatever the language of the time beside it.
+	edge := float32(minSidebar - 10)
+	for _, locale := range []string{"en", "zh-Hans", "ja"} {
+		if r := shown(locale); r.X+r.W > edge {
+			t.Errorf("%s: the status ends at %g, past the row's edge %g", locale, r.X+r.W, edge)
+		}
 	}
 }
 

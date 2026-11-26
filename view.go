@@ -654,8 +654,11 @@ func (a *App) sessionRow(c *ui.Context, pal *palette, s *proto.Session, n *int) 
 		} else {
 			name()
 			// A branch of its own, as an agent's in a worktree, by the name.
+			// It gives way in a narrow row, down to its ellipsis, rather
+			// than push the time and the status out of the row: a time
+			// reads wider in some languages than in English.
 			if b := offBranch(g); b != "" {
-				ui.Text(c, b).FontSize(12).TextColor(pal.textFaint).SingleLine().Ellipsis("…").Shrink(3).MinWidth(24).MaxWidth(120)
+				ui.Text(c, b).FontSize(12).TextColor(pal.textFaint).SingleLine().Ellipsis("…").Shrink(3).MinWidth(0).MaxWidth(120)
 			}
 			ui.Spacer(c)
 			when()
