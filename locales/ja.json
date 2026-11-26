@@ -392,6 +392,7 @@
   "setSkillInstalled": "インストール済み",
   "setSkillOutdated": "インストール済み（古い Kero のもの）",
   "setSkillMissing": "未インストール",
+  "setSkillUnreadable": "読み取れません",
   "setProgramStatus": "プログラムの状態",
   "setProgramStatusDetail": "プログラムは Superlogical のプログラム状態プロトコル OSC 7501 で自分の作業を報告します: サイドバーに表示され、通知されます。",
   "setConfiguration": "構成",

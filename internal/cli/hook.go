@@ -240,16 +240,19 @@ func (h agentHook) ours(command string) bool {
 	return program == "kero" || program == "kero.exe"
 }
 
-// state is "current", "outdated" (kero's hook, of another command line)
-// or "missing".
+// state is "current", "outdated" (kero's hook, of another command line),
+// "missing", or "unreadable" (the file is there and cannot be read).
 func (h agentHook) state() string {
 	b, err := os.ReadFile(h.file)
 	if err != nil {
-		return "missing"
+		if os.IsNotExist(err) {
+			return "missing"
+		}
+		return "unreadable"
 	}
 	settings, err := parseObject(b)
 	if err != nil {
-		return "missing"
+		return "unreadable"
 	}
 	state := "missing"
 	h.each(settings, func(command string) {
@@ -416,10 +419,15 @@ func (p agentPlugin) content(asset string) []byte {
 }
 
 func (p agentPlugin) state() string {
-	same, there := 0, 0
+	same, there, unreadable := 0, 0, false
 	for name, asset := range p.files {
 		b, err := os.ReadFile(filepath.Join(p.dir, name))
 		if err != nil {
+			if !os.IsNotExist(err) {
+				// A file that is there and cannot be read tells neither
+				// current nor outdated.
+				unreadable = true
+			}
 			continue
 		}
 		there++
@@ -428,6 +436,8 @@ func (p agentPlugin) state() string {
 		}
 	}
 	switch {
+	case unreadable:
+		return "unreadable"
 	case same == len(p.files):
 		return "current"
 	case there == 0:

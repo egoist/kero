@@ -232,7 +232,10 @@ func skillState(dir string) string {
 	b, err := os.ReadFile(filepath.Join(dir, "SKILL.md"))
 	switch {
 	case err != nil:
-		return "missing"
+		if os.IsNotExist(err) {
+			return "missing"
+		}
+		return "unreadable"
 	case string(b) != skillGuide:
 		return "outdated"
 	}
@@ -356,7 +359,7 @@ func skillDirs(agent string) map[string]string {
 type SkillState struct {
 	Agent string // "claude", "codebuddy", or "agents" (Codex, OpenCode, Pi…)
 	Dir   string
-	State string // "current", "outdated" (or partly installed) or "missing"
+	State string // "current", "outdated" (or partly installed), "missing" or "unreadable"
 }
 
 // SkillStates returns the state of kero's skill and hooks for each kind
@@ -378,6 +381,9 @@ func SkillStates() []SkillState {
 			st = "current"
 		case !slices.ContainsFunc(states, func(s string) bool { return s != "missing" }):
 			st = "missing"
+		case slices.Contains(states, "unreadable"):
+			// One that cannot be read tells neither current nor missing.
+			st = "unreadable"
 		}
 		out = append(out, SkillState{Agent: agent, Dir: dir, State: st})
 	}

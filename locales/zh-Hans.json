@@ -392,6 +392,7 @@
   "setSkillInstalled": "已安装",
   "setSkillOutdated": "已安装，来自较早版本的 Kero",
   "setSkillMissing": "未安装",
+  "setSkillUnreadable": "无法读取",
   "setProgramStatus": "程序状态",
   "setProgramStatusDetail": "程序通过 OSC 7501（Superlogical 的程序状态协议）报告正在做什么：边栏会显示，并通知你。",
   "setConfiguration": "配置",
