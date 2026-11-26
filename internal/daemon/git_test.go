@@ -1,12 +1,14 @@
 package daemon
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -181,5 +183,45 @@ func TestRevertPutsBackTheMode(t *testing.T) {
 	changed, err := r.Changed(context.Background(), "HEAD", "a.txt")
 	if err != nil || changed {
 		t.Errorf("the file after the revert: changed=%v, %v", changed, err)
+	}
+}
+
+// A status that cannot be read is said, as the worktree's own finding is:
+// the numbers the pane shows stay as they were, and nothing would say why
+// they never move again. A directory that holds no worktree is not a
+// failure to say.
+func TestGitStatusThatFailedIsSaid(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("no git")
+	}
+	var logs bytes.Buffer
+	p := testPane(t)
+	d := p.d
+	d.log = log.New(&logs, "", 0)
+	g := newGitFollow(d)
+
+	// A folder with no worktree of its own: the common case.
+	plain := realPath(t, t.TempDir())
+	rs := &repoStatus{repo: git.Repo{Root: plain}}
+	g.refresh(rs, rs.repo.Stamp(""), time.Now())
+	if !rs.failed {
+		t.Fatal("a folder with no worktree was read as a status")
+	}
+	if logs.Len() != 0 {
+		t.Errorf("a folder with no worktree was said: %q", logs.String())
+	}
+
+	// One that is there but cannot be read is said, with its root.
+	notADir := filepath.Join(plain, "not-a-folder")
+	if err := os.WriteFile(notADir, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	rs = &repoStatus{repo: git.Repo{Root: notADir}}
+	g.refresh(rs, rs.repo.Stamp(""), time.Now())
+	if !rs.failed {
+		t.Fatal("a worktree that could not be read was read as a status")
+	}
+	if !strings.Contains(logs.String(), notADir) {
+		t.Errorf("a status that failed was not said: %q", logs.String())
 	}
 }
