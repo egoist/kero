@@ -71,18 +71,19 @@ func Load(ctx context.Context, dir string, sources []Source) ([]string, error) {
 		return nil, err
 	}
 	var lists []string
-	var errs []error
+	var missing []error
 	var said []error
 	for _, s := range sources {
 		path := filepath.Join(dir, s.file())
 		info, statErr := os.Stat(path)
+		var downloadErr error
 		if statErr != nil || time.Since(info.ModTime()) > Refresh {
 			var since time.Time
 			if statErr == nil {
 				since = info.ModTime()
 			}
 			if err := download(ctx, s.URL, path, since); err != nil {
-				errs = append(errs, fmt.Errorf("%s: %w", s.ID, err))
+				downloadErr = fmt.Errorf("%s: %w", s.ID, err)
 			}
 		}
 		b, err := os.ReadFile(path)
@@ -93,15 +94,19 @@ func Load(ctx context.Context, dir string, sources []Source) ([]string, error) {
 			// there, not served.
 			if !os.IsNotExist(err) {
 				said = append(said, fmt.Errorf("%s: %w", s.ID, err))
+			} else if downloadErr != nil {
+				missing = append(missing, downloadErr)
 			}
 			continue
 		}
 		lists = append(lists, string(b))
 	}
 	if len(lists) == 0 {
-		return nil, errors.Join(append(errs, said...)...)
+		return nil, errors.Join(append(missing, said...)...)
 	}
-	return lists, errors.Join(said...)
+	// The lists that did load are kept with the error of the ones that
+	// could not: a list that is not served is said, whatever else loaded.
+	return lists, errors.Join(append(missing, said...)...)
 }
 
 // download saves url's body at path, unless it did not change since a
