@@ -328,6 +328,38 @@ func TestMigratesSettingsJSON(t *testing.T) {
 	}
 }
 
+// A legacy settings file with one value of the wrong type is not one that
+// says nothing. The shell and the hosts it does hold stay unmigrated, the
+// file stays, and the failure is said.
+func TestLegacySettingsThatCannotBeReadAreSaid(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("KERO_HOME", dir)
+	t.Setenv("KERO_CONFIG", filepath.Join(dir, "config"))
+	legacy := filepath.Join(dir, "settings.json")
+	if err := os.WriteFile(legacy, []byte(`{"shell":"/usr/bin/fish","fontSize":"big"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	mu.Lock()
+	cache, cacheProblems, problems = nil, nil, nil
+	mu.Unlock()
+	if s := Load(); s.Shell != "" {
+		t.Fatalf("settings that could not be read set the shell to %q", s.Shell)
+	}
+	if got := Problems(); len(got) != 1 || !strings.Contains(got[0], "could not be read") {
+		t.Fatalf("problems: %q", got)
+	}
+	if _, err := os.Stat(Path()); !os.IsNotExist(err) {
+		t.Fatalf("a configuration was written from settings that could not be read: %v", err)
+	}
+	if b, err := os.ReadFile(legacy); err != nil || !strings.Contains(string(b), "/usr/bin/fish") {
+		t.Fatalf("the legacy settings did not stay: %q, %v", b, err)
+	}
+	Load()
+	if got := Problems(); len(got) != 1 {
+		t.Fatalf("a later read forgot the failure: %q", got)
+	}
+}
+
 // background, which chose kero's theme before theme took kero's themes
 // by name, still does, for theme = kero too; saving writes theme in its
 // place.
