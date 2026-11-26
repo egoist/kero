@@ -249,21 +249,24 @@ func (l *listeners) serve(lis *listener) {
 
 // selfStatus is this machine on the tailnet, as tailscaled last said, at
 // most a minute ago: its owner's login, "" for a tagged machine, which
-// only listen-allow lets anyone in to, and its addresses.
-func (l *listeners) selfStatus(ctx context.Context) tailscale.Self {
+// only listen-allow lets anyone in to, and its addresses. A failure to
+// ask is said: a status never read is not an ownerless machine, whose
+// owner a check would then deny as not in listen-allow.
+func (l *listeners) selfStatus(ctx context.Context) (tailscale.Self, error) {
 	l.mu.Lock()
 	self, at := l.self, l.selfAt
 	l.mu.Unlock()
 	if !at.IsZero() && time.Since(at) < time.Minute {
-		return self
+		return self, nil
 	}
-	if s, err := tailscale.Status(ctx); err == nil {
-		self = s
-		l.mu.Lock()
-		l.self, l.selfAt = s, time.Now()
-		l.mu.Unlock()
+	s, err := tailscale.Status(ctx)
+	if err != nil {
+		return self, err
 	}
-	return self
+	l.mu.Lock()
+	l.self, l.selfAt = s, time.Now()
+	l.mu.Unlock()
+	return s, nil
 }
 
 // local reports whether a connection comes from this machine: from a
@@ -276,7 +279,8 @@ func (l *listeners) local(ctx context.Context, ip netip.Addr) bool {
 		return l.isLocal(ip)
 	}
 	ip = ip.Unmap()
-	return ip.IsLoopback() || ip.IsUnspecified() || slices.Contains(l.selfStatus(ctx).IPs, ip)
+	self, _ := l.selfStatus(ctx)
+	return ip.IsLoopback() || ip.IsUnspecified() || slices.Contains(self.IPs, ip)
 }
 
 // whois tells who connects from an address, asking tailscaled once a
@@ -338,7 +342,17 @@ func (l *listeners) identify(r *http.Request, via string) (tailscale.Who, error)
 	l.mu.Lock()
 	allow := l.allow
 	l.mu.Unlock()
-	if !tailscale.Allowed(who, l.selfStatus(ctx).Owner, allow) {
+	// Allowed is asked first, with whatever the status said: someone the
+	// list takes in, by `*`, a tag or their login, gets in though
+	// tailscaled could not be asked who owns this machine — their
+	// access never depended on the owner. Only a caller the list does
+	// not take is refused, and the denial says which of the two it was:
+	// a status that could not be read is not the list saying no.
+	self, err := l.selfStatus(ctx)
+	if !tailscale.Allowed(who, self.Owner, allow) {
+		if err != nil {
+			return who, fmt.Errorf("tailscale did not say the machine's owner, whom %s could be taken for: %w", who, err)
+		}
 		return who, errors.New(who.String() + " may not connect: the machine's owner lets them in with listen-allow")
 	}
 	return who, nil
