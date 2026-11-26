@@ -236,6 +236,23 @@ func TestIdentifySaysAnOwnerItCannotRead(t *testing.T) {
 	}
 }
 
+// Someone the list takes in gets in though tailscaled could not be
+// asked who owns this machine: their access never depended on the
+// owner. The owner-read failure is said only for a caller the list
+// does not take.
+func TestIdentifyLetsAListedCallerInWithoutTheOwner(t *testing.T) {
+	// No tailscaled socket and no tailscale command: the status fails.
+	t.Setenv("KERO_TAILSCALED_SOCKET", filepath.Join(t.TempDir(), "none"))
+	t.Setenv("PATH", "")
+	l := &listeners{d: listenDaemon(t), allow: []string{"*"}}
+	req := httptest.NewRequest("GET", remote.MuxPath, nil)
+	req.Header.Set("Tailscale-User-Login", "alice@example.com")
+	req.Header.Set(remote.ClientHeader, "test")
+	if _, err := l.identify(req, "tailnet-serve"); err != nil {
+		t.Fatalf("a caller in listen-allow was refused while tailscaled was down: %v", err)
+	}
+}
+
 // The listeners follow the configuration: one turned on listens, and one
 // turned off listens no more; a Tailscale Serve socket waits for the next
 // kerod.

@@ -342,11 +342,17 @@ func (l *listeners) identify(r *http.Request, via string) (tailscale.Who, error)
 	l.mu.Lock()
 	allow := l.allow
 	l.mu.Unlock()
+	// Allowed is asked first, with whatever the status said: someone the
+	// list takes in, by `*`, a tag or their login, gets in though
+	// tailscaled could not be asked who owns this machine — their
+	// access never depended on the owner. Only a caller the list does
+	// not take is refused, and the denial says which of the two it was:
+	// a status that could not be read is not the list saying no.
 	self, err := l.selfStatus(ctx)
-	if err != nil {
-		return who, fmt.Errorf("tailscale did not say the machine's owner, whom %s could be taken for: %w", who, err)
-	}
 	if !tailscale.Allowed(who, self.Owner, allow) {
+		if err != nil {
+			return who, fmt.Errorf("tailscale did not say the machine's owner, whom %s could be taken for: %w", who, err)
+		}
 		return who, errors.New(who.String() + " may not connect: the machine's owner lets them in with listen-allow")
 	}
 	return who, nil
