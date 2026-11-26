@@ -55,7 +55,10 @@ export default function (pi: any) {
   };
   pi.on("session_start", (_event: any, ctx: any) => sync(ctx));
   pi.on("session_switch", (_event: any, ctx: any) => sync(ctx));
+  // agent_settled is the final-idle signal on Pi 0.80.4+; keep agent_end so
+  // older Pi builds without agent_settled still sync.
   pi.on("agent_end", (_event: any, ctx: any) => sync(ctx));
+  pi.on("agent_settled", (_event: any, ctx: any) => sync(ctx));
   pi.on("turn_end", (_event: any, ctx: any) => sync(ctx));
   pi.on("before_agent_start", (event: any) => {
     if (!context) return;
