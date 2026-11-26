@@ -958,11 +958,14 @@ type (
 	}
 	// GitWriteParams write a file of a pane's worktree back as it was in
 	// part (git.revert): Text, when its content still hashes to Hash.
+	// Path and OldPath name a file, as GitParams': the file of a rename
+	// was OldPath in the base.
 	GitWriteParams struct {
-		Pane string `json:"pane"`
-		Base string `json:"base"`
-		Path string `json:"path"`
-		Hash string `json:"hash"`
-		Text string `json:"text"`
+		Pane    string `json:"pane"`
+		Base    string `json:"base"`
+		Path    string `json:"path"`
+		OldPath string `json:"oldPath,omitempty"`
+		Hash    string `json:"hash"`
+		Text    string `json:"text"`
 	}
 )

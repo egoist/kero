@@ -397,22 +397,57 @@ func (r Repo) Mode(ctx context.Context, rev, path string) (fs.FileMode, error) {
 	return 0, nil // not a regular file of the rev: a symlink or a submodule
 }
 
+// inRev tells whether the rev has a file at path.
+func (r Repo) inRev(ctx context.Context, rev, path string) (bool, error) {
+	// LC_ALL=C, as Changed's: what notInRev reads is git's English
+	// message, which a translated git would say otherwise.
+	if _, err := run(ctx, r.Root, cLocale, "cat-file", "blob", rev+":"+path); err != nil {
+		if !notInRev(err) {
+			return false, err
+		}
+		return false, nil
+	}
+	return true, nil
+}
+
 // Revert puts a file back as rev has it: its content as hash says it was
 // shown, and its execute bit as the rev's tree holds it — a file made to
 // run, and made not to, runs as the rev says again. The rest of the
 // mode is not git's to keep, and stays as the file has it. A file the
 // rev does not have is taken away; one the worktree does not have, the
-// rev's, is written anew.
-func (r Repo) Revert(ctx context.Context, rev, path, hash, text string) error {
+// rev's, is written anew. For a rename, oldPath names the base file;
+// individual changes are written to the file at its current path.
+func (r Repo) Revert(ctx context.Context, rev, path, oldPath, hash, text string) error {
 	full, err := r.local(path)
 	if err != nil {
 		return err
 	}
-	// LC_ALL=C, as Changed's: what notInRev reads is git's English
-	// message, which a translated git would say otherwise.
-	if _, err := run(ctx, r.Root, cLocale, "cat-file", "blob", rev+":"+path); err != nil {
-		if !notInRev(err) {
+	// The rev's file is looked for under the name it had there: the new
+	// name of a renamed file is not in the rev, and the old one is. A
+	// file the rev has under both names is not a rename, and the new
+	// name is the one to look for.
+	revPath, renamed := path, false
+	if oldPath != "" {
+		if _, err := r.local(oldPath); err != nil {
 			return err
+		}
+		in, err := r.inRev(ctx, rev, path)
+		if err != nil {
+			return err
+		}
+		if !in {
+			revPath, renamed = oldPath, true
+		}
+	}
+	in, err := r.inRev(ctx, rev, revPath)
+	if err != nil {
+		return err
+	}
+	if !in {
+		if renamed {
+			// The rev has no file at the old name either: the rename
+			// is not there, and nothing is written or taken away.
+			return errors.New("the rev has no file at " + oldPath)
 		}
 		// The rev has no file there: the change is the file's
 		// existence, and the revert takes the file away — of the
@@ -433,7 +468,7 @@ func (r Repo) Revert(ctx context.Context, rev, path, hash, text string) error {
 	if err := r.Write(path, hash, text); err != nil {
 		return err
 	}
-	mode, err := r.Mode(ctx, rev, path)
+	mode, err := r.Mode(ctx, rev, revPath)
 	if err != nil || mode == 0 {
 		return err
 	}

@@ -1396,7 +1396,7 @@ func (a *App) writeBack(sf *sideFile) {
 	sf.writing, sf.edits.saving = true, true
 	go func() {
 		var hash string
-		err := cl.Call("git.revert", proto.GitWriteParams{Pane: sf.pane, Base: sf.base, Path: sf.f.Path, Hash: sf.hash, Text: text}, &hash)
+		err := cl.Call("git.revert", proto.GitWriteParams{Pane: sf.pane, Base: sf.base, Path: sf.f.Path, OldPath: sf.f.OldPath, Hash: sf.hash, Text: text}, &hash)
 		a.update(func() {
 			sf.writing, sf.edits.saving = false, false
 			if err != nil {

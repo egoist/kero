@@ -326,7 +326,7 @@ func TestRevertKeepsTheRestOfTheMode(t *testing.T) {
 	if err := os.Chmod(full, 0o774); err != nil {
 		t.Fatal(err)
 	}
-	if err := r.Revert(context.Background(), "HEAD", "a.txt", Hash([]byte("one\n")), "one\n"); err != nil {
+	if err := r.Revert(context.Background(), "HEAD", "a.txt", "", Hash([]byte("one\n")), "one\n"); err != nil {
 		t.Fatal(err)
 	}
 	fi, err := os.Stat(full)
@@ -349,7 +349,7 @@ func TestRevertRestoresADeletedFile(t *testing.T) {
 	}
 	// The hash the diff shows of a file that is not there: the empty
 	// content's.
-	if err := r.Revert(context.Background(), "HEAD", "a.txt", Hash(nil), "one\n"); err != nil {
+	if err := r.Revert(context.Background(), "HEAD", "a.txt", "", Hash(nil), "one\n"); err != nil {
 		t.Fatal(err)
 	}
 	b, err := os.ReadFile(full)
@@ -370,7 +370,7 @@ func TestRevertRestoresADeletedFile(t *testing.T) {
 	if err := os.Remove(full); err != nil {
 		t.Fatal(err)
 	}
-	if err := r.Revert(context.Background(), "HEAD", "a.txt", Hash([]byte("other\n")), "one\n"); err != ErrChanged {
+	if err := r.Revert(context.Background(), "HEAD", "a.txt", "", Hash([]byte("other\n")), "one\n"); err != ErrChanged {
 		t.Errorf("a file that went another way: %v", err)
 	}
 }
@@ -379,7 +379,7 @@ func TestRevertRestoresADeletedFile(t *testing.T) {
 func TestRevertRemovesAFileNotInTheRev(t *testing.T) {
 	r := repo(t, map[string]string{"a.txt": "one\n"})
 	write(t, filepath.Join(r.Root, "new.txt"), "new\n")
-	if err := r.Revert(context.Background(), "HEAD", "new.txt", Hash([]byte("new\n")), ""); err != nil {
+	if err := r.Revert(context.Background(), "HEAD", "new.txt", "", Hash([]byte("new\n")), ""); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(filepath.Join(r.Root, "new.txt")); !os.IsNotExist(err) {
@@ -387,8 +387,52 @@ func TestRevertRemovesAFileNotInTheRev(t *testing.T) {
 	}
 	// One changed meanwhile is asked about, as a write is.
 	write(t, filepath.Join(r.Root, "new.txt"), "other\n")
-	if err := r.Revert(context.Background(), "HEAD", "new.txt", Hash([]byte("new\n")), ""); err != ErrChanged {
+	if err := r.Revert(context.Background(), "HEAD", "new.txt", "", Hash([]byte("new\n")), ""); err != ErrChanged {
 		t.Errorf("a file that went another way: %v", err)
+	}
+}
+
+// Reverting a hunk of a renamed file keeps its current name and other edits.
+func TestRevertHunkOfRenamedFile(t *testing.T) {
+	r := repo(t, map[string]string{"a.txt": "one\n"})
+	if err := os.Rename(filepath.Join(r.Root, "a.txt"), filepath.Join(r.Root, "b.txt")); err != nil {
+		t.Fatal(err)
+	}
+	// The rev has no file at that name: nothing is written, and nothing
+	// is taken away.
+	if err := r.Revert(context.Background(), "HEAD", "b.txt", "c.txt", Hash([]byte("one\n")), "one\n"); err == nil {
+		t.Error("reverted a rename the rev does not have")
+	}
+	if _, err := os.Stat(filepath.Join(r.Root, "b.txt")); err != nil {
+		t.Errorf("the file the rev does not have is taken away: %v", err)
+	}
+	// The result of reverting one hunk can still contain another edit.
+	if err := r.Revert(context.Background(), "HEAD", "b.txt", "a.txt", Hash([]byte("one\n")), "one\nother edit\n"); err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(filepath.Join(r.Root, "b.txt"))
+	if err != nil || string(b) != "one\nother edit\n" {
+		t.Fatalf("current file: %q, %v", b, err)
+	}
+	if _, err := os.Stat(filepath.Join(r.Root, "a.txt")); !os.IsNotExist(err) {
+		t.Errorf("old name unexpectedly restored: %v", err)
+	}
+	// One changed meanwhile is asked about, as a write is.
+	write(t, filepath.Join(r.Root, "b.txt"), "other\n")
+	if err := r.Revert(context.Background(), "HEAD", "b.txt", "a.txt", Hash([]byte("one\n")), "one\n"); err != ErrChanged {
+		t.Errorf("a file that went another way: %v", err)
+	}
+	// The rev has a file under both names: it is not a rename, and the
+	// file is put back under the name it has now.
+	r2 := repo(t, map[string]string{"a.txt": "one\n", "b.txt": "two\n"})
+	if err := r2.Revert(context.Background(), "HEAD", "b.txt", "a.txt", Hash([]byte("two\n")), "one\n"); err != nil {
+		t.Fatal(err)
+	}
+	if b, err := os.ReadFile(filepath.Join(r2.Root, "b.txt")); err != nil || string(b) != "one\n" {
+		t.Errorf("reverted to %q, %v", b, err)
+	}
+	if b, err := os.ReadFile(filepath.Join(r2.Root, "a.txt")); err != nil || string(b) != "one\n" {
+		t.Errorf("the other file is written: %q, %v", b, err)
 	}
 }
 
