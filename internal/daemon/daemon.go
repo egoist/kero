@@ -835,7 +835,10 @@ func (d *Daemon) serveFrames(s *pane, a *attachment, frames *proto.FrameReader) 
 			if typed(payload) {
 				s.claim(a)
 			}
-			s.input(payload)
+			// Typing into an exited pane is expected; log other write failures.
+			if err := s.input(payload); err != nil && !errors.Is(err, errNoShell) {
+				d.log.Printf("input to %s: %v", s.info.ID, err)
+			}
 		case proto.FrameResize:
 			if c, rr, cw, ch, ok := proto.ParseResizePixels(payload); ok {
 				s.ask(a, c, rr, cw, ch)
