@@ -3894,6 +3894,16 @@ func (msgs Messages) SetSkillMissing() string {
 	return Catalog.Format(msgs.locale, "setSkillMissing", nil)
 }
 
+// SetSkillUnreadable says "Cannot be read"
+// in the language the app shows.
+func SetSkillUnreadable() string { return In(i18n.Locale()).SetSkillUnreadable() }
+
+// SetSkillUnreadable says "Cannot be read"
+// in the language of msgs.
+func (msgs Messages) SetSkillUnreadable() string {
+	return Catalog.Format(msgs.locale, "setSkillUnreadable", nil)
+}
+
 // SetProgramStatus says "Program status"
 // in the language the app shows.
 func SetProgramStatus() string { return In(i18n.Locale()).SetProgramStatus() }
