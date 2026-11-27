@@ -74,6 +74,7 @@ kero config check             # 报告未知的配置项、无效的值和agents
 | `line-height`         | `1.22`  | 字体默认行高的倍数                                                       |
 | `cell-width`          | `1`     | 单元格宽度，字体宽度的倍数，`0.8` 到 `2`；文字大小不变                   |
 | `font-ligatures`      | `true`  | 按字体的设计连写字符                                                     |
+| `font-feature`        |         | 字体的 OpenType 特性，同 Ghostty 的写法：`ss01` 开启、`-calt` 关闭、`cv05=2` 选备用字形；逗号分隔或重复书写，在 `font-ligatures` 之后应用 |
 | `font-thicken`        | `false` | 加粗笔画，同 Ghostty                                                     |
 | `minimum-contrast`    | `3`     | 文字与背景之间保持的最低对比度，从 `1`（不限制）到 `21`，让为深色背景设计的颜色在浅色背景上也清晰可读，同 Ghostty |
 | `window-padding-color` | `extend` | 终端文字周围的留白显示什么：`background` 为终端背景；`extend` 为相邻单元格的颜色（保持背景色的行除外）；`extend-always` 总是相邻单元格的颜色，同 Ghostty。设为 `background` 时，程序底部的栏保持一行高 |
