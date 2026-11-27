@@ -144,16 +144,65 @@ func (a *App) toggleDark() {
 func (a *App) item(id string) *mygo.MenuItem {
 	act, _ := actions.Find(id)
 	return &mygo.MenuItem{
+		ID:          id,
 		Label:       actionTitle(id),
 		Accelerator: a.accelerator(act),
-		Click: func(*mygo.MenuItem, *mygo.Window) {
-			// Closing is the window's in front: Settings closes itself.
-			if (id == "pane.close" || id == "session.close") && a.setWin != nil && mygo.FocusedWindow() == a.setWin {
-				a.setWin.Close()
-				return
+		Disabled:    !a.menuActionAllowed(id, mygo.FocusedWindow()),
+		Click: func(_ *mygo.MenuItem, win *mygo.Window) {
+			// Capture the source before Update queues the action: focus may
+			// move while it waits. A visible quick terminal is not enough.
+			if win == nil {
+				win = mygo.FocusedWindow()
 			}
-			a.update(func() { a.run(id, nil) })
+			if win == nil {
+				win = a.win
+			}
+			// The source can still be open after the main window closed.
+			if win != nil {
+				win.Update(func() { a.runMenuAction(id, win) })
+			}
 		},
+	}
+}
+
+// menuActionAllowed keeps actions the quick terminal cannot show out of
+// the main window behind it. Only GUI actions use this policy: kero do
+// keeps its own target, regardless of which window has the keyboard.
+func (a *App) menuActionAllowed(id string, win *mygo.Window) bool {
+	return a.quick.win == nil || win != a.quick.win || quickActionAllowed(id)
+}
+
+// runMenuAction runs on the main thread, with the window that chose it.
+func (a *App) runMenuAction(id string, win *mygo.Window) {
+	if !a.menuActionAllowed(id, win) {
+		return
+	}
+	if id == "pane.close" || id == "session.close" {
+		switch {
+		case a.quick.win != nil && win == a.quick.win:
+			a.hideQuick()
+			return
+		case a.setWin != nil && win == a.setWin:
+			a.setWin.Close()
+			return
+		}
+	}
+	a.run(id, nil)
+}
+
+// menuWindow updates the menu's availability as the quick terminal gains
+// or loses focus. The callback guard still checks the action's own source.
+func (a *App) menuWindow(m *mygo.Menu, win *mygo.Window) {
+	if m == nil {
+		return
+	}
+	for _, act := range actions.All {
+		if it := m.ItemByID(act.ID); it != nil {
+			enabled := a.menuActionAllowed(act.ID, win)
+			if it.IsEnabled() != enabled {
+				it.SetEnabled(enabled)
+			}
+		}
 	}
 }
 
@@ -289,7 +338,19 @@ func (a *App) tip(title, id string) string {
 // menuShortcut shows an action's shortcut by a context menu's item.
 func (a *App) menuShortcut(it *ui.MenuItem, id string) *ui.MenuItem {
 	act, _ := actions.Find(id)
-	parts := strings.Split(actions.Keys(act, a.set.Shortcuts), "+")
+	mods, key := shortcutKey(actions.Keys(act, a.set.Shortcuts))
+	if key != ui.KeyUnknown {
+		it.Shortcut(mods, key)
+	}
+	return it
+}
+
+// shortcutKey reads the accelerators used by menus and recorded shortcuts.
+func shortcutKey(accel string) (ui.Modifiers, ui.Key) {
+	parts := strings.Split(accel, "+")
+	if strings.HasSuffix(accel, "++") {
+		parts = append(parts[:len(parts)-2], "Plus")
+	}
 	var mods ui.Modifiers
 	for _, p := range parts[:len(parts)-1] {
 		switch strings.ToLower(p) {
@@ -299,18 +360,29 @@ func (a *App) menuShortcut(it *ui.MenuItem, id string) *ui.MenuItem {
 			mods |= ui.Super
 		case "ctrl", "control":
 			mods |= ui.Ctrl
-		case "alt", "option":
+		case "alt", "option", "opt":
 			mods |= ui.Alt
 		case "shift":
 			mods |= ui.Shift
+		default:
+			return 0, ui.KeyUnknown
 		}
+	}
+	key := parts[len(parts)-1]
+	switch strings.ToLower(key) {
+	case "plus":
+		return mods | ui.Shift, ui.KeyEqual
+	case "return":
+		key = "Enter"
+	case "esc":
+		key = "Escape"
 	}
 	for k, name := range keyNames {
-		if strings.EqualFold(name, parts[len(parts)-1]) {
-			return it.Shortcut(mods, k)
+		if strings.EqualFold(name, key) {
+			return mods, k
 		}
 	}
-	return it
+	return 0, ui.KeyUnknown
 }
 
 // quitKeys quits the app: Control+Q is the terminal's on Windows and Linux.
