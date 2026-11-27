@@ -129,7 +129,9 @@ kero events --for waiting --once          # 最初の 1 件で終了
 ```sh
 kero split --url localhost:3000            # ページを開き、ペインの ID を出力
 kero browser open localhost:3000/todos     # ページへ移動し、読み込みを待つ
-kero browser type '#new-todo' "Buy milk" --enter
+kero browser snapshot                      # ページの内容、各要素に ref
+kero browser type --ref e3 "Buy milk" --enter
+kero browser click --ref e5
 kero browser wait '.todo-list li'          # 要素が表示されるまで
 kero browser wait --text "1 item left"     # テキストが表示されるまで
 kero browser text                          # ページのテキスト
@@ -145,15 +147,20 @@ kero browser eval 'document.title'
 | `back`、`forward`、`reload`     | 戻る、進む、または再読み込みして、それを待つ |
 | `text [selector]`               | ページの表示テキスト、または最初に一致した要素のテキストを出力 |
 | `html [selector]`               | ページ、または要素の HTML を出力 |
+| `snapshot [selector]`           | ページの内容を役割と名前のツリーとして出力（`button "Add"`、`textbox "Email"` など）、各要素に ref が付く。セレクタを指定するとその要素の部分だけ |
 | `click <selector>`              | マウスと同じように要素をクリック |
 | `type <selector> <text…>`       | フィールドの内容を置き換えてテキストを入力。`--enter` を付けるとその後 Enter を押し、フォームを送信する |
 | `wait [selector] [--text text]` | 要素かテキストが表示されるまで待つ。どちらもなければページの読み込みまで |
 | `eval <js…>`                    | ページで JavaScript を実行し、その値を出力: 文字列はそのまま、それ以外は JSON |
 | `screenshot [-o file.png]`      | ページの画像を保存し、その場所を出力。`-o -` で標準出力に書き出す |
+| `cookies save [file]`           | ブラウザの Cookie をファイルに保存、指定がなければ出力。`--domain` でそのサイトのものだけ |
+| `cookies load <file>`           | ファイルから Cookie を読み込む。`--domain` でそのサイトのものだけ |
 
-セレクタは CSS セレクタです。シェルでは引用符で囲んでください。要素が必要なコマンドは要素が現れるのを待ち、`--timeout`（デフォルト `10s`）でそれらとページの読み込みにかけてよい時間を設定します。`type` と `eval` は、`-` で標準入力からテキストを受け取ります。
+セレクタは CSS セレクタです。シェルでは引用符で囲んでください。コマンドがセレクタを受け取る場所では、代わりに `snapshot` が付けた ref を `--ref` で渡せます（`kero browser click --ref e5`）。要素はページが別のページへ移るまでその ref を保ち、要素がなくなった ref は、ほかの要素を推測するのではなく失敗します。要素が必要なコマンドは要素が現れるのを待ち、`--timeout`（デフォルト `10s`）でそれらとページの読み込みにかけてよい時間を設定します。`type` と `eval` は、`-` で標準入力からテキストを受け取ります。
 
-クリックと入力は本物のマウスとキーボードと同じイベントを送るので、React などのフレームワークで作られたページもそれを受け取ります。スクリーンショットにはペインが画面に表示されている必要があります: 先に `kero focus` で表示してください。それ以外は、表示されているかどうかにかかわらず、どのブラウザペインでも動きます。
+クリックと入力は本物のマウスとキーボードと同じイベントを送るので、React などのフレームワークで作られたページもそれを受け取ります。どのコマンドも、表示されているかどうかにかかわらず、どのブラウザペインでも動きます: 画面に表示されていないペインのスクリーンショットは、作業中のことからフォーカスを奪いません。
+
+ブラウザペインは Cookie を共有し、Kero を再起動しても保ちます。`cookies` は Playwright のストレージ状態（JSON）として保存し、ファイル名が `.txt` なら curl やブラウザ拡張が書く Netscape の `cookies.txt` としても保存します。`load` はどちらも読み込みます。Cookie はサイトへのサインインです: ファイルはログインを預けてもよい相手にだけ渡してください。Cookie はこの Mac の外に出ないので、ホスト上のプログラムは保存も読み込みもできません。
 
 `kero do` と同じく、`kero browser` には **設定 › エージェント** のリモート操作と、アプリが開いていることが必要です。
 
