@@ -328,6 +328,49 @@ func TestMigratesSettingsJSON(t *testing.T) {
 	}
 }
 
+// A legacy settings file that reads but cannot be migrated is not one
+// whose settings are the defaults: say the write failure and leave the
+// legacy file for the next start.
+func TestLegacySettingsMigrationWriteFailureIsSaid(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("permissions are Unix's")
+	}
+	if os.Geteuid() == 0 {
+		t.Skip("root writes into a directory with no write permission")
+	}
+	dir := t.TempDir()
+	t.Setenv("KERO_HOME", dir)
+	cfgDir := filepath.Join(dir, "config")
+	if err := os.Mkdir(cfgDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	cfg := filepath.Join(cfgDir, "config")
+	t.Setenv("KERO_CONFIG", cfg)
+	legacy := filepath.Join(dir, "settings.json")
+	old := []byte(`{"shell":"/usr/bin/fish","fontSize":16}`)
+	if err := os.WriteFile(legacy, old, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(cfgDir, 0o500); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chmod(cfgDir, 0o700) })
+	mu.Lock()
+	cache, cacheProblems, problems = nil, nil, nil
+	mu.Unlock()
+
+	got := Load()
+	if got.Shell != "/usr/bin/fish" || got.FontSize != 16 {
+		t.Errorf("settings fell back to defaults: %+v", got)
+	}
+	if ps := Problems(); len(ps) != 1 || !strings.Contains(ps[0], "could not be migrated") {
+		t.Fatalf("the migration failure was not said: %q", ps)
+	}
+	if b, err := os.ReadFile(legacy); err != nil || string(b) != string(old) {
+		t.Errorf("legacy settings were lost: %q, %v", b, err)
+	}
+}
+
 // A legacy settings file with one value of the wrong type is not one that
 // says nothing. The shell and the hosts it does hold stay unmigrated, the
 // file stays, and the failure is said.

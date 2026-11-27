@@ -357,10 +357,9 @@ func Problems() []string {
 }
 
 // migrate moves the settings of the JSON file kero kept before into the
-// configuration, once; mu is held. A file that is there but cannot be
-// read is said, and left where it is: one value of the wrong type would
-// otherwise drop the shell, the themes and the hosts with it, and every
-// later start would try the same file again and say nothing.
+// configuration, once; mu is held. A legacy file that cannot be read or
+// whose settings cannot be written into the configuration is said and left
+// where it is, so a later start can try again.
 func migrate() error {
 	if _, err := os.Stat(Path()); err == nil {
 		return nil
@@ -386,9 +385,13 @@ func migrate() error {
 		s.LightTheme, s.DarkTheme = keroTheme(s.LightTheme, bg), keroTheme(s.DarkTheme, bg)
 	}
 	s.normalize()
-	if write(s) == nil {
-		os.Rename(legacyPath(), legacyPath()+".migrated")
+	if err := write(s); err != nil {
+		// The legacy file is still the user's settings: use what it held
+		// for this process, and say why it could not be made current.
+		cache, cacheProblems = &s, nil
+		return fmt.Errorf("the settings kero kept before its configuration could not be migrated: %w", err)
 	}
+	os.Rename(legacyPath(), legacyPath()+".migrated")
 	return nil
 }
 
