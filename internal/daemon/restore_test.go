@@ -203,3 +203,30 @@ func TestRestoreKeepsThePaneItDidNotStart(t *testing.T) {
 		t.Errorf("the pane that did not start was dropped: %v", dirs)
 	}
 }
+
+// A regular file sits where the pane's directory was: the look answers,
+// and it says no folder. A shell in the home directory would run the
+// user's commands in the wrong place, so the pane is not restored, as
+// for a directory it cannot look into.
+func TestRestoreKeepsAPaneOutOfAFileWhereItsDirectoryWas(t *testing.T) {
+	d := testDaemon(t)
+	file := filepath.Join(d.dir, "took-its-place")
+	if err := os.WriteFile(file, []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	saved := savedState{Version: 2, Projects: d.projects, Sessions: []savedSession{{
+		ID: "s1", Project: "pr", Name: "s1",
+		Panes: []savedPane{{ID: "p1", Dir: file, Cols: 80, Rows: 24}},
+	}}}
+	data, err := json.Marshal(saved)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(d.statePath(), data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	d.restore()
+	if p := d.findPane("p1"); p != nil && p.info.Dir == proto.Home() {
+		t.Errorf("the pane was restored in the home directory: %q", p.info.Dir)
+	}
+}
