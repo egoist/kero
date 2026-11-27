@@ -48,7 +48,7 @@ func TestPaletteKeepAwake(t *testing.T) {
 	zh := locales.In("zh-Hans")
 	title := func(mode string) string { return zh.AwakeTitle() + ": " + awakeModeIn(zh, mode) }
 	offers := func(mode string) *paletteItem {
-		for _, it := range a.paletteItems() {
+		for _, it := range a.paletteItems(a.pal.query) {
 			if it.title == title(mode) {
 				return &it
 			}
@@ -80,7 +80,7 @@ func TestPaletteScrolls(t *testing.T) {
 	tt := ui.NewTester(a.view, 1100, 900)
 	a.openPalette()
 	tt.Frame()
-	r, ok := tt.Find(a.paletteItems()[3].title)
+	r, ok := tt.Find(a.paletteItems(a.pal.query)[3].title)
 	if !ok {
 		t.Fatalf("no commands shown; texts %q", tt.Texts())
 	}
@@ -154,7 +154,7 @@ func TestFuzzySkipsQuerySpaces(t *testing.T) {
 
 // paletteHasPane tells whether the palette's list offers a pane by its name.
 func paletteHasPane(a *App, name string) bool {
-	for _, it := range a.paletteItems() {
+	for _, it := range a.paletteItems(a.pal.query) {
 		if it.pane != nil && it.title == name {
 			return true
 		}
@@ -286,20 +286,58 @@ func TestPaletteArrowsInOrder(t *testing.T) {
 	tt := ui.NewTester(a.view, 1100, 640)
 	a.openPalette()
 	tt.Frame()
-	a.pal.keys = []ui.Key{ui.KeyRight, ui.KeyRight, ui.KeyDown}
+	a.pal.keys = []paletteInput{{key: ui.KeyRight}, {key: ui.KeyRight}, {key: ui.KeyDown}}
 	tt.Frame()
 	if a.pal.index != 2 || !paletteHasPane(a, "zsh") {
 		t.Fatalf("→ → ↓ chose %d, want the second pane", a.pal.index)
 	}
-	a.pal.keys = []ui.Key{ui.KeyUp, ui.KeyLeft, ui.KeyDown}
+	a.pal.keys = []paletteInput{{key: ui.KeyUp}, {key: ui.KeyLeft}, {key: ui.KeyDown}}
 	tt.Frame()
 	if a.pal.expanded["s1"] || a.pal.index != 1 {
 		t.Fatalf("↑ ← ↓ left index %d, expanded %v; want the row after the session", a.pal.index, a.pal.expanded)
 	}
-	a.pal.keys = []ui.Key{ui.KeyRight, ui.KeyLeft}
+	a.pal.keys = []paletteInput{{key: ui.KeyRight}, {key: ui.KeyLeft}}
 	tt.Frame()
 	if a.pal.expanded["s1"] || a.pal.index != 1 {
 		t.Errorf("arrows on a command changed the list: index %d, expanded %v", a.pal.index, a.pal.expanded)
+	}
+}
+
+func TestPaletteReturnBeforeArrow(t *testing.T) {
+	a := testApp(t)
+	tt := ui.NewTester(a.view, 1100, 640)
+	a.openPalette()
+	tt.Frame()
+	tt.Key(0, ui.KeyRight)
+	tt.Key(0, ui.KeyRight)
+	a.pal.keys = []paletteInput{{key: ui.KeyEnter}, {key: ui.KeyDown}}
+	tt.Frame()
+	if a.pal.open || a.focusOf(a.session("s1")) != "a" {
+		t.Fatalf("Return followed by Down should open pane a, focus %q", a.focusOf(a.session("s1")))
+	}
+}
+
+func TestPaletteExpandBeforeTyping(t *testing.T) {
+	a := testApp(t)
+	tt := ui.NewTester(a.view, 1100, 640)
+	a.openPalette()
+	tt.Frame()
+	a.pal.keys = []paletteInput{{key: ui.KeyRight}}
+	tt.Type("zsh")
+	if !a.pal.expanded["s1"] || a.pal.resultsQuery != "zsh" {
+		t.Fatalf("Right followed by typing left expanded %v, results for %q", a.pal.expanded, a.pal.resultsQuery)
+	}
+}
+
+func TestPaletteScrollWhenMovingIntoPanes(t *testing.T) {
+	a := testApp(t)
+	tt := ui.NewTester(a.view, 1100, 640)
+	a.openPalette()
+	tt.Frame()
+	a.pal.keys = []paletteInput{{key: ui.KeyRight}, {key: ui.KeyRight}}
+	tt.Frame()
+	if a.pal.index != 1 || a.pal.scroll.Y != 0 {
+		t.Fatalf("Right twice left index %d and scroll %g, want index 1 and scroll 0", a.pal.index, a.pal.scroll.Y)
 	}
 }
 
@@ -311,7 +349,7 @@ func TestPalettePaneMatchesOwnName(t *testing.T) {
 	tt.Frame()
 	tt.Type("demo")
 	tt.Frame()
-	for _, it := range a.paletteMatches() {
+	for _, it := range a.paletteMatches(a.pal.query) {
 		if it.pane != nil {
 			t.Errorf("pane %q found by its session's name", it.title)
 		}
@@ -335,7 +373,7 @@ func TestPaletteFindsPaneByFolder(t *testing.T) {
 	}
 	tt.Type("webapp")
 	tt.Frame()
-	items := a.paletteMatches()
+	items := a.paletteMatches(a.pal.query)
 	if len(items) == 0 || items[0].pane == nil || items[0].pane.ID != "b" {
 		t.Fatalf("webapp didn't find pane b first: %v", items)
 	}
@@ -346,8 +384,9 @@ func TestPaletteFindsPaneByFolder(t *testing.T) {
 func TestPaletteArrowsOnEmptyList(t *testing.T) {
 	a := testApp(t)
 	a.pal.open = true
-	a.pal.keys = []ui.Key{ui.KeyDown, ui.KeyRight, ui.KeyLeft}
-	if items := a.paletteKeys(nil); len(items) != 0 || a.pal.index != 0 {
+	a.pal.query = "\x00"
+	a.pal.keys = []paletteInput{{ui.KeyDown, a.pal.query}, {ui.KeyEnter, a.pal.query}}
+	if items, chosen := a.paletteKeys(); len(items) != 0 || a.pal.index != 0 || chosen != nil {
 		t.Errorf("arrows on nothing left %d rows, index %d", len(items), a.pal.index)
 	}
 }

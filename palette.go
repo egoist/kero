@@ -21,11 +21,12 @@ import (
 // paletteState is the command palette's: a field that finds sessions and
 // commands as one types.
 type paletteState struct {
-	open   bool
-	query  string
-	index  int
-	scroll ui.ScrollState
-	reveal bool // the chosen item scrolls into view, once
+	open         bool
+	query        string
+	resultsQuery string // query the current selection belongs to
+	index        int
+	scroll       ui.ScrollState
+	reveal       bool // the chosen item scrolls into view, once
 	// convs are the conversations the hosts' kerods remember, the last to
 	// run first, as they come; only shows them alone (Resume
 	// Conversation…), and gen tells the palette they came for.
@@ -35,12 +36,16 @@ type paletteState struct {
 	// expanded are the sessions whose panes the list shows under them
 	// before the user types; typed, every pane that matches shows.
 	expanded map[string]bool
-	// keys are the arrows the field gave the list, in the order pressed,
-	// for the next frame to act on in that order. peek has the chosen row
-	// head the list, as a session just expanded with its panes under it.
-	keys  []ui.Key
+	// keys are the navigation and submit keys the list acts on in order.
+	// peek aligns a newly expanded session at the top of the list.
+	keys  []paletteInput
 	peek  bool
 	field ui.Handle
+}
+
+type paletteInput struct {
+	key   ui.Key
+	query string // text in the field when this key was pressed
 }
 
 // hostConversation is a conversation a host's kerod remembers.
@@ -171,16 +176,16 @@ func (a *App) resumeConversation(h *host, cv proto.Conversation) {
 	}()
 }
 
-func (a *App) paletteItems() []paletteItem {
+func (a *App) paletteItems(query string) []paletteItem {
 	if a.pal.only {
 		return a.conversationItems()
 	}
-	items := a.sessionItems()
+	items := a.sessionItems(query)
 	var cmds []paletteItem
 	// Commands are found by their English names too, in any language.
 	en := locales.In("en")
 	// An address typed opens in a browser beside the pane the user is in.
-	if q := strings.TrimSpace(a.pal.query); proto.IsAddress(q) && a.session(a.selected) != nil {
+	if q := strings.TrimSpace(query); proto.IsAddress(q) && a.session(a.selected) != nil {
 		cmds = append(cmds, paletteItem{title: locales.PaletteOpenInBrowser(), detail: proto.BrowserURL(q), top: true,
 			run: func() { a.openBrowser(q) }})
 	}
@@ -212,7 +217,7 @@ func (a *App) paletteItems() []paletteItem {
 			paletteItem{title: locales.HostReconnectTo(h.name), detail: h.addr.String(), words: en.HostReconnectTo(h.name), run: func() { a.reconnectHost(h) }})
 	}
 	convs := a.conversationItems()
-	if a.pal.query == "" && len(convs) > recentConversations {
+	if query == "" && len(convs) > recentConversations {
 		convs = convs[:recentConversations]
 	}
 	items = append(items, convs...)
@@ -221,7 +226,7 @@ func (a *App) paletteItems() []paletteItem {
 
 // sessionItems are the palette's sessions, in the sidebar's order, each
 // with its panes under it when expanded, or once the user types.
-func (a *App) sessionItems() []paletteItem {
+func (a *App) sessionItems(query string) []paletteItem {
 	var items []paletteItem
 	names := map[string]string{}
 	for _, p := range a.st.Projects {
@@ -240,7 +245,7 @@ func (a *App) sessionItems() []paletteItem {
 			}
 			items = append(items, paletteItem{session: s, title: s.DisplayName(a.set.SessionName), detail: detail + " · " + h.shortDir(s.WorkDir()),
 				run: func() { delete(a.prefs.Collapsed, s.Project); a.selectSession(id) }})
-			if len(s.Panes) > 1 && (a.pal.query != "" || a.pal.expanded[id]) {
+			if len(s.Panes) > 1 && (query != "" || a.pal.expanded[id]) {
 				items = append(items, a.paneItems(s, h)...)
 			}
 		}
@@ -297,24 +302,25 @@ func urlWords(addr string) string {
 	return strings.Join(words, " ")
 }
 
-// paletteKey takes the arrows from the palette's field for its list, as
-// they come, for the next frame to act on in the order pressed: ↑ and ↓
-// always, ← and → while the field is empty, where they move no caret.
+// paletteKey queues navigation and Return with the text each key saw.
+// Left and Right navigate the list while the field is empty.
 func (a *App) paletteKey(k ui.TextKey) bool {
 	key := k.Key
+	query := k.Text()
 	switch {
 	case k.Mods == ui.Ctrl && key == ui.KeyN:
 		key = ui.KeyDown
 	case k.Mods == ui.Ctrl && key == ui.KeyP:
 		key = ui.KeyUp
+	case key == ui.KeyEnter && (k.Mods == 0 || k.Mods == ui.Shift):
 	case k.Mods != 0:
 		return false
 	case key == ui.KeyDown || key == ui.KeyUp:
-	case (key == ui.KeyLeft || key == ui.KeyRight) && k.Text() == "" && !a.pal.only:
+	case (key == ui.KeyLeft || key == ui.KeyRight) && query == "" && !a.pal.only:
 	default:
 		return false
 	}
-	a.pal.keys = append(a.pal.keys, key)
+	a.pal.keys = append(a.pal.keys, paletteInput{key, query})
 	return true
 }
 
@@ -411,17 +417,17 @@ func keywords(query, words string) int {
 
 // paletteMatches are the palette's items that match what the user typed,
 // the best first.
-func (a *App) paletteMatches() []paletteItem {
+func (a *App) paletteMatches(query string) []paletteItem {
 	var items []paletteItem
-	for _, it := range a.paletteItems() {
+	for _, it := range a.paletteItems(query) {
 		// A pane's detail is its session's, which finds the session; a
 		// pane is found by its name, scored as a title below, and words.
 		sc := -1
 		if it.pane == nil {
-			sc = fuzzy(a.pal.query, it.title+" "+it.detail)
+			sc = fuzzy(query, it.title+" "+it.detail)
 		}
-		sc = max(sc, keywords(a.pal.query, it.words))
-		if t := fuzzy(a.pal.query, it.title); t >= 0 {
+		sc = max(sc, keywords(query, it.words))
+		if t := fuzzy(query, it.title); t >= 0 {
 			sc = max(sc, t+50)
 		}
 		if it.top {
@@ -433,29 +439,58 @@ func (a *App) paletteMatches() []paletteItem {
 		it.score = sc
 		items = append(items, it)
 	}
-	if a.pal.query != "" {
+	if query != "" {
 		slices.SortStableFunc(items, func(x, y paletteItem) int { return y.score - x.score })
 	}
 	return items
 }
 
-// paletteKeys acts on the arrows the field gave the list, in the order
-// pressed, and returns the list as they leave it. ↑ and ↓ choose a row;
-// before the user types, → shows a session's panes and goes into them,
-// and ← goes back out and hides them.
-func (a *App) paletteKeys(items []paletteItem) []paletteItem {
+func (a *App) paletteResults(query string) []paletteItem {
+	if a.pal.resultsQuery != query {
+		a.pal.resultsQuery = query
+		a.pal.index, a.pal.reveal, a.pal.peek = 0, true, false
+	}
+	items := a.paletteMatches(query)
+	a.pal.index = min(max(a.pal.index, 0), max(len(items)-1, 0))
+	return items
+}
+
+func (a *App) movePaletteSelection(index int) {
+	if a.pal.index != index {
+		a.pal.peek = false
+	}
+	a.pal.index, a.pal.reveal = index, true
+}
+
+// paletteKeys replays keys against the query each one saw and returns the
+// results for the field's final text. Return stops replay once it picks a row.
+func (a *App) paletteKeys() ([]paletteItem, func()) {
 	keys := a.pal.keys
 	a.pal.keys = nil
-	for _, key := range keys {
-		switch key {
+	query := a.pal.query
+	if len(keys) > 0 {
+		query = keys[0].query
+	}
+	items := a.paletteResults(query)
+	var chosen func()
+	for _, input := range keys {
+		if input.query != query {
+			query = input.query
+			items = a.paletteResults(query)
+		}
+		if input.key == ui.KeyEnter && len(items) > 0 {
+			chosen = items[a.pal.index].run
+			break
+		}
+		switch input.key {
 		case ui.KeyDown:
-			a.pal.index, a.pal.reveal = max(min(a.pal.index+1, len(items)-1), 0), true
+			a.movePaletteSelection(max(min(a.pal.index+1, len(items)-1), 0))
 			continue
 		case ui.KeyUp:
-			a.pal.index, a.pal.reveal = max(a.pal.index-1, 0), true
+			a.movePaletteSelection(max(a.pal.index-1, 0))
 			continue
 		}
-		if a.pal.query != "" || a.pal.only || a.pal.index < 0 || a.pal.index >= len(items) {
+		if query != "" || a.pal.only || a.pal.index >= len(items) {
 			continue
 		}
 		it := items[a.pal.index]
@@ -465,29 +500,33 @@ func (a *App) paletteKeys(items []paletteItem) []paletteItem {
 		}
 		sid := it.session.ID
 		switch {
-		case key == ui.KeyRight && kind == paletteSession && len(it.session.Panes) > 1:
+		case input.key == ui.KeyRight && kind == paletteSession && len(it.session.Panes) > 1:
 			if a.pal.expanded[sid] {
-				a.pal.index, a.pal.reveal = a.pal.index+1, true
+				a.movePaletteSelection(a.pal.index + 1)
 				continue
 			}
 			a.expandPalette(sid, true)
 			a.pal.reveal, a.pal.peek = true, true
-		case key == ui.KeyLeft && kind == palettePane:
+		case input.key == ui.KeyLeft && kind == palettePane:
 			a.expandPalette(sid, false)
 			for i, r := range items {
 				if r.kind() == paletteSession && r.session.ID == sid {
-					a.pal.index, a.pal.reveal = i, true
+					a.movePaletteSelection(i)
 					break
 				}
 			}
-		case key == ui.KeyLeft && kind == paletteSession && a.pal.expanded[sid]:
+		case input.key == ui.KeyLeft && kind == paletteSession && a.pal.expanded[sid]:
 			a.expandPalette(sid, false)
+			a.pal.peek = false
 		default:
 			continue
 		}
 		items = a.respliceSessions(items)
 	}
-	return items
+	if query != a.pal.query {
+		items = a.paletteResults(a.pal.query)
+	}
+	return items, chosen
 }
 
 // respliceSessions is the list before the user types with its sessions
@@ -498,7 +537,7 @@ func (a *App) respliceSessions(items []paletteItem) []paletteItem {
 	for n < len(items) && (items[n].kind() == paletteSession || items[n].kind() == palettePane) {
 		n++
 	}
-	return append(a.sessionItems(), items[n:]...)
+	return append(a.sessionItems(""), items[n:]...)
 }
 
 // key keeps a row's state, as its count's turn, with the row as it moves
@@ -517,9 +556,7 @@ func (a *App) paletteView(c *ui.Context, pal *palette) {
 	if !a.pal.open {
 		return
 	}
-	items := a.paletteMatches()
-	a.pal.index = min(max(a.pal.index, 0), max(len(items)-1, 0))
-
+	var items []paletteItem
 	var chosen func()
 	label, placeholder, none := locales.PaletteLabel(), locales.PalettePlaceholder(), locales.PaletteNoMatches()
 	if a.pal.only {
@@ -536,25 +573,20 @@ func (a *App) paletteView(c *ui.Context, pal *palette) {
 			ui.Icon(c, searchIcon).Size(16, 16).TextColor(pal.textMuted)
 			in := ui.TextInputBase(c.Key("q"), &a.pal.query).Grow(1).FontSize(15).Placeholder(placeholder).AutoFocus().
 				OnTextKey(a.paletteKey).Bind(&a.pal.field)
-			if in.Changed() {
-				// The list was made for the text before this frame's typing.
-				items = a.paletteMatches()
-				a.pal.index, a.pal.reveal = 0, true
-			}
 			// Away from the field, as on the count by Tab, the arrows that
 			// choose still do.
 			if !in.Focused() {
 				if c.Shortcut(0, ui.KeyDown) || c.Shortcut(ui.Ctrl, ui.KeyN) {
-					a.pal.keys = append(a.pal.keys, ui.KeyDown)
+					a.pal.keys = append(a.pal.keys, paletteInput{ui.KeyDown, a.pal.query})
 				}
 				if c.Shortcut(0, ui.KeyUp) || c.Shortcut(ui.Ctrl, ui.KeyP) {
-					a.pal.keys = append(a.pal.keys, ui.KeyUp)
+					a.pal.keys = append(a.pal.keys, paletteInput{ui.KeyUp, a.pal.query})
 				}
 			}
-			items = a.paletteKeys(items)
-			if (in.Submitted() || c.Shortcut(0, ui.KeyEnter)) && len(items) > 0 {
-				chosen = items[a.pal.index].run
+			if in.Submitted() || c.Shortcut(0, ui.KeyEnter) {
+				a.pal.keys = append(a.pal.keys, paletteInput{ui.KeyEnter, a.pal.query})
 			}
+			items, chosen = a.paletteKeys()
 		})
 		list := ui.Scroll(c.Key("results")).Grow(1).MinHeight(0).Padding(6).TrackScroll(&a.pal.scroll)
 		reveal, peek := a.pal.reveal, a.pal.peek
