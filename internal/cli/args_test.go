@@ -190,6 +190,47 @@ func TestDaemonStatusFailsWhenTheDaemonCannotBeReached(t *testing.T) {
 	}
 }
 
+// A socket left by a kerod that exited is not a running daemon: a refused
+// connection is the same absence as a socket that is not there.
+func TestDaemonStatusSaysANotListeningSocketIsNotRunning(t *testing.T) {
+	t.Setenv("KERO_CONFIG", filepath.Join(t.TempDir(), "config"))
+	sock := filepath.Join(t.TempDir(), "kerod.sock")
+	ln, err := net.Listen("unix", sock)
+	if err != nil {
+		t.Skipf("Unix sockets are unavailable: %v", err)
+	}
+	ln.(*net.UnixListener).SetUnlinkOnClose(false)
+	if err := ln.Close(); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("KERO_SOCKET", sock)
+
+	var runErr error
+	out := captureStdout(t, func() { runErr = run([]string{"daemon", "status"}, "") })
+	var es exitStatus
+	if !errors.As(runErr, &es) || int(es) != 4 {
+		t.Fatalf("the exit status is %v, want 4", runErr)
+	}
+	if !strings.Contains(out, "kerod is not running") {
+		t.Errorf("a stale socket was not reported as not running:\n%s", out)
+	}
+}
+
+// An invalid socket path cannot establish whether kerod is running.
+func TestDaemonStatusSaysASocketFailure(t *testing.T) {
+	t.Setenv("KERO_CONFIG", filepath.Join(t.TempDir(), "config"))
+	t.Setenv("KERO_SOCKET", filepath.Join(t.TempDir(), strings.Repeat("x", 300)))
+	var err error
+	out := captureStdout(t, func() { err = run([]string{"daemon", "status"}, "") })
+	var es exitStatus
+	if !errors.As(err, &es) || int(es) != 4 {
+		t.Fatalf("the exit status is %v, want 4", err)
+	}
+	if strings.Contains(out, "not running") || !strings.Contains(out, "connecting to kerod") {
+		t.Errorf("socket failure was not reported: %s", out)
+	}
+}
+
 // A kerod of another version runs, and the status says so — not "not
 // running".
 func TestDaemonStatusSaysTheVersionDiffers(t *testing.T) {
@@ -208,6 +249,48 @@ func TestDaemonStatusSaysTheVersionDiffers(t *testing.T) {
 	}
 	if strings.Contains(out, "not running") {
 		t.Errorf("it says the daemon is not there while it is:\n%s", out)
+	}
+}
+
+// A kerod whose socket is there but which cannot be asked is not "not
+// running": the failure is said, as a host's is.
+func TestDaemonStatusSaysAKerodThatCannotBeAsked(t *testing.T) {
+	t.Setenv("KERO_CONFIG", filepath.Join(t.TempDir(), "config"))
+	// It answers the dial and hangs up before its welcome.
+	t.Setenv("KERO_SOCKET", fakeDaemonThatCannotBeAsked(t, ""))
+
+	var err error
+	out := captureStdout(t, func() { err = run([]string{"daemon", "status"}, "") })
+	var es exitStatus
+	if !errors.As(err, &es) || int(es) != 4 {
+		t.Fatalf("the exit status is %v, want 4", err)
+	}
+	if strings.Contains(out, "not running") {
+		t.Errorf("it says the daemon is not there while its socket is:\n%s", out)
+	}
+	if !strings.Contains(out, "cannot be asked") {
+		t.Errorf("no word of the kerod that could not be asked:\n%s", out)
+	}
+}
+
+// A kerod that answers with a failure of its own says it, not "not
+// running".
+func TestDaemonStatusSaysWhatTheDaemonFailedWith(t *testing.T) {
+	t.Setenv("KERO_CONFIG", filepath.Join(t.TempDir(), "config"))
+	welcome := fmt.Sprintf(`{"version":%d,"error":"the lock is held"}`, proto.Version)
+	t.Setenv("KERO_SOCKET", fakeDaemonThatCannotBeAsked(t, welcome))
+
+	var err error
+	out := captureStdout(t, func() { err = run([]string{"daemon", "status"}, "") })
+	var es exitStatus
+	if !errors.As(err, &es) || int(es) != 4 {
+		t.Fatalf("the exit status is %v, want 4", err)
+	}
+	if strings.Contains(out, "not running") {
+		t.Errorf("it says the daemon is not there while it answered:\n%s", out)
+	}
+	if !strings.Contains(out, "the lock is held") {
+		t.Errorf("no word of what the daemon failed with:\n%s", out)
 	}
 }
 
@@ -236,6 +319,38 @@ func TestRemoteDaemonStatusSaysAFailedState(t *testing.T) {
 // remembers the calls it got. Its socket is the one the CLI is told of.
 func fakeDaemon(t *testing.T) (string, func() []string) {
 	return fakeDaemonOfVersion(t, proto.Version)
+}
+
+// fakeDaemonThatCannotBeAsked is a kerod whose socket is there and which
+// answers the dial, but which cannot be asked: it hangs up before its
+// welcome, or answers with the welcome given, a failure of its own.
+func fakeDaemonThatCannotBeAsked(t *testing.T, welcome string) string {
+	t.Helper()
+	sock := filepath.Join(t.TempDir(), "kerod.sock")
+	ln, err := net.Listen("unix", sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { ln.Close() })
+	go func() {
+		for {
+			conn, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			go func() {
+				defer conn.Close()
+				r := bufio.NewReader(conn)
+				if _, err := proto.ReadLine(r, proto.MaxLine); err != nil {
+					return
+				}
+				if welcome != "" {
+					fmt.Fprintf(conn, "%s\n", welcome)
+				}
+			}()
+		}
+	}()
+	return sock
 }
 
 // fakeDaemonOfVersion is fakeDaemon answering with the protocol version

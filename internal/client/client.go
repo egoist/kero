@@ -28,6 +28,12 @@ import (
 // as after kero was updated: it has to be restarted.
 var ErrVersion = errors.New("kerod is of another version")
 
+// ErrNotRunning is returned when a dial found no kerod to talk to: its
+// socket is not there, or nothing listens on it. A kerod that answered
+// the dial but cannot be asked — the handshake failed — is a failure to
+// say, and answers differently.
+var ErrNotRunning = errors.New("kerod is not running")
+
 // Dialer opens connections to a kerod: this machine's, through its socket
 // (Local), or a host's, as streams of a remote connection (remote.Conn).
 type Dialer interface {
@@ -47,7 +53,10 @@ func dial(noStart bool) (net.Conn, error) {
 		return conn, nil
 	}
 	if noStart {
-		return nil, fmt.Errorf("kerod is not running: %w", err)
+		if errors.Is(err, os.ErrNotExist) || dialRefused(err) {
+			return nil, fmt.Errorf("%w: %w", ErrNotRunning, err)
+		}
+		return nil, fmt.Errorf("connecting to kerod: %w", err)
 	}
 	if err := StartDaemon(); err != nil {
 		return nil, err
