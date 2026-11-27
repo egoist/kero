@@ -1639,20 +1639,33 @@ func (a *App) toggleSidebar() {
 // toggleSessionPanes shows or hides the panes of a split session under
 // its row in the sidebar, forgetting the sessions that are gone.
 func (a *App) toggleSessionPanes(id string) {
+	a.setSessionPanes(id, !a.prefs.Expanded[id])
+	a.savePrefs()
+}
+
+// setSessionPanes shows or hides the panes of a split session under its
+// row in the sidebar, forgetting the sessions that are gone, and tells
+// whether that changed anything; the caller saves the prefs.
+func (a *App) setSessionPanes(id string, open bool) bool {
 	if a.prefs.Expanded == nil {
 		a.prefs.Expanded = map[string]bool{}
 	}
+	changed := false
 	for k := range a.prefs.Expanded {
 		if a.session(k) == nil {
 			delete(a.prefs.Expanded, k)
+			changed = true
 		}
 	}
-	if a.prefs.Expanded[id] {
-		delete(a.prefs.Expanded, id)
-	} else {
-		a.prefs.Expanded[id] = true
+	if a.prefs.Expanded[id] != open {
+		changed = true
 	}
-	a.savePrefs()
+	if open {
+		a.prefs.Expanded[id] = true
+	} else {
+		delete(a.prefs.Expanded, id)
+	}
+	return changed
 }
 
 func (a *App) toggleProject(id string) {

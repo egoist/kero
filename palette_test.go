@@ -406,6 +406,9 @@ func TestURLWords(t *testing.T) {
 	if got := urlWords("http://localhost:5173/app"); !strings.Contains(" "+got+" ", " 5173 ") || !strings.Contains(" "+got+" ", " localhost ") {
 		t.Errorf("urlWords lacks the port or host: %q", got)
 	}
+	if got := urlWords("https://docs.github.com/en"); !strings.Contains(" "+got+" ", " github ") {
+		t.Errorf("urlWords lacks the site under a subdomain: %q", got)
+	}
 	if urlWords("") != "" || urlWords("not a url") != "not a url" {
 		t.Errorf("urlWords changed what isn't an address")
 	}
@@ -522,5 +525,36 @@ func TestPaletteSplitSessionNotFoundByPane(t *testing.T) {
 	a.pal.matches = nil
 	if items := a.paletteMatches("demo"); len(items) == 0 || items[0].kind() != paletteSession {
 		t.Errorf("demo didn't find its session")
+	}
+}
+
+// The selection stays on its row as rows come and go above it, as a
+// session's panes do while the palette is open.
+func TestPaletteSelectionFollowsRow(t *testing.T) {
+	a := testApp(t)
+	tt := ui.NewTester(a.view, 1100, 640)
+	a.openPalette()
+	tt.Frame()
+	a.pal.keys = []paletteInput{{key: ui.KeyRight}, {key: ui.KeyRight}, {key: ui.KeyDown}}
+	tt.Frame()
+	if a.pal.index != 2 {
+		t.Fatalf("→ → ↓ chose %d, want pane b", a.pal.index)
+	}
+	s := a.session("s1")
+	s.Panes = append([]proto.Pane{{ID: "c", Shell: "bash", Dir: "/tmp", Status: proto.Idle, Progress: -1}}, s.Panes...)
+	tt.Frame()
+	if it := a.paletteMatches(a.pal.query)[a.pal.index]; it.pane == nil || it.pane.ID != "b" {
+		t.Errorf("a new pane above moved the selection to %q", it.title)
+	}
+}
+
+// Going to panes from the palette saves the sidebar's prefs without
+// the sessions that are gone.
+func TestPaletteForgetsGoneSessions(t *testing.T) {
+	a := testApp(t)
+	a.prefs.Expanded = map[string]bool{"gone": true}
+	a.showInSidebar("", "s1", func() {})
+	if a.prefs.Expanded["gone"] || !a.prefs.Expanded["s1"] {
+		t.Errorf("expanded %v, want s1 alone", a.prefs.Expanded)
 	}
 }
