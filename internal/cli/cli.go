@@ -1069,8 +1069,12 @@ func daemonCmd(args []string, host string) error {
 			// host's does: a script sees the same exit status either way.
 			if errors.Is(err, client.ErrVersion) {
 				fmt.Println("kerod is running, of another version: `kero daemon restart` runs this one")
-			} else {
+			} else if errors.Is(err, client.ErrNotRunning) {
 				fmt.Println("kerod is not running")
+			} else {
+				// A dial or handshake can fail without establishing whether
+				// kerod is running. Say the failure rather than its absence.
+				fmt.Printf("kerod cannot be asked: %v\n", err)
 			}
 			connErr = exitStatus(4)
 		} else {

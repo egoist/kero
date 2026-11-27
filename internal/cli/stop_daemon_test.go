@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bufio"
 	"fmt"
 	"io"
 	"net"
@@ -74,6 +75,10 @@ func TestStopDaemonWaitsForAShutdownThatSaysNothing(t *testing.T) {
 			conn, err := ln.Accept()
 			if err != nil {
 				return
+			}
+			if _, err := bufio.NewReader(conn).ReadString('\n'); err != nil {
+				conn.Close()
+				continue
 			}
 			if served.Add(1) == 1 {
 				fmt.Fprintf(conn, `{"version":%d,"pid":%d}`+"\n", proto.Version, child.Process.Pid)
