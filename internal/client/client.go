@@ -34,6 +34,11 @@ var ErrVersion = errors.New("kerod is of another version")
 // say, and answers differently.
 var ErrNotRunning = errors.New("kerod is not running")
 
+// ErrNotAsked is returned when a socket is there but could not be asked:
+// another user's kerod, or one whose folder the user may not look into.
+// It is not ErrNotRunning: kerod is there.
+var ErrNotAsked = errors.New("kerod cannot be asked")
+
 // Dialer opens connections to a kerod: this machine's, through its socket
 // (Local), or a host's, as streams of a remote connection (remote.Conn).
 type Dialer interface {
@@ -163,13 +168,19 @@ func handshake(conn net.Conn, hello proto.Hello) (proto.Welcome, *bufio.Reader, 
 
 // DaemonPID returns the pid of the daemon running, whatever its version,
 // and 0 when no daemon answers the socket. An error says that the socket
-// answered but no hello came: a daemon is there, and it did not say hello.
+// is there but could not be asked (ErrNotAsked), or that it answered but
+// no hello came: a daemon is there, and it did not say hello.
 func DaemonPID() (int, error) {
 	conn, err := dial(true)
 	if err != nil {
-		// No daemon answers the socket: it is not there, or nothing
-		// listens on it.
-		return 0, nil
+		if errors.Is(err, ErrNotRunning) {
+			// No daemon answers the socket: it is not there, or nothing
+			// listens on it.
+			return 0, nil
+		}
+		// The socket is there, but it could not be asked: another user's
+		// kerod, or one whose folder the user may not look into.
+		return 0, fmt.Errorf("%w: %w", ErrNotAsked, err)
 	}
 	defer conn.Close()
 	w, _, err := handshake(conn, proto.Hello{Kind: "control"})
