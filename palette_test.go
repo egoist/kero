@@ -279,15 +279,15 @@ func TestPaletteKeysAfterClick(t *testing.T) {
 	}
 }
 
-// Arrows that come before a frame are acted on in the order pressed, on
-// the list as each leaves it, and do nothing to a row that isn't a
+// Arrows that come between frames are each acted on as it comes, on the
+// list as the one before left it, and do nothing to a row that isn't a
 // session or a pane.
 func TestPaletteArrowsInOrder(t *testing.T) {
 	a := testApp(t)
 	tt := ui.NewTester(a.view, 1100, 640)
 	a.openPalette()
 	tt.Frame()
-	a.pal.keys = []paletteInput{{key: ui.KeyRight}, {key: ui.KeyRight}, {key: ui.KeyDown}}
+	paletteNavKeys(a, ui.KeyRight, ui.KeyRight, ui.KeyDown)
 	tt.Frame()
 	if a.pal.index != 2 || !paletteHasPane(a, "zsh") {
 		t.Fatalf("→ → ↓ chose %d, want the second pane", a.pal.index)
@@ -295,12 +295,12 @@ func TestPaletteArrowsInOrder(t *testing.T) {
 	if it := a.paletteMatches(a.pal.query)[a.pal.index]; it.pane == nil || it.pane.ID != "b" {
 		t.Fatalf("→ → ↓ chose %q, want pane b", it.title)
 	}
-	a.pal.keys = []paletteInput{{key: ui.KeyUp}, {key: ui.KeyLeft}, {key: ui.KeyDown}}
+	paletteNavKeys(a, ui.KeyUp, ui.KeyLeft, ui.KeyDown)
 	tt.Frame()
 	if a.pal.expanded["s1"] || a.pal.index != 1 {
 		t.Fatalf("↑ ← ↓ left index %d, expanded %v; want the row after the session", a.pal.index, a.pal.expanded)
 	}
-	a.pal.keys = []paletteInput{{key: ui.KeyRight}, {key: ui.KeyLeft}}
+	paletteNavKeys(a, ui.KeyRight, ui.KeyLeft)
 	tt.Frame()
 	if a.pal.expanded["s1"] || a.pal.index != 1 {
 		t.Errorf("arrows on a command changed the list: index %d, expanded %v", a.pal.index, a.pal.expanded)
@@ -314,10 +314,10 @@ func TestPaletteReturnBeforeArrow(t *testing.T) {
 	tt.Frame()
 	tt.Key(0, ui.KeyRight)
 	tt.Key(0, ui.KeyRight)
-	a.pal.keys = []paletteInput{{key: ui.KeyEnter}, {key: ui.KeyDown}}
+	paletteNavKeys(a, ui.KeyEnter, ui.KeyDown, ui.KeyEnter)
 	tt.Frame()
 	if a.pal.open || a.focusOf(a.session("s1")) != "a" {
-		t.Fatalf("Return followed by Down should open pane a, focus %q", a.focusOf(a.session("s1")))
+		t.Fatalf("Return, Down, Return should open pane a, focus %q", a.focusOf(a.session("s1")))
 	}
 }
 
@@ -326,7 +326,7 @@ func TestPaletteExpandBeforeTyping(t *testing.T) {
 	tt := ui.NewTester(a.view, 1100, 640)
 	a.openPalette()
 	tt.Frame()
-	a.pal.keys = []paletteInput{{key: ui.KeyRight}}
+	paletteNavKeys(a, ui.KeyRight)
 	tt.Type("zsh")
 	if !a.pal.expanded["s1"] || a.pal.resultsQuery != "zsh" {
 		t.Fatalf("Right followed by typing left expanded %v, results for %q", a.pal.expanded, a.pal.resultsQuery)
@@ -338,7 +338,7 @@ func TestPaletteScrollWhenMovingIntoPanes(t *testing.T) {
 	tt := ui.NewTester(a.view, 1100, 640)
 	a.openPalette()
 	tt.Frame()
-	a.pal.keys = []paletteInput{{key: ui.KeyRight}, {key: ui.KeyRight}}
+	paletteNavKeys(a, ui.KeyRight, ui.KeyRight)
 	tt.Frame()
 	if a.pal.index != 1 || a.pal.scroll.Y != 0 {
 		t.Fatalf("Right twice left index %d and scroll %g, want index 1 and scroll 0", a.pal.index, a.pal.scroll.Y)
@@ -389,8 +389,8 @@ func TestPaletteArrowsOnEmptyList(t *testing.T) {
 	a := testApp(t)
 	a.pal.open = true
 	a.pal.query = "\x00"
-	a.pal.keys = []paletteInput{{key: ui.KeyDown, query: a.pal.query}, {key: ui.KeyEnter, query: a.pal.query}}
-	if items, chosen := a.paletteKeys(); len(items) != 0 || a.pal.index != 0 || chosen != nil {
+	paletteNavKeys(a, ui.KeyDown, ui.KeyEnter)
+	if items := a.paletteResults(a.pal.query); len(items) != 0 || a.pal.index != 0 || a.pal.picked != nil {
 		t.Errorf("arrows on nothing left %d rows, index %d", len(items), a.pal.index)
 	}
 }
@@ -435,14 +435,16 @@ func TestPaletteTabStaysInField(t *testing.T) {
 	}
 }
 
-// A click on the count is acted on in order with the keys: → after it
-// goes into the panes it showed.
+// A click on the count chooses its session, and → after it goes into the
+// panes it showed.
 func TestPaletteClickThenRight(t *testing.T) {
 	a := testApp(t)
 	tt := ui.NewTester(a.view, 1100, 640)
 	a.openPalette()
 	tt.Frame()
-	a.pal.keys = []paletteInput{{toggle: "s1"}, {key: ui.KeyRight}}
+	paletteNavKeys(a, ui.KeyDown, ui.KeyDown)
+	a.togglePalette("s1")
+	paletteNavKeys(a, ui.KeyRight)
 	tt.Frame()
 	if !a.pal.expanded["s1"] || a.pal.index != 1 {
 		t.Errorf("click then → left index %d, expanded %v; want the first pane", a.pal.index, a.pal.expanded)
@@ -473,20 +475,19 @@ func TestPaletteFindsPaneByCommand(t *testing.T) {
 	b.Command, b.Runtime = []string{"vite", "--port", "5173"}, "node"
 	for _, q := range []string{"vite", "node"} {
 		items := a.paletteMatches(q)
-		a.pal.matches = nil
 		if len(items) == 0 || items[0].pane == nil || items[0].pane.ID != "b" {
 			t.Errorf("%s didn't find pane b first", q)
 		}
 	}
 }
 
-// Return after → in the same frame picks from the list → made, with the
+// Return after → before a frame picks from the list → made, with the
 // session's panes in it.
 func TestPaletteReturnAfterExpandSameFrame(t *testing.T) {
 	a := testApp(t)
 	a.openPalette()
-	a.pal.keys = []paletteInput{{key: ui.KeyRight}, {key: ui.KeyDown}, {key: ui.KeyDown}, {key: ui.KeyEnter}}
-	items, chosen := a.paletteKeys()
+	paletteNavKeys(a, ui.KeyRight, ui.KeyDown, ui.KeyDown, ui.KeyEnter)
+	items, chosen := a.paletteMatches(a.pal.query), a.pal.picked
 	if chosen == nil || items[a.pal.index].pane == nil || items[a.pal.index].pane.ID != "b" {
 		t.Fatalf("→ ↓ ↓ ↩ chose index %d, want pane b", a.pal.index)
 	}
@@ -506,7 +507,7 @@ func TestPalettePanesBeforeConversations(t *testing.T) {
 	if len(items) < 2 || items[0].pane == nil || items[len(items)-1].conv == nil {
 		t.Fatalf("webapp didn't find pane b before the conversation: %d rows, first %q", len(items), items[0].title)
 	}
-	a.pal.matches, a.pal.only = nil, true
+	a.pal.only = true
 	if items := a.paletteMatches("webapp"); len(items) != 1 || items[0].conv == nil {
 		t.Errorf("Resume Conversation… didn't find the conversation alone")
 	}
@@ -522,7 +523,6 @@ func TestPaletteSplitSessionNotFoundByPane(t *testing.T) {
 	if len(items) != 1 || items[0].pane == nil || items[0].pane.ID != "a" {
 		t.Fatalf("webapp found %d rows, want pane a alone", len(items))
 	}
-	a.pal.matches = nil
 	if items := a.paletteMatches("demo"); len(items) == 0 || items[0].kind() != paletteSession {
 		t.Errorf("demo didn't find its session")
 	}
@@ -535,7 +535,7 @@ func TestPaletteSelectionFollowsRow(t *testing.T) {
 	tt := ui.NewTester(a.view, 1100, 640)
 	a.openPalette()
 	tt.Frame()
-	a.pal.keys = []paletteInput{{key: ui.KeyRight}, {key: ui.KeyRight}, {key: ui.KeyDown}}
+	paletteNavKeys(a, ui.KeyRight, ui.KeyRight, ui.KeyDown)
 	tt.Frame()
 	if a.pal.index != 2 {
 		t.Fatalf("→ → ↓ chose %d, want pane b", a.pal.index)
@@ -556,5 +556,13 @@ func TestPaletteForgetsGoneSessions(t *testing.T) {
 	a.showInSidebar("", "s1", func() {})
 	if a.prefs.Expanded["gone"] || !a.prefs.Expanded["s1"] {
 		t.Errorf("expanded %v, want s1 alone", a.prefs.Expanded)
+	}
+}
+
+// paletteNavKeys sends keys to the list as the field does, each as it
+// comes between frames.
+func paletteNavKeys(a *App, keys ...ui.Key) {
+	for _, k := range keys {
+		a.paletteNav(k, a.pal.query)
 	}
 }
