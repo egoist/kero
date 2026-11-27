@@ -33,7 +33,14 @@ func (d *Daemon) addWorktree(dir, branch, base string) (*proto.Worktree, error) 
 	defer cancel()
 	r, err := git.Open(ctx, dir)
 	if err != nil {
-		return nil, fmt.Errorf("%s is in no git repository", proto.ShortDir(dir))
+		// A directory outside any repository is the common case — a pane
+		// in a plain folder — and is no failure. A git that is there but
+		// cannot be read is, and no worktree would be made, with no word
+		// why: said as what it is.
+		if git.NoWorktree(err) {
+			return nil, fmt.Errorf("%s is in no git repository", proto.ShortDir(dir))
+		}
+		return nil, fmt.Errorf("the git of %s: %w", proto.ShortDir(dir), err)
 	}
 	main := r.Main()
 	if main == "" {

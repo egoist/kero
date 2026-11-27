@@ -194,3 +194,45 @@ func TestWorktreePath(t *testing.T) {
 		t.Error(got)
 	}
 }
+
+// A directory whose git cannot be read is not "in no git repository": the
+// failure is said as what it is, so a worktree is not refused under a name
+// that says the files are not there.
+func TestAddWorktreeSaysAGitThatCannotBeRead(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("no git")
+	}
+	d := testDaemon(t)
+	// Outside any repository: the common case, and no failure.
+	if _, err := d.addWorktree(t.TempDir(), "x", ""); err == nil || !strings.Contains(err.Error(), "is in no git repository") {
+		t.Errorf("outside a repository: %v", err)
+	}
+	// A .git file that points nowhere names a gitdir git cannot read: the
+	// directory is there, so this is a failure, not an absence.
+	broken := t.TempDir()
+	if err := os.WriteFile(filepath.Join(broken, ".git"), []byte("gitdir: /nonexistent/here\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, err := d.addWorktree(broken, "x", "")
+	if err == nil || strings.Contains(err.Error(), "is in no git repository") {
+		t.Fatalf("a git that cannot be read said %v, want its failure", err)
+	}
+	if !strings.Contains(err.Error(), "/nonexistent/here") {
+		t.Errorf("said %v, want the git failure it read", err)
+	}
+
+	if runtime.GOOS == "windows" || os.Geteuid() == 0 {
+		t.Skip("requires Unix directory permissions without root privileges")
+	}
+	// A repository that cannot be entered fails the chdir before git
+	// runs: also a read that failed, not an absence.
+	locked := t.TempDir()
+	if err := os.Chmod(locked, 0); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chmod(locked, 0o700) })
+	_, err = d.addWorktree(locked, "x", "")
+	if err == nil || strings.Contains(err.Error(), "is in no git repository") {
+		t.Errorf("a repository it could not enter said %v, want the chdir's failure", err)
+	}
+}
