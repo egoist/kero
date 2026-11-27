@@ -121,7 +121,7 @@ terminal, such as Powerlevel10k's, would leave a copy behind at each width.
 
 | Key              | Default | Description                                         |
 | ---------------- | ------- | --------------------------------------------------- |
-| `remote-control` | `true`  | Let `kero do` and `kero focus` drive the app        |
+| `remote-control` | `true`  | Let `kero do`, `kero focus` and `kero browser` drive the app |
 
 ## Hosts
 

@@ -115,7 +115,7 @@ kero config check             # 报告未知的配置项、无效的值和agents
 
 | 配置项           | 默认值  | 说明                                                |
 | ---------------- | ------- | --------------------------------------------------- |
-| `remote-control` | `true`  | 允许 `kero do` 和 `kero focus` 操控应用             |
+| `remote-control` | `true`  | 允许 `kero do`、`kero focus` 和 `kero browser` 操控应用 |
 
 ## 主机
 
