@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/egoist/mygo/i18n"
@@ -337,5 +338,44 @@ func TestPaletteFindsPaneByFolder(t *testing.T) {
 	items := a.paletteMatches()
 	if len(items) == 0 || items[0].pane == nil || items[0].pane.ID != "b" {
 		t.Fatalf("webapp didn't find pane b first: %v", items)
+	}
+}
+
+// Arrows on an empty list, as one made for a search that matched nothing,
+// choose nothing and don't fail.
+func TestPaletteArrowsOnEmptyList(t *testing.T) {
+	a := testApp(t)
+	a.pal.open = true
+	a.pal.keys = []ui.Key{ui.KeyDown, ui.KeyRight, ui.KeyLeft}
+	if items := a.paletteKeys(nil); len(items) != 0 || a.pal.index != 0 {
+		t.Errorf("arrows on nothing left %d rows, index %d", len(items), a.pal.index)
+	}
+}
+
+// A browser pane is found by its site and the parts of its path.
+func TestURLWords(t *testing.T) {
+	got := urlWords("https://www.github.com/egoist/kero")
+	for _, w := range []string{"github.com", "github", "egoist", "kero"} {
+		if !strings.Contains(" "+got+" ", " "+w+" ") {
+			t.Errorf("urlWords lacks %q: %q", w, got)
+		}
+	}
+	if urlWords("") != "" || urlWords("not a url") != "not a url" {
+		t.Errorf("urlWords changed what isn't an address")
+	}
+}
+
+// Away from the field, ↓ and ↑ still choose.
+func TestPaletteArrowsAwayFromField(t *testing.T) {
+	a := testApp(t)
+	tt := ui.NewTester(a.view, 1100, 640)
+	a.openPalette()
+	tt.Frame()
+	tt.Key(0, ui.KeyTab)
+	tt.Frame()
+	tt.Key(0, ui.KeyDown)
+	tt.Frame()
+	if a.pal.index != 1 {
+		t.Errorf("↓ away from the field chose %d, want 1", a.pal.index)
 	}
 }

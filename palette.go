@@ -3,6 +3,7 @@ package main
 import (
 	"cmp"
 	"math"
+	"net/url"
 	"slices"
 	"strings"
 	"time"
@@ -35,8 +36,8 @@ type paletteState struct {
 	// before the user types; typed, every pane that matches shows.
 	expanded map[string]bool
 	// keys are the arrows the field gave the list, in the order pressed,
-	// for the next frame to act on in that order. peek has the row after
-	// the chosen one scroll into view too, as a session's first pane.
+	// for the next frame to act on in that order. peek has the chosen row
+	// head the list, as a session just expanded with its panes under it.
 	keys  []ui.Key
 	peek  bool
 	field ui.Handle
@@ -266,7 +267,7 @@ func (a *App) paneItems(s *proto.Session, h *host) []paletteItem {
 			detail += " · " + h.shortDir(dir)
 		}
 		sid, project := s.ID, s.Project
-		words := p.Title + " " + p.Process + " " + p.Agent + " " + p.URL
+		words := p.Title + " " + p.Process + " " + p.Agent + " " + urlWords(p.URL)
 		if dir != "" {
 			words += " " + dir + " " + proto.DirName(dir)
 		}
@@ -274,6 +275,26 @@ func (a *App) paneItems(s *proto.Session, h *host) []paletteItem {
 			run: func() { delete(a.prefs.Collapsed, project); a.goToPane(sid, pid) }})
 	}
 	return items
+}
+
+// urlWords are an address and its parts, as a pane is found by its site
+// or a part of its path: github.com/egoist/kero by github, egoist or kero.
+func urlWords(addr string) string {
+	u, err := url.Parse(addr)
+	if addr == "" || err != nil || u.Host == "" {
+		return addr
+	}
+	host := strings.TrimPrefix(u.Hostname(), "www.")
+	words := []string{addr, host}
+	if site, _, ok := strings.Cut(host, "."); ok {
+		words = append(words, site)
+	}
+	for _, part := range strings.Split(u.Path, "/") {
+		if part != "" {
+			words = append(words, part)
+		}
+	}
+	return strings.Join(words, " ")
 }
 
 // paletteKey takes the arrows from the palette's field for its list, as
@@ -428,13 +449,13 @@ func (a *App) paletteKeys(items []paletteItem) []paletteItem {
 	for _, key := range keys {
 		switch key {
 		case ui.KeyDown:
-			a.pal.index, a.pal.reveal = min(a.pal.index+1, len(items)-1), true
+			a.pal.index, a.pal.reveal = max(min(a.pal.index+1, len(items)-1), 0), true
 			continue
 		case ui.KeyUp:
 			a.pal.index, a.pal.reveal = max(a.pal.index-1, 0), true
 			continue
 		}
-		if a.pal.query != "" || a.pal.only || a.pal.index >= len(items) {
+		if a.pal.query != "" || a.pal.only || a.pal.index < 0 || a.pal.index >= len(items) {
 			continue
 		}
 		it := items[a.pal.index]
@@ -464,9 +485,32 @@ func (a *App) paletteKeys(items []paletteItem) []paletteItem {
 		default:
 			continue
 		}
-		items = a.paletteMatches()
+		items = a.respliceSessions(items)
 	}
 	return items
+}
+
+// respliceSessions is the list before the user types with its sessions
+// and their panes made again, as one is expanded or collapsed: they head
+// the list, and the rest of it stays as it was.
+func (a *App) respliceSessions(items []paletteItem) []paletteItem {
+	n := 0
+	for n < len(items) && (items[n].kind() == paletteSession || items[n].kind() == palettePane) {
+		n++
+	}
+	return append(a.sessionItems(), items[n:]...)
+}
+
+// key keeps a row's state, as its count's turn, with the row as it moves
+// when a session above it shows or hides its panes.
+func (it *paletteItem) key(i int) any {
+	switch it.kind() {
+	case paletteSession:
+		return "s/" + it.session.ID
+	case palettePane:
+		return "p/" + it.session.ID + "/" + it.pane.ID
+	}
+	return i
 }
 
 func (a *App) paletteView(c *ui.Context, pal *palette) {
@@ -493,7 +537,19 @@ func (a *App) paletteView(c *ui.Context, pal *palette) {
 			in := ui.TextInputBase(c.Key("q"), &a.pal.query).Grow(1).FontSize(15).Placeholder(placeholder).AutoFocus().
 				OnTextKey(a.paletteKey).Bind(&a.pal.field)
 			if in.Changed() {
+				// The list was made for the text before this frame's typing.
+				items = a.paletteMatches()
 				a.pal.index, a.pal.reveal = 0, true
+			}
+			// Away from the field, as on the count by Tab, the arrows that
+			// choose still do.
+			if !in.Focused() {
+				if c.Shortcut(0, ui.KeyDown) || c.Shortcut(ui.Ctrl, ui.KeyN) {
+					a.pal.keys = append(a.pal.keys, ui.KeyDown)
+				}
+				if c.Shortcut(0, ui.KeyUp) || c.Shortcut(ui.Ctrl, ui.KeyP) {
+					a.pal.keys = append(a.pal.keys, ui.KeyUp)
+				}
 			}
 			items = a.paletteKeys(items)
 			if (in.Submitted() || c.Shortcut(0, ui.KeyEnter)) && len(items) > 0 {
@@ -524,14 +580,15 @@ func (a *App) paletteView(c *ui.Context, pal *palette) {
 					ui.Text(c, title).FontSize(11.5).FontWeight(600).TextColor(pal.textFaint).Padding(10, 10, 4, 10)
 				}
 				lastKind = group
-				row := ui.Row(c.Key(i)).Height(38).Padding(0, 10).Gap(10).AlignItems(ui.Center).Radius(8)
-				// A session just expanded shows its first pane too.
-				if reveal && peek && i == a.pal.index+1 {
-					row.ScrollIntoView()
-				}
+				row := ui.Row(c.Key(it.key(i))).Height(38).Padding(0, 10).Gap(10).AlignItems(ui.Center).Radius(8)
 				if i == a.pal.index {
 					row.Background(pal.accent.Alpha(0.12))
-					if reveal && !peek {
+					switch {
+					case reveal && peek:
+						// A session just expanded heads the list, its
+						// panes under it, as far as it scrolls.
+						row.ScrollIntoView(ui.ScrollIntoViewOptions{Block: ui.ScrollStart})
+					case reveal:
 						row.ScrollIntoView()
 					}
 				} else if row.Hovered() {
