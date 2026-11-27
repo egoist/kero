@@ -153,15 +153,23 @@ func handshake(conn net.Conn, hello proto.Hello) (proto.Welcome, *bufio.Reader, 
 }
 
 // DaemonPID returns the pid of the daemon running, whatever its version,
-// or 0.
-func DaemonPID() int {
+// and 0 when no daemon answers the socket. An error says that the socket
+// answered but no hello came: a daemon is there, and it did not say hello.
+func DaemonPID() (int, error) {
 	conn, err := dial(true)
 	if err != nil {
-		return 0
+		// No daemon answers the socket: it is not there, or nothing
+		// listens on it.
+		return 0, nil
 	}
 	defer conn.Close()
-	w, _, _ := handshake(conn, proto.Hello{Kind: "control"})
-	return w.PID
+	w, _, err := handshake(conn, proto.Hello{Kind: "control"})
+	if err != nil && w.PID == 0 {
+		// The socket was answered, but no hello came: the daemon is
+		// there, and it did not say hello.
+		return 0, err
+	}
+	return w.PID, nil
 }
 
 // Client is a control connection.

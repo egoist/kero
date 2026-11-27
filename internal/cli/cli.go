@@ -1275,7 +1275,13 @@ func remoteDaemonCmd(sub string, args []string, host string) error {
 // StopDaemon stops the running daemon, which saves its sessions to start
 // them again, whatever its version.
 func StopDaemon() error {
-	pid := client.DaemonPID()
+	pid, err := client.DaemonPID()
+	if err != nil {
+		// The socket answered, but no hello came: a daemon is there, and
+		// it did not say hello — its pid is unknown, so it cannot be
+		// stopped, and saying it stopped would be a lie.
+		return fmt.Errorf("kerod did not say hello: %w", err)
+	}
 	if pid == 0 {
 		return nil
 	}
@@ -1286,11 +1292,23 @@ func StopDaemon() error {
 	if client.Interrupt(p) != nil {
 		p.Kill()
 	}
+	var lastErr error
 	for range 100 {
-		if client.DaemonPID() == 0 {
+		pid, err := client.DaemonPID()
+		if err == nil && pid == 0 {
 			return nil
 		}
+		if err != nil {
+			// It still answers, and it did not say hello: a kerod that is
+			// shutting down can still accept and close. Keep waiting for
+			// the socket to go quiet, and say the last trouble if it never
+			// does.
+			lastErr = err
+		}
 		time.Sleep(30 * time.Millisecond)
+	}
+	if lastErr != nil {
+		return fmt.Errorf("kerod did not stop: %w", lastErr)
 	}
 	return errors.New("kerod did not stop")
 }
