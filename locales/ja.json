@@ -164,8 +164,6 @@
   "paletteLabel": "セッションへ移動",
   "palettePlaceholder": "セッションへ移動、またはコマンドを実行…",
   "paletteNoMatches": "一致なし",
-  "paletteShowPanes": "{count} 個のペインを表示",
-  "paletteHidePanes": "ペインを隠す",
   "paletteCommands": "コマンド",
   "paletteConversations": "最近の会話",
   "paletteConversationsLabel": "会話を再開",

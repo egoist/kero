@@ -227,7 +227,7 @@ func TestPaletteExpandClick(t *testing.T) {
 	tt := ui.NewTester(a.view, 1100, 640)
 	a.openPalette()
 	tt.Frame()
-	if err := tt.Click(locales.PaletteShowPanes(2)); err != nil {
+	if err := tt.Click(locales.SidebarShowPanes()); err != nil {
 		t.Fatal(err)
 	}
 	tt.Frame()
@@ -237,11 +237,76 @@ func TestPaletteExpandClick(t *testing.T) {
 	if !a.pal.expanded["s1"] || !paletteHasPane(a, "zsh") {
 		t.Errorf("the click didn't show the panes; expanded %v", a.pal.expanded)
 	}
-	if err := tt.Click(locales.PaletteHidePanes()); err != nil {
+	if err := tt.Click(locales.SidebarHidePanes()); err != nil {
 		t.Fatal(err)
 	}
 	tt.Frame()
 	if a.pal.expanded["s1"] || !a.pal.open {
 		t.Errorf("the click didn't hide the panes, or closed the palette")
+	}
+}
+
+// After a click on the count, the field still has the keyboard: → goes
+// into the panes, Return goes to the one chosen, and typing searches.
+func TestPaletteKeysAfterClick(t *testing.T) {
+	a := testApp(t)
+	tt := ui.NewTester(a.view, 1100, 640)
+	a.openPalette()
+	tt.Frame()
+	if err := tt.Click(locales.SidebarShowPanes()); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	tt.Key(0, ui.KeyRight)
+	tt.Frame()
+	if a.pal.index != 1 {
+		t.Fatalf("→ after the click chose %d, want the first pane", a.pal.index)
+	}
+	tt.Type("zs")
+	tt.Frame()
+	if a.pal.query != "zs" {
+		t.Fatalf("typing after the click left the query %q", a.pal.query)
+	}
+	tt.Key(0, ui.KeyEnter)
+	tt.Frame()
+	if a.pal.open {
+		t.Fatal("Return after the click didn't choose")
+	}
+	if s := a.session("s1"); a.focusOf(s) != "b" {
+		t.Errorf("in pane %q, want b", a.focusOf(s))
+	}
+}
+
+// An arrow given while the list was of sessions, then acted on once the
+// user typed and the row chosen is a command, does nothing.
+func TestPaletteStaleArrow(t *testing.T) {
+	a := testApp(t)
+	tt := ui.NewTester(a.view, 1100, 640)
+	a.openPalette()
+	tt.Frame()
+	tt.Type("settings")
+	tt.Key(0, ui.KeyRight)
+	tt.Frame()
+	a.pal.query, a.pal.arrow, a.pal.index = "", 1, 99
+	tt.Frame()
+	a.pal.arrow, a.pal.only = -1, true
+	tt.Frame()
+	if a.pal.expanded["s1"] {
+		t.Error("a stale arrow expanded a session")
+	}
+}
+
+// Typed, panes are found by their own name, not their session's.
+func TestPalettePaneMatchesOwnName(t *testing.T) {
+	a := testApp(t)
+	tt := ui.NewTester(a.view, 1100, 640)
+	a.openPalette()
+	tt.Frame()
+	tt.Type("demo")
+	tt.Frame()
+	for _, it := range a.paletteMatches() {
+		if it.pane != nil {
+			t.Errorf("pane %q found by its session's name", it.title)
+		}
 	}
 }

@@ -240,8 +240,6 @@
   "paletteLabel": "Go to Session",
   "palettePlaceholder": "Go to session or run a command…",
   "paletteNoMatches": "No matches",
-  "paletteShowPanes": "{count, plural, one {Show its # pane} other {Show its # panes}}",
-  "paletteHidePanes": "Hide its panes",
   "paletteCommands": "Commands",
   "paletteConversations": "Recent Conversations",
   "paletteConversationsLabel": "Resume Conversation",
