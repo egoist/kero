@@ -27,10 +27,15 @@ func configCmd(args []string) error {
 		fmt.Println(settings.Path())
 		return nil
 	case "show":
-		s := settings.Load()
 		if f.set["defaults"] {
-			s = settings.Default()
+			fmt.Print(settings.Reference(settings.Default()))
+			return nil
 		}
+		path := settings.Path()
+		if _, err := os.ReadFile(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("the configuration could not be read: %w", err)
+		}
+		s := settings.Load()
 		fmt.Print(settings.Reference(s))
 		return nil
 	case "check":
