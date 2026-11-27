@@ -74,7 +74,10 @@ type paletteItem struct {
 	run     func()
 	score   int
 	words   string // what finds it besides its title and detail, unshown
-	top     bool   // what the query asks for outright, before any match
+	// own, when set, finds it in place of its title and detail, as a split
+	// session by its name, not its pane's folder, which finds that pane.
+	own string
+	top bool // what the query asks for outright, before any match
 }
 
 func (a *App) openPalette() {
@@ -243,8 +246,16 @@ func (a *App) sessionItems(query string) []paletteItem {
 			if h.remote() {
 				detail = h.name + " · " + detail
 			}
-			items = append(items, paletteItem{session: s, title: s.DisplayName(a.set.SessionName), detail: detail + " · " + h.shortDir(s.WorkDir()),
-				run: func() { a.showInSidebar(group, ""); a.selectSession(id) }})
+			it := paletteItem{session: s, title: s.DisplayName(a.set.SessionName), detail: detail + " · " + h.shortDir(s.WorkDir()),
+				run: func() { a.showInSidebar(group, ""); a.selectSession(id) }}
+			if len(s.Panes) > 1 {
+				// Its process and folder are a pane's, listed itself.
+				it.own = it.title + " " + names[s.Project]
+				if h.remote() {
+					it.own += " " + h.name
+				}
+			}
+			items = append(items, it)
 			if len(s.Panes) > 1 && (query != "" || a.pal.expanded[id]) {
 				items = append(items, a.paneItems(s, h, group)...)
 			}
@@ -461,7 +472,10 @@ func (a *App) paletteMatches(query string) []paletteItem {
 		// A pane's detail is its session's, which finds the session; a
 		// pane is found by its name, scored as a title below, and words.
 		sc := -1
-		if it.pane == nil {
+		switch {
+		case it.own != "":
+			sc = fuzzy(query, it.own)
+		case it.pane == nil:
 			sc = fuzzy(query, it.title+" "+it.detail)
 		}
 		sc = max(sc, keywords(query, it.words))

@@ -508,3 +508,19 @@ func TestPalettePanesBeforeConversations(t *testing.T) {
 		t.Errorf("Resume Conversation… didn't find the conversation alone")
 	}
 }
+
+// Typed, a split session is found by its own name, not by the folder of
+// the pane it shows, which is listed itself: that pane shows once.
+func TestPaletteSplitSessionNotFoundByPane(t *testing.T) {
+	a := testApp(t)
+	s := a.session("s1")
+	s.ProcessDir, s.PaneByID("a").ProcessDir = "/tmp/webapp", "/tmp/webapp" // its lead pane's
+	items := a.paletteMatches("webapp")
+	if len(items) != 1 || items[0].pane == nil || items[0].pane.ID != "a" {
+		t.Fatalf("webapp found %d rows, want pane a alone", len(items))
+	}
+	a.pal.matches = nil
+	if items := a.paletteMatches("demo"); len(items) == 0 || items[0].kind() != paletteSession {
+		t.Errorf("demo didn't find its session")
+	}
+}
