@@ -194,7 +194,7 @@ kero diff review --branch                 # 自默认分支以来的改动
 kero config path                 # 配置文件所在位置
 kero config show                 # 每个配置项及其值
 kero config show --defaults      # 每个配置项的默认值
-kero config edit                 # 在 $EDITOR 中打开它
+kero config edit                 # 在 $VISUAL 或 $EDITOR 中打开它
 kero config check                # 报告未知的配置项、无效的值和agents.toml 的问题
 kero projects                    # 按边栏的顺序列出项目
 kero projects move <project> top # 移动：top、bottom、up、down 或位置（1 为顶部）
