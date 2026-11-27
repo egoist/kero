@@ -128,7 +128,9 @@ kero events --for waiting --once          # 第一个事件之后就退出
 ```sh
 kero split --url localhost:3000            # 打开网页，并打印窗格的 id
 kero browser open localhost:3000/todos     # 前往某个网页，并等待加载完成
-kero browser type '#new-todo' "Buy milk" --enter
+kero browser snapshot                      # 页面显示的内容，每个元素带一个 ref
+kero browser type --ref e3 "Buy milk" --enter
+kero browser click --ref e5
 kero browser wait '.todo-list li'          # 等到某个元素出现
 kero browser wait --text "1 item left"     # 等到某段文本出现
 kero browser text                          # 页面的文本
@@ -144,15 +146,20 @@ kero browser eval 'document.title'
 | `back`, `forward`, `reload`     | 后退、前进或重新加载页面，并等待完成 |
 | `text [selector]`               | 打印页面的可见文本，或第一个匹配元素的文本 |
 | `html [selector]`               | 打印页面的 HTML，或该元素的 HTML |
+| `snapshot [selector]`           | 把页面显示的内容打印为角色和名称的树（`button "Add"`、`textbox "Email"`），每个元素带一个 ref；指定选择器时只打印该元素的部分 |
 | `click <selector>`              | 像鼠标一样点击该元素 |
 | `type <selector> <text…>`       | 向输入框输入文本，替换原有内容；`--enter` 会在之后按回车，从而提交所在表单 |
 | `wait [selector] [--text text]` | 等到元素或文本出现；两者都不给时，等到页面加载完成 |
 | `eval <js…>`                    | 在页面中运行 JavaScript 并打印结果：字符串原样输出，其他值输出为 JSON |
 | `screenshot [-o file.png]`      | 保存页面截图，并打印保存位置；`-o -` 会写到标准输出 |
+| `cookies save [file]`           | 把浏览器的 Cookie 保存到文件，未指定文件则打印；`--domain` 只保存某个站点的 |
+| `cookies load <file>`           | 从文件加载 Cookie；`--domain` 只加载某个站点的 |
 
-选择器是 CSS 选择器，在 shell 中记得加引号。需要元素的命令会等它出现，`--timeout`（默认 `10s`）设定这些命令以及页面加载最多等多久。`type` 和 `eval` 接受 `-`，表示从标准输入读取文本。
+选择器是 CSS 选择器，在 shell 中记得加引号。凡是命令接受选择器的地方，都可以用 `--ref` 传入 `snapshot` 给出的 ref（`kero browser click --ref e5`）。元素在页面跳转前一直保留它的 ref；元素已消失的 ref 会直接失败，而不是去猜另一个元素。需要元素的命令会等它出现，`--timeout`（默认 `10s`）设定这些命令以及页面加载最多等多久。`type` 和 `eval` 接受 `-`，表示从标准输入读取文本。
 
-点击和输入发送的是真实鼠标和键盘会产生的事件，所以 React 等框架构建的页面也能收到。截图需要窗格显示在屏幕上：先用 `kero focus` 显示它。其余命令对任何浏览器窗格都有效，无论是否显示。
+点击和输入发送的是真实鼠标和键盘会产生的事件，所以 React 等框架构建的页面也能收到。每个命令对任何浏览器窗格都有效，无论是否显示：对未显示在屏幕上的窗格截图，也不会夺走你手头工作的焦点。
+
+浏览器窗格共享 Cookie，并在 Kero 重启后保留。`cookies` 以 Playwright 的 storage state（JSON）保存；文件名以 `.txt` 结尾时，保存为 curl 和浏览器扩展通用的 Netscape `cookies.txt`。`load` 两者都能读。Cookie 意味着登录态：只把这个文件交给信得过你登录态的对象。Cookie 只留在这台 Mac 上，主机上的程序无法保存或读取。
 
 和 `kero do` 一样，`kero browser` 需要开启 **设置 › 智能体** 中的 **远程控制**，并且 app 处于打开状态。
 

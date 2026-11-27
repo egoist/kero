@@ -76,3 +76,5 @@ keybind = ctrl+`=quickTerminal.toggle
 ```
 
 它显示一个专属会话“快速终端”，隐藏时和退出 Kero 后都会继续运行，边栏也会和其他会话一起列出它。shell 退出后，下次按下会启动新的 shell。也可以从**显示 › 快速终端**和菜单栏图标的菜单打开它，或用 `kero do quickTerminal.toggle` 在脚本中切换。
+
+在 Wayland 上，桌面通过 XDG 桌面门户绑定该快捷键，可能会请你确认；没有门户全局快捷键的桌面，可以在自己的键盘设置中把 `kero do quickTerminal.toggle` 绑定到某个键。
