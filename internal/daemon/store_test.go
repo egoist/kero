@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -189,5 +190,39 @@ func TestSavesDoNotOverlap(t *testing.T) {
 	wg.Wait()
 	if overlapped > 0 {
 		t.Errorf("%d saves ran at once", overlapped)
+	}
+}
+
+// A state that is there but cannot be read is not written over: the
+// rename of a write needs only the folder's permission, and the file it
+// replaces is the only copy of what the user had — the sessions they
+// could have taken back with a chmod are gone for good instead.
+func TestUnreadableStateIsKept(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("permissions are Unix's")
+	}
+	if os.Geteuid() == 0 {
+		t.Skip("root reads a file with no read permission")
+	}
+	d := testDaemon(t)
+	var buf bytes.Buffer
+	d.log = log.New(&buf, "", 0)
+	old := []byte(`{"version":2,"sessions":[{"id":"kept"}]}`)
+	if err := os.WriteFile(d.statePath(), old, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	// It is there, and it cannot be read.
+	if err := os.Chmod(d.statePath(), 0); err != nil {
+		t.Fatal(err)
+	}
+	d.saveState()
+	if !strings.Contains(buf.String(), "state") {
+		t.Fatalf("the kept state was not said: %q", buf.String())
+	}
+	if err := os.Chmod(d.statePath(), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if b, _ := os.ReadFile(d.statePath()); string(b) != string(old) {
+		t.Fatalf("the state was written over: %q", b)
 	}
 }

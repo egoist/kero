@@ -141,6 +141,18 @@ func (d *Daemon) saveHistories(force bool) {
 }
 
 func writeAtomic(path string, data []byte) error {
+	// A file that is there but cannot be read is not written over: the
+	// rename needs only the folder's permission, and the file it
+	// replaces is the only copy of what the user had — the state they
+	// could have taken back with a chmod is gone for good instead. One
+	// that is not there is no news.
+	if f, err := os.Open(path); err != nil {
+		if !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+	} else {
+		f.Close()
+	}
 	tmp := path + ".tmp"
 	if err := os.WriteFile(tmp, data, 0o600); err != nil {
 		return err
