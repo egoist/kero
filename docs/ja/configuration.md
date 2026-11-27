@@ -115,7 +115,7 @@ kero config check             # 不明なキー、不正な値、agents.toml の
 
 | キー             | デフォルト | 説明                                                |
 | ---------------- | ---------- | --------------------------------------------------- |
-| `remote-control` | `true`     | `kero do` と `kero focus` によるアプリの操作を許可する |
+| `remote-control` | `true`     | `kero do`、`kero focus`、`kero browser` によるアプリの操作を許可する |
 
 ## ホスト
 
