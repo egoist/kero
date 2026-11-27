@@ -46,6 +46,20 @@ The buttons above the tree make a new file or folder at its top, and a file's or
 
 The menu also opens a file in the app the system opens it with, shows it in Finder or Explorer, copies its path or its path from the worktree's root, and sends a path to the agent in the pane: typed there without <kbd>Return</kbd>, for you to finish the sentence.
 
+The file viewer opens text files up to 4 MiB in size.
+
+### Markdown preview
+
+Files ending in `.md` or `.markdown` (case-insensitive) open in **Source** mode, where you can edit the Markdown text. Choose **Preview** in the file card's header to read the formatted Markdown, including unsaved edits. Switching does not save or reread the file; returning to Source preserves the text, undo history, selection and editor scroll position. Save with Cmd/Ctrl+S in either mode. See [Editing](#editing) for saving, external updates and conflicts.
+
+The preview supports headings and anchors, lists and task lists, tables, emphasis, quotes, highlighted code with a copy button, and text selection and copying. Long code lines and wide tables scroll horizontally.
+
+Images in their own paragraphs, including linked images, load document-relative paths from the same host as the document, including remote hosts. Images mixed into text still show their descriptions. HTTP/HTTPS images require **Load network images** permission for each open document; requests are made from your computer, without cookies or a referrer, and private-network destinations are blocked. Unavailable images keep their descriptions. Use **Reload images** to retry failed loads. Images are limited to 8 MiB and 16 megapixels each, with up to 128 images and a combined 64-megapixel decoded-image budget per document; the document itself is never truncated.
+
+Relative document links open in the Files viewer on the same host, including heading fragments such as `guide.md#install`. Opening another file still asks about unsaved edits. Markdown targets open in Preview; other text files open in Source. Absolute paths and non-web URL schemes are not followed as file links. HTTP, HTTPS and mailto links open externally.
+
+Standalone, balanced `<details>` / `<summary>` blocks can be expanded and collapsed, including nested blocks and Markdown in their bodies. The `open` attribute expands a block initially, and jumping to a heading inside a folded block expands it. Other HTML is not rendered as a web page, and math is shown as text. In documents with foldable blocks, ordinary copying copies selected text; **Copy Markdown Source** (Shift+Cmd/Ctrl+C) copies the complete original Markdown, including folded content.
+
 ## Editing
 
 A file you open from Files, and the new side of a diff in Changes, edit as in VS Code or Zed. Press <kbd>⌘</kbd> <kbd>S</kbd> to save the file you're in. Until you do, a dot takes the place of the card's <kbd>×</kbd>, and of a diff's file name. Closing the card, or opening another file in its place, asks whether to save your changes first. Quitting Kero doesn't: your unsaved changes are still there, unsaved, when you open it again, with the files they're in.

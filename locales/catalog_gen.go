@@ -4866,6 +4866,96 @@ func (msgs Messages) ChangesSplit() string {
 	return Catalog.Format(msgs.locale, "changesSplit", nil)
 }
 
+// ViewerSource says "Source"
+// in the language the app shows.
+func ViewerSource() string { return In(i18n.Locale()).ViewerSource() }
+
+// ViewerSource says "Source"
+// in the language of msgs.
+func (msgs Messages) ViewerSource() string {
+	return Catalog.Format(msgs.locale, "viewerSource", nil)
+}
+
+// ViewerPreview says "Preview"
+// in the language the app shows.
+func ViewerPreview() string { return In(i18n.Locale()).ViewerPreview() }
+
+// ViewerPreview says "Preview"
+// in the language of msgs.
+func (msgs Messages) ViewerPreview() string {
+	return Catalog.Format(msgs.locale, "viewerPreview", nil)
+}
+
+// MarkdownDetails says "Details"
+// in the language the app shows.
+func MarkdownDetails() string { return In(i18n.Locale()).MarkdownDetails() }
+
+// MarkdownDetails says "Details"
+// in the language of msgs.
+func (msgs Messages) MarkdownDetails() string {
+	return Catalog.Format(msgs.locale, "markdownDetails", nil)
+}
+
+// MarkdownLoadNetworkImages says "Load network images"
+// in the language the app shows.
+func MarkdownLoadNetworkImages() string { return In(i18n.Locale()).MarkdownLoadNetworkImages() }
+
+// MarkdownLoadNetworkImages says "Load network images"
+// in the language of msgs.
+func (msgs Messages) MarkdownLoadNetworkImages() string {
+	return Catalog.Format(msgs.locale, "markdownLoadNetworkImages", nil)
+}
+
+// MarkdownNetworkImagesHint says "Allow this document to fetch public HTTP/HTTPS images from this computer."
+// in the language the app shows.
+func MarkdownNetworkImagesHint() string { return In(i18n.Locale()).MarkdownNetworkImagesHint() }
+
+// MarkdownNetworkImagesHint says "Allow this document to fetch public HTTP/HTTPS images from this computer."
+// in the language of msgs.
+func (msgs Messages) MarkdownNetworkImagesHint() string {
+	return Catalog.Format(msgs.locale, "markdownNetworkImagesHint", nil)
+}
+
+// MarkdownImagesFailed says "Some images could not be loaded."
+// in the language the app shows.
+func MarkdownImagesFailed() string { return In(i18n.Locale()).MarkdownImagesFailed() }
+
+// MarkdownImagesFailed says "Some images could not be loaded."
+// in the language of msgs.
+func (msgs Messages) MarkdownImagesFailed() string {
+	return Catalog.Format(msgs.locale, "markdownImagesFailed", nil)
+}
+
+// MarkdownReloadImages says "Reload images"
+// in the language the app shows.
+func MarkdownReloadImages() string { return In(i18n.Locale()).MarkdownReloadImages() }
+
+// MarkdownReloadImages says "Reload images"
+// in the language of msgs.
+func (msgs Messages) MarkdownReloadImages() string {
+	return Catalog.Format(msgs.locale, "markdownReloadImages", nil)
+}
+
+// ViewerLinkUnsupported says "This document link is not supported."
+// in the language the app shows.
+func ViewerLinkUnsupported() string { return In(i18n.Locale()).ViewerLinkUnsupported() }
+
+// ViewerLinkUnsupported says "This document link is not supported."
+// in the language of msgs.
+func (msgs Messages) ViewerLinkUnsupported() string {
+	return Catalog.Format(msgs.locale, "viewerLinkUnsupported", nil)
+}
+
+// MarkdownCopySource says "Copy Markdown Source"
+// in the language the app shows.
+func MarkdownCopySource() string { return In(i18n.Locale()).MarkdownCopySource() }
+
+// MarkdownCopySource says "Copy Markdown Source"
+// in the language of msgs.
+func (msgs Messages) MarkdownCopySource() string {
+	return Catalog.Format(msgs.locale, "markdownCopySource", nil)
+}
+
 // ViewerWrap says "Wrap Lines"
 // in the language the app shows.
 func ViewerWrap() string { return In(i18n.Locale()).ViewerWrap() }
