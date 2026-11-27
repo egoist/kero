@@ -478,7 +478,15 @@ func (a *App) paletteMatches(query string) []paletteItem {
 		items = append(items, it)
 	}
 	if query != "" {
-		slices.SortStableFunc(items, func(x, y paletteItem) int { return y.score - x.score })
+		// Conversations of the past come after what is open, however well
+		// they match, or they would bury the sessions and panes.
+		past := func(it *paletteItem) int {
+			if it.kind() == paletteConversation && !a.pal.only {
+				return 1
+			}
+			return 0
+		}
+		slices.SortStableFunc(items, func(x, y paletteItem) int { return cmp.Or(past(&x)-past(&y), y.score-x.score) })
 	}
 	if a.pal.matches == nil {
 		a.pal.matches = map[string][]paletteItem{}

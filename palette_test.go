@@ -7,6 +7,7 @@ import (
 	"github.com/egoist/mygo/i18n"
 	"github.com/egoist/mygo/ui"
 
+	"kero/internal/proto"
 	"kero/locales"
 )
 
@@ -489,5 +490,21 @@ func TestPaletteReturnAfterExpandSameFrame(t *testing.T) {
 	chosen()
 	if s := a.session("s1"); a.focusOf(s) != "b" {
 		t.Errorf("in pane %q, want b", a.focusOf(s))
+	}
+}
+
+// Typed, an open pane that matches comes before a conversation of the
+// past that matches better.
+func TestPalettePanesBeforeConversations(t *testing.T) {
+	a := testApp(t)
+	a.session("s1").PaneByID("b").ProcessDir = "/tmp/webapp"
+	a.pal.convs = []hostConversation{{host: a.hosts[0], Conversation: proto.Conversation{ID: "c1", Agent: "claude", Name: "webapp"}}}
+	items := a.paletteMatches("webapp")
+	if len(items) < 2 || items[0].pane == nil || items[len(items)-1].conv == nil {
+		t.Fatalf("webapp didn't find pane b before the conversation: %d rows, first %q", len(items), items[0].title)
+	}
+	a.pal.matches, a.pal.only = nil, true
+	if items := a.paletteMatches("webapp"); len(items) != 1 || items[0].conv == nil {
+		t.Errorf("Resume Conversation… didn't find the conversation alone")
 	}
 }
