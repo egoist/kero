@@ -113,6 +113,17 @@ func (r Repo) State(ctx context.Context, branch, base string) (WorktreeState, er
 	ws.Unpushed, _ = strconv.Atoi(strings.TrimSpace(string(out)))
 	if base != "" {
 		_, err := run(ctx, r.Root, nil, "merge-base", "--is-ancestor", ref, base)
+		if err != nil {
+			var ee *exec.ExitError
+			if !errors.As(err, &ee) || ee.ExitCode() != 1 {
+				// Exit 1 is the answer — no, the base does not have
+				// every commit. Any other failure had no answer — a git
+				// that broke mid-question — which is a failure to say,
+				// not "not merged": that would ask the user to force
+				// away commits no check ever saw.
+				return WorktreeState{}, err
+			}
+		}
 		ws.Merged = err == nil
 	}
 	return ws, nil
