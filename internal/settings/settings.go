@@ -39,6 +39,9 @@ type Settings struct {
 	AppIcon           string `json:"appIcon"`           // macOS: AppIcons; elsewhere the icon is always in the notification area
 	KeepAwake         string `json:"keepAwake"`         // one of KeepAwakeModes: while the computer is kept from sleeping
 	KeepDisplayOn     bool   `json:"keepDisplayOn"`     // while it is, its display stays on too: macOS and Windows
+	// KeepAwakeLidClosed keeps a Mac awake with its lid closed on battery
+	// too, while it is, by a helper Kero installs as Settings turns it on.
+	KeepAwakeLidClosed bool `json:"keepAwakeLidClosed"`
 
 	// Appearance
 	Appearance string `json:"appearance"` // "system", "light" or "dark"

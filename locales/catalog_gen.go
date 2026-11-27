@@ -2620,6 +2620,46 @@ func (msgs Messages) AwakeDetail() string {
 	return Catalog.Format(msgs.locale, "awakeDetail", nil)
 }
 
+// AwakeLid says "Stay awake with the lid closed"
+// in the language the app shows.
+func AwakeLid() string { return In(i18n.Locale()).AwakeLid() }
+
+// AwakeLid says "Stay awake with the lid closed"
+// in the language of msgs.
+func (msgs Messages) AwakeLid() string {
+	return Catalog.Format(msgs.locale, "awakeLid", nil)
+}
+
+// AwakeLidDetail says "On battery too. The first time, Kero asks for your password to install a helper that turns sleep off. Sleep comes bac…"
+// in the language the app shows.
+func AwakeLidDetail() string { return In(i18n.Locale()).AwakeLidDetail() }
+
+// AwakeLidDetail says "On battery too. The first time, Kero asks for your password to install a helper that turns sleep off. Sleep comes bac…"
+// in the language of msgs.
+func (msgs Messages) AwakeLidDetail() string {
+	return Catalog.Format(msgs.locale, "awakeLidDetail", nil)
+}
+
+// AwakeLidPrompt says "Kero wants to install a helper that keeps this Mac awake with its lid closed."
+// in the language the app shows.
+func AwakeLidPrompt() string { return In(i18n.Locale()).AwakeLidPrompt() }
+
+// AwakeLidPrompt says "Kero wants to install a helper that keeps this Mac awake with its lid closed."
+// in the language of msgs.
+func (msgs Messages) AwakeLidPrompt() string {
+	return Catalog.Format(msgs.locale, "awakeLidPrompt", nil)
+}
+
+// AwakeLidFailed says "Couldn’t install the helper: {error}"
+// in the language the app shows.
+func AwakeLidFailed(error string) string { return In(i18n.Locale()).AwakeLidFailed(error) }
+
+// AwakeLidFailed says "Couldn’t install the helper: {error}"
+// in the language of msgs.
+func (msgs Messages) AwakeLidFailed(error string) string {
+	return Catalog.Format(msgs.locale, "awakeLidFailed", map[string]any{"error": error})
+}
+
 // AwakeDisplay says "Keep display on"
 // in the language the app shows.
 func AwakeDisplay() string { return In(i18n.Locale()).AwakeDisplay() }
