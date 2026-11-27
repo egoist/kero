@@ -36,16 +36,21 @@ type paletteState struct {
 	// expanded are the sessions whose panes the list shows under them
 	// before the user types; typed, every pane that matches shows.
 	expanded map[string]bool
-	// keys are the navigation and submit keys the list acts on in order.
-	// peek aligns a newly expanded session at the top of the list.
-	keys  []paletteInput
-	peek  bool
-	field ui.Handle
+	// keys are the navigation and submit keys, and clicks on a count, the
+	// list acts on in order. peek aligns a newly expanded session at the
+	// top of the list.
+	keys []paletteInput
+	peek bool
+	// matches are the items found for each query this frame.
+	matches map[string][]paletteItem
 }
 
+// paletteInput is a key the list acts on, or with toggle a click on that
+// session's count of panes.
 type paletteInput struct {
-	key   ui.Key
-	query string // text in the field when this key was pressed
+	key    ui.Key
+	query  string // text in the field when this key was pressed
+	toggle string
 }
 
 // hostConversation is a conversation a host's kerod remembers.
@@ -73,7 +78,7 @@ type paletteItem struct {
 }
 
 func (a *App) openPalette() {
-	a.pal = paletteState{open: true, reveal: true, gen: a.pal.gen + 1}
+	a.pal = paletteState{open: true, reveal: true, gen: a.pal.gen + 1, expanded: map[string]bool{}}
 	a.loadConversations()
 }
 
@@ -114,10 +119,7 @@ func (a *App) loadConversations() {
 // as a session the palette has already shows them; all of them with only.
 func (a *App) conversationItems() []paletteItem {
 	var items []paletteItem
-	names := map[string]string{}
-	for _, p := range a.st.Projects {
-		names[p.ID] = p.Name
-	}
+	names := a.projectNames()
 	now := time.Now()
 	for i := range a.pal.convs {
 		cv := &a.pal.convs[i]
@@ -228,11 +230,9 @@ func (a *App) paletteItems(query string) []paletteItem {
 // with its panes under it when expanded, or once the user types.
 func (a *App) sessionItems(query string) []paletteItem {
 	var items []paletteItem
-	names := map[string]string{}
-	for _, p := range a.st.Projects {
-		names[p.ID] = p.Name
-	}
+	names := a.projectNames()
 	for _, g := range a.groups() {
+		group := g.key()
 		for _, s := range g.sessions {
 			id := s.ID
 			detail := names[s.Project]
@@ -244,19 +244,41 @@ func (a *App) sessionItems(query string) []paletteItem {
 				detail = h.name + " · " + detail
 			}
 			items = append(items, paletteItem{session: s, title: s.DisplayName(a.set.SessionName), detail: detail + " · " + h.shortDir(s.WorkDir()),
-				run: func() { delete(a.prefs.Collapsed, s.Project); a.selectSession(id) }})
+				run: func() { a.showInSidebar(group, ""); a.selectSession(id) }})
 			if len(s.Panes) > 1 && (query != "" || a.pal.expanded[id]) {
-				items = append(items, a.paneItems(s, h)...)
+				items = append(items, a.paneItems(s, h, group)...)
 			}
 		}
 	}
 	return items
 }
 
+// projectNames are the projects' names by their ids.
+func (a *App) projectNames() map[string]string {
+	names := map[string]string{}
+	for _, p := range a.st.Projects {
+		names[p.ID] = p.Name
+	}
+	return names
+}
+
+// showInSidebar opens the sidebar's group of that key, and with sid
+// shows that session's panes under it, for what the palette goes to.
+func (a *App) showInSidebar(group, sid string) {
+	delete(a.prefs.Collapsed, group)
+	if sid != "" {
+		if a.prefs.Expanded == nil {
+			a.prefs.Expanded = map[string]bool{}
+		}
+		a.prefs.Expanded[sid] = true
+	}
+	a.savePrefs()
+}
+
 // paneItems are the palette's items for the panes of a session, in the
 // sidebar's order. Each is found by its own name, program, folder and
-// address, not its session's.
-func (a *App) paneItems(s *proto.Session, h *host) []paletteItem {
+// address, not its session's. group is the sidebar's group of the session.
+func (a *App) paneItems(s *proto.Session, h *host, group string) []paletteItem {
 	name := s.DisplayName(a.set.SessionName)
 	var items []paletteItem
 	for i := range s.Panes {
@@ -271,27 +293,33 @@ func (a *App) paneItems(s *proto.Session, h *host) []paletteItem {
 		} else if dir != "" {
 			detail += " · " + h.shortDir(dir)
 		}
-		sid, project := s.ID, s.Project
-		words := p.Title + " " + p.Process + " " + p.Agent + " " + urlWords(p.URL)
+		sid := s.ID
+		words := strings.Join([]string{p.Title, p.Process, p.Agent, p.Runtime, p.Shell,
+			strings.Join(p.Command, " "), urlWords(p.URL)}, " ")
 		if dir != "" {
 			words += " " + dir + " " + proto.DirName(dir)
 		}
 		items = append(items, paletteItem{session: s, pane: p, title: p.PaneName(), detail: detail, words: words,
-			run: func() { delete(a.prefs.Collapsed, project); a.goToPane(sid, pid) }})
+			run: func() { a.showInSidebar(group, sid); a.goToPane(sid, pid) }})
 	}
 	return items
 }
 
 // urlWords are an address and its parts, as a pane is found by its site
-// or a part of its path: github.com/egoist/kero by github, egoist or kero.
+// or a part of its path: github.com/egoist/kero by github, egoist or kero,
+// and localhost:5173 by localhost or 5173.
 func urlWords(addr string) string {
 	u, err := url.Parse(addr)
 	if addr == "" || err != nil || u.Host == "" {
 		return addr
 	}
-	host := strings.TrimPrefix(u.Hostname(), "www.")
+	host := proto.URLHost(addr)
 	words := []string{addr, host}
-	if site, _, ok := strings.Cut(host, "."); ok {
+	name, port, _ := strings.Cut(host, ":")
+	if port != "" {
+		words = append(words, name, port)
+	}
+	if site, _, ok := strings.Cut(name, "."); ok {
 		words = append(words, site)
 	}
 	for _, part := range strings.Split(u.Path, "/") {
@@ -320,20 +348,18 @@ func (a *App) paletteKey(k ui.TextKey) bool {
 	default:
 		return false
 	}
-	a.pal.keys = append(a.pal.keys, paletteInput{key, query})
+	a.pal.keys = append(a.pal.keys, paletteInput{key: key, query: query})
 	return true
 }
 
 // expandPalette shows or hides the panes of a session under it.
 func (a *App) expandPalette(sid string, open bool) {
-	if a.pal.expanded == nil {
-		a.pal.expanded = map[string]bool{}
-	}
 	if open {
 		a.pal.expanded[sid] = true
 	} else {
 		delete(a.pal.expanded, sid)
 	}
+	a.pal.matches = nil
 }
 
 // What a palette's item is, which its group in the list goes by.
@@ -354,6 +380,15 @@ func (it *paletteItem) kind() int {
 		return paletteConversation
 	}
 	return paletteCommand
+}
+
+// group is the group of the list an item heads or is in: a pane's is its
+// session's.
+func (it *paletteItem) group() int {
+	if k := it.kind(); k != palettePane {
+		return k
+	}
+	return paletteSession
 }
 
 // fuzzy scores how well query matches s, as its letters in order: higher
@@ -418,6 +453,9 @@ func keywords(query, words string) int {
 // paletteMatches are the palette's items that match what the user typed,
 // the best first.
 func (a *App) paletteMatches(query string) []paletteItem {
+	if items, ok := a.pal.matches[query]; ok {
+		return items
+	}
 	var items []paletteItem
 	for _, it := range a.paletteItems(query) {
 		// A pane's detail is its session's, which finds the session; a
@@ -442,6 +480,10 @@ func (a *App) paletteMatches(query string) []paletteItem {
 	if query != "" {
 		slices.SortStableFunc(items, func(x, y paletteItem) int { return y.score - x.score })
 	}
+	if a.pal.matches == nil {
+		a.pal.matches = map[string][]paletteItem{}
+	}
+	a.pal.matches[query] = items
 	return items
 }
 
@@ -477,6 +519,10 @@ func (a *App) paletteKeys() ([]paletteItem, func()) {
 		if input.query != query {
 			query = input.query
 			items = a.paletteResults(query)
+		}
+		if input.toggle != "" {
+			items = a.togglePalette(items, input.toggle)
+			continue
 		}
 		if input.key == ui.KeyEnter && len(items) > 0 {
 			chosen = items[a.pal.index].run
@@ -521,7 +567,7 @@ func (a *App) paletteKeys() ([]paletteItem, func()) {
 		default:
 			continue
 		}
-		items = a.respliceSessions(items)
+		items = a.paletteMatches(query)
 	}
 	if query != a.pal.query {
 		items = a.paletteResults(a.pal.query)
@@ -529,15 +575,20 @@ func (a *App) paletteKeys() ([]paletteItem, func()) {
 	return items, chosen
 }
 
-// respliceSessions is the list before the user types with its sessions
-// and their panes made again, as one is expanded or collapsed: they head
-// the list, and the rest of it stays as it was.
-func (a *App) respliceSessions(items []paletteItem) []paletteItem {
-	n := 0
-	for n < len(items) && (items[n].kind() == paletteSession || items[n].kind() == palettePane) {
-		n++
+// togglePalette shows or hides a session's panes, as a click on its count
+// does, and chooses the session. It returns the list as it then is.
+func (a *App) togglePalette(items []paletteItem, sid string) []paletteItem {
+	open := !a.pal.expanded[sid]
+	a.expandPalette(sid, open)
+	items = a.paletteMatches(a.pal.resultsQuery)
+	for i, it := range items {
+		if it.kind() == paletteSession && it.session.ID == sid {
+			a.movePaletteSelection(i)
+			a.pal.peek = open
+			break
+		}
 	}
-	return append(a.sessionItems(""), items[n:]...)
+	return items
 }
 
 // key keeps a row's state, as its count's turn, with the row as it moves
@@ -565,6 +616,7 @@ func (a *App) paletteView(c *ui.Context, pal *palette) {
 			none = locales.PaletteNoConversations()
 		}
 	}
+	a.pal.matches = nil // the sessions may have changed since
 	ui.DialogBase(c.Key("palette"), &a.pal.open, func(backdrop, panel ui.Element) {
 		backdrop.Background(pal.overlay).Justify(ui.Start).Padding(84, 0, 0, 0)
 		floating(panel.Width(600).MaxHeight(460).Radius(14).Background(pal.popover), pal).Clip().
@@ -572,19 +624,9 @@ func (a *App) paletteView(c *ui.Context, pal *palette) {
 		ui.Row(c).Height(50).Shrink(0).Padding(0, 16).Gap(10).AlignItems(ui.Center).Children(func() {
 			ui.Icon(c, searchIcon).Size(16, 16).TextColor(pal.textMuted)
 			in := ui.TextInputBase(c.Key("q"), &a.pal.query).Grow(1).FontSize(15).Placeholder(placeholder).AutoFocus().
-				OnTextKey(a.paletteKey).Bind(&a.pal.field)
-			// Away from the field, as on the count by Tab, the arrows that
-			// choose still do.
-			if !in.Focused() {
-				if c.Shortcut(0, ui.KeyDown) || c.Shortcut(ui.Ctrl, ui.KeyN) {
-					a.pal.keys = append(a.pal.keys, paletteInput{ui.KeyDown, a.pal.query})
-				}
-				if c.Shortcut(0, ui.KeyUp) || c.Shortcut(ui.Ctrl, ui.KeyP) {
-					a.pal.keys = append(a.pal.keys, paletteInput{ui.KeyUp, a.pal.query})
-				}
-			}
+				OnTextKey(a.paletteKey)
 			if in.Submitted() || c.Shortcut(0, ui.KeyEnter) {
-				a.pal.keys = append(a.pal.keys, paletteInput{ui.KeyEnter, a.pal.query})
+				a.pal.keys = append(a.pal.keys, paletteInput{key: ui.KeyEnter, query: a.pal.query})
 			}
 			items, chosen = a.paletteKeys()
 		})
@@ -597,11 +639,7 @@ func (a *App) paletteView(c *ui.Context, pal *palette) {
 			}
 			lastKind := paletteSession
 			for i, it := range items {
-				kind := it.kind()
-				group := kind
-				if group == palettePane {
-					group = paletteSession
-				}
+				kind, group := it.kind(), it.group()
 				// Conversations head their group even first, as with no
 				// sessions, or they would read as sessions.
 				if (i > 0 || kind == paletteConversation) && group != lastKind && a.pal.query == "" && !a.pal.only {
@@ -652,8 +690,10 @@ func (a *App) paletteView(c *ui.Context, pal *palette) {
 					// A session of panes shows how many by its name, as in
 					// the sidebar; a click shows or hides them under it.
 					if kind == paletteSession && len(it.session.Panes) > 1 && a.pal.query == "" && !a.pal.only &&
-						a.panesToggle(c, pal, it.session, a.pal.expanded[it.session.ID]) {
-						a.expandPalette(it.session.ID, !a.pal.expanded[it.session.ID])
+						a.panesToggle(c, pal, it.session, a.pal.expanded[it.session.ID], true) {
+						// Acted on next frame, in order with the keys.
+						a.pal.keys = append(a.pal.keys, paletteInput{query: a.pal.query, toggle: it.session.ID})
+						c.Invalidate()
 						toggled = true
 					}
 					ui.Text(c, it.detail).FontSize(12.5).TextColor(pal.textFaint).SingleLine().Ellipsis("…").Grow(1).MinWidth(0)
@@ -662,12 +702,7 @@ func (a *App) paletteView(c *ui.Context, pal *palette) {
 					}
 				})
 				if toggled {
-					// The button took the keyboard with the click: the
-					// field has it back, for the arrows and typing.
-					chosen = nil
-					a.pal.index = i
-					a.pal.reveal, a.pal.peek = true, a.pal.expanded[it.session.ID]
-					a.pal.field.Focus()
+					chosen = nil // the count's click, not the row's
 				}
 			}
 		})

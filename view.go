@@ -602,7 +602,7 @@ func (a *App) sessionRow(c *ui.Context, pal *palette, s *proto.Session, n *int) 
 			if s.Status == proto.Exited && !s.Unread {
 				name.TextColor(pal.textMuted)
 			}
-			if len(s.Panes) > 1 && a.panesToggle(c, pal, s, expanded) {
+			if len(s.Panes) > 1 && a.panesToggle(c, pal, s, expanded, false) {
 				id := s.ID
 				a.defer_(func() { a.toggleSessionPanes(id) })
 			}
@@ -675,14 +675,18 @@ func (a *App) sessionRow(c *ui.Context, pal *palette, s *proto.Session, n *int) 
 
 // panesToggle is a split session's count of panes by its name, which
 // shows or hides them under its row, in the sidebar or the palette: it
-// reports a click, which the caller acts on.
-func (a *App) panesToggle(c *ui.Context, pal *palette, s *proto.Session, expanded bool) bool {
+// reports a click, which the caller acts on. inField keeps the keyboard
+// in the field that has it, as the palette's, and out of Tab's way.
+func (a *App) panesToggle(c *ui.Context, pal *palette, s *proto.Session, expanded, inField bool) bool {
 	label := locales.SidebarShowPanes()
 	if expanded {
 		label = locales.SidebarHidePanes()
 	}
 	b := ui.ButtonBase(c.Key("panes")).Height(18).Padding(0, 4).Gap(2).Radius(5).AlignItems(ui.Center).Shrink(0).
 		TextColor(pal.textFaint).Label(label).Tooltip(label)
+	if inField {
+		b.KeepFocus().TabStop(false)
+	}
 	if b.Hovered() {
 		b.Background(pal.chip).TextColor(pal.text)
 	}

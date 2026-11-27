@@ -291,6 +291,9 @@ func TestPaletteArrowsInOrder(t *testing.T) {
 	if a.pal.index != 2 || !paletteHasPane(a, "zsh") {
 		t.Fatalf("→ → ↓ chose %d, want the second pane", a.pal.index)
 	}
+	if it := a.paletteMatches(a.pal.query)[a.pal.index]; it.pane == nil || it.pane.ID != "b" {
+		t.Fatalf("→ → ↓ chose %q, want pane b", it.title)
+	}
 	a.pal.keys = []paletteInput{{key: ui.KeyUp}, {key: ui.KeyLeft}, {key: ui.KeyDown}}
 	tt.Frame()
 	if a.pal.expanded["s1"] || a.pal.index != 1 {
@@ -385,7 +388,7 @@ func TestPaletteArrowsOnEmptyList(t *testing.T) {
 	a := testApp(t)
 	a.pal.open = true
 	a.pal.query = "\x00"
-	a.pal.keys = []paletteInput{{ui.KeyDown, a.pal.query}, {ui.KeyEnter, a.pal.query}}
+	a.pal.keys = []paletteInput{{key: ui.KeyDown, query: a.pal.query}, {key: ui.KeyEnter, query: a.pal.query}}
 	if items, chosen := a.paletteKeys(); len(items) != 0 || a.pal.index != 0 || chosen != nil {
 		t.Errorf("arrows on nothing left %d rows, index %d", len(items), a.pal.index)
 	}
@@ -399,13 +402,17 @@ func TestURLWords(t *testing.T) {
 			t.Errorf("urlWords lacks %q: %q", w, got)
 		}
 	}
+	if got := urlWords("http://localhost:5173/app"); !strings.Contains(" "+got+" ", " 5173 ") || !strings.Contains(" "+got+" ", " localhost ") {
+		t.Errorf("urlWords lacks the port or host: %q", got)
+	}
 	if urlWords("") != "" || urlWords("not a url") != "not a url" {
 		t.Errorf("urlWords changed what isn't an address")
 	}
 }
 
-// Away from the field, ↓ and ↑ still choose.
-func TestPaletteArrowsAwayFromField(t *testing.T) {
+// Tab leaves the keyboard in the field, past the count of panes: ↓ still
+// chooses and typing still searches.
+func TestPaletteTabStaysInField(t *testing.T) {
 	a := testApp(t)
 	tt := ui.NewTester(a.view, 1100, 640)
 	a.openPalette()
@@ -415,6 +422,72 @@ func TestPaletteArrowsAwayFromField(t *testing.T) {
 	tt.Key(0, ui.KeyDown)
 	tt.Frame()
 	if a.pal.index != 1 {
-		t.Errorf("↓ away from the field chose %d, want 1", a.pal.index)
+		t.Errorf("↓ after Tab chose %d, want 1", a.pal.index)
+	}
+	tt.Type("zsh")
+	tt.Frame()
+	if a.pal.query != "zsh" {
+		t.Errorf("typing after Tab left the query %q", a.pal.query)
+	}
+}
+
+// A click on the count is acted on in order with the keys: → after it
+// goes into the panes it showed.
+func TestPaletteClickThenRight(t *testing.T) {
+	a := testApp(t)
+	tt := ui.NewTester(a.view, 1100, 640)
+	a.openPalette()
+	tt.Frame()
+	a.pal.keys = []paletteInput{{toggle: "s1"}, {key: ui.KeyRight}}
+	tt.Frame()
+	if !a.pal.expanded["s1"] || a.pal.index != 1 {
+		t.Errorf("click then → left index %d, expanded %v; want the first pane", a.pal.index, a.pal.expanded)
+	}
+}
+
+// Going to a pane from the palette opens its group in the sidebar and
+// shows the session's panes there.
+func TestPaletteShowsPaneInSidebar(t *testing.T) {
+	a := testApp(t)
+	g := a.groups()[0]
+	a.prefs.Collapsed[g.key()] = true
+	tt := ui.NewTester(a.view, 1100, 640)
+	a.openPalette()
+	tt.Frame()
+	tt.Type("zsh")
+	tt.Key(0, ui.KeyEnter)
+	tt.Frame()
+	if a.prefs.Collapsed[g.key()] || !a.prefs.Expanded["s1"] {
+		t.Errorf("collapsed %v, expanded %v", a.prefs.Collapsed, a.prefs.Expanded)
+	}
+}
+
+// A pane is found by its command, as a server it runs.
+func TestPaletteFindsPaneByCommand(t *testing.T) {
+	a := testApp(t)
+	b := a.session("s1").PaneByID("b")
+	b.Command, b.Runtime = []string{"vite", "--port", "5173"}, "node"
+	for _, q := range []string{"vite", "node"} {
+		items := a.paletteMatches(q)
+		a.pal.matches = nil
+		if len(items) == 0 || items[0].pane == nil || items[0].pane.ID != "b" {
+			t.Errorf("%s didn't find pane b first", q)
+		}
+	}
+}
+
+// Return after → in the same frame picks from the list → made, with the
+// session's panes in it.
+func TestPaletteReturnAfterExpandSameFrame(t *testing.T) {
+	a := testApp(t)
+	a.openPalette()
+	a.pal.keys = []paletteInput{{key: ui.KeyRight}, {key: ui.KeyDown}, {key: ui.KeyDown}, {key: ui.KeyEnter}}
+	items, chosen := a.paletteKeys()
+	if chosen == nil || items[a.pal.index].pane == nil || items[a.pal.index].pane.ID != "b" {
+		t.Fatalf("→ ↓ ↓ ↩ chose index %d, want pane b", a.pal.index)
+	}
+	chosen()
+	if s := a.session("s1"); a.focusOf(s) != "b" {
+		t.Errorf("in pane %q, want b", a.focusOf(s))
 	}
 }
