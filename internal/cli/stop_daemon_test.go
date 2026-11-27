@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
@@ -95,5 +96,36 @@ func TestStopDaemonWaitsForAShutdownThatSaysNothing(t *testing.T) {
 	}
 	if served.Load() < 4 {
 		t.Errorf("the stop stopped asking after %d probes; it must wait for the socket to go quiet", served.Load())
+	}
+}
+
+// A kerod whose socket is there but cannot be asked is there: `kero daemon
+// stop` must not say it stopped. It read the failed dial as no daemon and
+// exited 0, while the daemon kept the lock and its sessions.
+func TestStopDaemonSaysAKerodThatCannotBeAsked(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("windows does not keep a folder from being entered")
+	}
+	if os.Geteuid() == 0 {
+		t.Skip("root asks the socket whatever its folder's permissions")
+	}
+	dir := t.TempDir()
+	sock := filepath.Join(dir, "kerod.sock")
+	ln, err := net.Listen("unix", sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { ln.Close() })
+	if err := os.Chmod(dir, 0); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chmod(dir, 0o700) })
+	t.Setenv("KERO_SOCKET", sock)
+	err = StopDaemon()
+	if err == nil {
+		t.Fatal("a kerod that could not be asked was stopped")
+	}
+	if !strings.Contains(err.Error(), "cannot be asked") {
+		t.Errorf("the error is %v, want the kerod that could not be asked named", err)
 	}
 }

@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -48,6 +50,40 @@ func TestDaemonPIDOfNoDaemon(t *testing.T) {
 	pid, err := DaemonPID()
 	if err != nil {
 		t.Errorf("no daemon answered the socket: %v, want none and no error", err)
+	}
+	if pid != 0 {
+		t.Errorf("the pid was %d, want none", pid)
+	}
+}
+
+// A socket that is there but cannot be asked is a daemon that is there:
+// its pid is unknown, but "no daemon" is not the answer, and a caller
+// that reads it as none stops nothing and says it stopped.
+func TestDaemonPIDSaysWhenTheSocketCannotBeAsked(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("windows does not keep a folder from being entered")
+	}
+	if os.Geteuid() == 0 {
+		t.Skip("root asks the socket whatever its folder's permissions")
+	}
+	dir := t.TempDir()
+	sock := filepath.Join(dir, "kerod.sock")
+	ln, err := net.Listen("unix", sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { ln.Close() })
+	// The socket is there, but the folder it is in cannot be entered, so
+	// the dial cannot be made: another user's kerod, or one whose folder
+	// the user may not look into.
+	if err := os.Chmod(dir, 0); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chmod(dir, 0o700) })
+	t.Setenv("KERO_SOCKET", sock)
+	pid, err := DaemonPID()
+	if err == nil {
+		t.Fatalf("a kerod that could not be asked was read as none: pid %d", pid)
 	}
 	if pid != 0 {
 		t.Errorf("the pid was %d, want none", pid)
