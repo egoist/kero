@@ -406,6 +406,9 @@ func TestURLWords(t *testing.T) {
 	if got := urlWords("http://localhost:5173/app"); !strings.Contains(" "+got+" ", " 5173 ") || !strings.Contains(" "+got+" ", " localhost ") {
 		t.Errorf("urlWords lacks the port or host: %q", got)
 	}
+	if got := urlWords("http://[::1]:5173/app"); !strings.Contains(" "+got+" ", " 5173 ") || !strings.Contains(" "+got+" ", " ::1 ") {
+		t.Errorf("urlWords lacks an IPv6 host's port or address: %q", got)
+	}
 	if got := urlWords("https://docs.github.com/en"); !strings.Contains(" "+got+" ", " github ") {
 		t.Errorf("urlWords lacks the site under a subdomain: %q", got)
 	}
@@ -548,14 +551,58 @@ func TestPaletteSelectionFollowsRow(t *testing.T) {
 	}
 }
 
-// Going to panes from the palette saves the sidebar's prefs without
-// the sessions that are gone.
-func TestPaletteForgetsGoneSessions(t *testing.T) {
+// Going to a pane from the palette keeps the sidebar's panes shown for
+// sessions it can't see now, as a host's while it reconnects; a toggle in
+// the sidebar forgets those that are gone.
+func TestPaletteKeepsUnseenSessionsPanes(t *testing.T) {
 	a := testApp(t)
 	a.prefs.Expanded = map[string]bool{"gone": true}
 	a.showInSidebar("", "s1", func() {})
-	if a.prefs.Expanded["gone"] || !a.prefs.Expanded["s1"] {
-		t.Errorf("expanded %v, want s1 alone", a.prefs.Expanded)
+	if !a.prefs.Expanded["gone"] || !a.prefs.Expanded["s1"] {
+		t.Errorf("palette left expanded %v, want gone and s1", a.prefs.Expanded)
+	}
+	a.toggleSessionPanes("s1")
+	if a.prefs.Expanded["gone"] || a.prefs.Expanded["s1"] {
+		t.Errorf("toggle left expanded %v, want none", a.prefs.Expanded)
+	}
+}
+
+// The selection stays on a command as the conversations, which come after
+// the palette opens, add rows above it.
+func TestPaletteSelectionStaysAsConversationsLoad(t *testing.T) {
+	a := testApp(t)
+	tt := ui.NewTester(a.view, 1100, 640)
+	a.openPalette()
+	tt.Frame()
+	tt.Key(0, ui.KeyDown)
+	tt.Key(0, ui.KeyDown)
+	tt.Frame()
+	want := a.paletteMatches("")[a.pal.index]
+	if want.kind() != paletteCommand {
+		t.Fatalf("↓ ↓ chose %q, want a command", want.title)
+	}
+	h := a.hosts[0]
+	a.pal.convs = []hostConversation{{host: h, Conversation: proto.Conversation{ID: "c1", Agent: "claude", Name: "one"}},
+		{host: h, Conversation: proto.Conversation{ID: "c2", Agent: "claude", Name: "two"}}}
+	tt.Frame()
+	if got := a.paletteMatches("")[a.pal.index]; got.title != want.title {
+		t.Errorf("conversations above moved the selection from %q to %q", want.title, got.title)
+	}
+}
+
+// The window's keys, away from the field, go the field's way: Ctrl+N is
+// ↓, and → expands a session while nothing is typed.
+func TestPaletteChord(t *testing.T) {
+	a := testApp(t)
+	a.openPalette()
+	if !a.paletteChord(0, ui.KeyRight, "") || !a.pal.expanded["s1"] {
+		t.Fatalf("→ didn't expand s1: %v", a.pal.expanded)
+	}
+	if !a.paletteChord(ui.Ctrl, ui.KeyN, "") || a.pal.index != 1 {
+		t.Errorf("Ctrl+N chose %d, want 1", a.pal.index)
+	}
+	if a.paletteChord(0, ui.KeyLeft, "z") || a.paletteChord(ui.Cmd, ui.KeyDown, "") {
+		t.Errorf("took ← with text typed, or ⌘↓")
 	}
 }
 

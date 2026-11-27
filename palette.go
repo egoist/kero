@@ -26,7 +26,7 @@ type paletteState struct {
 	resultsQuery string // query the current selection belongs to
 	// chosen is the key of the item at index, which the selection stays
 	// on as rows come and go above it, as a session's panes do.
-	chosen any
+	chosen string
 	index  int
 	scroll ui.ScrollState
 	reveal bool // the chosen item scrolls into view, once
@@ -41,8 +41,12 @@ type paletteState struct {
 	expanded map[string]bool
 	// peek aligns a newly expanded session at the top of the list.
 	peek bool
-	// picked is the row Return chose, run next frame; keys after it wait.
+	// picked is the row Return chose, run next frame; the list's keys
+	// that come after it before then are taken and dropped.
 	picked func()
+	// focused is whether the field has had the keyboard, which it takes
+	// once open; the window takes the list's keys only after it has.
+	focused bool
 }
 
 // hostConversation is a conversation a host's kerod remembers.
@@ -320,9 +324,9 @@ func urlWords(addr string) string {
 	if addr == "" || err != nil || u.Host == "" {
 		return addr
 	}
-	host := proto.URLHost(addr)
+	host := strings.TrimPrefix(u.Host, "www.")
 	words := []string{addr, host}
-	name, port, _ := strings.Cut(host, ":")
+	name, port := strings.TrimPrefix(u.Hostname(), "www."), u.Port()
 	if port != "" {
 		words = append(words, name, port)
 	}
@@ -338,17 +342,30 @@ func urlWords(addr string) string {
 }
 
 // paletteKey acts on navigation and Return as each comes, on the text the
-// field has then. Left and Right navigate the list while it is empty.
+// field has then.
 func (a *App) paletteKey(k ui.TextKey) bool {
-	key := k.Key
-	query := k.Text()
+	return a.paletteChord(k.Mods, k.Key, k.Text())
+}
+
+// paletteChords are the keys the list takes, from the field or, away from
+// it, the window.
+var paletteChords = []struct {
+	mods ui.Modifiers
+	key  ui.Key
+}{{0, ui.KeyEnter}, {ui.Shift, ui.KeyEnter}, {0, ui.KeyDown}, {ui.Ctrl, ui.KeyN}, {0, ui.KeyUp}, {ui.Ctrl, ui.KeyP},
+	{0, ui.KeyLeft}, {0, ui.KeyRight}}
+
+// paletteChord acts on a key of paletteChords with the field's text, and
+// reports whether it took it: Ctrl+N and Ctrl+P choose as ↓ and ↑, and
+// Left and Right navigate the list while the field is empty.
+func (a *App) paletteChord(mods ui.Modifiers, key ui.Key, query string) bool {
 	switch {
-	case k.Mods == ui.Ctrl && key == ui.KeyN:
+	case mods == ui.Ctrl && key == ui.KeyN:
 		key = ui.KeyDown
-	case k.Mods == ui.Ctrl && key == ui.KeyP:
+	case mods == ui.Ctrl && key == ui.KeyP:
 		key = ui.KeyUp
-	case key == ui.KeyEnter && (k.Mods == 0 || k.Mods == ui.Shift):
-	case k.Mods != 0:
+	case key == ui.KeyEnter && (mods == 0 || mods == ui.Shift):
+	case mods != 0:
 		return false
 	case key == ui.KeyDown || key == ui.KeyUp:
 	case (key == ui.KeyLeft || key == ui.KeyRight) && query == "" && !a.pal.only:
@@ -500,14 +517,18 @@ func (a *App) paletteMatches(query string) []paletteItem {
 func (a *App) paletteResults(query string) []paletteItem {
 	items := a.paletteMatches(query)
 	if a.pal.resultsQuery != query {
-		a.pal.resultsQuery, a.pal.chosen = query, nil
+		a.pal.resultsQuery = query
 		a.pal.index, a.pal.reveal, a.pal.peek = 0, true, false
-	} else if a.pal.chosen != nil {
+	} else if a.pal.chosen != "" {
 		if i := paletteIndex(items, a.pal.chosen); i >= 0 {
 			a.pal.index = i
 		}
 	}
 	a.pal.index = min(max(a.pal.index, 0), max(len(items)-1, 0))
+	a.pal.chosen = ""
+	if a.pal.index < len(items) {
+		a.pal.chosen = items[a.pal.index].key()
+	}
 	return items
 }
 
@@ -518,7 +539,7 @@ func (a *App) movePaletteSelection(items []paletteItem, index int) {
 	}
 	a.pal.index, a.pal.reveal = index, true
 	if index < len(items) {
-		a.pal.chosen = items[index].key(index)
+		a.pal.chosen = items[index].key()
 	}
 }
 
@@ -560,7 +581,8 @@ func (a *App) paletteNav(key ui.Key, query string) {
 		a.pal.reveal, a.pal.peek = true, true
 	case key == ui.KeyLeft && kind == palettePane:
 		a.expandPalette(sid, false)
-		a.movePaletteSelection(a.paletteMatches(query), max(paletteIndex(items, "s/"+sid), 0))
+		// Its session is above its panes, at the same index once they go.
+		a.movePaletteSelection(items, max(paletteIndex(items, "s/"+sid), 0))
 	case key == ui.KeyLeft && kind == paletteSession && a.pal.expanded[sid]:
 		a.expandPalette(sid, false)
 		a.pal.peek = false
@@ -580,25 +602,28 @@ func (a *App) togglePalette(sid string) {
 }
 
 // paletteIndex is the index of the item of that key, -1 for none.
-func paletteIndex(items []paletteItem, key any) int {
+func paletteIndex(items []paletteItem, key string) int {
 	for i := range items {
-		if items[i].key(i) == key {
+		if items[i].key() == key {
 			return i
 		}
 	}
 	return -1
 }
 
-// key keeps a row's state, as its count's turn, with the row as it moves
-// when a session above it shows or hides its panes.
-func (it *paletteItem) key(i int) any {
+// key keeps a row's state, as its count's turn and the selection, with
+// the row as rows come and go above it: a session's panes, a session, or
+// conversations that load after the palette opens.
+func (it *paletteItem) key() string {
 	switch it.kind() {
 	case paletteSession:
 		return "s/" + it.session.ID
 	case palettePane:
 		return "p/" + it.session.ID + "/" + it.pane.ID
+	case paletteConversation:
+		return "c/" + it.conv.host.name + "/" + it.conv.ID
 	}
-	return i
+	return "k/" + it.title + "\n" + it.detail
 }
 
 func (a *App) paletteView(c *ui.Context, pal *palette) {
@@ -623,27 +648,22 @@ func (a *App) paletteView(c *ui.Context, pal *palette) {
 			in := ui.TextInputBase(c.Key("q"), &a.pal.query).Grow(1).FontSize(15).Placeholder(placeholder).AutoFocus().
 				OnTextKey(a.paletteKey)
 			// The field takes the keys as they come; away from it, as on a
-			// click in the list, the window does.
-			if !in.Focused() {
-				for _, s := range []struct {
-					mods ui.Modifiers
-					key  ui.Key
-					as   ui.Key
-				}{{0, ui.KeyDown, ui.KeyDown}, {ui.Ctrl, ui.KeyN, ui.KeyDown}, {0, ui.KeyUp, ui.KeyUp}, {ui.Ctrl, ui.KeyP, ui.KeyUp}} {
+			// click in the list, the window does. Not before the field has
+			// had them: a key the window claims, the field doesn't see, and
+			// it would be lost once the field takes the keyboard.
+			if in.Focused() {
+				a.pal.focused = true
+			} else if a.pal.focused {
+				for _, s := range paletteChords {
 					if c.Shortcut(s.mods, s.key) {
-						a.paletteNav(s.as, a.pal.query)
+						a.paletteChord(s.mods, s.key, a.pal.query)
 					}
 				}
 			}
-			if c.Shortcut(0, ui.KeyEnter) {
-				a.paletteNav(ui.KeyEnter, a.pal.query)
-			}
 			items = a.paletteResults(a.pal.query)
-			if a.pal.index < len(items) {
-				a.pal.chosen = items[a.pal.index].key(a.pal.index)
-			}
 			chosen, a.pal.picked = a.pal.picked, nil
 		})
+		toggle := "" // the session whose count was clicked
 		list := ui.Scroll(c.Key("results")).Grow(1).MinHeight(0).Padding(6).TrackScroll(&a.pal.scroll)
 		reveal, peek := a.pal.reveal, a.pal.peek
 		a.pal.reveal, a.pal.peek = false, false
@@ -664,7 +684,7 @@ func (a *App) paletteView(c *ui.Context, pal *palette) {
 					ui.Text(c, title).FontSize(11.5).FontWeight(600).TextColor(pal.textFaint).Padding(10, 10, 4, 10)
 				}
 				lastKind = group
-				row := ui.Row(c.Key(it.key(i))).Height(38).Padding(0, 10).Gap(10).AlignItems(ui.Center).Radius(8)
+				row := ui.Row(c.Key(it.key())).Height(38).Padding(0, 10).Gap(10).AlignItems(ui.Center).Radius(8)
 				if i == a.pal.index {
 					row.Background(pal.accent.Alpha(0.12))
 					switch {
@@ -681,8 +701,7 @@ func (a *App) paletteView(c *ui.Context, pal *palette) {
 				if kind == palettePane && a.pal.query == "" {
 					row.Padding(0, 10, 0, 34) // under its session's name
 				}
-				clicked := row.Clicked()
-				toggled := false
+				clicked, toggled := row.Clicked(), false
 				row.Children(func() {
 					switch kind {
 					case paletteSession:
@@ -703,11 +722,7 @@ func (a *App) paletteView(c *ui.Context, pal *palette) {
 					// the sidebar; a click shows or hides them under it.
 					if kind == paletteSession && len(it.session.Panes) > 1 && a.pal.query == "" && !a.pal.only &&
 						a.panesToggle(c, pal, it.session, a.pal.expanded[it.session.ID], true) {
-						// The rows drawn are the old ones; the next frame's
-						// show it.
-						a.togglePalette(it.session.ID)
-						c.Invalidate()
-						toggled = true
+						toggle, toggled = it.session.ID, true
 					}
 					ui.Text(c, it.detail).FontSize(12.5).TextColor(pal.textFaint).SingleLine().Ellipsis("…").Grow(1).MinWidth(0)
 					if it.keys != "" {
@@ -719,6 +734,11 @@ func (a *App) paletteView(c *ui.Context, pal *palette) {
 				}
 			}
 		})
+		// After the rows, which the selection it moves would be drawn on.
+		if toggle != "" {
+			a.togglePalette(toggle)
+			c.Invalidate()
+		}
 	})
 	if chosen != nil {
 		a.pal.open = false
