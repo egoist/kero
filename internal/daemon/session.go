@@ -173,7 +173,13 @@ func (s *pane) start(command []string, env []string) error {
 			// home directory would run the user's commands in the
 			// wrong place.
 			return err
-		case err != nil || !st.IsDir():
+		case err == nil && !st.IsDir():
+			// A file sits where the directory was: something is there,
+			// and it is no folder, which is not "no directory" — a shell
+			// in the home directory would run the user's commands in the
+			// wrong place.
+			return fmt.Errorf("no directory %s", dir)
+		case err != nil:
 			// The directory is gone: the pane starts in the home
 			// directory, as it did before.
 			dir = proto.Home()
