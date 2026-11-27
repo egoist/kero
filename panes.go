@@ -304,6 +304,12 @@ func (a *App) paneCard(c *ui.Context, pal *palette, bar ui.TitleBar, shown float
 		bg = pal.cardDim
 	}
 	card := ui.Column(c.Key("pane-" + p.ID)).Grow(1).Basis(0).MinWidth(0).MinHeight(0).Radius(14).Clip().Bind(a.paneRef("card-" + p.ID))
+	if multi {
+		sid, pid := s.ID, p.ID
+		card.HandleInput(func(ev ui.InputEvent) bool {
+			return a.handlePanePinch(ev, sid, pid)
+		})
+	}
 	paned(card.Background(card.AnimateColor("bg", bg, ui.Animation{Duration: 140 * time.Millisecond})), pal)
 	hovered := card.Hovered()
 	if a.set.FocusFollowsMouse && multi {

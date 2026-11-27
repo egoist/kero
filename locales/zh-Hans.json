@@ -244,6 +244,8 @@
   "setSidebarCountDetail": "在每个项目名称旁显示其包含的会话数量。",
   "setFocusFollowsMouse": "焦点跟随鼠标",
   "setFocusFollowsMouseDetail": "指针移入窗格时，该窗格无需点击即获得焦点。",
+  "setTrackpadGestures": "触摸板手势",
+  "setTrackpadGesturesDetail": "双指左右滑动以隐藏或显示侧边栏，在窗格上双指张开或捏合以放大或还原窗格。",
   "setAskBeforeClosing": "关闭正在运行的程序前询问",
   "setAskBeforeClosingDetail": "当你关闭的窗格或会话中正运行着 Shell 以外的程序时。",
   "setQuitEndsSessions": "退出 Kero 时结束会话",

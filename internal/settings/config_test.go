@@ -766,6 +766,23 @@ func TestDockBadgeModes(t *testing.T) {
 	}
 }
 
+func TestTrackpadGesturesSetting(t *testing.T) {
+	if Default().TrackpadGestures {
+		t.Fatal("default trackpad-gestures is true, want false")
+	}
+	s, probs := parse("trackpad-gestures = true\n")
+	if len(probs) != 0 || !s.TrackpadGestures {
+		t.Fatalf("trackpad-gestures = true: %v, %v", s.TrackpadGestures, probs)
+	}
+	if out := format(s, ""); !strings.Contains(out, "trackpad-gestures = true\n") {
+		t.Errorf("trackpad-gestures = true not written back: %q", out)
+	}
+	s, probs = parse("trackpad-gestures = maybe\n")
+	if s.TrackpadGestures || len(probs) != 1 || !strings.Contains(probs[0], "trackpad-gestures") {
+		t.Fatalf("bad trackpad-gestures: %v, %v", s.TrackpadGestures, probs)
+	}
+}
+
 // A configuration that is there but cannot be read is said, and never
 // replaced with what it never held: the user's own lines would be lost.
 func TestUnreadableConfigIsSaidAndKept(t *testing.T) {

@@ -182,6 +182,7 @@ var keys = []key{
 		func(s *Settings) *string { return &s.SidebarRows }, "detailed", "compact"),
 	boolKey("sidebar-session-count", "show, beside a project's name in the sidebar, how many sessions it holds", func(s *Settings) *bool { return &s.SidebarCount }),
 	boolKey("focus-follows-mouse", "focus the pane the pointer moves into", func(s *Settings) *bool { return &s.FocusFollowsMouse }),
+	boolKey("trackpad-gestures", "swipe horizontally with two fingers to hide or show the sidebar, and spread or pinch two fingers over a pane to zoom or restore it", func(s *Settings) *bool { return &s.TrackpadGestures }),
 	boolKey("confirm-close", "ask before closing a pane a program runs in", func(s *Settings) *bool { return &s.ConfirmClose }),
 	boolKey("quit-ends-sessions", "end this machine's sessions and stop kerod when Kero quits, asking first while a program still runs", func(s *Settings) *bool { return &s.QuitEndsSessions }),
 	boolKey("restore-sessions", "start sessions again after kerod restarts, as after a reboot", func(s *Settings) *bool { return &s.RestoreSessions }),

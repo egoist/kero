@@ -244,6 +244,8 @@
   "setSidebarCountDetail": "各プロジェクト名の横に、含まれるセッションの数を表示します。",
   "setFocusFollowsMouse": "マウスでフォーカスを移動",
   "setFocusFollowsMouseDetail": "ポインタが入ったペインに、クリックしなくてもフォーカスが移ります。",
+  "setTrackpadGestures": "トラックパッドジェスチャー",
+  "setTrackpadGesturesDetail": "左右スワイプでサイドバーを表示・非表示にし、ペイン上でピンチアウト・ピンチインして拡大・復元します。",
   "setAskBeforeClosing": "実行中のプログラムを閉じる前に確認",
   "setAskBeforeClosingDetail": "閉じるペインやセッションで、シェル以外のプログラムが実行中のとき。",
   "setQuitEndsSessions": "Kero の終了時にセッションを終える",

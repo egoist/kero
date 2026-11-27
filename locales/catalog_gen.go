@@ -2410,6 +2410,26 @@ func (msgs Messages) SetFocusFollowsMouseDetail() string {
 	return Catalog.Format(msgs.locale, "setFocusFollowsMouseDetail", nil)
 }
 
+// SetTrackpadGestures says "Trackpad gestures"
+// in the language the app shows.
+func SetTrackpadGestures() string { return In(i18n.Locale()).SetTrackpadGestures() }
+
+// SetTrackpadGestures says "Trackpad gestures"
+// in the language of msgs.
+func (msgs Messages) SetTrackpadGestures() string {
+	return Catalog.Format(msgs.locale, "setTrackpadGestures", nil)
+}
+
+// SetTrackpadGesturesDetail says "Swipe horizontally to hide or show the sidebar, and spread or pinch over a pane to zoom or restore it."
+// in the language the app shows.
+func SetTrackpadGesturesDetail() string { return In(i18n.Locale()).SetTrackpadGesturesDetail() }
+
+// SetTrackpadGesturesDetail says "Swipe horizontally to hide or show the sidebar, and spread or pinch over a pane to zoom or restore it."
+// in the language of msgs.
+func (msgs Messages) SetTrackpadGesturesDetail() string {
+	return Catalog.Format(msgs.locale, "setTrackpadGesturesDetail", nil)
+}
+
 // SetAskBeforeClosing says "Ask before closing a running program"
 // in the language the app shows.
 func SetAskBeforeClosing() string { return In(i18n.Locale()).SetAskBeforeClosing() }

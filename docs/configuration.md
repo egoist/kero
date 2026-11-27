@@ -46,6 +46,7 @@ kero config check             # report unknown keys and bad values, and agents.t
 | `sidebar-rows`          | `detailed` | How the sidebar shows a session: `detailed`, with its status message, else its branch and changes, on a second line; or `compact`, on one line |
 | `sidebar-session-count` | `true`    | Show, beside a project's name in the sidebar, how many sessions it holds |
 | `focus-follows-mouse`   | `false`   | Focus the pane the pointer moves into                         |
+| `trackpad-gestures`     | `false`   | Swipe horizontally with two fingers to hide or show the sidebar (hold Option/Alt to scroll sideways instead), and spread or pinch over a pane to zoom or restore it |
 | `confirm-close`         | `true`    | Ask before closing a pane that a program is running in        |
 | `quit-ends-sessions`     | `false`   | End this machine's sessions and stop kerod when Kero quits    |
 | `restore-sessions`      | `true`    | Start sessions again after kerod restarts, as after a reboot  |

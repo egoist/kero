@@ -568,6 +568,9 @@ func (a *App) generalPage(c *ui.Context, pal *palette) {
 		settingRow(c, pal, locales.SetFocusFollowsMouse(), locales.SetFocusFollowsMouseDetail(), func() {
 			toggle(c.Key("focusmouse"), &s.FocusFollowsMouse, pal)
 		})
+		settingRow(c, pal, locales.SetTrackpadGestures(), locales.SetTrackpadGesturesDetail(), func() {
+			toggle(c.Key("trackpad-gestures"), &s.TrackpadGestures, pal)
+		})
 		settingRow(c, pal, locales.SetAskBeforeClosing(), locales.SetAskBeforeClosingDetail(), func() {
 			toggle(c.Key("confirm"), &s.ConfirmClose, pal)
 		})

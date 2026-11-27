@@ -392,6 +392,8 @@
   "setSidebarCountDetail": "Show, beside each project’s name, how many sessions it holds.",
   "setFocusFollowsMouse": "Focus follows mouse",
   "setFocusFollowsMouseDetail": "A pane takes the focus when the pointer moves into it, without a click.",
+  "setTrackpadGestures": "Trackpad gestures",
+  "setTrackpadGesturesDetail": "Swipe horizontally to hide or show the sidebar, and spread or pinch over a pane to zoom or restore it.",
   "setAskBeforeClosing": "Ask before closing a running program",
   "setAskBeforeClosingDetail": "When a pane or session you close has a program other than the shell running.",
   "setQuitEndsSessions": "End sessions when Kero quits",
