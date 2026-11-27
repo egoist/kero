@@ -1704,6 +1704,26 @@ func (msgs Messages) PaletteNoMatches() string {
 	return Catalog.Format(msgs.locale, "paletteNoMatches", nil)
 }
 
+// PaletteShowPanes says "{count, plural, one {Show its # pane} other {Show its # panes}}"
+// in the language the app shows.
+func PaletteShowPanes(count int) string { return In(i18n.Locale()).PaletteShowPanes(count) }
+
+// PaletteShowPanes says "{count, plural, one {Show its # pane} other {Show its # panes}}"
+// in the language of msgs.
+func (msgs Messages) PaletteShowPanes(count int) string {
+	return Catalog.Format(msgs.locale, "paletteShowPanes", map[string]any{"count": count})
+}
+
+// PaletteHidePanes says "Hide its panes"
+// in the language the app shows.
+func PaletteHidePanes() string { return In(i18n.Locale()).PaletteHidePanes() }
+
+// PaletteHidePanes says "Hide its panes"
+// in the language of msgs.
+func (msgs Messages) PaletteHidePanes() string {
+	return Catalog.Format(msgs.locale, "paletteHidePanes", nil)
+}
+
 // PaletteCommands says "Commands"
 // in the language the app shows.
 func PaletteCommands() string { return In(i18n.Locale()).PaletteCommands() }

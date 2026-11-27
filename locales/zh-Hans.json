@@ -164,6 +164,8 @@
   "paletteLabel": "前往会话",
   "palettePlaceholder": "前往会话或运行命令…",
   "paletteNoMatches": "没有匹配项",
+  "paletteShowPanes": "显示 {count} 个窗格",
+  "paletteHidePanes": "隐藏窗格",
   "paletteCommands": "命令",
   "paletteConversations": "最近的对话",
   "paletteConversationsLabel": "恢复对话",

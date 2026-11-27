@@ -150,3 +150,98 @@ func TestFuzzySkipsQuerySpaces(t *testing.T) {
 		t.Errorf("fuzzy(%q, %q) = %d, want no match", "a b", "ac", got)
 	}
 }
+
+// paletteHasPane tells whether the palette's list offers a pane by its name.
+func paletteHasPane(a *App, name string) bool {
+	for _, it := range a.paletteItems() {
+		if it.pane != nil && it.title == name {
+			return true
+		}
+	}
+	return false
+}
+
+// The palette shows a session's panes when the user types, or when the
+// session is expanded; → expands it and goes into its panes, ← goes back
+// out, and Return moves the user into the pane chosen.
+func TestPalettePanes(t *testing.T) {
+	a := testApp(t)
+	tt := ui.NewTester(a.view, 1100, 640)
+	a.openPalette()
+	tt.Frame()
+	if paletteHasPane(a, "zsh") {
+		t.Fatal("panes shown before the user typed or expanded")
+	}
+	if a.pal.index != 0 || a.pal.expanded["s1"] {
+		t.Fatalf("index %d, expanded %v", a.pal.index, a.pal.expanded)
+	}
+	tt.Key(0, ui.KeyRight)
+	tt.Frame()
+	if !a.pal.expanded["s1"] || !paletteHasPane(a, "fish") || !paletteHasPane(a, "zsh") {
+		t.Fatalf("→ didn't show the session's panes; expanded %v", a.pal.expanded)
+	}
+	tt.Key(0, ui.KeyRight)
+	tt.Frame()
+	if a.pal.index != 1 {
+		t.Fatalf("→ again chose %d, want the first pane", a.pal.index)
+	}
+	tt.Key(0, ui.KeyLeft)
+	tt.Frame()
+	if a.pal.index != 0 || a.pal.expanded["s1"] {
+		t.Fatalf("← left index %d, expanded %v", a.pal.index, a.pal.expanded)
+	}
+	tt.Key(0, ui.KeyRight)
+	tt.Key(0, ui.KeyRight)
+	tt.Key(0, ui.KeyDown)
+	tt.Key(0, ui.KeyEnter)
+	tt.Frame()
+	if a.pal.open {
+		t.Fatal("Return didn't close the palette")
+	}
+	if s := a.session("s1"); a.focusOf(s) != "b" {
+		t.Errorf("in pane %q, want b", a.focusOf(s))
+	}
+}
+
+// Typed, the palette finds a pane by its name, and goes into it.
+func TestPaletteFindsPane(t *testing.T) {
+	a := testApp(t)
+	tt := ui.NewTester(a.view, 1100, 640)
+	a.openPalette()
+	tt.Frame()
+	tt.Type("zsh")
+	tt.Frame()
+	if !paletteHasPane(a, "zsh") {
+		t.Fatal("no zsh pane found")
+	}
+	tt.Key(0, ui.KeyEnter)
+	tt.Frame()
+	if s := a.session("s1"); a.focusOf(s) != "b" {
+		t.Errorf("in pane %q, want b", a.focusOf(s))
+	}
+}
+
+// Clicking a session's pane count shows its panes, and chooses nothing.
+func TestPaletteExpandClick(t *testing.T) {
+	a := testApp(t)
+	tt := ui.NewTester(a.view, 1100, 640)
+	a.openPalette()
+	tt.Frame()
+	if err := tt.Click(locales.PaletteShowPanes(2)); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if !a.pal.open {
+		t.Fatal("the click chose the session")
+	}
+	if !a.pal.expanded["s1"] || !paletteHasPane(a, "zsh") {
+		t.Errorf("the click didn't show the panes; expanded %v", a.pal.expanded)
+	}
+	if err := tt.Click(locales.PaletteHidePanes()); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if a.pal.expanded["s1"] || !a.pal.open {
+		t.Errorf("the click didn't hide the panes, or closed the palette")
+	}
+}

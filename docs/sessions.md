@@ -24,6 +24,8 @@ A **session** is a unit of work: one task, one agent, one long-running process. 
 
 Double-click the empty part of the sidebar to start a new session, as <kbd>⌘</kbd> <kbd>T</kbd> does.
 
+**Go to session…** also goes to a pane. A session with several panes shows how many next to its name. Press <kbd>→</kbd> on it, or click the count, to list its panes under it, <kbd>→</kbd> again to move into them, and <kbd>↩</kbd> to go to the one chosen; <kbd>←</kbd> goes back to the session. Once you type, panes are found by their name, program or folder, as `vite` finds the pane running it.
+
 Name sessions after their task, such as `fix-login-redirect` or `review-pr-42`, so you can find them in the sidebar and target them from the [CLI](./cli.md).
 
 ### Where a new session starts
