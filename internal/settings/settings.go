@@ -24,6 +24,8 @@ import (
 // choice of its own: Load fills defaults in.
 type Settings struct {
 	// General
+	LinkOpenTarget    string `json:"linkOpenTarget"`    // "system" or "kero": terminal HTTP(S) links
+	FileOpenTarget    string `json:"fileOpenTarget"`    // "system" or "kero": terminal file paths
 	NewSessionDir     string `json:"newSessionDir"`     // "current", "project", "home" or "custom", NewSessionPath
 	NewSessionPath    string `json:"newSessionPath"`    // the folder new sessions start in when NewSessionDir is "custom", as ~/… or absolute
 	SessionName       string `json:"sessionName"`       // what names an unnamed session: proto.NameFocused, NameLead or NameFolder
@@ -156,6 +158,8 @@ func (s *Settings) Host(name string) *Host {
 // Default returns the settings of a new install.
 func Default() Settings {
 	return Settings{
+		LinkOpenTarget:  "system",
+		FileOpenTarget:  "system",
 		NewSessionDir:   "current",
 		SessionName:     proto.NameFocused,
 		SidebarRows:     "detailed",
@@ -568,6 +572,8 @@ func (s *Settings) normalize() {
 		}
 		*v = def
 	}
+	oneOf(&s.LinkOpenTarget, d.LinkOpenTarget, "system", "kero")
+	oneOf(&s.FileOpenTarget, d.FileOpenTarget, "system", "kero")
 	oneOf(&s.NewSessionDir, d.NewSessionDir, "current", "project", "home", "custom")
 	if s.NewSessionDir == "custom" && !IsFolderPath(s.NewSessionPath) {
 		s.NewSessionDir = d.NewSessionDir

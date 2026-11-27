@@ -4,7 +4,10 @@ import (
 	"encoding/json"
 	"errors"
 	"math"
+	"net/url"
 	"os"
+	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -18,6 +21,83 @@ import (
 	"kero/internal/proto"
 	"kero/locales"
 )
+
+// File URLs must preserve literal suffixes, even when the stripped file exists.
+func TestTerminalFileURLExactPath(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("colon is not a Windows filename character")
+	}
+	a := testApp(t)
+	a.set.FileOpenTarget = "kero"
+	dir := t.TempDir()
+	for _, name := range []string{"report", "report:12", "report:12:3", "a%20b", "a b", "a#b", "a?b"} {
+		path := filepath.Join(dir, name)
+		if err := os.WriteFile(path, []byte(name), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, name := range []string{"report:12", "report:12:3", "a%20b", "a b", "a#b", "a?b"} {
+		path := filepath.Join(dir, name)
+		link := (&url.URL{Scheme: "file", Path: path}).String()
+		if !a.openLink("b", link) {
+			t.Fatalf("not handled: %s", link)
+		}
+		if got := a.viewOf(a.session("s1")).file.path; got != path {
+			t.Fatalf("opened %q, want %q", got, path)
+		}
+	}
+	if !a.openLink("b", filepath.Join(dir, "report")+":8:2") {
+		t.Fatal("plain path not handled")
+	}
+	if got := a.viewOf(a.session("s1")).file.path; got != filepath.Join(dir, "report") {
+		t.Fatalf("opened %q", got)
+	}
+}
+
+func TestTerminalFileOpenTarget(t *testing.T) {
+	a := testApp(t)
+	a.set.FileOpenTarget = "kero"
+	dir := t.TempDir()
+	file := filepath.Join(dir, "hello world.go")
+	if err := os.WriteFile(file, []byte("package main\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	a.st.Sessions[0].Panes[1].Dir = dir
+	u := (&url.URL{Scheme: "file", Path: filepath.ToSlash(file)}).String()
+	for _, link := range []string{file, "./hello world.go", file + ":12:3", u} {
+		if !a.openLink("b", link) {
+			t.Fatalf("not handled: %s", link)
+		}
+		fv := a.viewOf(a.session("s1")).file
+		if fv.path != file || fv.pane != "b" || fv.rel != "hello world.go" {
+			t.Fatalf("wrong file: %+v", fv)
+		}
+	}
+	if a.openLink("b", filepath.Join(dir, "missing.go")) {
+		t.Fatal("missing path handled")
+	}
+	fv := a.viewOf(a.session("s1")).file
+	showFileText(fv, "package main\n")
+	fv.st.Buffer.Edit(editor.Edit{Start: 0, End: 0, Text: "// unsaved\n"})
+	if !a.openLink("b", file) || a.viewOf(a.session("s1")).file != fv || a.confirm != nil {
+		t.Fatal("reopening replaced the buffer or asked to save")
+	}
+	other := filepath.Join(dir, "other.go")
+	if err := os.WriteFile(other, []byte("package other"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	a.openLink("b", other)
+	if a.confirm == nil || !a.confirm.open || a.viewOf(a.session("s1")).file != fv {
+		t.Fatal("did not protect unsaved edits")
+	}
+	// Cancel leaves the old file in place; retry and discard opens the new one.
+	a.confirm = nil
+	a.openLink("b", other)
+	a.confirm.altRun()
+	if got := a.viewOf(a.session("s1")).file.path; got != other {
+		t.Fatalf("opened %q", got)
+	}
+}
 
 // The right sidebar shows on the tab it showed last, from the button in
 // the header at the window's top right, and hides from its own; Toggle

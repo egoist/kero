@@ -41,6 +41,8 @@ kero config check             # 不明なキー、不正な値、agents.toml の
 
 | キー                    | デフォルト | 説明                                                          |
 | ----------------------- | ---------- | ------------------------------------------------------------- |
+| `link-open-target` | `system` | ターミナルで Command+クリック（他の環境では Control+クリック）した HTTP(S) リンクの開き方：`system` または `kero` |
+| `file-open-target` | `system` | ターミナルのファイルパスの開き方：`system` または `kero`（Files エディター） |
 | `new-session-directory` | `current`  | 新規セッションの開始場所: `current`、`project`、`home`、または `~/Developer` のようなフォルダ |
 | `session-name`          | `focused`  | 名前を付けていないセッションの名前の付け方: `focused`、`lead`、`folder`（[詳しく](./sessions.md#how-an-unnamed-session-is-named)） |
 | `sidebar-rows`          | `detailed` | サイドバーでのセッションの表示: `detailed` はステータスメッセージ、なければブランチと変更を 2 行目に表示、`compact` は 1 行で表示 |

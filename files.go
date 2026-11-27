@@ -237,29 +237,7 @@ func (a *App) filesSide(c *ui.Context, pal *palette, s *proto.Session) {
 			a.dropTarget(row, pal, pid, it.path)
 		default:
 			row := a.treeEntry(c, pal, it, it.path == shown, func() {
-				s := a.session(sid)
-				if s == nil {
-					return
-				}
-				v := a.side.views[sid]
-				if v != nil && v.file != nil && v.file.path == it.path {
-					a.openView(s, sideFiles, nil) // the one it shows
-					a.focusViewer()
-					return
-				}
-				// In the place of the one it shows, saved first.
-				var ts []editTarget
-				if v != nil && v.file != nil {
-					if t := a.fileTarget(v.file); t.dirty() {
-						ts = append(ts, t)
-					}
-				}
-				a.askToSave(ts, func() {
-					if s := a.session(sid); s != nil {
-						a.openView(s, sideFiles, &fileView{pane: pid, path: it.path, rel: it.rel})
-						a.focusViewer()
-					}
-				})
+				a.openFileView(sid, pid, it.path, it.rel)
 			})
 			row.ContextMenu(func(m *ui.Menu) { a.entryMenu(m, s, pid, it) })
 			row.Drag(fileDrag{host: h.name, path: it.path})
@@ -268,6 +246,33 @@ func (a *App) filesSide(c *ui.Context, pal *palette, s *proto.Session) {
 	}).Grow(1).MinHeight(0).Padding(0, 10, 16, 10)
 	// Dropped below the rows, files go into the root.
 	a.dropTarget(tree, pal, pid, root)
+}
+
+// openFileView is shared by the file tree and terminal links. Reopening a
+// file preserves its buffer; replacing it follows the usual save prompt.
+func (a *App) openFileView(sid, pid, path, rel string) {
+	s := a.session(sid)
+	if s == nil {
+		return
+	}
+	v := a.side.views[sid]
+	if v != nil && v.file != nil && v.file.path == path && a.hostOf(v.file.pane) == a.hostOf(pid) {
+		a.openView(s, sideFiles, nil)
+		a.focusViewer()
+		return
+	}
+	var ts []editTarget
+	if v != nil && v.file != nil {
+		if t := a.fileTarget(v.file); t.dirty() {
+			ts = append(ts, t)
+		}
+	}
+	a.askToSave(ts, func() {
+		if s := a.session(sid); s != nil {
+			a.openView(s, sideFiles, &fileView{pane: pid, path: path, rel: rel})
+			a.focusViewer()
+		}
+	})
 }
 
 // dropTarget makes an element of the Files tab take files dropped from

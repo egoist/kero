@@ -1,5 +1,11 @@
 {
   "@@locale": "en",
+  "setOpenTargets": "Open with",
+  "setOpenTargetsDetail": "Choose how web links and file paths in terminals open.",
+  "setLinkOpenTarget": "Web links",
+  "setFileOpenTarget": "File paths",
+  "setOpenInKero": "Kero",
+  "setOpenInSystem": "System default",
   "actionSettings": "Settings…",
   "actionInstallCli": "Install Command Line Tool…",
   "actionQuitAll": "Quit and End All Sessions…",

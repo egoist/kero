@@ -41,6 +41,8 @@ kero config check             # 报告未知的配置项、无效的值和agents
 
 | 配置项                  | 默认值    | 说明                                                          |
 | ----------------------- | --------- | ------------------------------------------------------------- |
+| `link-open-target` | `system` | 终端中 Command+点击（其他平台为 Control+点击）网页链接的打开方式：`system`（系统默认）或 `kero`（内嵌浏览器） |
+| `file-open-target` | `system` | 终端中文件路径的打开方式：`system`（系统默认）或 `kero`（Files 编辑器） |
 | `new-session-directory` | `current` | 新会话的起始目录：`current`、`project`、`home`，或 `~/Developer` 这样的文件夹 |
 | `session-name`          | `focused` | 未手动命名的会话如何取名：`focused`、`lead` 或 `folder`（[详情](./sessions.md#how-an-unnamed-session-is-named)） |
 | `sidebar-rows`          | `detailed` | 侧边栏如何显示会话：`detailed` 在第二行显示状态消息，没有时显示分支和改动；`compact` 只占一行 |

@@ -1,5 +1,11 @@
 {
   "@@locale": "ja",
+  "setOpenTargets": "開く方法",
+  "setOpenTargetsDetail": "ターミナル内の Web リンクとファイルパスを開く方法を選択します。",
+  "setLinkOpenTarget": "Web リンク",
+  "setFileOpenTarget": "ファイルのパス",
+  "setOpenInKero": "Kero",
+  "setOpenInSystem": "システムの既定",
   "actionSettings": "設定…",
   "actionInstallCli": "コマンドラインツールをインストール…",
   "actionQuitAll": "終了してすべてのセッションを終える…",

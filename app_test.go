@@ -3,11 +3,14 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"math"
 	"net"
+	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"sync"
@@ -20,6 +23,74 @@ import (
 	"kero/internal/client"
 	"kero/internal/proto"
 )
+
+func TestTerminalWebOpenTarget(t *testing.T) {
+	a := testApp(t)
+	calls := make(chan proto.CreateParams, 4)
+	cl, stop := projectClient(t, func(method string, raw json.RawMessage) (any, error) {
+		if method != "split" {
+			return nil, fmt.Errorf("unexpected method %s", method)
+		}
+		var p proto.CreateParams
+		if err := json.Unmarshal(raw, &p); err != nil {
+			return nil, err
+		}
+		calls <- p
+		return proto.Session{ID: "s1"}, nil
+	})
+	defer stop()
+	a.local().cl = cl
+	for _, link := range []string{"https://example.com/a", "http://localhost:3000"} {
+		if a.openLink("b", link) {
+			t.Fatal("system default intercepted")
+		}
+		a.set.LinkOpenTarget = "kero"
+		if !a.openLink("b", link) {
+			t.Fatal("Kero link not handled")
+		}
+		select {
+		case p := <-calls:
+			if p.Split != "b" || p.URL != link || p.Direction != "right" {
+				t.Fatalf("wrong split: %+v", p)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("no browser split")
+		}
+		a.set.LinkOpenTarget = "system"
+	}
+	a.set.LinkOpenTarget = "kero"
+	for _, link := range []string{"mailto:user@example.com", "vscode://file/tmp/a", "https://", "file:///tmp/a"} {
+		if a.openLink("b", link) {
+			t.Fatalf("unexpectedly intercepted %q", link)
+		}
+	}
+	if a.openLink("missing-pane", "https://example.com") {
+		t.Fatal("handled without source")
+	}
+}
+
+func TestFileLinkPath(t *testing.T) {
+	path := "/tmp/hello world.go"
+	if runtime.GOOS == "windows" {
+		path = "C:/tmp/hello world.go"
+	}
+	urlPath := path
+	if runtime.GOOS == "windows" {
+		urlPath = "/" + path
+	}
+	for _, host := range []string{"", "localhost", "LOCALHOST"} {
+		link := (&url.URL{Scheme: "file", Host: host, Path: urlPath}).String()
+		got, ok := fileLinkPath(link)
+		if !ok || got != filepath.FromSlash(path) {
+			t.Fatalf("%s: %q, %v", link, got, ok)
+		}
+	}
+	for _, link := range []string{"file://other/tmp/a", "file://user@localhost/tmp/a", "https://example.com/a", "file:relative", "file:///tmp/%zz", "file:///tmp/a?x=1", "file:///tmp/a#x"} {
+		if _, ok := fileLinkPath(link); ok {
+			t.Fatalf("accepted %q", link)
+		}
+	}
+}
 
 // Split Right creates a session when there is no pane to split, and
 // splits the selected session otherwise.

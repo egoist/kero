@@ -36,6 +36,66 @@ type Messages struct{ locale string }
 // source language.
 func In(locale string) Messages { return Messages{locale} }
 
+// SetOpenTargets says "Open with"
+// in the language the app shows.
+func SetOpenTargets() string { return In(i18n.Locale()).SetOpenTargets() }
+
+// SetOpenTargets says "Open with"
+// in the language of msgs.
+func (msgs Messages) SetOpenTargets() string {
+	return Catalog.Format(msgs.locale, "setOpenTargets", nil)
+}
+
+// SetOpenTargetsDetail says "Choose how web links and file paths in terminals open."
+// in the language the app shows.
+func SetOpenTargetsDetail() string { return In(i18n.Locale()).SetOpenTargetsDetail() }
+
+// SetOpenTargetsDetail says "Choose how web links and file paths in terminals open."
+// in the language of msgs.
+func (msgs Messages) SetOpenTargetsDetail() string {
+	return Catalog.Format(msgs.locale, "setOpenTargetsDetail", nil)
+}
+
+// SetLinkOpenTarget says "Web links"
+// in the language the app shows.
+func SetLinkOpenTarget() string { return In(i18n.Locale()).SetLinkOpenTarget() }
+
+// SetLinkOpenTarget says "Web links"
+// in the language of msgs.
+func (msgs Messages) SetLinkOpenTarget() string {
+	return Catalog.Format(msgs.locale, "setLinkOpenTarget", nil)
+}
+
+// SetFileOpenTarget says "File paths"
+// in the language the app shows.
+func SetFileOpenTarget() string { return In(i18n.Locale()).SetFileOpenTarget() }
+
+// SetFileOpenTarget says "File paths"
+// in the language of msgs.
+func (msgs Messages) SetFileOpenTarget() string {
+	return Catalog.Format(msgs.locale, "setFileOpenTarget", nil)
+}
+
+// SetOpenInKero says "Kero"
+// in the language the app shows.
+func SetOpenInKero() string { return In(i18n.Locale()).SetOpenInKero() }
+
+// SetOpenInKero says "Kero"
+// in the language of msgs.
+func (msgs Messages) SetOpenInKero() string {
+	return Catalog.Format(msgs.locale, "setOpenInKero", nil)
+}
+
+// SetOpenInSystem says "System default"
+// in the language the app shows.
+func SetOpenInSystem() string { return In(i18n.Locale()).SetOpenInSystem() }
+
+// SetOpenInSystem says "System default"
+// in the language of msgs.
+func (msgs Messages) SetOpenInSystem() string {
+	return Catalog.Format(msgs.locale, "setOpenInSystem", nil)
+}
+
 // ActionSettings says "Settings…"
 // in the language the app shows.
 func ActionSettings() string { return In(i18n.Locale()).ActionSettings() }
