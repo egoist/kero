@@ -277,22 +277,28 @@ func TestPaletteKeysAfterClick(t *testing.T) {
 	}
 }
 
-// An arrow given while the list was of sessions, then acted on once the
-// user typed and the row chosen is a command, does nothing.
-func TestPaletteStaleArrow(t *testing.T) {
+// Arrows that come before a frame are acted on in the order pressed, on
+// the list as each leaves it, and do nothing to a row that isn't a
+// session or a pane.
+func TestPaletteArrowsInOrder(t *testing.T) {
 	a := testApp(t)
 	tt := ui.NewTester(a.view, 1100, 640)
 	a.openPalette()
 	tt.Frame()
-	tt.Type("settings")
-	tt.Key(0, ui.KeyRight)
+	a.pal.keys = []ui.Key{ui.KeyRight, ui.KeyRight, ui.KeyDown}
 	tt.Frame()
-	a.pal.query, a.pal.arrow, a.pal.index = "", 1, 99
+	if a.pal.index != 2 || !paletteHasPane(a, "zsh") {
+		t.Fatalf("→ → ↓ chose %d, want the second pane", a.pal.index)
+	}
+	a.pal.keys = []ui.Key{ui.KeyUp, ui.KeyLeft, ui.KeyDown}
 	tt.Frame()
-	a.pal.arrow, a.pal.only = -1, true
+	if a.pal.expanded["s1"] || a.pal.index != 1 {
+		t.Fatalf("↑ ← ↓ left index %d, expanded %v; want the row after the session", a.pal.index, a.pal.expanded)
+	}
+	a.pal.keys = []ui.Key{ui.KeyRight, ui.KeyLeft}
 	tt.Frame()
-	if a.pal.expanded["s1"] {
-		t.Error("a stale arrow expanded a session")
+	if a.pal.expanded["s1"] || a.pal.index != 1 {
+		t.Errorf("arrows on a command changed the list: index %d, expanded %v", a.pal.index, a.pal.expanded)
 	}
 }
 
@@ -308,5 +314,28 @@ func TestPalettePaneMatchesOwnName(t *testing.T) {
 		if it.pane != nil {
 			t.Errorf("pane %q found by its session's name", it.title)
 		}
+	}
+}
+
+// Typed, a pane is found by the folder its program runs in, and Ctrl+N
+// and Ctrl+P choose as ↓ and ↑ do.
+func TestPaletteFindsPaneByFolder(t *testing.T) {
+	a := testApp(t)
+	a.session("s1").PaneByID("b").ProcessDir = "/tmp/webapp"
+	tt := ui.NewTester(a.view, 1100, 640)
+	a.openPalette()
+	tt.Frame()
+	tt.Key(ui.Ctrl, ui.KeyN)
+	tt.Key(ui.Ctrl, ui.KeyN)
+	tt.Key(ui.Ctrl, ui.KeyP)
+	tt.Frame()
+	if a.pal.index != 1 {
+		t.Errorf("Ctrl+N Ctrl+N Ctrl+P chose %d, want 1", a.pal.index)
+	}
+	tt.Type("webapp")
+	tt.Frame()
+	items := a.paletteMatches()
+	if len(items) == 0 || items[0].pane == nil || items[0].pane.ID != "b" {
+		t.Fatalf("webapp didn't find pane b first: %v", items)
 	}
 }
