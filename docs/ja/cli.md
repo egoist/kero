@@ -195,7 +195,7 @@ kero diff review --branch                 # デフォルトブランチ以降
 kero config path                 # 設定ファイルの場所
 kero config show                 # すべてのキーとその値
 kero config show --defaults      # すべてのキーの初期値
-kero config edit                 # $EDITOR で開く
+kero config edit                 # $VISUAL か $EDITOR で開く
 kero config check                # 不明なキー、不正な値、agents.toml の問題を報告
 kero projects                    # プロジェクトをサイドバーの順に一覧
 kero projects move <project> top # 移動: top、bottom、up、down、または位置 (1 が先頭)
