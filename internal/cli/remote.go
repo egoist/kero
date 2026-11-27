@@ -493,7 +493,11 @@ func bridge(args []string) error {
 // restartLocal restarts this machine's kerod into the Kero installed: its
 // service's, else one this executable starts.
 func restartLocal() error {
-	if service.Installed() {
+	installed, err := installedServiceForControl()
+	if err != nil {
+		return err
+	}
+	if installed {
 		if err := service.Restart(); !errors.Is(err, service.ErrUnsupported) {
 			return err
 		}
