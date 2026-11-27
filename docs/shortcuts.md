@@ -77,4 +77,6 @@ keybind = ctrl+`=quickTerminal.toggle
 
 It shows a session of its own, named Quick Terminal, which keeps running while it's hidden and after you quit Kero, and which the sidebar lists with the others. When its shell exits, the next press starts a new one. **View › Quick Terminal** and the menu bar icon's menu open it too, and `kero do quickTerminal.toggle` toggles it from a script.
 
+While the quick terminal has focus, main-window actions such as creating sessions, splitting panes, opening browser panes, switching sessions and searching are unavailable in menus and shortcuts. Close and Close Session hide the quick terminal without ending its shell. Settings, text size, theme, and terminal copy and paste remain available. This does not change actions issued through `kero do`.
+
 On Wayland, the desktop binds the shortcut through the XDG desktop portal and may ask you to confirm it; desktops without the portal's global shortcuts can bind `kero do quickTerminal.toggle` to a key in their own keyboard settings.

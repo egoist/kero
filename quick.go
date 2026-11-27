@@ -184,8 +184,13 @@ func (a *App) makeQuick() {
 		e.PreventDefault()
 		a.hideQuick()
 	})
-	// It goes as the user goes elsewhere, as Ghostty's does.
-	q.win.OnBlur(a.hideQuick)
+	q.win.OnFocus(func() { a.menuWindow(mygo.App.Menu(), q.win) })
+	// It goes as the user goes elsewhere, as Ghostty's does. Restore
+	// the menus for the next window, even while the panel slides away.
+	q.win.OnBlur(func() {
+		a.menuWindow(mygo.App.Menu(), nil)
+		a.hideQuick()
+	})
 }
 
 // attachQuick attaches the quick terminal to its session's pane, the one
@@ -347,9 +352,36 @@ func (a *App) quickChanged() {
 	}
 }
 
+// quickActionAllowed names what the single-pane panel can handle. New
+// main-window actions are unavailable here until explicitly supported.
+func quickActionAllowed(id string) bool {
+	switch id {
+	case quickAction, "settings.open", "pane.close", "session.close",
+		"text.bigger", "text.smaller", "text.reset", "theme.toggle":
+		return true
+	}
+	return false
+}
+
+// quickShortcuts consumes unavailable actions' keys, including user
+// bindings. Disabling a native menu alone can pass a Control key through
+// to the shell (for example Ctrl+D, which would end it).
+func (a *App) quickShortcuts(c *ui.Context) {
+	for _, act := range actions.All {
+		if quickActionAllowed(act.ID) {
+			continue
+		}
+		mods, key := shortcutKey(a.accelerator(act))
+		if key != ui.KeyUnknown {
+			c.OnShortcut(mods, key, func() {})
+		}
+	}
+}
+
 // quickView is the panel's content: the terminal, or what keeps it.
 func (a *App) quickView(c *ui.Context) {
 	q := &a.quick
+	a.quickShortcuts(c)
 	a.looks()
 	pal := paletteFor(c)
 	c.Root().Background(lookFor(c).term.Background)
