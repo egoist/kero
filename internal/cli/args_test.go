@@ -10,6 +10,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -170,6 +171,27 @@ func TestDaemonStatusSaysAFailedState(t *testing.T) {
 	}
 	if m := calls(); len(m) == 0 || m[0] != "state" {
 		t.Errorf("the daemon was asked of %q, want of the state", m)
+	}
+}
+
+// A failed service check is not proof that the service is absent: stop
+// must not bypass its manager and claim the daemon is stopped.
+func TestDaemonStopSaysWhenTheServiceCannotBeChecked(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("systemd's service path uses XDG_CONFIG_HOME")
+	}
+	dir := t.TempDir()
+	t.Setenv("KERO_CONFIG", filepath.Join(dir, "config"))
+	configHome := filepath.Join(dir, "not-a-directory")
+	if err := os.WriteFile(configHome, []byte("file"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("XDG_CONFIG_HOME", configHome)
+	t.Setenv("KERO_SOCKET", filepath.Join(dir, "kerod.sock"))
+
+	err := run([]string{"daemon", "stop"}, "")
+	if err == nil || !strings.Contains(err.Error(), "checking kerod's service") {
+		t.Fatalf("a failed service check read as absence: %v", err)
 	}
 }
 

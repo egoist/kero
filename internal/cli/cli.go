@@ -1051,6 +1051,14 @@ func notifyTarget(st proto.State, f *flags) (target, string, error) {
 	return t, body, err
 }
 
+func installedServiceForControl() (bool, error) {
+	installed, err := service.CheckInstalled()
+	if err != nil {
+		return false, fmt.Errorf("checking kerod's service: %w", err)
+	}
+	return installed, nil
+}
+
 func daemonCmd(args []string, host string) error {
 	sub := "status"
 	if len(args) > 0 {
@@ -1108,7 +1116,9 @@ func daemonCmd(args []string, host string) error {
 	case "stop", "restart":
 		// The service's manager stops and restarts it, but Task
 		// Scheduler, whose kerod stops as any, and starts with the task.
-		if service.Installed() {
+		if installed, err := installedServiceForControl(); err != nil {
+			return err
+		} else if installed {
 			var err error
 			if sub == "stop" {
 				err = service.Stop()
