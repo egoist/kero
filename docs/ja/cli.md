@@ -41,9 +41,11 @@ kero restart <pane>              # 終了したペインのシェルを再び開
 | `-d`, `--dir <dir>`         | そこで開始する（デフォルト: 現在のディレクトリ） |
 | `-f`, `--focus`             | アプリで表示する                                |
 | `-w`, `--wait`              | コマンドの終了を待ち、その終了ステータスで終了する |
+| `-t`, `--timeout <dur>`     | `--wait` の待ち時間の上限（既定: 無制限）       |
 | `-u`, `--url <url>`         | シェルの代わりに、ページを表示するブラウザを開く |
 | `--worktree <branch>`       | 専用の git ワークツリーで、新しいブランチで開始する（[詳しく](./changes.md#sessions-in-their-own-worktree)） |
 | `--base <ref>`              | ワークツリーのブランチの起点（既定: デフォルトブランチ） |
+| `--json`                    | セッションを JSON で出力する                    |
 
 ## 入力と読み取り
 
@@ -160,7 +162,7 @@ kero browser eval 'document.title'
 
 クリックと入力は本物のマウスとキーボードと同じイベントを送るので、React などのフレームワークで作られたページもそれを受け取ります。どのコマンドも、表示されているかどうかにかかわらず、どのブラウザペインでも動きます: 画面に表示されていないペインのスクリーンショットは、作業中のことからフォーカスを奪いません。
 
-ブラウザペインは Cookie を共有し、Kero を再起動しても保ちます。`cookies` は Playwright のストレージ状態（JSON）として保存し、ファイル名が `.txt` なら curl やブラウザ拡張が書く Netscape の `cookies.txt` としても保存します。`load` はどちらも読み込みます。Cookie はサイトへのサインインです: ファイルはログインを預けてもよい相手にだけ渡してください。Cookie はこの Mac の外に出ないので、ホスト上のプログラムは保存も読み込みもできません。
+ブラウザペインは Cookie を共有し、Kero を再起動しても保ちます。`cookies` は Playwright のストレージ状態（JSON）として保存し、ファイル名が `.txt` なら curl やブラウザ拡張が書く Netscape の `cookies.txt` としても保存します。`load` はどちらも読み込みます。Cookie はサイトへのサインインです: ファイルはログインを預けてもよい相手にだけ渡してください。Cookie はこのマシンの外に出ないので、ホスト上のプログラムは保存も読み込みもできません。
 
 `kero do` と同じく、`kero browser` には **設定 › エージェント** のリモート操作と、アプリが開いていることが必要です。
 
@@ -208,7 +210,7 @@ kero projects                    # プロジェクトをサイドバーの順に
 kero projects move <project> top # 移動: top、bottom、up、down、または位置 (1 が先頭)
 kero skill setup                 # コーディングエージェントに kero の使い方を教える
 kero daemon status|stop|restart  # kerod を管理
-kero daemon install-service      # マシンの起動とともに kerod を実行（systemd、launchd）
+kero daemon install-service      # マシンの起動とともに kerod を実行（systemd、launchd、タスクスケジューラ）
 kero daemon serve                # サービスマネージャ向けに kerod をフォアグラウンドで実行
 kero clients                     # kerod に接続しているもの
 ```
@@ -234,7 +236,7 @@ kero -H devbox daemon update     # そこの Kero をこちらのバージョン
 
 ## アプリのアクションを実行する
 
-`kero do` は、メニューと同じアプリのアクションをどれでも実行します。**設定 › エージェント** のリモート操作（デフォルトでオン）が必要です。
+`kero do` は、リモート操作で許されたアプリのアクションを実行します。メニューにあるものの大半がこれに当たりますが、検索、閉じる、場所を開くなどアプリ内だけのものは含まれません。`kero actions` でその一覧を得られます。**設定 › エージェント** のリモート操作（デフォルトでオン）が必要です。
 
 ```sh
 kero actions                     # 一覧を表示
@@ -255,4 +257,4 @@ kero do sidebar.toggle
 
 プログラムを待つコマンド（`kero wait --exit` と `--wait`）は、代わりにそのプログラムの終了ステータスで終了します。ペインのシェルがエラーで終了したときの `kero wait` も同じです。タイムアウトした待機は `1` で終了します。
 
-`ls`、`status`、`projects` に `--json` を付けると、機械で読める形式で出力します。
+`ls`、`status`、`projects`、`new`、`split`、`wait`、`events`、`history`、`resume`、`hosts`、`clients` に `--json` を付けると、機械で読める形式で出力します。

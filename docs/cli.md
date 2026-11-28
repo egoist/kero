@@ -41,9 +41,11 @@ kero restart <pane>              # start an exited pane's shell again
 | `-d`, `--dir <dir>`         | Start it there (default: the current directory) |
 | `-f`, `--focus`             | Show it in the app                              |
 | `-w`, `--wait`              | Wait for its command to end, and exit with its status |
+| `-t`, `--timeout <dur>`     | With `--wait`, how long to wait (default: no limit) |
 | `-u`, `--url <url>`         | Open a browser showing the page instead of a shell |
 | `--worktree <branch>`       | Start it in a git worktree of its own, on a new branch ([more](./changes.md#sessions-in-their-own-worktree)) |
 | `--base <ref>`              | The branch the worktree's starts from (default: the default branch) |
+| `--json`                    | Print the session as JSON |
 
 ## Typing and reading
 
@@ -158,7 +160,7 @@ Selectors are CSS selectors; quote them in the shell. Anywhere a command takes a
 
 Clicking and typing send the events a real mouse and keyboard would, so pages built with React and other frameworks see them. Every command works on any browser pane, shown or not: a screenshot of a pane not on screen takes no focus from what you are doing.
 
-Browser panes share their cookies, and keep them when Kero restarts. `cookies` saves them in Playwright's storage state, as JSON, or for a file named `.txt`, as a Netscape `cookies.txt`, which curl and browser extensions write; `load` reads either. Cookies sign you in to sites: share their file only with what you'd trust with your logins. They stay on this Mac, so programs on a host can't save or load them.
+Browser panes share their cookies, and keep them when Kero restarts. `cookies` saves them in Playwright's storage state, as JSON, or for a file named `.txt`, as a Netscape `cookies.txt`, which curl and browser extensions write; `load` reads either. Cookies sign you in to sites: share their file only with what you'd trust with your logins. They stay on this machine, so programs on a host can't save or load them.
 
 Like `kero do`, `kero browser` needs Remote Control, in **Settings › Agents**, and the app to be open.
 
@@ -206,7 +208,7 @@ kero projects                    # list projects, in the sidebar's order
 kero projects move <project> top # move one: top, bottom, up, down or a position (1 is the top)
 kero skill setup                 # teach coding agents to use kero
 kero daemon status|stop|restart  # manage kerod
-kero daemon install-service      # run kerod with the machine (systemd, launchd)
+kero daemon install-service      # run kerod with the machine (systemd, launchd, Task Scheduler)
 kero daemon serve                # run kerod in the foreground, for a service manager
 kero clients                     # who is connected to kerod
 ```
@@ -232,7 +234,7 @@ Inside a pane, `kero` talks to the kerod of the machine the pane runs on, wherev
 
 ## Running app actions
 
-`kero do` runs any of the app's actions, the same ones as its menus. It needs Remote Control, which is on by default in **Settings › Agents**.
+`kero do` runs the app's actions that Remote Control allows — most of the ones its menus have; the app-only ones (find, close, open location among them) are not remote. `kero actions` lists the ones it takes. It needs Remote Control, which is on by default in **Settings › Agents**.
 
 ```sh
 kero actions                     # list them
@@ -253,4 +255,4 @@ kero do sidebar.toggle
 
 Commands that wait for a program, `kero wait --exit` and `--wait`, exit with the program's status instead, as does `kero wait` when the pane's shell exits with an error. A wait that times out exits with `1`.
 
-Add `--json` to `ls`, `status` and `projects` for machine-readable output.
+Add `--json` to `ls`, `status`, `projects`, `new`, `split`, `wait`, `events`, `history`, `resume`, `hosts` and `clients` for machine-readable output.

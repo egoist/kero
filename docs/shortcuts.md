@@ -35,7 +35,15 @@ On Windows and Linux, <kbd>Ctrl</kbd> with a letter belongs to the shell (<kbd>C
 | Close                       | <kbd>⌘</kbd> <kbd>W</kbd>              | <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>W</kbd> | `pane.close`        |
 | Close Session               | <kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>W</kbd> | –                                             | `session.close`     |
 
-<kbd>⌘</kbd> <kbd>1</kbd>–<kbd>9</kbd> (<kbd>Ctrl</kbd> <kbd>1</kbd>–<kbd>9</kbd> on Windows and Linux) go to the sidebar's sessions, and <kbd>Ctrl</kbd> <kbd>Tab</kbd> to the next one.
+<kbd>⌘</kbd> <kbd>1</kbd>–<kbd>9</kbd> (<kbd>Ctrl</kbd> <kbd>1</kbd>–<kbd>9</kbd> on Windows and Linux) go to the sidebar's sessions, <kbd>Ctrl</kbd> <kbd>Tab</kbd> to the next one and <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>Tab</kbd> to the previous one.
+
+## Edit
+
+| Action        | macOS                     | Windows & Linux                               | Action id        |
+| ------------- | ------------------------- | --------------------------------------------- | ---------------- |
+| Find…         | <kbd>⌘</kbd> <kbd>F</kbd> | <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>F</kbd> | `find.open`      |
+| Find Next     | <kbd>⌘</kbd> <kbd>G</kbd> | –                                             | `find.next`      |
+| Find Previous | <kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>G</kbd> | –                                 | `find.previous`  |
 
 ## Pane
 
