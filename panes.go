@@ -743,6 +743,9 @@ func (a *App) paneTerminal(c *ui.Context, pal *palette, s *proto.Session, p *pro
 			if ref.Focused(c) && a.focusOf(s) != p.ID {
 				a.setFocus(s, p.ID)
 			}
+			if a.find.hist.open && a.find.pane == p.ID {
+				a.historyOverlay(c, pal)
+			}
 			if a.find.pane == p.ID {
 				a.findBar(c, pal, p, e.term)
 			}
