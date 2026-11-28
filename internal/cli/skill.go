@@ -134,7 +134,7 @@ Report blocked only when you truly cannot go on without them.
   reuse beat one for each command.
 - Close what you started when it is done: ` + "`kero close <target>`" + `.
 - Never type into a pane you did not start unless the user asked.
-- Exit status 3 means no such target, 4 that Kero is not running.
+- Exit status 3 means no such target, 4 that Kero cannot be reached.
 `
 
 func skillCmd(args []string) error {
