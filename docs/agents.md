@@ -16,7 +16,7 @@ kero skill setup
 This installs two things:
 
 - A **skill** that teaches agents the CLI. Claude Code reads it from `~/.claude/skills/kero`, CodeBuddy Code from `~/.codebuddy/skills/kero`, and Codex, OpenCode and other agents from `~/.agents/skills/kero`.
-- A **hook** that runs as an agent starts a session. It tells the agent which Kero session and pane it's in, so it doesn't spend time finding out, and has it name an unnamed session after its task, such as `fix-login-redirect`, so you don't have to. It also tells Kero the agent's own session, so that after kerod restarts, as after a reboot, the agent [picks up its conversation](./sessions.md#kerod).
+- A **hook** that runs as an agent starts a session. It tells the agent which Kero session and pane it's in, so it doesn't spend time finding out, and tells it to leave a session you named alone. It also tells Kero the agent's own session, so that after kerod restarts, as after a reboot, the agent [picks up its conversation](./sessions.md#kerod).
 
 The hook goes where each agent looks for one, for the agents you have installed:
 
