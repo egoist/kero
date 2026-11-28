@@ -130,7 +130,8 @@ func TestZshStartupFiles(t *testing.T) {
 // With quick-history on, zsh shows the newest command that starts with
 // what is typed, which Tab takes, and lists the history on the Up arrow,
 // which Enter runs from; the Right arrow, there, does not take the list
-// for a suggestion, and neither is left on the screen. The history holds
+// for a suggestion, and neither is left on the screen; with no match, the
+// arrow goes back a command, as it would. The history holds
 // commands that do not exist, so that nothing runs.
 func TestZshQuickHistory(t *testing.T) {
 	shell, err := exec.LookPath("zsh")
@@ -189,4 +190,8 @@ func TestZshQuickHistory(t *testing.T) {
 	proc.Write([]byte("\x1b[A\x1b[C\r"))
 	waitFor("the older command run", has("$ qhls -la\nzsh: command not found: qhls\n$"))
 	waitFor("the list gone", func(screen string) bool { return !strings.Contains(screen, "to dismiss") })
+
+	// With nothing in the history to list, the arrow goes back a command.
+	proc.Write([]byte("qhnothing\x1b[A"))
+	waitFor("the previous command", func(screen string) bool { return strings.Count(screen, "$ qhls -la") == 2 })
 }

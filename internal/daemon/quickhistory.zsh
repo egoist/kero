@@ -1,7 +1,7 @@
 __kero_qh_install() {
   emulate -L zsh
   autoload -Uz add-zle-hook-widget
-  typeset -g __kero_qh_open=0 __kero_qh_query= __kero_qh_last= __kero_qh_sel=0
+  typeset -g __kero_qh_open=0 __kero_qh_query= __kero_qh_last= __kero_qh_sel=0 __kero_qh_drawn=0
   typeset -g __kero_qh_zebra= __kero_qh_pick_style=standout
   typeset -ga __kero_qh_matches
   typeset -gA __kero_qh_was
@@ -31,8 +31,14 @@ __kero_qh_init() {
   __kero_qh_last=
 }
 __kero_qh_finish() {
-  POSTDISPLAY=
+  __kero_qh_clear
+}
+# __kero_qh_clear takes back what quick-history drew, and only that: a
+# suggestion of zsh-autosuggestions in POSTDISPLAY stays.
+__kero_qh_clear() {
   region_highlight=(${region_highlight:#*memo=kero-qh*})
+  (( __kero_qh_drawn )) && POSTDISPLAY=
+  __kero_qh_drawn=0
 }
 __kero_qh_run() {
   local w=${__kero_qh_was[${(V)KEYS}]}
@@ -67,14 +73,21 @@ __kero_qh_tone() {
 }
 __kero_qh_colors() {
   emulate -L zsh -o extendedglob
-  local reply= c
+  local reply= c answer= typed
+  local end=$'(\a|\e\\\\)'
   print -n $'\e]11;?\e\\' > $TTY
   # Not -s: zle has echo off already, and -s leaves the line undrawn.
   while read -t 0.3 -k c; do
     reply+=$c
-    [[ $reply == *($'\a'|$'\e\\') ]] && break
+    [[ $reply == *$'\e]11;'*${~end} ]] && break
   done
-  if [[ $reply != *rgb:(#b)([[:xdigit:]](#c2,4))/([[:xdigit:]](#c2,4))/([[:xdigit:]](#c2,4))* ]]; then
+  # What the user typed meanwhile is not the answer: zle gets it back.
+  typed=$reply
+  if [[ $reply == (#b)(*)($'\e]11;'*${~end})(*) ]]; then
+    typed=$match[1]$match[-1] answer=$match[2]
+  fi
+  [[ -n $typed ]] && zle -U -- "$typed"
+  if [[ $answer != *rgb:(#b)([[:xdigit:]](#c2,4))/([[:xdigit:]](#c2,4))/([[:xdigit:]](#c2,4))* ]]; then
     __kero_qh_zebra= __kero_qh_pick_style=standout
     return
   fi
@@ -98,7 +111,10 @@ __kero_qh_up() {
   fi
   __kero_qh_query=$BUFFER
   __kero_qh_filter
-  (( $#__kero_qh_matches )) || return
+  if (( ! $#__kero_qh_matches )); then
+    __kero_qh_run
+    return
+  fi
   __kero_qh_colors
   __kero_qh_open=1
   # Esc alone closes at once: no binding is left that it starts, which
@@ -151,7 +167,7 @@ __kero_qh_esc() {
 }
 __kero_qh_accept() {
   # While the list is open, POSTDISPLAY is the list, not a suggestion.
-  if (( ! __kero_qh_open && CURSOR == $#BUFFER )) && [[ -n $POSTDISPLAY ]]; then
+  if (( __kero_qh_drawn && ! __kero_qh_open && CURSOR == $#BUFFER )) && [[ -n $POSTDISPLAY ]]; then
     BUFFER+=$POSTDISPLAY
     CURSOR=$#BUFFER
   else
@@ -194,8 +210,7 @@ __kero_qh_syntax() {
 }
 __kero_qh_redraw() {
   emulate -L zsh
-  region_highlight=(${region_highlight:#*memo=kero-qh*})
-  POSTDISPLAY=
+  __kero_qh_clear
   __kero_qh_syntax
   if (( __kero_qh_open )); then
     if [[ $BUFFER != $__kero_qh_last ]]; then
@@ -203,13 +218,14 @@ __kero_qh_redraw() {
       __kero_qh_filter
     fi
     __kero_qh_panel
+    __kero_qh_drawn=1
     return
   fi
   [[ -n $BUFFER && $CURSOR == $#BUFFER && $BUFFER != *$'\n'* ]] || return
   (( ${+functions[_zsh_autosuggest_start]} )) && return
   local s=${history[(r)${(b)BUFFER}?*]}
   [[ -n $s && $s != *$'\n'* ]] || return
-  POSTDISPLAY=${s:$#BUFFER}
+  POSTDISPLAY=${s:$#BUFFER} __kero_qh_drawn=1
   region_highlight+=("$#BUFFER $(( $#BUFFER + $#POSTDISPLAY )) fg=8 memo=kero-qh")
 }
 # __kero_qh_panel lists the matches under the prompt, the oldest at the
