@@ -33,7 +33,7 @@ kero skill setup
 
 如果 `CLAUDE_CONFIG_DIR`、`CODEBUDDY_CONFIG_DIR`、`CODEX_HOME`、`PI_CODING_AGENT_DIR`、`PI_CONFIG_DIR`、`PIG_CODING_AGENT_DIR`、`PIG_HOME` 或 `XDG_CONFIG_HOME` 改变了智能体文件的位置，Kero 会跟着走，并且不会改动各设置文件里的其他内容。
 
-传入 `--agent` 并指定 `claude`、`codebuddy`、`codex`、`pi`、`omp`、`pig` 或 `opencode`，可以只为一个智能体安装。只需安装一次：技能是指向 Kero 自己那份副本的链接，会随 Kero 更新而更新；Pi、OMP、PiG 和 OpenCode 的插件，Kero 也会保持为最新。`kero skill status` 会告诉你各部分是否为最新。
+传入 `--agent` 并指定 `claude`、`codebuddy`、`codex`、`pi`、`omp`、`pig`、`opencode` 或 `agents`，可以只为一个智能体安装。只需安装一次：技能是指向 Kero 自己那份副本的链接，会随 Kero 更新而更新；Pi、OMP、PiG 和 OpenCode 的插件，Kero 也会保持为最新。`kero skill status` 会告诉你各部分是否为最新。
 
 ```sh
 kero skill status    # 已安装什么，是否为最新
@@ -87,7 +87,7 @@ kero report done "Deployed to staging"
 
 ## 远程控制
 
-开启**远程控制**后（默认开启，位于**设置 › 智能体**），智能体还能操控应用本身：用 `kero focus` 显示某个会话，或用 `kero do` 执行菜单操作。设置 `remote-control = false` 可将其关闭，让智能体只能操作自己的会话。
+开启**远程控制**后（默认开启，位于**设置 › 智能体**），智能体还能操控应用本身：用 `kero focus` 显示某个会话，用 `kero do` 执行菜单操作，或用 `kero browser` 操控浏览器窗格。设置 `remote-control = false` 可将其关闭，让智能体只能操作自己的会话。
 
 ## 环境变量
 

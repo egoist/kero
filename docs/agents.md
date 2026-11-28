@@ -32,7 +32,7 @@ The hook goes where each agent looks for one, for the agents you have installed:
 
 Kero follows `CLAUDE_CONFIG_DIR`, `CODEBUDDY_CONFIG_DIR`, `CODEX_HOME`, `PI_CODING_AGENT_DIR`, `PI_CONFIG_DIR`, `PIG_CODING_AGENT_DIR`, `PIG_HOME` and `XDG_CONFIG_HOME` when they move an agent's files, and leaves the rest of each settings file as it was.
 
-Pass `--agent` with `claude`, `codebuddy`, `codex`, `pi`, `omp`, `pig` or `opencode` to set up one agent only. Setup is once: the skill is a link to Kero's own copy, which follows Kero as it updates, and Kero keeps the Pi, OMP, PiG and OpenCode plugins current too. `kero skill status` tells you whether each part is current.
+Pass `--agent` with `claude`, `codebuddy`, `codex`, `pi`, `omp`, `pig`, `opencode` or `agents` to set up one agent only. Setup is once: the skill is a link to Kero's own copy, which follows Kero as it updates, and Kero keeps the Pi, OMP, PiG and OpenCode plugins current too. `kero skill status` tells you whether each part is current.
 
 ```sh
 kero skill status    # what's installed, and whether it's current
@@ -86,7 +86,7 @@ A `blocked` report turns the session to *waiting* and notifies you, so agents sh
 
 ## Remote Control
 
-With **Remote Control** on (the default, in **Settings › Agents**), agents can also drive the app itself: show a session with `kero focus`, or run menu actions with `kero do`. Turn it off with `remote-control = false` to keep agents to their own sessions.
+With **Remote Control** on (the default, in **Settings › Agents**), agents can also drive the app itself: show a session with `kero focus`, run menu actions with `kero do`, or drive a browser pane with `kero browser`. Turn it off with `remote-control = false` to keep agents to their own sessions.
 
 ## Environment
 

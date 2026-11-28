@@ -150,7 +150,7 @@ zsh 会从 Kero 自带的一个 `.zshenv` 启动，它把 `ZDOTDIR` 还原为你
 | `browser-block-ads`   | `true`                     | 在浏览器窗格中[拦截广告和跟踪器](./panes.md#blocking-ads)                            |
 | `browser-filter-list` | `easylist`、`easyprivacy`  | 用于拦截的过滤列表。每个列表写一行；留空则不使用任何列表                            |
 
-`browser-filter-list` 可以填 Kero 内置列表的名称，也可以填任意 Adblock Plus 语法列表的 `https://` URL：
+`browser-filter-list` 可以填 Kero 内置列表的名称，也可以填任意 Adblock Plus 语法列表的 `https://` 或 `http://` URL：
 
 | 名称               | 列表                                                                |
 | ------------------ | ------------------------------------------------------------------- |

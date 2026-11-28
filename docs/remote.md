@@ -145,7 +145,7 @@ On Linux this first enables lingering (`loginctl enable-linger`), which keeps yo
 
 ### Remote Control
 
-`kero focus` and `kero do` let a program drive the app. For a host, that's code on another machine driving your computer's window, so it's off by default. Turn it on per host in **Settings › Hosts**, or with `remote-control` after the address:
+`kero focus`, `kero do` and `kero browser` let a program drive the app. For a host, that's code on another machine driving your computer's window, so it's off by default. Turn it on per host in **Settings › Hosts**, or with `remote-control` after the address:
 
 ```ini
 host = devbox=me@devbox remote-control
