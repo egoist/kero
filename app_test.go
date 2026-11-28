@@ -231,6 +231,41 @@ func TestOpenProjectDirectories(t *testing.T) {
 	}
 }
 
+// A custom directory that cannot be inspected is sent to the daemon to
+// report; it does not start the user's shell in home instead.
+func TestNewSessionKeepsAnUnlookableCustomDirectory(t *testing.T) {
+	a := testApp(t)
+	parent := filepath.Join(t.TempDir(), "file")
+	if err := os.WriteFile(parent, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	want := filepath.Join(parent, "session")
+	a.set.NewSessionDir, a.set.NewSessionPath = "custom", want
+	created := make(chan string, 1)
+	cl, stop := projectClient(t, func(method string, raw json.RawMessage) (any, error) {
+		if method != "create" {
+			return nil, errors.New("unexpected method " + method)
+		}
+		var p proto.CreateParams
+		if err := json.Unmarshal(raw, &p); err != nil {
+			return nil, err
+		}
+		created <- p.Dir
+		return nil, errors.New("no directory")
+	})
+	a.local().cl = cl
+	a.newSessionOn(a.local(), "")
+	select {
+	case got := <-created:
+		if got != want {
+			t.Fatalf("new session directory %q, want configured path %q", got, want)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("new session was not sent to the daemon")
+	}
+	stop()
+}
+
 func TestOpenProjectRemotePaths(t *testing.T) {
 	for _, dir := range []string{`C:\Projects\日本語 project`, `/srv/project`} {
 		t.Run(dir, func(t *testing.T) {
