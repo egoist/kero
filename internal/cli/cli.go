@@ -44,18 +44,23 @@ Usage:
       -d, --dir <dir>             start it there (default: here)
       -f, --focus                 show it in the app
       -w, --wait                  wait for cmd to end, exit with its status
+      -t, --timeout <dur>         how long to wait, with --wait
       -u, --url <url>             a browser showing url, not a shell
       --worktree <branch>         in a git worktree of its own, on a new
                                   branch from the default branch
       --base <ref>                the branch to start it from instead
+      --json                      print the session as JSON
   kero split [target] [options] [-- cmd…]
                                 start a pane beside a pane, printing its id
       --right (default), --down, --left, --up
       -r, --ratio <0..1>          the new pane's share (default 0.5)
       -d, --dir <dir>             start it there (default: the pane's)
+      -f, --focus                 show it in the app
       -w, --wait                  wait for cmd to end, exit with its status
+      -t, --timeout <dur>         how long to wait, with --wait
       -u, --url <url>             a browser showing url, not a shell, as
                                   a dev server's page: localhost:3000
+      --json                      print the session as JSON
   kero send <target> <text…>    type text into a pane
       -e                          interpret \n \r \t \e \xHH escapes
       --enter                     press Enter after it
@@ -71,6 +76,7 @@ Usage:
                                 reaches one of the statuses), print it
       -x, --exit                  instead wait for the command it started
                                   with to end, exit with its status
+      --json                      print the pane as JSON
   kero events [target] [-p project] [--for statuses] [--json]
                                 print what happens as it does, a line an
                                 event: panes changing status, sessions
@@ -117,7 +123,7 @@ Usage:
   kero history [query] [-p project] [-n count] [--json]
                                 the agents' conversations panes ran, the
                                 last to run first, to resume
-  kero resume <conversation> [-f]
+  kero resume <conversation> [-f] [--json]
                                 start a session resuming a conversation
                                 (its id, a prefix of it, or its name), or
                                 show the one running it, printing its id
@@ -141,7 +147,7 @@ Usage:
   kero config path|show|edit|check
                                 the configuration file: where it is, every
                                 key with its value (--defaults: as kero
-                                comes), open it in $EDITOR, check it
+                                comes), open it in $VISUAL or $EDITOR, check it
   kero projects [--json]        list projects, in the sidebar's order
   kero projects move <project> <position|top|bottom|up|down>
                                 move a project in that order (1 is the
@@ -149,7 +155,7 @@ Usage:
   kero skill setup|status|show|remove
                                 teach coding agents to use kero
   kero clients [--json]         list who is connected to kerod
-  kero hosts [ls]               the other machines Kero reaches
+  kero hosts [ls] [--json]      the other machines Kero reaches
   kero hosts add <name> <address> [--remote-control]
                                 save one: [user@]host or ssh://… over SSH,
                                 wsl://distro, http(s)://… for a listener
@@ -161,7 +167,8 @@ Usage:
                                 run kerod in the foreground, never idle,
                                 as a service does
   kero daemon install-service|uninstall-service
-                                run kerod with the machine (systemd, launchd)
+                                run kerod with the machine (systemd, launchd,
+                                Task Scheduler)
   kero daemon update [version]  update the server build of Kero
 
 Global options:
