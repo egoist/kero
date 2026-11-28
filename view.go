@@ -602,8 +602,9 @@ func (a *App) sessionRow(c *ui.Context, pal *palette, s *proto.Session, n *int) 
 			if s.Status == proto.Exited && !s.Unread {
 				name.TextColor(pal.textMuted)
 			}
-			if len(s.Panes) > 1 {
-				a.panesToggle(c, pal, s, expanded)
+			if len(s.Panes) > 1 && a.panesToggle(c, pal, s, expanded, false) {
+				id := s.ID
+				a.defer_(func() { a.toggleSessionPanes(id) })
 			}
 		}
 		when := func() {
@@ -673,26 +674,28 @@ func (a *App) sessionRow(c *ui.Context, pal *palette, s *proto.Session, n *int) 
 }
 
 // panesToggle is a split session's count of panes by its name, which
-// shows or hides them under its row.
-func (a *App) panesToggle(c *ui.Context, pal *palette, s *proto.Session, expanded bool) {
+// shows or hides them under its row, in the sidebar or the palette: it
+// reports a click, which the caller acts on. inField keeps the keyboard
+// in the field that has it, as the palette's, and out of Tab's way.
+func (a *App) panesToggle(c *ui.Context, pal *palette, s *proto.Session, expanded, inField bool) bool {
 	label := locales.SidebarShowPanes()
 	if expanded {
 		label = locales.SidebarHidePanes()
 	}
 	b := ui.ButtonBase(c.Key("panes")).Height(18).Padding(0, 4).Gap(2).Radius(5).AlignItems(ui.Center).Shrink(0).
 		TextColor(pal.textFaint).Label(label).Tooltip(label)
+	if inField {
+		b.KeepFocus().TabStop(false)
+	}
 	if b.Hovered() {
 		b.Background(pal.chip).TextColor(pal.text)
-	}
-	if b.Clicked() {
-		id := s.ID
-		a.defer_(func() { a.toggleSessionPanes(id) })
 	}
 	b.Children(func() {
 		ui.Textf(c, "%d", len(s.Panes)).FontSize(12).FontFeatures("tnum").SingleLine()
 		chev := ui.Icon(c, chevronIcon).Size(9, 9)
 		chev.Rotate(chev.AnimateTo("turn", 90*b2f(expanded), ui.Snappy))
 	})
+	return b.Clicked()
 }
 
 // paneRow is a pane of an expanded split session, under its row: its
@@ -722,15 +725,7 @@ func (a *App) paneRow(c *ui.Context, pal *palette, s *proto.Session, p *proto.Pa
 		row.Opacity(0.55)
 	}
 	if row.Clicked() {
-		a.defer_(func() {
-			s := a.session(sid)
-			if s == nil || s.PaneByID(pid) == nil {
-				return
-			}
-			a.setFocus(s, pid)
-			a.selectSession(sid)
-			a.focusPane(pid)
-		})
+		a.defer_(func() { a.goToPane(sid, pid) })
 	}
 	// Where it works: a branch other than the default, else a folder
 	// other than the session's.

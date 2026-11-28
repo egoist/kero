@@ -1,11 +1,13 @@
 package main
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/egoist/mygo/i18n"
 	"github.com/egoist/mygo/ui"
 
+	"kero/internal/proto"
 	"kero/locales"
 )
 
@@ -47,7 +49,7 @@ func TestPaletteKeepAwake(t *testing.T) {
 	zh := locales.In("zh-Hans")
 	title := func(mode string) string { return zh.AwakeTitle() + ": " + awakeModeIn(zh, mode) }
 	offers := func(mode string) *paletteItem {
-		for _, it := range a.paletteItems() {
+		for _, it := range a.paletteItems(a.pal.query) {
 			if it.title == title(mode) {
 				return &it
 			}
@@ -79,7 +81,7 @@ func TestPaletteScrolls(t *testing.T) {
 	tt := ui.NewTester(a.view, 1100, 900)
 	a.openPalette()
 	tt.Frame()
-	r, ok := tt.Find(a.paletteItems()[3].title)
+	r, ok := tt.Find(a.paletteItems(a.pal.query)[3].title)
 	if !ok {
 		t.Fatalf("no commands shown; texts %q", tt.Texts())
 	}
@@ -148,5 +150,466 @@ func TestFuzzySkipsQuerySpaces(t *testing.T) {
 	// What is no letter of the query in the item is still no match.
 	if got := fuzzy("a b", "ac"); got != -1 {
 		t.Errorf("fuzzy(%q, %q) = %d, want no match", "a b", "ac", got)
+	}
+}
+
+// paletteHasPane tells whether the palette's list offers a pane by its name.
+func paletteHasPane(a *App, name string) bool {
+	for _, it := range a.paletteItems(a.pal.query) {
+		if it.pane != nil && it.title == name {
+			return true
+		}
+	}
+	return false
+}
+
+// The palette shows a session's panes when the user types, or when the
+// session is expanded; → expands it and goes into its panes, ← goes back
+// out, and Return moves the user into the pane chosen.
+func TestPalettePanes(t *testing.T) {
+	a := testApp(t)
+	tt := ui.NewTester(a.view, 1100, 640)
+	a.openPalette()
+	tt.Frame()
+	if paletteHasPane(a, "zsh") {
+		t.Fatal("panes shown before the user typed or expanded")
+	}
+	if a.pal.index != 0 || a.pal.expanded["s1"] {
+		t.Fatalf("index %d, expanded %v", a.pal.index, a.pal.expanded)
+	}
+	tt.Key(0, ui.KeyRight)
+	tt.Frame()
+	if !a.pal.expanded["s1"] || !paletteHasPane(a, "fish") || !paletteHasPane(a, "zsh") {
+		t.Fatalf("→ didn't show the session's panes; expanded %v", a.pal.expanded)
+	}
+	tt.Key(0, ui.KeyRight)
+	tt.Frame()
+	if a.pal.index != 1 {
+		t.Fatalf("→ again chose %d, want the first pane", a.pal.index)
+	}
+	tt.Key(0, ui.KeyLeft)
+	tt.Frame()
+	if a.pal.index != 0 || a.pal.expanded["s1"] {
+		t.Fatalf("← left index %d, expanded %v", a.pal.index, a.pal.expanded)
+	}
+	tt.Key(0, ui.KeyRight)
+	tt.Key(0, ui.KeyRight)
+	tt.Key(0, ui.KeyDown)
+	tt.Key(0, ui.KeyEnter)
+	tt.Frame()
+	if a.pal.open {
+		t.Fatal("Return didn't close the palette")
+	}
+	if s := a.session("s1"); a.focusOf(s) != "b" {
+		t.Errorf("in pane %q, want b", a.focusOf(s))
+	}
+}
+
+// Typed, the palette finds a pane by its name, and goes into it.
+func TestPaletteFindsPane(t *testing.T) {
+	a := testApp(t)
+	tt := ui.NewTester(a.view, 1100, 640)
+	a.openPalette()
+	tt.Frame()
+	tt.Type("zsh")
+	tt.Frame()
+	if !paletteHasPane(a, "zsh") {
+		t.Fatal("no zsh pane found")
+	}
+	tt.Key(0, ui.KeyEnter)
+	tt.Frame()
+	if s := a.session("s1"); a.focusOf(s) != "b" {
+		t.Errorf("in pane %q, want b", a.focusOf(s))
+	}
+}
+
+// Clicking a session's pane count shows its panes, and chooses nothing.
+func TestPaletteExpandClick(t *testing.T) {
+	a := testApp(t)
+	tt := ui.NewTester(a.view, 1100, 640)
+	a.openPalette()
+	tt.Frame()
+	if err := tt.Click(locales.SidebarShowPanes()); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if !a.pal.open {
+		t.Fatal("the click chose the session")
+	}
+	if !a.pal.expanded["s1"] || !paletteHasPane(a, "zsh") {
+		t.Errorf("the click didn't show the panes; expanded %v", a.pal.expanded)
+	}
+	if err := tt.Click(locales.SidebarHidePanes()); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if a.pal.expanded["s1"] || !a.pal.open {
+		t.Errorf("the click didn't hide the panes, or closed the palette")
+	}
+}
+
+// After a click on the count, the field still has the keyboard: → goes
+// into the panes, Return goes to the one chosen, and typing searches.
+func TestPaletteKeysAfterClick(t *testing.T) {
+	a := testApp(t)
+	tt := ui.NewTester(a.view, 1100, 640)
+	a.openPalette()
+	tt.Frame()
+	if err := tt.Click(locales.SidebarShowPanes()); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	tt.Key(0, ui.KeyRight)
+	tt.Frame()
+	if a.pal.index != 1 {
+		t.Fatalf("→ after the click chose %d, want the first pane", a.pal.index)
+	}
+	tt.Type("zs")
+	tt.Frame()
+	if a.pal.query != "zs" {
+		t.Fatalf("typing after the click left the query %q", a.pal.query)
+	}
+	tt.Key(0, ui.KeyEnter)
+	tt.Frame()
+	if a.pal.open {
+		t.Fatal("Return after the click didn't choose")
+	}
+	if s := a.session("s1"); a.focusOf(s) != "b" {
+		t.Errorf("in pane %q, want b", a.focusOf(s))
+	}
+}
+
+// Arrows that come between frames are each acted on as it comes, on the
+// list as the one before left it, and do nothing to a row that isn't a
+// session or a pane.
+func TestPaletteArrowsInOrder(t *testing.T) {
+	a := testApp(t)
+	tt := ui.NewTester(a.view, 1100, 640)
+	a.openPalette()
+	tt.Frame()
+	paletteNavKeys(a, ui.KeyRight, ui.KeyRight, ui.KeyDown)
+	tt.Frame()
+	if a.pal.index != 2 || !paletteHasPane(a, "zsh") {
+		t.Fatalf("→ → ↓ chose %d, want the second pane", a.pal.index)
+	}
+	if it := a.paletteMatches(a.pal.query)[a.pal.index]; it.pane == nil || it.pane.ID != "b" {
+		t.Fatalf("→ → ↓ chose %q, want pane b", it.title)
+	}
+	paletteNavKeys(a, ui.KeyUp, ui.KeyLeft, ui.KeyDown)
+	tt.Frame()
+	if a.pal.expanded["s1"] || a.pal.index != 1 {
+		t.Fatalf("↑ ← ↓ left index %d, expanded %v; want the row after the session", a.pal.index, a.pal.expanded)
+	}
+	paletteNavKeys(a, ui.KeyRight, ui.KeyLeft)
+	tt.Frame()
+	if a.pal.expanded["s1"] || a.pal.index != 1 {
+		t.Errorf("arrows on a command changed the list: index %d, expanded %v", a.pal.index, a.pal.expanded)
+	}
+}
+
+func TestPaletteReturnBeforeArrow(t *testing.T) {
+	a := testApp(t)
+	tt := ui.NewTester(a.view, 1100, 640)
+	a.openPalette()
+	tt.Frame()
+	tt.Key(0, ui.KeyRight)
+	tt.Key(0, ui.KeyRight)
+	paletteNavKeys(a, ui.KeyEnter, ui.KeyDown, ui.KeyEnter)
+	tt.Frame()
+	if a.pal.open || a.focusOf(a.session("s1")) != "a" {
+		t.Fatalf("Return, Down, Return should open pane a, focus %q", a.focusOf(a.session("s1")))
+	}
+}
+
+func TestPaletteExpandBeforeTyping(t *testing.T) {
+	a := testApp(t)
+	tt := ui.NewTester(a.view, 1100, 640)
+	a.openPalette()
+	tt.Frame()
+	paletteNavKeys(a, ui.KeyRight)
+	tt.Type("zsh")
+	if !a.pal.expanded["s1"] || a.pal.resultsQuery != "zsh" {
+		t.Fatalf("Right followed by typing left expanded %v, results for %q", a.pal.expanded, a.pal.resultsQuery)
+	}
+}
+
+func TestPaletteScrollWhenMovingIntoPanes(t *testing.T) {
+	a := testApp(t)
+	tt := ui.NewTester(a.view, 1100, 640)
+	a.openPalette()
+	tt.Frame()
+	paletteNavKeys(a, ui.KeyRight, ui.KeyRight)
+	tt.Frame()
+	if a.pal.index != 1 || a.pal.scroll.Y != 0 {
+		t.Fatalf("Right twice left index %d and scroll %g, want index 1 and scroll 0", a.pal.index, a.pal.scroll.Y)
+	}
+}
+
+// Typed, panes are found by their own name, not their session's.
+func TestPalettePaneMatchesOwnName(t *testing.T) {
+	a := testApp(t)
+	tt := ui.NewTester(a.view, 1100, 640)
+	a.openPalette()
+	tt.Frame()
+	tt.Type("demo")
+	tt.Frame()
+	for _, it := range a.paletteMatches(a.pal.query) {
+		if it.pane != nil {
+			t.Errorf("pane %q found by its session's name", it.title)
+		}
+	}
+}
+
+// Typed, a pane is found by the folder its program runs in, and Ctrl+N
+// and Ctrl+P choose as ↓ and ↑ do.
+func TestPaletteFindsPaneByFolder(t *testing.T) {
+	a := testApp(t)
+	a.session("s1").PaneByID("b").ProcessDir = "/tmp/webapp"
+	tt := ui.NewTester(a.view, 1100, 640)
+	a.openPalette()
+	tt.Frame()
+	tt.Key(ui.Ctrl, ui.KeyN)
+	tt.Key(ui.Ctrl, ui.KeyN)
+	tt.Key(ui.Ctrl, ui.KeyP)
+	tt.Frame()
+	if a.pal.index != 1 {
+		t.Errorf("Ctrl+N Ctrl+N Ctrl+P chose %d, want 1", a.pal.index)
+	}
+	tt.Type("webapp")
+	tt.Frame()
+	items := a.paletteMatches(a.pal.query)
+	if len(items) == 0 || items[0].pane == nil || items[0].pane.ID != "b" {
+		t.Fatalf("webapp didn't find pane b first: %v", items)
+	}
+}
+
+// Arrows on an empty list, as one made for a search that matched nothing,
+// choose nothing and don't fail.
+func TestPaletteArrowsOnEmptyList(t *testing.T) {
+	a := testApp(t)
+	a.pal.open = true
+	a.pal.query = "\x00"
+	paletteNavKeys(a, ui.KeyDown, ui.KeyEnter)
+	if items := a.paletteResults(a.pal.query); len(items) != 0 || a.pal.index != 0 || a.pal.picked != nil {
+		t.Errorf("arrows on nothing left %d rows, index %d", len(items), a.pal.index)
+	}
+}
+
+// A browser pane is found by its site and the parts of its path.
+func TestURLWords(t *testing.T) {
+	got := urlWords("https://www.github.com/egoist/kero")
+	for _, w := range []string{"github.com", "github", "egoist", "kero"} {
+		if !strings.Contains(" "+got+" ", " "+w+" ") {
+			t.Errorf("urlWords lacks %q: %q", w, got)
+		}
+	}
+	if got := urlWords("http://localhost:5173/app"); !strings.Contains(" "+got+" ", " 5173 ") || !strings.Contains(" "+got+" ", " localhost ") {
+		t.Errorf("urlWords lacks the port or host: %q", got)
+	}
+	if got := urlWords("http://[::1]:5173/app"); !strings.Contains(" "+got+" ", " 5173 ") || !strings.Contains(" "+got+" ", " ::1 ") {
+		t.Errorf("urlWords lacks an IPv6 host's port or address: %q", got)
+	}
+	if got := urlWords("https://docs.github.com/en"); !strings.Contains(" "+got+" ", " github ") {
+		t.Errorf("urlWords lacks the site under a subdomain: %q", got)
+	}
+	if urlWords("") != "" || urlWords("not a url") != "not a url" {
+		t.Errorf("urlWords changed what isn't an address")
+	}
+}
+
+// Tab leaves the keyboard in the field, past the count of panes: ↓ still
+// chooses and typing still searches.
+func TestPaletteTabStaysInField(t *testing.T) {
+	a := testApp(t)
+	tt := ui.NewTester(a.view, 1100, 640)
+	a.openPalette()
+	tt.Frame()
+	tt.Key(0, ui.KeyTab)
+	tt.Frame()
+	tt.Key(0, ui.KeyDown)
+	tt.Frame()
+	if a.pal.index != 1 {
+		t.Errorf("↓ after Tab chose %d, want 1", a.pal.index)
+	}
+	tt.Type("zsh")
+	tt.Frame()
+	if a.pal.query != "zsh" {
+		t.Errorf("typing after Tab left the query %q", a.pal.query)
+	}
+}
+
+// A click on the count chooses its session, and → after it goes into the
+// panes it showed.
+func TestPaletteClickThenRight(t *testing.T) {
+	a := testApp(t)
+	tt := ui.NewTester(a.view, 1100, 640)
+	a.openPalette()
+	tt.Frame()
+	paletteNavKeys(a, ui.KeyDown, ui.KeyDown)
+	a.togglePalette("s1")
+	paletteNavKeys(a, ui.KeyRight)
+	tt.Frame()
+	if !a.pal.expanded["s1"] || a.pal.index != 1 {
+		t.Errorf("click then → left index %d, expanded %v; want the first pane", a.pal.index, a.pal.expanded)
+	}
+}
+
+// Going to a pane from the palette opens its group in the sidebar and
+// shows the session's panes there.
+func TestPaletteShowsPaneInSidebar(t *testing.T) {
+	a := testApp(t)
+	g := a.groups()[0]
+	a.prefs.Collapsed[g.key()] = true
+	tt := ui.NewTester(a.view, 1100, 640)
+	a.openPalette()
+	tt.Frame()
+	tt.Type("zsh")
+	tt.Key(0, ui.KeyEnter)
+	tt.Frame()
+	if a.prefs.Collapsed[g.key()] || !a.prefs.Expanded["s1"] {
+		t.Errorf("collapsed %v, expanded %v", a.prefs.Collapsed, a.prefs.Expanded)
+	}
+}
+
+// A pane is found by its command, as a server it runs.
+func TestPaletteFindsPaneByCommand(t *testing.T) {
+	a := testApp(t)
+	b := a.session("s1").PaneByID("b")
+	b.Command, b.Runtime = []string{"vite", "--port", "5173"}, "node"
+	for _, q := range []string{"vite", "node"} {
+		items := a.paletteMatches(q)
+		if len(items) == 0 || items[0].pane == nil || items[0].pane.ID != "b" {
+			t.Errorf("%s didn't find pane b first", q)
+		}
+	}
+}
+
+// Return after → before a frame picks from the list → made, with the
+// session's panes in it.
+func TestPaletteReturnAfterExpandSameFrame(t *testing.T) {
+	a := testApp(t)
+	a.openPalette()
+	paletteNavKeys(a, ui.KeyRight, ui.KeyDown, ui.KeyDown, ui.KeyEnter)
+	items, chosen := a.paletteMatches(a.pal.query), a.pal.picked
+	if chosen == nil || items[a.pal.index].pane == nil || items[a.pal.index].pane.ID != "b" {
+		t.Fatalf("→ ↓ ↓ ↩ chose index %d, want pane b", a.pal.index)
+	}
+	chosen()
+	if s := a.session("s1"); a.focusOf(s) != "b" {
+		t.Errorf("in pane %q, want b", a.focusOf(s))
+	}
+}
+
+// Typed, an open pane that matches comes before a conversation of the
+// past that matches better.
+func TestPalettePanesBeforeConversations(t *testing.T) {
+	a := testApp(t)
+	a.session("s1").PaneByID("b").ProcessDir = "/tmp/webapp"
+	a.pal.convs = []hostConversation{{host: a.hosts[0], Conversation: proto.Conversation{ID: "c1", Agent: "claude", Name: "webapp"}}}
+	items := a.paletteMatches("webapp")
+	if len(items) < 2 || items[0].pane == nil || items[len(items)-1].conv == nil {
+		t.Fatalf("webapp didn't find pane b before the conversation: %d rows, first %q", len(items), items[0].title)
+	}
+	a.pal.only = true
+	if items := a.paletteMatches("webapp"); len(items) != 1 || items[0].conv == nil {
+		t.Errorf("Resume Conversation… didn't find the conversation alone")
+	}
+}
+
+// Typed, a split session is found by its own name, not by the folder of
+// the pane it shows, which is listed itself: that pane shows once.
+func TestPaletteSplitSessionNotFoundByPane(t *testing.T) {
+	a := testApp(t)
+	s := a.session("s1")
+	s.ProcessDir, s.PaneByID("a").ProcessDir = "/tmp/webapp", "/tmp/webapp" // its lead pane's
+	items := a.paletteMatches("webapp")
+	if len(items) != 1 || items[0].pane == nil || items[0].pane.ID != "a" {
+		t.Fatalf("webapp found %d rows, want pane a alone", len(items))
+	}
+	if items := a.paletteMatches("demo"); len(items) == 0 || items[0].kind() != paletteSession {
+		t.Errorf("demo didn't find its session")
+	}
+}
+
+// The selection stays on its row as rows come and go above it, as a
+// session's panes do while the palette is open.
+func TestPaletteSelectionFollowsRow(t *testing.T) {
+	a := testApp(t)
+	tt := ui.NewTester(a.view, 1100, 640)
+	a.openPalette()
+	tt.Frame()
+	paletteNavKeys(a, ui.KeyRight, ui.KeyRight, ui.KeyDown)
+	tt.Frame()
+	if a.pal.index != 2 {
+		t.Fatalf("→ → ↓ chose %d, want pane b", a.pal.index)
+	}
+	s := a.session("s1")
+	s.Panes = append([]proto.Pane{{ID: "c", Shell: "bash", Dir: "/tmp", Status: proto.Idle, Progress: -1}}, s.Panes...)
+	tt.Frame()
+	if it := a.paletteMatches(a.pal.query)[a.pal.index]; it.pane == nil || it.pane.ID != "b" {
+		t.Errorf("a new pane above moved the selection to %q", it.title)
+	}
+}
+
+// Going to a pane from the palette keeps the sidebar's panes shown for
+// sessions it can't see now, as a host's while it reconnects; a toggle in
+// the sidebar forgets those that are gone.
+func TestPaletteKeepsUnseenSessionsPanes(t *testing.T) {
+	a := testApp(t)
+	a.prefs.Expanded = map[string]bool{"gone": true}
+	a.showInSidebar("", "s1", func() {})
+	if !a.prefs.Expanded["gone"] || !a.prefs.Expanded["s1"] {
+		t.Errorf("palette left expanded %v, want gone and s1", a.prefs.Expanded)
+	}
+	a.toggleSessionPanes("s1")
+	if a.prefs.Expanded["gone"] || a.prefs.Expanded["s1"] {
+		t.Errorf("toggle left expanded %v, want none", a.prefs.Expanded)
+	}
+}
+
+// The selection stays on a command as the conversations, which come after
+// the palette opens, add rows above it.
+func TestPaletteSelectionStaysAsConversationsLoad(t *testing.T) {
+	a := testApp(t)
+	tt := ui.NewTester(a.view, 1100, 640)
+	a.openPalette()
+	tt.Frame()
+	tt.Key(0, ui.KeyDown)
+	tt.Key(0, ui.KeyDown)
+	tt.Frame()
+	want := a.paletteMatches("")[a.pal.index]
+	if want.kind() != paletteCommand {
+		t.Fatalf("↓ ↓ chose %q, want a command", want.title)
+	}
+	h := a.hosts[0]
+	a.pal.convs = []hostConversation{{host: h, Conversation: proto.Conversation{ID: "c1", Agent: "claude", Name: "one"}},
+		{host: h, Conversation: proto.Conversation{ID: "c2", Agent: "claude", Name: "two"}}}
+	tt.Frame()
+	if got := a.paletteMatches("")[a.pal.index]; got.title != want.title {
+		t.Errorf("conversations above moved the selection from %q to %q", want.title, got.title)
+	}
+}
+
+// The window's keys, away from the field, go the field's way: Ctrl+N is
+// ↓, and → expands a session while nothing is typed.
+func TestPaletteChord(t *testing.T) {
+	a := testApp(t)
+	a.openPalette()
+	if !a.paletteChord(0, ui.KeyRight, "") || !a.pal.expanded["s1"] {
+		t.Fatalf("→ didn't expand s1: %v", a.pal.expanded)
+	}
+	if !a.paletteChord(ui.Ctrl, ui.KeyN, "") || a.pal.index != 1 {
+		t.Errorf("Ctrl+N chose %d, want 1", a.pal.index)
+	}
+	if a.paletteChord(0, ui.KeyLeft, "z") || a.paletteChord(ui.Cmd, ui.KeyDown, "") {
+		t.Errorf("took ← with text typed, or ⌘↓")
+	}
+}
+
+// paletteNavKeys sends keys to the list as the field does, each as it
+// comes between frames.
+func paletteNavKeys(a *App, keys ...ui.Key) {
+	for _, k := range keys {
+		a.paletteNav(k, a.pal.query)
 	}
 }

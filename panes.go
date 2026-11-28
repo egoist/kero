@@ -78,6 +78,19 @@ func (a *App) setFocus(s *proto.Session, pane string) {
 	a.call(s.ID, "focus", proto.FocusParams{Session: s.ID, Pane: pane}, nil)
 }
 
+// goToPane shows a session with one of its panes focused, as a click on
+// the pane's row in the sidebar or the palette does: the pane first, so
+// that showing the session claims and focuses the pane chosen.
+func (a *App) goToPane(sid, pid string) {
+	s := a.session(sid)
+	if s == nil || s.PaneByID(pid) == nil {
+		return
+	}
+	a.setFocus(s, pid)
+	a.selectSession(sid)
+	a.focusPane(pid)
+}
+
 // focusPane gives the keyboard to a pane, and remembers which pane has
 // it: a pane that goes away takes the keyboard with it (#390).
 func (a *App) focusPane(id string) {
