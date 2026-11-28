@@ -1236,5 +1236,9 @@
   "setShortcutGlobal": "Works in every app",
   "commonUnlimited": "Unlimited",
   "setImageLimit": "Image Limit",
-  "setImageLimitDetail": "The most the images programs show take in a pane."
+  "setImageLimitDetail": "The most the images programs show take in a pane.",
+  "setQuickHistory": "Quick History",
+  "setQuickHistoryDetail": "In zsh, the newest command that starts with what you type shows after it: → or Tab takes it. ↑ lists the commands with what you typed.",
+  "setSyntaxHighlight": "Syntax Highlighting",
+  "setSyntaxHighlightDetail": "The command is colored as you type, in the theme's colors: its name green, or underlined when there is no such command."
 }

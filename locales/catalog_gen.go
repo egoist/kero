@@ -6713,3 +6713,43 @@ func SetImageLimitDetail() string { return In(i18n.Locale()).SetImageLimitDetail
 func (msgs Messages) SetImageLimitDetail() string {
 	return Catalog.Format(msgs.locale, "setImageLimitDetail", nil)
 }
+
+// SetQuickHistory says "Quick History"
+// in the language the app shows.
+func SetQuickHistory() string { return In(i18n.Locale()).SetQuickHistory() }
+
+// SetQuickHistory says "Quick History"
+// in the language of msgs.
+func (msgs Messages) SetQuickHistory() string {
+	return Catalog.Format(msgs.locale, "setQuickHistory", nil)
+}
+
+// SetQuickHistoryDetail says "In zsh, the newest command that starts with what you type shows after it: → or Tab takes it. ↑ lists the commands…"
+// in the language the app shows.
+func SetQuickHistoryDetail() string { return In(i18n.Locale()).SetQuickHistoryDetail() }
+
+// SetQuickHistoryDetail says "In zsh, the newest command that starts with what you type shows after it: → or Tab takes it. ↑ lists the commands…"
+// in the language of msgs.
+func (msgs Messages) SetQuickHistoryDetail() string {
+	return Catalog.Format(msgs.locale, "setQuickHistoryDetail", nil)
+}
+
+// SetSyntaxHighlight says "Syntax Highlighting"
+// in the language the app shows.
+func SetSyntaxHighlight() string { return In(i18n.Locale()).SetSyntaxHighlight() }
+
+// SetSyntaxHighlight says "Syntax Highlighting"
+// in the language of msgs.
+func (msgs Messages) SetSyntaxHighlight() string {
+	return Catalog.Format(msgs.locale, "setSyntaxHighlight", nil)
+}
+
+// SetSyntaxHighlightDetail says "The command is colored as you type, in the theme's colors: its name green, or underlined when there is no such command."
+// in the language the app shows.
+func SetSyntaxHighlightDetail() string { return In(i18n.Locale()).SetSyntaxHighlightDetail() }
+
+// SetSyntaxHighlightDetail says "The command is colored as you type, in the theme's colors: its name green, or underlined when there is no such command."
+// in the language of msgs.
+func (msgs Messages) SetSyntaxHighlightDetail() string {
+	return Catalog.Format(msgs.locale, "setSyntaxHighlightDetail", nil)
+}

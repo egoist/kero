@@ -1,6 +1,7 @@
 package daemon
 
 import (
+	_ "embed"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -31,7 +32,7 @@ var zshPrompts = func() bool {
 
 // writeZshenv writes Kero's .zshenv in dir, putting bin first when set.
 func writeZshenv(dir, bin string) error {
-	s := zshIntegration
+	s := zshIntegration + zshQuickHistory
 	if bin != "" {
 		s += strings.ReplaceAll(zshBinFirst, "BIN", shellQuote("zsh", bin))
 	}
@@ -69,10 +70,29 @@ __kero_install_marks() {
   add-zsh-hook precmd __kero_mark_prompt
   add-zsh-hook preexec __kero_command_start
   __kero_mark_prompt
+  [[ $KERO_QUICK_HISTORY == 1 ]] && __kero_qh_install
 }
 typeset -ga precmd_functions
 precmd_functions+=(__kero_install_marks)
 `
+
+// zshQuickHistory is quick-history, which __kero_install_marks installs
+// when the configuration turns it on (KERO_QUICK_HISTORY): as the user
+// types, the newest command of the history that starts with what is typed
+// shows after the cursor, dimmed, which the Right arrow or Tab takes, and,
+// with syntax-highlighting (KERO_SYNTAX_HIGHLIGHT), the command is colored
+// in the theme's colors. The Up arrow lists the commands with what is typed in them under
+// the prompt, the newest at the bottom, which the arrows go through, Tab
+// takes, Enter runs and Esc dismisses, and which narrows as the user types
+// on; its rows take shades of the terminal's background, which it asks
+// (OSC 11), so that they suit a light theme and a dark one. It is drawn
+// by zsh itself (POSTDISPLAY, region_highlight), so it is the same over
+// SSH and on another machine's kerod. The keys run what they ran before
+// wherever it has nothing to do, and zsh-autosuggestions and
+// zsh-syntax-highlighting, when loaded, keep their own.
+//
+//go:embed quickhistory.zsh
+var zshQuickHistory string
 
 // zshBinFirst puts BIN first before the first prompt, after .zprofile and
 // .zshrc.

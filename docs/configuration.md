@@ -100,12 +100,26 @@ values close together can look the same or differ by a pixel.
 | `env`              |         | Added to every pane's environment as `NAME=value`; repeat it   |
 | `scrollback-limit` | `4`     | The output each pane keeps, in megabytes; `0` for none         |
 | `image-storage-limit` | `64` | The most the images a pane's programs show take, in megabytes; `0` for no limit |
+| `quick-history`    | `false` | In zsh, suggest commands from your history as you type, and list them on ↑ |
+| `syntax-highlighting` | `true` | With `quick-history`, color the command as you type               |
 
 zsh starts with a `.zshenv` of Kero's, which sets `ZDOTDIR` back to yours (or
 unsets it) and runs your startup files as zsh would. It then marks where each
 prompt starts and ends, so that the terminal can clear the prompt when it
 resizes before zsh draws it again. Without this, a prompt as wide as the
 terminal, such as Powerlevel10k's, would leave a copy behind at each width.
+
+With `quick-history = true`, the newest command of your history that starts
+with what you type shows after it, dimmed: → or Tab takes it. ↑ lists the
+commands that have what you typed in them under the prompt, the newest at the
+bottom: ↑ and ↓ go through them, Tab takes one, Enter runs it, and Esc
+dismisses the list. Typing on narrows it, and what you typed shows bold in it.
+If zsh-autosuggestions is loaded, its suggestion shows instead of Kero's.
+
+With `syntax-highlighting`, the command is colored as you type, in your theme's
+colors: its name green, or underlined when there is no such command, its options
+yellow and its variables magenta. If zsh-syntax-highlighting is loaded, its
+colors show instead.
 
 ## Notifications
 

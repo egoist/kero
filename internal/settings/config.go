@@ -333,6 +333,8 @@ var keys = []key{
 		}},
 	numberKey("scrollback-limit", "the output each pane keeps, in megabytes; 0 for none", func(s *Settings) float64 { return float64(s.Scrollback) }, func(s *Settings, n float64) { s.Scrollback = int(n) }),
 	numberKey("image-storage-limit", "the most the images a pane's programs show take, in megabytes; 0 for no limit", func(s *Settings) float64 { return float64(s.ImageLimit) }, func(s *Settings, n float64) { s.ImageLimit = int(n) }),
+	boolKey("quick-history", "in zsh, the newest matching command shows as you type, and the Up arrow lists them", func(s *Settings) *bool { return &s.QuickHistory }),
+	boolKey("syntax-highlighting", "with quick-history, the command is colored as you type", func(s *Settings) *bool { return &s.SyntaxHighlight }),
 
 	boolKey("notify-on-waiting", "when a session needs you", func(s *Settings) *bool { return &s.NotifyWaiting }),
 	boolKey("notify-on-done", "when an agent finishes", func(s *Settings) *bool { return &s.NotifyDone }),

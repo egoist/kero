@@ -668,5 +668,9 @@
   "setShortcutGlobal": "どのアプリでも使えます",
   "commonUnlimited": "無制限",
   "setImageLimit": "画像の上限",
-  "setImageLimitDetail": "各ペインでプログラムが表示する画像が占める最大量。"
+  "setImageLimitDetail": "各ペインでプログラムが表示する画像が占める最大量。",
+  "setQuickHistory": "クイック履歴",
+  "setQuickHistoryDetail": "zsh で、入力した内容で始まる最新のコマンドを続けて表示します。→ または Tab で確定します。↑ で入力した内容を含むコマンドを一覧表示します。",
+  "setSyntaxHighlight": "シンタックスハイライト",
+  "setSyntaxHighlightDetail": "入力中のコマンドをテーマの色で色分けします。コマンド名は緑、存在しないコマンドは下線で示します。"
 }

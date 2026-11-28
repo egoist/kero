@@ -1243,6 +1243,14 @@ func (a *App) shellPage(c *ui.Context, pal *palette) {
 				return strconv.Itoa(mb) + " MB"
 			}, 130, pal)
 		})
+		settingRow(c, pal, locales.SetQuickHistory(), locales.SetQuickHistoryDetail(), func() {
+			toggle(c.Key("quick-history"), &s.QuickHistory, pal)
+		})
+		if s.QuickHistory {
+			settingRow(c, pal, locales.SetSyntaxHighlight(), locales.SetSyntaxHighlightDetail(), func() {
+				toggle(c.Key("syntax-highlighting"), &s.SyntaxHighlight, pal)
+			})
+		}
 	})
 	settingsGroup(c, pal, locales.SetEnvironment(), locales.SetEnvironmentDetail(), func() {
 		for i, kv := range s.Env {
