@@ -27,7 +27,7 @@ Kero 根据编程智能体屏幕上显示的内容判断它的状态：它的加
 
 ## 自定义智能体
 
-Kero 借用 [herdr](https://github.com/ogulcancelik/herdr) 的规则，读取 Claude Code、Codex、CodeBuddy Code、Gemini、OpenCode、Amp、Cursor、Droid、Qwen、Copilot、Kiro、Cline、Kimi 和 Pi 的屏幕。在[配置文件](./configuration.md)旁的 `agents.toml` 中，就能让 Kero 认识其他智能体，或修正屏幕已变的智能体的规则。每个智能体是一个 `[[agents]]` 表，规则与 herdr 的清单相同：
+Kero 借用 [herdr](https://github.com/ogulcancelik/herdr) 的规则，读取 Claude Code、Codex、CodeBuddy Code、Gemini、OpenCode、Amp、Cursor、Droid、Qwen、Copilot、Kiro、Cline、Kimi、Pi 以及显示与 Pi 相同画面的 PiG 的屏幕。在[配置文件](./configuration.md)旁的 `agents.toml` 中，就能让 Kero 认识其他智能体，或修正屏幕已变的智能体的规则。每个智能体是一个 `[[agents]]` 表，规则与 herdr 的清单相同：
 
 ```toml
 # ~/.config/kero/agents.toml
@@ -51,7 +51,7 @@ visible_working = true
 any = [{ contains = ["hopping…"] }, { regex = ['[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏] Working'] }]
 ```
 
-在与屏幕匹配的规则中，优先级（`priority`）最高的胜出；都不匹配时，智能体为空闲。规则的 `state` 为 `working`、`blocked` 或 `idle`，当它的所有条件都成立时成立：每个 `contains`（不区分大小写）、每个 `regex`、每个与某一行匹配的 `line_regex`、`all` 中的每一项、`any` 中的某一项，以及 `not` 中的每一项都不成立。`region` 选择规则读取的部分：`whole_recent`（默认）、`bottom_lines(n)`、`bottom_non_empty_lines(n)`、`top_non_empty_lines(n)`、`prompt_box_body`、`above_prompt_box`、`after_last_horizontal_rule`、`osc_title`（终端标题）、`osc_progress`（报告的进度）等。Kero 自带的清单（[`internal/detect/manifests`](https://github.com/egoist/kero/tree/main/internal/detect/manifests)）展示了全部用法。
+在与屏幕匹配的规则中，优先级（`priority`）最高的胜出；都不匹配时，智能体为空闲。规则的 `state` 为 `working`、`blocked`、`idle` 或 `unknown`，当它的所有条件都成立时成立：每个 `contains`（不区分大小写）、每个 `regex`、每个与某一行匹配的 `line_regex`、`all` 中的每一项、`any` 中的某一项，以及 `not` 中的每一项都不成立。`region` 选择规则读取的部分：`whole_recent`（默认）、`bottom_lines(n)`、`bottom_non_empty_lines(n)`、`top_non_empty_lines(n)`、`prompt_box_body`、`above_prompt_box`、`after_last_horizontal_rule`、`osc_title`（终端标题）、`osc_progress`（报告的进度）等。Kero 自带的清单（[`internal/detect/manifests`](https://github.com/egoist/kero/tree/main/internal/detect/manifests)）展示了全部用法。
 
 `id` 为 Kero 已有智能体（如 `claude` 或 `codex`）的条目会替换它的规则，其 `executables` 会增加 Kero 识别它的程序名。
 

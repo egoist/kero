@@ -27,7 +27,7 @@ Each session's row in the sidebar starts with the icon of the program in the pan
 
 ## Your own agents
 
-Kero knows the screens of Claude Code, Codex, CodeBuddy Code, Gemini, OpenCode, Amp, Cursor, Droid, Qwen, Copilot, Kiro, Cline, Kimi and Pi, from rules it borrows from [herdr](https://github.com/ogulcancelik/herdr). You can teach it another agent, or fix the rules of one whose screen changed, in `agents.toml` beside the [configuration file](./configuration.md). Each agent there is an `[[agents]]` table with its rules, as herdr's manifests have them:
+Kero knows the screens of Claude Code, Codex, CodeBuddy Code, Gemini, OpenCode, Amp, Cursor, Droid, Qwen, Copilot, Kiro, Cline, Kimi, Pi and PiG, which shows Pi's screen, from rules it borrows from [herdr](https://github.com/ogulcancelik/herdr). You can teach it another agent, or fix the rules of one whose screen changed, in `agents.toml` beside the [configuration file](./configuration.md). Each agent there is an `[[agents]]` table with its rules, as herdr's manifests have them:
 
 ```toml
 # ~/.config/kero/agents.toml
@@ -51,7 +51,7 @@ visible_working = true
 any = [{ contains = ["hopping…"] }, { regex = ['[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏] Working'] }]
 ```
 
-Of the rules that match the screen, the one of the highest priority wins; when none does, the agent is idle. A rule's `state` is `working`, `blocked` or `idle`, and it holds when all its conditions do: every `contains` (ignoring case), every `regex`, every `line_regex` matching a line, every gate of `all`, one of `any` and none of `not`. `region` picks what the rule reads: `whole_recent` (the default), `bottom_lines(n)`, `bottom_non_empty_lines(n)`, `top_non_empty_lines(n)`, `prompt_box_body`, `above_prompt_box`, `after_last_horizontal_rule`, `osc_title` (the terminal's title) or `osc_progress` (the progress it reports), among others. The manifests Kero comes with, in [`internal/detect/manifests`](https://github.com/egoist/kero/tree/main/internal/detect/manifests), show them all.
+Of the rules that match the screen, the one of the highest priority wins; when none does, the agent is idle. A rule's `state` is `working`, `blocked`, `idle` or `unknown`, and it holds when all its conditions do: every `contains` (ignoring case), every `regex`, every `line_regex` matching a line, every gate of `all`, one of `any` and none of `not`. `region` picks what the rule reads: `whole_recent` (the default), `bottom_lines(n)`, `bottom_non_empty_lines(n)`, `top_non_empty_lines(n)`, `prompt_box_body`, `above_prompt_box`, `after_last_horizontal_rule`, `osc_title` (the terminal's title) or `osc_progress` (the progress it reports), among others. The manifests Kero comes with, in [`internal/detect/manifests`](https://github.com/egoist/kero/tree/main/internal/detect/manifests), show them all.
 
 An agent whose `id` is one of Kero's, as `claude` or `codex`, replaces its rules, and its `executables` add names to those Kero knows it by.
 

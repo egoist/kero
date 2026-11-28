@@ -34,7 +34,7 @@ kero skill setup
 
 `CLAUDE_CONFIG_DIR`、`CODEBUDDY_CONFIG_DIR`、`CODEX_HOME`、`PI_CODING_AGENT_DIR`、`PI_CONFIG_DIR`、`PIG_CODING_AGENT_DIR`、`PIG_HOME`、`XDG_CONFIG_HOME` でエージェントのファイルの場所が変わっている場合、Kero はそれに従い、各設定ファイルのほかの部分はそのままにします。
 
-1 つのエージェントだけをセットアップするには、`--agent` に `claude`、`codebuddy`、`codex`、`pi`、`omp`、`pig`、`opencode` のいずれかを渡します。セットアップは一度だけです: スキルは Kero 自身のコピーへのリンクで、Kero のアップデートに合わせて更新されます。Pi、OMP、PiG、OpenCode のプラグインも Kero が最新に保ちます。`kero skill status` で、各部分が最新かどうかがわかります。
+1 つのエージェントだけをセットアップするには、`--agent` に `claude`、`codebuddy`、`codex`、`pi`、`omp`、`pig`、`opencode`、`agents` のいずれかを渡します。セットアップは一度だけです: スキルは Kero 自身のコピーへのリンクで、Kero のアップデートに合わせて更新されます。Pi、OMP、PiG、OpenCode のプラグインも Kero が最新に保ちます。`kero skill status` で、各部分が最新かどうかがわかります。
 
 ```sh
 kero skill status    # インストール済みのものと、それが最新かどうか
@@ -88,7 +88,7 @@ kero report done "Deployed to staging"
 
 ## リモート操作
 
-**リモート操作** がオン（デフォルト、**設定 › エージェント**）なら、エージェントはアプリ自体も操作できます: `kero focus` でセッションを表示したり、`kero do` でメニューのアクションを実行したりします。エージェントを自分のセッションだけにとどめるには、`remote-control = false` でオフにします。
+**リモート操作** がオン（デフォルト、**設定 › エージェント**）なら、エージェントはアプリ自体も操作できます: `kero focus` でセッションを表示したり、`kero do` でメニューのアクションを実行したり、`kero browser` でブラウザペインを操作したりします。エージェントを自分のセッションだけにとどめるには、`remote-control = false` でオフにします。
 
 ## 環境変数
 

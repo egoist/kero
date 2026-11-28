@@ -150,7 +150,7 @@ zsh は Kero の `.zshenv` から始まり、これが `ZDOTDIR` をあなたの
 | `browser-block-ads`   | `true`                     | ブラウザペインで[広告とトラッカーをブロック](./panes.md#blocking-ads)する           |
 | `browser-filter-list` | `easylist`、`easyprivacy`  | ブロックに使うフィルタリスト。リストごとに繰り返す。空欄ならなし                    |
 
-`browser-filter-list` には、Kero が提供するリストの名前か、Adblock Plus 構文の任意のリストの `https://` URL を指定します:
+`browser-filter-list` には、Kero が提供するリストの名前か、Adblock Plus 構文の任意のリストの `https://` か `http://` URL を指定します:
 
 | 名前               | リスト                                                              |
 | ------------------ | ------------------------------------------------------------------- |

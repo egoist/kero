@@ -147,7 +147,7 @@ kero daemon uninstall-service
 
 ### 远程控制
 
-`kero focus` 和 `kero do` 让程序可以操控应用。对主机而言，这意味着另一台机器上的代码在操控你电脑的窗口，因此默认关闭。可以在 **设置 › 主机** 中按主机开启，或在地址后加上 `remote-control`：
+`kero focus`、`kero do` 和 `kero browser` 让程序可以操控应用。对主机而言，这意味着另一台机器上的代码在操控你电脑的窗口，因此默认关闭。可以在 **设置 › 主机** 中按主机开启，或在地址后加上 `remote-control`：
 
 ```ini
 host = devbox=me@devbox remote-control

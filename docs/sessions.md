@@ -77,7 +77,7 @@ Kero remembers the conversations of Claude Code, Codex, CodeBuddy Code, Pi, OMP,
 - <kbd>⌘</kbd> <kbd>P</kbd> lists the last few under **Recent Conversations**, and finds older ones as you type.
 - **Session › Resume Conversation…** (<kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>O</kbd>) lists them all.
 
-Picking one starts a session in the directory and project it ran in, under the name its session had, and resumes it as the agent's own resume option would. A conversation a pane still runs takes you to that pane instead. Each conversation shows by its session's name, else by its title: Claude Code's own, or what the agent showed as the pane's title.
+Picking one starts a session in the directory and project it ran in, under the name its session had, and resumes it as the agent's own resume option would. A conversation a pane still runs takes you to that pane instead. Each conversation shows by its session's name, else by its title: Claude Code's own, Pi's, or what the agent showed as the pane's title.
 
 kerod keeps the last 200, in `conversations.json` beside its state, and each host keeps its own.
 

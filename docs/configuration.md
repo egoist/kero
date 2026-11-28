@@ -152,7 +152,7 @@ Other machines whose sessions the app shows, and `kero -H` reaches. See [Remote 
 | `browser-block-ads`   | `true`                     | [Block ads and trackers](./panes.md#blocking-ads) in browser panes                  |
 | `browser-filter-list` | `easylist`, `easyprivacy`  | A filter list to block with. Repeat it for each list; leave it empty for none       |
 
-`browser-filter-list` takes the lists Kero offers by name, or the `https://` URL of any list in Adblock Plus syntax:
+`browser-filter-list` takes the lists Kero offers by name, or the `https://` or `http://` URL of any list in Adblock Plus syntax:
 
 | Name               | List                                                                |
 | ------------------ | ------------------------------------------------------------------- |

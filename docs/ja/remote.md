@@ -145,7 +145,7 @@ Linux では、まず lingering（`loginctl enable-linger`）を有効にしま�
 
 ### リモート操作
 
-`kero focus` と `kero do` を使うと、プログラムがアプリを操作できます。ホストの場合、それは別のマシンのコードがあなたのコンピュータのウインドウを操作することになるので、デフォルトではオフです。**設定 › ホスト** でホストごとにオンにするか、アドレスの後に `remote-control` を付けます:
+`kero focus`、`kero do`、`kero browser` を使うと、プログラムがアプリを操作できます。ホストの場合、それは別のマシンのコードがあなたのコンピュータのウインドウを操作することになるので、デフォルトではオフです。**設定 › ホスト** でホストごとにオンにするか、アドレスの後に `remote-control` を付けます:
 
 ```ini
 host = devbox=me@devbox remote-control
