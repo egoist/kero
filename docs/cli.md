@@ -209,6 +209,9 @@ kero daemon status|stop|restart  # manage kerod
 kero daemon install-service      # run kerod with the machine (systemd, launchd)
 kero daemon serve                # run kerod in the foreground, for a service manager
 kero clients                     # who is connected to kerod
+kero default-terminal status|set|restore  # which app runs scripts opened
+                                # with Kero (macOS): say, make Kero it,
+                                # or put Terminal.app back
 ```
 
 ## Other machines

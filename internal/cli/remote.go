@@ -58,7 +58,7 @@ func splitHost(args []string) (host string, env bool, rest []string, err error) 
 // localOnly are the commands of this machine alone, which -H takes
 // nothing of.
 var localOnly = map[string]bool{"report": true, "actions": true, "skill": true, "hook": true, "config": true,
-	"hosts": true, "__bridge": true, "help": true, "--help": true, "-h": true}
+	"default-terminal": true, "hosts": true, "__bridge": true, "help": true, "--help": true, "-h": true}
 
 // onHost is the host the command acts on, "" for this machine: whose
 // panes $KERO_PANE and $KERO_SESSION name nothing on another.
