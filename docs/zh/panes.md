@@ -37,8 +37,11 @@ kero split --right --ratio 0.3 -- go test ./... -count=1
 | `--right`（默认）、`--down`、`--left`、`--up` | 新窗格的位置                           |
 | `-r`, `--ratio <0..1>`                | 新窗格所占的空间比例（默认 0.5）               |
 | `-d`, `--dir <dir>`                   | 在另一个目录中启动                             |
+| `-f`, `--focus`                       | 在 app 中显示它                                |
 | `-w`, `--wait`                        | 等待其命令结束，并以该命令的状态码退出         |
+| `-t`, `--timeout <dur>`               | 配合 `--wait` 使用的等待时长上限（默认：不限） |
 | `-u`, `--url <url>`                   | 打开浏览器显示该页面，而不是 shell             |
+| `--json`                              | 以 JSON 输出该会话                             |
 
 在 Kero 中运行时，`kero split` 会拆分它所在的窗格。在其他地方运行时，需要指定目标：`kero split my-session --down`。
 

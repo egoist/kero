@@ -35,7 +35,15 @@ description: Kero 的默认键盘快捷键，以及用于重新绑定的操作 i
 | 关闭                        | <kbd>⌘</kbd> <kbd>W</kbd>              | <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>W</kbd> | `pane.close`        |
 | 关闭会话                    | <kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>W</kbd> | –                                             | `session.close`     |
 
-<kbd>⌘</kbd> <kbd>1</kbd>–<kbd>9</kbd>（Windows 和 Linux 上为 <kbd>Ctrl</kbd> <kbd>1</kbd>–<kbd>9</kbd>）跳到边栏中对应的会话，<kbd>Ctrl</kbd> <kbd>Tab</kbd> 跳到下一个会话。
+<kbd>⌘</kbd> <kbd>1</kbd>–<kbd>9</kbd>（Windows 和 Linux 上为 <kbd>Ctrl</kbd> <kbd>1</kbd>–<kbd>9</kbd>）跳到边栏中对应的会话，<kbd>Ctrl</kbd> <kbd>Tab</kbd> 跳到下一个会话，<kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>Tab</kbd> 跳到上一个会话。
+
+## 编辑
+
+| 操作          | macOS                     | Windows 和 Linux                              | 操作 id          |
+| ------------- | ------------------------- | --------------------------------------------- | ---------------- |
+| 查找…         | <kbd>⌘</kbd> <kbd>F</kbd> | <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>F</kbd> | `find.open`      |
+| 查找下一个    | <kbd>⌘</kbd> <kbd>G</kbd> | –                                             | `find.next`      |
+| 查找上一个    | <kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>G</kbd> | –                                | `find.previous`  |
 
 ## 窗格
 

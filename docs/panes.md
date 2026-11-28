@@ -37,8 +37,11 @@ kero split --right --ratio 0.3 -- go test ./... -count=1
 | `--right` (default), `--down`, `--left`, `--up` | Where the new pane goes               |
 | `-r`, `--ratio <0..1>`                | The new pane's share of the space (default 0.5) |
 | `-d`, `--dir <dir>`                   | Start it in another directory                  |
+| `-f`, `--focus`                       | Show it in the app                             |
 | `-w`, `--wait`                        | Wait for its command to end, and exit with its status |
+| `-t`, `--timeout <dur>`               | With `--wait`, how long to wait (default: no limit) |
 | `-u`, `--url <url>`                   | Open a browser showing the page instead of a shell |
+| `--json`                              | Print the session as JSON                      |
 
 Run inside Kero, `kero split` splits the pane it runs in. Elsewhere, name a target: `kero split my-session --down`.
 

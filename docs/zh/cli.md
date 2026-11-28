@@ -41,9 +41,11 @@ kero restart <pane>              # 重新启动已退出窗格的 shell
 | `-d`, `--dir <dir>`         | 在该目录启动（默认为当前目录）                  |
 | `-f`, `--focus`             | 在 app 中显示它                                 |
 | `-w`, `--wait`              | 等待它的命令结束，并以该命令的退出码退出        |
+| `-t`, `--timeout <dur>`     | 配合 `--wait` 使用的等待时长上限（默认：不限） |
 | `-u`, `--url <url>`         | 打开显示该网页的浏览器，而不是 shell            |
 | `--worktree <branch>`       | 在专属的 git 工作树中、以新分支启动（[详情](./changes.md#sessions-in-their-own-worktree)） |
 | `--base <ref>`              | 工作树分支的起点（默认：默认分支）              |
+| `--json`                    | 以 JSON 输出该会话                              |
 
 ## 输入与读取
 
@@ -159,7 +161,7 @@ kero browser eval 'document.title'
 
 点击和输入发送的是真实鼠标和键盘会产生的事件，所以 React 等框架构建的页面也能收到。每个命令对任何浏览器窗格都有效，无论是否显示：对未显示在屏幕上的窗格截图，也不会夺走你手头工作的焦点。
 
-浏览器窗格共享 Cookie，并在 Kero 重启后保留。`cookies` 以 Playwright 的 storage state（JSON）保存；文件名以 `.txt` 结尾时，保存为 curl 和浏览器扩展通用的 Netscape `cookies.txt`。`load` 两者都能读。Cookie 意味着登录态：只把这个文件交给信得过你登录态的对象。Cookie 只留在这台 Mac 上，主机上的程序无法保存或读取。
+浏览器窗格共享 Cookie，并在 Kero 重启后保留。`cookies` 以 Playwright 的 storage state（JSON）保存；文件名以 `.txt` 结尾时，保存为 curl 和浏览器扩展通用的 Netscape `cookies.txt`。`load` 两者都能读。Cookie 意味着登录态：只把这个文件交给信得过你登录态的对象。Cookie 只留在这台机器上，主机上的程序无法保存或读取。
 
 和 `kero do` 一样，`kero browser` 需要开启 **设置 › 智能体** 中的 **远程控制**，并且 app 处于打开状态。
 
@@ -207,7 +209,7 @@ kero projects                    # 按边栏的顺序列出项目
 kero projects move <project> top # 移动：top、bottom、up、down 或位置（1 为顶部）
 kero skill setup                 # 教编程智能体使用 kero
 kero daemon status|stop|restart  # 管理 kerod
-kero daemon install-service      # 让 kerod 随系统启动（systemd、launchd）
+kero daemon install-service      # 让 kerod 随系统启动（systemd、launchd、任务计划程序）
 kero daemon serve                # 在前台运行 kerod，供服务管理器使用
 kero clients                     # 查看谁连接着 kerod
 ```
@@ -233,7 +235,7 @@ kero -H devbox daemon update     # 将那里的 Kero 更新到本机的版本
 
 ## 执行 app 操作
 
-`kero do` 可以执行 app 的任意操作，与菜单中的操作相同。它需要 **远程控制**，该选项在 **设置 › 智能体** 中默认开启。
+`kero do` 执行远程控制所允许的 app 操作——菜单里的操作大部分都可以，查找、关闭、打开位置这类仅限 app 内部的操作不在其中。`kero actions` 可列出它们。它需要 **远程控制**，该选项在 **设置 › 智能体** 中默认开启。
 
 ```sh
 kero actions                     # 列出所有操作
@@ -254,4 +256,4 @@ kero do sidebar.toggle
 
 等待程序的命令，即 `kero wait --exit` 和 `--wait`，改为以该程序的退出码退出；当窗格的 shell 以错误退出时，`kero wait` 也是如此。等待超时则以 `1` 退出。
 
-给 `ls`、`status` 和 `projects` 加上 `--json`，可得到便于程序处理的输出。
+给 `ls`、`status`、`projects`、`new`、`split`、`wait`、`events`、`history`、`resume`、`hosts` 和 `clients` 加上 `--json`，可得到便于程序处理的输出。

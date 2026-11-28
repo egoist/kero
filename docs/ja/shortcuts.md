@@ -35,7 +35,15 @@ Windows と Linux では、<kbd>Ctrl</kbd> と文字キーの組み合わせは�
 | 閉じる                       | <kbd>⌘</kbd> <kbd>W</kbd>              | <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>W</kbd> | `pane.close`        |
 | セッションを閉じる           | <kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>W</kbd> | –                                             | `session.close`     |
 
-<kbd>⌘</kbd> <kbd>1</kbd>–<kbd>9</kbd>（Windows と Linux では <kbd>Ctrl</kbd> <kbd>1</kbd>–<kbd>9</kbd>）でサイドバーのセッションへ、<kbd>Ctrl</kbd> <kbd>Tab</kbd> で次のセッションへ移動します。
+<kbd>⌘</kbd> <kbd>1</kbd>–<kbd>9</kbd>（Windows と Linux では <kbd>Ctrl</kbd> <kbd>1</kbd>–<kbd>9</kbd>）でサイドバーのセッションへ、<kbd>Ctrl</kbd> <kbd>Tab</kbd> で次のセッションへ、<kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>Tab</kbd> で前のセッションへ移動します。
+
+## 編集
+
+| アクション      | macOS                     | Windows と Linux                              | アクション ID    |
+| --------------- | ------------------------- | --------------------------------------------- | ---------------- |
+| 検索…           | <kbd>⌘</kbd> <kbd>F</kbd> | <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>F</kbd> | `find.open`      |
+| 次を検索        | <kbd>⌘</kbd> <kbd>G</kbd> | –                                             | `find.next`      |
+| 前を検索        | <kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>G</kbd> | –                                | `find.previous`  |
 
 ## ペイン
 
