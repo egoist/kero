@@ -1293,7 +1293,8 @@ func (a *App) newSessionOn(h *host, projectID string) {
 	case "custom":
 		p.Dir = home
 		if !h.remote() {
-			if dir := expandHome(a.set.NewSessionPath); isDir(dir) {
+			dir := expandHome(a.set.NewSessionPath)
+			if isDir, err := isDir(dir); isDir || err != nil && !errors.Is(err, os.ErrNotExist) {
 				p.Dir = dir
 			}
 		}
@@ -1320,10 +1321,15 @@ func expandHomeForOS(p, home, goos string) string {
 	return p
 }
 
-// isDir tells whether a folder exists.
-func isDir(p string) bool {
+// isDir tells whether p is a folder, and says when it could not be
+// checked: a configured session directory that cannot be looked into is
+// not one that should silently become the home directory.
+func isDir(p string) (bool, error) {
 	st, err := os.Stat(p)
-	return err == nil && st.IsDir()
+	if err != nil {
+		return false, err
+	}
+	return st.IsDir(), nil
 }
 
 // create starts a session on a host, and shows it, opening the project
