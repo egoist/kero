@@ -32,7 +32,7 @@ keybind = cmd+shift+d=pane.split.down
 ファイルには変更したものだけを書けば十分です。それ以外はデフォルトのままです。
 
 ```sh
-kero config edit              # $EDITOR で開く
+kero config edit              # $VISUAL か $EDITOR で開く
 kero config show              # すべてのキーと現在の値
 kero config check             # 不明なキー、不正な値、agents.toml の問題を報告
 ```
