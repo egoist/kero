@@ -17,7 +17,7 @@ kero skill setup
 这会安装两样东西：
 
 - 一个**技能**，教智能体使用命令行。Claude Code 从 `~/.claude/skills/kero` 读取，CodeBuddy Code 从 `~/.codebuddy/skills/kero` 读取；Codex、OpenCode 等智能体从 `~/.agents/skills/kero` 读取。
-- 一个**钩子**，在智能体开始会话时运行。它告诉智能体自己位于哪个 Kero 会话和窗格，省得它花时间去查；如果会话还没有名字，就让智能体按任务给它命名，例如 `fix-login-redirect`，不用你动手。它还会把智能体自己的会话告诉 Kero，这样 kerod 重启后（比如电脑重启之后），智能体就能[接上之前的对话](./sessions.md#kerod)。
+- 一个**钩子**，在智能体开始会话时运行。它告诉智能体自己位于哪个 Kero 会话和窗格，省得它花时间去查；如果你给会话起过名字，它也会告诉智能体不要改动。它还会把智能体自己的会话告诉 Kero，这样 kerod 重启后（比如电脑重启之后），智能体就能[接上之前的对话](./sessions.md#kerod)。
 
 对于你已安装的智能体，钩子会放在各自查找钩子的位置：
 
