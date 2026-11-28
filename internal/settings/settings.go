@@ -82,6 +82,12 @@ type Settings struct {
 	// ImageLimit is the most bytes the images a pane's programs show take,
 	// in megabytes; 0 for no limit.
 	ImageLimit int `json:"imageLimit"`
+	// QuickHistory has zsh suggest commands of its history as the user
+	// types, and list them on the Up arrow (KERO_QUICK_HISTORY).
+	QuickHistory bool `json:"quickHistory"`
+	// SyntaxHighlight has quick-history color the command as it is typed
+	// (KERO_SYNTAX_HIGHLIGHT).
+	SyntaxHighlight bool `json:"syntaxHighlighting"`
 
 	// Notifications
 	NotifyWaiting bool      `json:"notifyWaiting"` // a session needs you
@@ -188,6 +194,7 @@ func Default() Settings {
 		ScrollDiscrete:  3,
 		Scrollback:      4,
 		ImageLimit:      64,
+		SyntaxHighlight: true,
 		NotifyWaiting:   true,
 		NotifyDone:      true,
 		NotifyFailed:    true,

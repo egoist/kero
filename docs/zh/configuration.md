@@ -100,8 +100,14 @@ kero config check             # 报告未知的配置项、无效的值和agents
 | `env`              |         | 以 `NAME=value` 形式加入每个窗格的环境变量；可重复多行          |
 | `scrollback-limit` | `4`     | 每个窗格保留的回滚缓冲大小，单位 MB；`0` 表示不保留             |
 | `image-storage-limit` | `64` | 每个窗格中程序显示的图片最多占用多少，单位 MB；`0` 表示无限制   |
+| `quick-history`    | `false` | 在 zsh 中，输入时从历史中提示命令，并按 ↑ 列出它们              |
+| `syntax-highlighting` | `true` | 启用 `quick-history` 时，输入时为命令着色                     |
 
 zsh 会从 Kero 自带的一个 `.zshenv` 启动，它把 `ZDOTDIR` 还原为你的（或取消设置），并像 zsh 那样运行你的启动文件。它还会标记每个提示符的开始和结束位置，让终端在调整大小、zsh 重绘之前清除提示符。否则，像 Powerlevel10k 那样占满终端宽度的提示符，会在每个宽度下留下一份副本。
+
+设置 `quick-history = true` 后，历史中以你输入的内容开头的最新命令会以暗色接在后面显示，按 → 或 Tab 采用。按 ↑ 会在提示符下方列出包含你输入内容的命令，最新的在最下面：用 ↑ 和 ↓ 浏览，Tab 选中，Enter 运行，Esc 关闭列表。继续输入会缩小列表，你输入的部分以粗体显示。如果加载了 zsh-autosuggestions，则显示它的提示而不是 Kero 的。
+
+启用 `syntax-highlighting` 后，输入时会用主题的颜色为命令着色：命令名为绿色，不存在的命令加下划线，选项为黄色，变量为洋红色。如果加载了 zsh-syntax-highlighting，则显示它的颜色。
 
 ## 通知
 

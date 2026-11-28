@@ -579,6 +579,13 @@ func (d *Daemon) environment(sid, pid, shell string, extra []string) []string {
 		path = "/usr/bin:/bin:/usr/sbin:/sbin"
 	}
 	set("PATH=" + path + string(os.PathListSeparator) + filepath.Join(d.dir, "bin"))
+	// Kero's .zshenv installs quick-history when it is on.
+	if s := settings.Load(); s.QuickHistory {
+		set("KERO_QUICK_HISTORY=1")
+		if s.SyntaxHighlight {
+			set("KERO_SYNTAX_HIGHLIGHT=1")
+		}
+	}
 	for _, kv := range settings.Load().Env {
 		if strings.Contains(kv, "=") {
 			set(kv)

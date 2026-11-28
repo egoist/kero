@@ -126,3 +126,72 @@ func TestZshStartupFiles(t *testing.T) {
 		}
 	}
 }
+
+// With quick-history on, zsh shows the newest command that starts with
+// what is typed, which Tab takes, and lists the history on the Up arrow,
+// which Enter runs from; the Right arrow, there, does not take the list
+// for a suggestion, and neither is left on the screen; with no match, the
+// arrow goes back a command, as it would. The history holds
+// commands that do not exist, so that nothing runs.
+func TestZshQuickHistory(t *testing.T) {
+	shell, err := exec.LookPath("zsh")
+	if err != nil {
+		t.Skip("zsh not installed")
+	}
+	s := testPane(t)
+	home := t.TempDir()
+	hist := filepath.Join(home, ".zsh_history")
+	if err := os.WriteFile(hist, []byte("qhzero one\nqhls -la\nqhpn start\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	rc := "HISTFILE=" + hist + "\nHISTSIZE=100\nPS1='$ '\n"
+	if err := os.WriteFile(filepath.Join(home, ".zshrc"), []byte(rc), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	dir := filepath.Join(t.TempDir(), "zsh")
+	if err := writeZshenv(dir, ""); err != nil {
+		t.Fatal(err)
+	}
+	env := append([]string{"HOME=" + home, "TERM=xterm-256color", "LANG=C.UTF-8", "KERO_QUICK_HISTORY=1"}, zshEnv(dir)...)
+	proc, err := startPTY(ptyOptions{
+		Path: shell, Args: []string{"-zsh"}, Dir: home, Env: env,
+		Cols: s.info.Cols, Rows: s.info.Rows,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { proc.Kill() })
+	s.mu.Lock()
+	s.proc = proc
+	s.mu.Unlock()
+	go s.pump(proc)
+
+	waitFor := func(what string, ok func(string) bool) {
+		t.Helper()
+		for deadline := time.Now().Add(10 * time.Second); !ok(s.term.Text()); time.Sleep(20 * time.Millisecond) {
+			if time.Now().After(deadline) {
+				t.Fatalf("no %s: %q", what, s.term.Text())
+			}
+		}
+	}
+	has := func(text string) func(string) bool {
+		return func(screen string) bool { return strings.Contains(screen, text) }
+	}
+	waitFor("prompt", has("$"))
+	proc.Write([]byte("qhp"))
+	waitFor("suggestion", has("$ qhpn start"))
+	proc.Write([]byte("\t\r"))
+	waitFor("the suggestion run", has("$ qhpn start\nzsh: command not found: qhpn"))
+
+	proc.Write([]byte("\x1b[A"))
+	waitFor("history list", func(screen string) bool {
+		return strings.Contains(screen, "qhls -la") && strings.Contains(screen, "to dismiss")
+	})
+	proc.Write([]byte("\x1b[A\x1b[C\r"))
+	waitFor("the older command run", has("$ qhls -la\nzsh: command not found: qhls\n$"))
+	waitFor("the list gone", func(screen string) bool { return !strings.Contains(screen, "to dismiss") })
+
+	// With nothing in the history to list, the arrow goes back a command.
+	proc.Write([]byte("qhnothing\x1b[A"))
+	waitFor("the previous command", func(screen string) bool { return strings.Count(screen, "$ qhls -la") == 2 })
+}

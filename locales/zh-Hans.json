@@ -668,5 +668,9 @@
   "setShortcutGlobal": "在任何应用中都可用",
   "commonUnlimited": "无限制",
   "setImageLimit": "图片上限",
-  "setImageLimitDetail": "每个窗格中程序显示的图片最多占用多少。"
+  "setImageLimitDetail": "每个窗格中程序显示的图片最多占用多少。",
+  "setQuickHistory": "快速历史",
+  "setQuickHistoryDetail": "在 zsh 中，以你输入的内容开头的最新命令会接在后面显示，按 → 或 Tab 采用。按 ↑ 列出包含你输入内容的命令。",
+  "setSyntaxHighlight": "语法高亮",
+  "setSyntaxHighlightDetail": "输入时用主题的颜色为命令着色：命令名为绿色，不存在的命令加下划线。"
 }

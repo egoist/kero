@@ -69,6 +69,8 @@ func settingsIndex() []searchEntry {
 
 		{"shell", locales.SetShell(), "command fish zsh bash login"},
 		{"shell", locales.SetScrollback(), "scrollback-limit history buffer lines memory"},
+		{"shell", locales.SetQuickHistory(), "quick-history zsh autosuggest suggestion complete up arrow"},
+		{"shell", locales.SetSyntaxHighlight(), "syntax-highlighting zsh color command"},
 		{"shell", locales.SetImageLimit(), "image-storage-limit image-limit kitty graphics images pictures memory"},
 		{"shell", locales.SetEnvironment(), "env variables path"},
 
